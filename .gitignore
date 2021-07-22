@@ -1,0 +1,6 @@
+windows/.vs
+windows/x64
+*.dll
+*.lib
+*.pdb
+*.exp

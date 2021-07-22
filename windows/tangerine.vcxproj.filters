@@ -1,0 +1,42 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Backend">
+      <UniqueIdentifier>{f21379a7-75c8-4ee2-9d44-48fa5042a452}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Third Party">
+      <UniqueIdentifier>{4235e133-18c8-46cc-8dff-06f7bed8c229}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Third Party\Glad">
+      <UniqueIdentifier>{58c3769a-2133-4993-a33b-31c878253c60}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\third_party\glad\glad.c">
+      <Filter>Third Party\Glad</Filter>
+    </ClCompile>
+    <ClCompile Include="..\backend\backend.cpp">
+      <Filter>Backend</Filter>
+    </ClCompile>
+    <ClCompile Include="..\backend\gl_boilerplate.cpp">
+      <Filter>Backend</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\third_party\glad\glad.h">
+      <Filter>Third Party\Glad</Filter>
+    </ClInclude>
+    <ClInclude Include="..\third_party\glad\khrplatform.h">
+      <Filter>Third Party\Glad</Filter>
+    </ClInclude>
+    <ClInclude Include="..\backend\backend.h">
+      <Filter>Backend</Filter>
+    </ClInclude>
+    <ClInclude Include="..\backend\gl_boilerplate.h">
+      <Filter>Backend</Filter>
+    </ClInclude>
+    <ClInclude Include="..\backend\errors.h">
+      <Filter>Backend</Filter>
+    </ClInclude>
+  </ItemGroup>
+</Project>
