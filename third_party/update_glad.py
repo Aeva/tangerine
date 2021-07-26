@@ -1,20 +1,7 @@
 
 import subprocess
 
-def download_glad(extensions, debug):
-    params = {
-        "out-path" : "glad",
-        "profile" : "core",
-        "api" : "gl=4.2",
-        "generator" : "c-debug" if debug else "c",
-        "spec" : "gl",
-        "extensions" : f"{','.join(extensions)}",
-    }
-    glad = ["python", "-m glad", "--local-files"] + [f" --{n}={v}" for (n,v) in params.items()]
-    subprocess.call(" ".join(glad), shell=True)
-
-
-if __name__ == "__main__":
+def opengl_params(debug):
     extensions = \
     sorted([
         "GL_ARB_buffer_storage",
@@ -29,4 +16,38 @@ if __name__ == "__main__":
         "GL_ARB_shader_storage_buffer_object",
         "GL_KHR_debug",
     ])
-    download_glad(extensions, False)
+    return {
+        "out-path" : "glad",
+        "profile" : "core",
+        "api" : "gl=4.2",
+        "generator" : "c-debug" if debug else "c",
+        "spec" : "gl",
+        "extensions" : f"{','.join(extensions)}",
+    }
+
+
+def wgl_params(debug):
+    extensions = \
+    sorted([
+        "WGL_EXT_extensions_string",
+        "WGL_ARB_extensions_string",
+        "WGL_ARB_create_context",
+        "WGL_ARB_create_context_profile",
+    ])
+    return {
+        "out-path" : "glad",
+        "api" : "wgl=1.0",
+        "generator" : "c-debug" if debug else "c",
+        "spec" : "wgl",
+        "extensions" : f"{','.join(extensions)}",
+    }
+
+
+def download_glad(params):
+    glad = ["python", "-m glad", "--local-files"] + [f" --{n}={v}" for (n,v) in params.items()]
+    subprocess.call(" ".join(glad), shell=True)
+
+
+if __name__ == "__main__":
+    download_glad(wgl_params(False))
+    download_glad(opengl_params(False))
