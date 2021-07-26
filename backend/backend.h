@@ -21,7 +21,7 @@
 extern "C" StatusCode __declspec(dllexport) Setup();
 
 
-extern "C" StatusCode __declspec(dllexport) Render(double CurrentTime, int Width, int Height);
+extern "C" void __declspec(dllexport) Resize(int NewWidth, int NewHeight);
 
 
 extern "C" void __declspec(dllexport) Shutdown();

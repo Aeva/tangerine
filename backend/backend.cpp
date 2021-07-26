@@ -21,6 +21,7 @@
 #include <iostream>
 #include <vector>
 #include <thread>
+#include <atomic>
 #include "backend.h"
 #include "gl_boilerplate.h"
 
@@ -45,7 +46,7 @@ StatusCode Recontextualize()
 
 		// Request Core Profile
 		ContextAttributes.push_back(WGL_CONTEXT_PROFILE_MASK_ARB);
-		ContextAttributes.push_back(1);
+		ContextAttributes.push_back(WGL_CONTEXT_CORE_PROFILE_BIT_ARB);
 
 		// Terminate attributes list.
 		ContextAttributes.push_back(0);
@@ -90,6 +91,54 @@ StatusCode SetupInner()
 }
 
 
+std::atomic_bool RenderThreadLive = true;
+std::atomic_int ScreenWidth = 200;
+std::atomic_int ScreenHeight = 200;
+std::thread* RenderThread;
+void Renderer()
+{
+#if _WIN64
+	wglMakeCurrent(RacketDeviceContext, UpgradedContext);
+#endif
+
+	while (RenderThreadLive.load())
+	{
+		static int Width = 0;
+		static int Height = 0;
+		{
+			int NewWidth = ScreenWidth.load();
+			int NewHeight = ScreenHeight.load();
+			if (NewWidth != Width || NewHeight != Height)
+			{
+				Width = NewWidth;
+				Height = NewHeight;
+				glViewport(0, 0, Width, Height);
+			}
+		}
+
+		{
+			ViewInfoUpload BufferData = {
+				glm::vec4(Width, Height, 1.0f / Width, 1.0f / Height),
+			};
+			ViewInfo.Upload((void*)&BufferData, sizeof(BufferData));
+			ViewInfo.Bind(GL_UNIFORM_BUFFER, 0);
+		}
+
+		{
+			glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Test Draw Pass");
+			TestShader.Activate();
+			glDrawArrays(GL_TRIANGLES, 0, 3);
+			glPopDebugGroup();
+		}
+
+		glFinish();
+#if _WIN64
+		SwapBuffers(RacketDeviceContext);
+#endif
+	}
+}
+
+
 // Load OpenGL and then perform additional setup.
 StatusCode Setup()
 {
@@ -107,7 +156,10 @@ StatusCode Setup()
 			std::cout << glGetString(GL_RENDERER) << "\n";
 			std::cout << glGetString(GL_VERSION) << "\n";
 
-			return SetupInner();
+			RETURN_ON_FAIL(SetupInner());
+
+			RenderThread = new std::thread(Renderer);
+			return StatusCode::PASS;
 		}
 		else
 		{
@@ -118,50 +170,17 @@ StatusCode Setup()
 }
 
 
-StatusCode Render(double CurrentTime, int Width, int Height)
+void Resize(int NewWidth, int NewHeight)
 {
-#if _WIN64
-	wglMakeCurrent(RacketDeviceContext, UpgradedContext);
-#endif
-
-	static double LastTime = CurrentTime;
-	double DeltaTime = CurrentTime - LastTime;
-	LastTime = CurrentTime;
-
-	static int LastWidth = 0;
-	static int LastHeight = 0;
-	if (Width != LastWidth || Height != LastHeight)
-	{
-		LastWidth = Width;
-		LastHeight = Height;
-		glViewport(0, 0, Width, Height);
-	}
-
-	{
-		ViewInfoUpload BufferData = {
-			glm::vec4(Width, Height, 1.0f / Width, 1.0f / Height),
-		};
-		ViewInfo.Upload((void*)&BufferData, sizeof(BufferData));
-		ViewInfo.Bind(GL_UNIFORM_BUFFER, 0);
-	}
-
-	{
-		glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Test Draw Pass");
-		TestShader.Activate();
-		glDrawArrays(GL_TRIANGLES, 0, 3);
-		glPopDebugGroup();
-	}
-
-	glFinish();
-#if _WIN64
-	SwapBuffers(RacketDeviceContext);
-#endif
-	return StatusCode::PASS;
+	ScreenWidth.store(NewWidth);
+	ScreenHeight.store(NewHeight);
 }
 
 
 void Shutdown()
 {
 	std::cout << "Shutting down...\n";
+	RenderThreadLive.store(false);
+	RenderThread->join();
 	wglDeleteContext(UpgradedContext);
 }

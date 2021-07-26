@@ -20,7 +20,7 @@
 ; Functions provided by the backend dll.
 (define-ffi-definer define-backend (ffi-lib "tangerine.dll"))
 (define-backend Setup (_fun -> _int))
-(define-backend Render (_fun _double _int _int -> _int))
+(define-backend Resize (_fun _int _int -> _int))
 (define-backend Shutdown (_fun -> _void))
 
 ; Access the GL canvas's gl context.
@@ -32,8 +32,7 @@
   (new
    (class frame% (super-new)
      (define/augment (on-close)
-       (send (get-gl-context) call-as-current Shutdown)
-       (send heart-beat stop)))
+       (send (get-gl-context) call-as-current Shutdown)))
    [label "Tangerine"]))
 
 ; The OpenGL context will be created the core profile and no depth buffer.
@@ -56,30 +55,14 @@
        [style (list 'gl 'no-autoclear)]
        [gl-config gl-config]
        [min-width 200]
-       [min-height 200]))
+       [min-height 200]
+       [paint-callback
+        (lambda (canvas dc)
+          (let-values ([(width height) (send canvas get-gl-client-size)])
+            (Resize width height)))]))
 
 ; Show the main window.
 (send frame show #t)
 
 ; Initialize OpenGL.
 (verify "Setup" (get-gl-context) Setup)
-
-; Frame rendering callback.
-(define (render-callback)
-  (define (render-inner)
-    (let-values ([(width height) (send canvas get-gl-client-size)]
-                 [(current-time) (current-inexact-milliseconds)])
-      (Render current-time width height)))
-  
-  (define (on-paint canvas)
-    (let ([gl-ctx (get-gl-context)])
-      (verify "Render" gl-ctx render-inner)))
-  
-  (send canvas refresh-now on-paint)
-  (yield))
-
-; Frame scheduler.  Render calls glFinish to ensure the correct cadence.
-(define heart-beat
-  (new timer%
-       [notify-callback render-callback]
-       [interval 0]))
