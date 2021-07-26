@@ -34,7 +34,7 @@
      (define/augment (on-close)
        (send (get-gl-context) call-as-current Shutdown)
        (send heart-beat stop)))
-   [label "Racket With External OpenGL Example"]))
+   [label "Tangerine"]))
 
 ; The OpenGL context will be created the core profile and no depth buffer.
 (define gl-config (new gl-config%))
@@ -73,8 +73,7 @@
   
   (define (on-paint canvas)
     (let ([gl-ctx (get-gl-context)])
-      (verify "Render" gl-ctx render-inner)
-      (send gl-ctx swap-buffers)))
+      (verify "Render" gl-ctx render-inner)))
   
   (send canvas refresh-now on-paint)
   (yield))

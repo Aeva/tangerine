@@ -13,11 +13,84 @@
 // See the License for the specific language governing permissionsand
 // limitations under the License.
 
+#if _WIN64
+#include <glad/glad_wgl.h>
+#endif
 #include <glad/glad.h>
+#include <glm/vec4.hpp>
 #include <iostream>
+#include <vector>
+#include <thread>
 #include "backend.h"
+#include "gl_boilerplate.h"
 
 
+#if _WIN64
+HDC RacketDeviceContext;
+HGLRC UpgradedContext;
+
+StatusCode Recontextualize()
+{
+	RacketDeviceContext = wglGetCurrentDC();
+	HGLRC RacketGLContext = wglGetCurrentContext();
+	if (gladLoadWGL(RacketDeviceContext))
+	{
+		std::vector<int> ContextAttributes;
+
+		// Request OpenGL 4.2
+		ContextAttributes.push_back(WGL_CONTEXT_MAJOR_VERSION_ARB);
+		ContextAttributes.push_back(4);
+		ContextAttributes.push_back(WGL_CONTEXT_MINOR_VERSION_ARB);
+		ContextAttributes.push_back(2);
+
+		// Request Core Profile
+		ContextAttributes.push_back(WGL_CONTEXT_PROFILE_MASK_ARB);
+		ContextAttributes.push_back(1);
+
+		// Terminate attributes list.
+		ContextAttributes.push_back(0);
+
+		UpgradedContext = wglCreateContextAttribsARB(RacketDeviceContext, RacketGLContext, ContextAttributes.data());
+		wglMakeCurrent(RacketDeviceContext, UpgradedContext);
+		return StatusCode::PASS;
+	}
+	else
+	{
+		std::cout << "Unable to create a modern OpenGL context :(\n";
+		return StatusCode::FAIL;
+	}
+}
+#endif
+
+
+GLuint NullVAO;
+ShaderPipeline TestShader;
+Buffer ViewInfo("ViewInfo Buffer");
+
+
+struct ViewInfoUpload
+{
+	glm::vec4 ScreenSize;
+};
+
+
+// Application specific setup stuff.
+StatusCode SetupInner()
+{
+	// For drawing without a VBO bound.
+	glGenVertexArrays(1, &NullVAO);
+	glBindVertexArray(NullVAO);
+
+	RETURN_ON_FAIL(TestShader.Setup(
+		{ {GL_VERTEX_SHADER, "shaders/test.vs.glsl"},
+		  {GL_FRAGMENT_SHADER, "shaders/test.fs.glsl"} },
+		"Test Shader"));
+
+	return StatusCode::PASS;
+}
+
+
+// Load OpenGL and then perform additional setup.
 StatusCode Setup()
 {
 	static bool Initialized = false;
@@ -25,10 +98,16 @@ StatusCode Setup()
 	{
 		Initialized = true;
 
+#if _WIN64
+		RETURN_ON_FAIL(Recontextualize());
+#endif
+
 		if (gladLoadGL())
 		{
 			std::cout << glGetString(GL_RENDERER) << "\n";
 			std::cout << glGetString(GL_VERSION) << "\n";
+
+			return SetupInner();
 		}
 		else
 		{
@@ -36,21 +115,47 @@ StatusCode Setup()
 			return StatusCode::FAIL;
 		}
 	}
-	return StatusCode::PASS;
 }
 
 
 StatusCode Render(double CurrentTime, int Width, int Height)
 {
+#if _WIN64
+	wglMakeCurrent(RacketDeviceContext, UpgradedContext);
+#endif
+
 	static double LastTime = CurrentTime;
 	double DeltaTime = CurrentTime - LastTime;
 	LastTime = CurrentTime;
-	std::cout << DeltaTime << "\n";
 
-	glClearColor(1.0, 0.0, 1.0, 1.0);
-	glClear(GL_COLOR_BUFFER_BIT);
+	static int LastWidth = 0;
+	static int LastHeight = 0;
+	if (Width != LastWidth || Height != LastHeight)
+	{
+		LastWidth = Width;
+		LastHeight = Height;
+		glViewport(0, 0, Width, Height);
+	}
+
+	{
+		ViewInfoUpload BufferData = {
+			glm::vec4(Width, Height, 1.0f / Width, 1.0f / Height),
+		};
+		ViewInfo.Upload((void*)&BufferData, sizeof(BufferData));
+		ViewInfo.Bind(GL_UNIFORM_BUFFER, 0);
+	}
+
+	{
+		glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Test Draw Pass");
+		TestShader.Activate();
+		glDrawArrays(GL_TRIANGLES, 0, 3);
+		glPopDebugGroup();
+	}
 
 	glFinish();
+#if _WIN64
+	SwapBuffers(RacketDeviceContext);
+#endif
 	return StatusCode::PASS;
 }
 
@@ -58,4 +163,5 @@ StatusCode Render(double CurrentTime, int Width, int Height)
 void Shutdown()
 {
 	std::cout << "Shutting down...\n";
+	wglDeleteContext(UpgradedContext);
 }

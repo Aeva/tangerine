@@ -10,6 +10,12 @@
     <Filter Include="Third Party\Glad">
       <UniqueIdentifier>{58c3769a-2133-4993-a33b-31c878253c60}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Third Party\GLM">
+      <UniqueIdentifier>{aa067325-ce41-4fff-824a-ff78a60e4758}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Shaders">
+      <UniqueIdentifier>{0f091ee7-754e-45f3-aa77-f3e8e764b329}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\third_party\glad\glad.c">
@@ -20,6 +26,9 @@
     </ClCompile>
     <ClCompile Include="..\backend\gl_boilerplate.cpp">
       <Filter>Backend</Filter>
+    </ClCompile>
+    <ClCompile Include="..\third_party\glad\glad_wgl.c">
+      <Filter>Third Party\Glad</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -38,5 +47,19 @@
     <ClInclude Include="..\backend\errors.h">
       <Filter>Backend</Filter>
     </ClInclude>
+    <ClInclude Include="..\third_party\glm\glm.hpp">
+      <Filter>Third Party\GLM</Filter>
+    </ClInclude>
+    <ClInclude Include="..\third_party\glad\glad_wgl.h">
+      <Filter>Third Party\Glad</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\shaders\test.fs.glsl">
+      <Filter>Shaders</Filter>
+    </None>
+    <None Include="..\shaders\test.vs.glsl">
+      <Filter>Shaders</Filter>
+    </None>
   </ItemGroup>
 </Project>

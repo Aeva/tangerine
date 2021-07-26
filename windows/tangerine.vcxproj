@@ -79,12 +79,12 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <LinkIncremental>true</LinkIncremental>
     <SourcePath>$(ProjectDir)..\backend;$(VC_SourcePath)</SourcePath>
-    <OutDir>$(SolutionDir)..</OutDir>
+    <OutDir>$(SolutionDir)..\</OutDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <LinkIncremental>false</LinkIncremental>
     <SourcePath>$(ProjectDir)..\backend;$(VC_SourcePath)</SourcePath>
-    <OutDir>$(SolutionDir)..</OutDir>
+    <OutDir>$(SolutionDir)..\</OutDir>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -125,6 +125,7 @@
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalDependencies>opengl32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -142,19 +143,27 @@
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalDependencies>opengl32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="..\backend\backend.cpp" />
     <ClCompile Include="..\backend\gl_boilerplate.cpp" />
     <ClCompile Include="..\third_party\glad\glad.c" />
+    <ClCompile Include="..\third_party\glad\glad_wgl.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\backend\backend.h" />
     <ClInclude Include="..\backend\errors.h" />
     <ClInclude Include="..\backend\gl_boilerplate.h" />
     <ClInclude Include="..\third_party\glad\glad.h" />
+    <ClInclude Include="..\third_party\glad\glad_wgl.h" />
     <ClInclude Include="..\third_party\glad\khrplatform.h" />
+    <ClInclude Include="..\third_party\glm\glm.hpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\shaders\test.fs.glsl" />
+    <None Include="..\shaders\test.vs.glsl" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
