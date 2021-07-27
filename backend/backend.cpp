@@ -20,6 +20,7 @@
 #include <glm/vec4.hpp>
 #include <iostream>
 #include <vector>
+#include <chrono>
 #include <thread>
 #include <atomic>
 #include "backend.h"
@@ -72,6 +73,7 @@ Buffer ViewInfo("ViewInfo Buffer");
 struct ViewInfoUpload
 {
 	glm::vec4 ScreenSize;
+	float CurrentTime;
 };
 
 
@@ -103,6 +105,27 @@ void Renderer()
 
 	while (RenderThreadLive.load())
 	{
+		double DeltaTime;
+		double CurrentTime;
+		{
+			using Clock = std::chrono::high_resolution_clock;
+			static Clock::time_point StartTimePoint = Clock::now();
+			static Clock::time_point LastTimePoint = StartTimePoint;
+			Clock::time_point CurrentTimePoint = Clock::now();
+			{
+				std::chrono::duration<double, std::milli> FrameDelta = CurrentTimePoint - LastTimePoint;
+				DeltaTime = FrameDelta.count();
+			}
+			{
+				std::chrono::duration<double, std::milli> EpochDelta = CurrentTimePoint - StartTimePoint;
+				CurrentTime = EpochDelta.count();
+			}
+			LastTimePoint = CurrentTimePoint;
+		}
+
+		static int FrameNumber = 0;
+		++FrameNumber;
+
 		static int Width = 0;
 		static int Height = 0;
 		{
@@ -119,6 +142,7 @@ void Renderer()
 		{
 			ViewInfoUpload BufferData = {
 				glm::vec4(Width, Height, 1.0f / Width, 1.0f / Height),
+				CurrentTime,
 			};
 			ViewInfo.Upload((void*)&BufferData, sizeof(BufferData));
 			ViewInfo.Bind(GL_UNIFORM_BUFFER, 0);

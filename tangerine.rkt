@@ -54,8 +54,8 @@
        [parent frame]
        [style (list 'gl 'no-autoclear)]
        [gl-config gl-config]
-       [min-width 200]
-       [min-height 200]
+       [min-width 512]
+       [min-height 512]
        [paint-callback
         (lambda (canvas dc)
           (let-values ([(width height) (send canvas get-gl-client-size)])
