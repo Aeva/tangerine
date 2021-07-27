@@ -17,7 +17,11 @@
 #include <glad/glad_wgl.h>
 #endif
 #include <glad/glad.h>
+#include <glm/vec3.hpp>
 #include <glm/vec4.hpp>
+#include <glm/mat4x4.hpp>
+#include <glm/ext/matrix_transform.hpp>
+#include <glm/ext/matrix_clip_space.hpp>
 #include <iostream>
 #include <vector>
 #include <chrono>
@@ -72,6 +76,11 @@ Buffer ViewInfo("ViewInfo Buffer");
 
 struct ViewInfoUpload
 {
+	glm::mat4 WorldToView;
+	glm::mat4 ViewToWorld;
+	glm::mat4 ViewToClip;
+	glm::mat4 ClipToView;
+	glm::vec4 CameraOrigin;
 	glm::vec4 ScreenSize;
 	float CurrentTime;
 };
@@ -140,7 +149,22 @@ void Renderer()
 		}
 
 		{
+			const glm::vec3 CameraOrigin = glm::vec3(0.0, -5.0, 0.0);
+			const glm::vec3 CameraFocus = glm::vec3(0.0, 0.0, 0.0);
+			const glm::vec3 UpVector = glm::vec3(0.0, 0.0, 1.0);
+			const glm::mat4 WorldToView = glm::lookAt(CameraOrigin, CameraFocus, UpVector);
+			const glm::mat4 ViewToWorld = glm::inverse(WorldToView);
+
+			const float AspectRatio = Width / Height;
+			const glm::mat4 ViewToClip = glm::infinitePerspective(glm::radians(45.f), AspectRatio, 1.0f);
+			const glm::mat4 ClipToView = inverse(ViewToClip);
+
 			ViewInfoUpload BufferData = {
+				WorldToView,
+				ViewToWorld,
+				ViewToClip,
+				ClipToView,
+				glm::vec4(CameraOrigin, 1.0f),
 				glm::vec4(Width, Height, 1.0f / Width, 1.0f / Height),
 				CurrentTime,
 			};
