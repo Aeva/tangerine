@@ -155,7 +155,7 @@ void Renderer()
 			const glm::mat4 WorldToView = glm::lookAt(CameraOrigin, CameraFocus, UpVector);
 			const glm::mat4 ViewToWorld = glm::inverse(WorldToView);
 
-			const float AspectRatio = Width / Height;
+			const float AspectRatio = float(Width) / float(Height);
 			const glm::mat4 ViewToClip = glm::infinitePerspective(glm::radians(45.f), AspectRatio, 1.0f);
 			const glm::mat4 ClipToView = inverse(ViewToClip);
 
