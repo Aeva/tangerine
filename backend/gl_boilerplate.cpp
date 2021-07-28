@@ -327,6 +327,20 @@ void ShaderPipeline::Activate()
 }
 
 
+void ShaderPipeline::Reset()
+{
+	glBindProgramPipeline(0);
+	glDeleteProgramPipelines(1, &PipelineID);
+	PipelineID = 0;
+	for (const auto& Program : Stages)
+	{
+		glDeleteProgram(Program.second);
+	}
+	Stages.clear();
+	BindingPoints.clear();
+}
+
+
 Buffer::Buffer(const char* InDebugName)
 	: BufferID(0)
 	, LastSize(0)

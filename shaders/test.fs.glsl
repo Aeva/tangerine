@@ -55,7 +55,7 @@ void main()
 	for (int i = 0; i < 100; ++i)
 	{
 		Position = EyeRay * Travel + CameraOrigin.xyz;
-		float Dist = SphereDist(Position, 1.5);
+		float Dist = SceneDist(Position);
 		if (Dist <= 0.0001)
 		{
 			Hit = true;

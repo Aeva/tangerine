@@ -58,6 +58,7 @@ struct ShaderPipeline
 
 	StatusCode Setup(std::map<GLenum, ShaderSource> Shaders, const char* PipelineName);
 	void Activate();
+	void Reset();
 };
 
 

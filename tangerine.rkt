@@ -20,7 +20,8 @@
 ; Functions provided by the backend dll.
 (define-ffi-definer define-backend (ffi-lib "tangerine.dll"))
 (define-backend Setup (_fun -> _int))
-(define-backend Resize (_fun _int _int -> _int))
+(define-backend Resize (_fun _int _int -> _void))
+(define-backend NewShader (_fun _string/utf-8 -> _void))
 (define-backend Shutdown (_fun -> _void))
 
 ; Access the GL canvas's gl context.
@@ -66,3 +67,6 @@
 
 ; Initialize OpenGL.
 (verify "Setup" (get-gl-context) Setup)
+
+; Send a new program.
+(NewShader "float SceneDist(vec3 Point)\n{\n\treturn SphereDist(Point, 1.8);\n}\n")

@@ -24,4 +24,7 @@ extern "C" StatusCode __declspec(dllexport) Setup();
 extern "C" void __declspec(dllexport) Resize(int NewWidth, int NewHeight);
 
 
+extern "C" void __declspec(dllexport) NewShader(const char* GeneratedSource);
+
+
 extern "C" void __declspec(dllexport) Shutdown();

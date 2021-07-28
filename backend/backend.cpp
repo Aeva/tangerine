@@ -27,6 +27,7 @@
 #include <chrono>
 #include <thread>
 #include <atomic>
+#include <mutex>
 #include "backend.h"
 #include "gl_boilerplate.h"
 
@@ -96,7 +97,7 @@ StatusCode SetupInner()
 	std::string SimpleScene = \
 		"float SceneDist(vec3 Point)\n"
 		"{\n"
-		"	return SphereDist(Point, 1.8);\n"
+		"	return SphereDist(Point, 0.1);\n"
 		"}\n";
 
 	RETURN_ON_FAIL(TestShader.Setup(
@@ -105,6 +106,32 @@ StatusCode SetupInner()
 		"Test Shader"));
 
 	return StatusCode::PASS;
+}
+
+
+std::mutex NewShaderLock;
+std::atomic_bool NewShaderReady;
+std::string NewShaderSource;
+void SetupNewShader()
+{
+	NewShaderLock.lock();
+	ShaderPipeline NewShader;
+	StatusCode Result = NewShader.Setup(
+		{ {GL_VERTEX_SHADER, ShaderSource("shaders/test.vs.glsl", true)},
+		  {GL_FRAGMENT_SHADER, GeneratedShader("shaders/math.glsl", NewShaderSource, "shaders/test.fs.glsl")} },
+		"Generated Shader");
+	NewShaderReady.store(false);
+	NewShaderLock.unlock();
+
+	if (Result == StatusCode::FAIL)
+	{
+		NewShader.Reset();
+	}
+	else
+	{
+		TestShader.Reset();
+		TestShader = NewShader;
+	}
 }
 
 
@@ -120,6 +147,11 @@ void Renderer()
 
 	while (RenderThreadLive.load())
 	{
+		if (NewShaderReady.load())
+		{
+			SetupNewShader();
+		}
+
 		double DeltaTime;
 		double CurrentTime;
 		{
@@ -185,7 +217,6 @@ void Renderer()
 			glPopDebugGroup();
 		}
 
-		glFinish();
 #if _WIN64
 		SwapBuffers(RacketDeviceContext);
 #endif
@@ -228,6 +259,15 @@ void Resize(int NewWidth, int NewHeight)
 {
 	ScreenWidth.store(NewWidth);
 	ScreenHeight.store(NewHeight);
+}
+
+
+void NewShader(const char* GeneratedSource)
+{
+	NewShaderLock.lock();
+	NewShaderSource = GeneratedSource;
+	NewShaderReady.store(true);
+	NewShaderLock.unlock();
 }
 
 
