@@ -93,9 +93,15 @@ StatusCode SetupInner()
 	glGenVertexArrays(1, &NullVAO);
 	glBindVertexArray(NullVAO);
 
+	std::string SimpleScene = \
+		"float SceneDist(vec3 Point)\n"
+		"{\n"
+		"	return SphereDist(Point, 1.8);\n"
+		"}\n";
+
 	RETURN_ON_FAIL(TestShader.Setup(
 		{ {GL_VERTEX_SHADER, ShaderSource("shaders/test.vs.glsl", true)},
-		  {GL_FRAGMENT_SHADER, ShaderSource("shaders/test.fs.glsl", true)} },
+		  {GL_FRAGMENT_SHADER, GeneratedShader("shaders/math.glsl", SimpleScene, "shaders/test.fs.glsl")} },
 		"Test Shader"));
 
 	return StatusCode::PASS;

@@ -162,6 +162,7 @@
     <ClInclude Include="..\third_party\glm\glm.hpp" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="..\shaders\math.glsl" />
     <None Include="..\shaders\test.fs.glsl" />
     <None Include="..\shaders\test.vs.glsl" />
   </ItemGroup>

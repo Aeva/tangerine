@@ -1,4 +1,3 @@
---------------------------------------------------------------------------------
 
 // Copyright 2021 Aeva Palecek
 //
@@ -15,15 +14,7 @@
 // limitations under the License.
 
 
-out gl_PerVertex
+float SphereDist(vec3 Point, float Radius)
 {
-	vec4 gl_Position;
-	float gl_PointSize;
-	float gl_ClipDistance[];
-};
-
-
-void main()
-{
-	gl_Position = vec4(-1.0 + float((gl_VertexID & 1) << 2), -1.0 + float((gl_VertexID & 2) << 1), 0, 1);
+	return length(Point) - Radius;
 }
