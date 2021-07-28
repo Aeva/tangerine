@@ -19,6 +19,17 @@
 #include "gl_boilerplate.h"
 
 
+ShaderSource GeneratedShader(std::string PrePath, std::string Generated, std::string PostPath)
+{
+	std::vector<ShaderSource> Sources = {
+		ShaderSource(PrePath, true),
+		ShaderSource(Generated, false),
+		ShaderSource(PostPath, true)
+	};
+	return ShaderSource(Sources);
+}
+
+
 std::string GetInfoLog(GLuint ObjectId)
 {
 	GLint LogLength;
@@ -154,6 +165,29 @@ StatusCode FillSources(std::vector<std::string>& BreadCrumbs, std::vector<std::s
 }
 
 
+StatusCode RouteSource(std::vector<std::string>& BreadCrumbs, std::vector<std::string>& Index, std::vector<std::string>& Sources, const ShaderSource& Source)
+{
+	if (Source.Mode == ShaderSource::Variant::PATH)
+	{
+		RETURN_ON_FAIL(FillSources(BreadCrumbs, Index, Sources, Source.Source));
+	}
+	else if (Source.Mode == ShaderSource::Variant::STR)
+	{
+		Sources.push_back(Source.Source);
+		Index.push_back("(unknown string source)");
+		return StatusCode::PASS;
+	}
+	else if (Source.Mode == ShaderSource::Variant::LIST)
+	{
+		for (const ShaderSource& Page : Source.Composite)
+		{
+			RETURN_ON_FAIL(RouteSource(BreadCrumbs, Index, Sources, Page));
+		}
+		return StatusCode::PASS;
+	}
+}
+
+
 const std::string GetShaderExtensions(GLenum ShaderType)
 {
 	std::string Version = "#version 420\n";
@@ -211,7 +245,7 @@ const std::string GetShaderExtensions(GLenum ShaderType)
 }
 
 
-StatusCode CompileShader(GLenum ShaderType, std::string Path, GLuint& ProgramID)
+StatusCode CompileShader(GLenum ShaderType, const ShaderSource& Source, GLuint& ProgramID)
 {
 	const std::string Extensions = GetShaderExtensions(ShaderType);
 
@@ -220,7 +254,8 @@ StatusCode CompileShader(GLenum ShaderType, std::string Path, GLuint& ProgramID)
 	std::vector<std::string> Index;
 	Sources.push_back(Extensions);
 	Index.push_back("(generated block)");
-	RETURN_ON_FAIL(FillSources(BreadCrumbs, Index, Sources, Path));
+
+	RouteSource(BreadCrumbs, Index, Sources, Source);
 
 	const int Count = Sources.size();
 	std::vector<const char*> Strings;
@@ -230,13 +265,6 @@ StatusCode CompileShader(GLenum ShaderType, std::string Path, GLuint& ProgramID)
 		Strings.push_back(Sources[i].c_str());
 	}
 	ProgramID = glCreateShaderProgramv(ShaderType, Count, Strings.data());
-	{
-		const size_t Start = Path.find_last_of("/") + 1;
-		const size_t End = Path.find_last_of(".");
-		const size_t Span = End > Start ? End - Start : -1;
-		std::string ProgramName = Path.substr(Start, Span);
-		glObjectLabel(GL_PROGRAM, ProgramID, -1, ProgramName.c_str());
-	}
 
 	GLint LinkStatus;
 	glGetProgramiv(ProgramID, GL_LINK_STATUS, &LinkStatus);
@@ -271,7 +299,7 @@ GLuint ShaderModeBit(GLenum ShaderMode)
 }
 
 
-StatusCode ShaderPipeline::Setup(std::map<GLenum, std::string> Shaders, const char* PipelineName)
+StatusCode ShaderPipeline::Setup(std::map<GLenum, ShaderSource> Shaders, const char* PipelineName)
 {
 	glCreateProgramPipelines(1, &PipelineID);
 	glObjectLabel(GL_PROGRAM_PIPELINE, PipelineID, -1, PipelineName);

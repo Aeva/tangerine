@@ -94,8 +94,8 @@ StatusCode SetupInner()
 	glBindVertexArray(NullVAO);
 
 	RETURN_ON_FAIL(TestShader.Setup(
-		{ {GL_VERTEX_SHADER, "shaders/test.vs.glsl"},
-		  {GL_FRAGMENT_SHADER, "shaders/test.fs.glsl"} },
+		{ {GL_VERTEX_SHADER, ShaderSource("shaders/test.vs.glsl", true)},
+		  {GL_FRAGMENT_SHADER, ShaderSource("shaders/test.fs.glsl", true)} },
 		"Test Shader"));
 
 	return StatusCode::PASS;

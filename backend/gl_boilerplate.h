@@ -22,13 +22,41 @@
 #include "errors.h"
 
 
+struct ShaderSource
+{
+	enum class Variant
+	{
+		PATH,
+		STR,
+		LIST,
+	};
+	Variant Mode;
+	std::string Source;
+	std::vector<ShaderSource> Composite;
+
+	inline ShaderSource(std::string InSource, bool IsPath)
+	{
+		Source = InSource;
+		Mode = IsPath ? Variant::PATH : Variant::STR;
+	}
+	inline ShaderSource(std::vector<ShaderSource> InComposite)
+	{
+		Composite = InComposite;
+		Mode = Variant::LIST;
+	}
+};
+
+
+ShaderSource GeneratedShader(std::string PrePath, std::string Generated, std::string PostPath);
+
+
 struct ShaderPipeline
 {
 	GLuint PipelineID = 0;
 	std::map<GLenum, GLuint> Stages;
 	std::vector<struct BindingPoint*> BindingPoints;
 
-	StatusCode Setup(std::map<GLenum, std::string> Shaders, const char* PipelineName);
+	StatusCode Setup(std::map<GLenum, ShaderSource> Shaders, const char* PipelineName);
 	void Activate();
 };
 
