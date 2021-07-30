@@ -18,7 +18,7 @@
          ffi/unsafe/define)
 
 ; Functions provided by the backend dll.
-(define-ffi-definer define-backend (ffi-lib "tangerine.dll"))
+(define-ffi-definer define-backend (ffi-lib "tangerine"))
 (define-backend Setup (_fun -> _int))
 (define-backend Resize (_fun _int _int -> _void))
 (define-backend NewShader (_fun _string/utf-8 -> _void))

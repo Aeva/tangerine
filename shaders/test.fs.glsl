@@ -28,6 +28,9 @@ uniform ViewInfoBlock
 };
 
 
+out vec4 FragColor;
+
+
 vec3 Gradient(vec3 Position)
 {
 	float AlmostZero = 0.0001;
@@ -72,10 +75,10 @@ void main()
 		vec3 Normal = normalize(Gradient(Position));
 		vec3 LightRay = normalize(vec3(-1.0, 1.0, -1.0));
 		float Diffuse = max(-dot(Normal, LightRay), 0.2);
-		gl_FragColor = vec4(vec3(Diffuse), 1.0);
+		FragColor = vec4(vec3(Diffuse), 1.0);
 	}
 	else
 	{
-		gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
+		FragColor = vec4(0.0, 0.0, 0.0, 1.0);
 	}
 }

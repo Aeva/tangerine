@@ -169,7 +169,7 @@ StatusCode RouteSource(std::vector<std::string>& BreadCrumbs, std::vector<std::s
 {
 	if (Source.Mode == ShaderSource::Variant::PATH)
 	{
-		RETURN_ON_FAIL(FillSources(BreadCrumbs, Index, Sources, Source.Source));
+		return FillSources(BreadCrumbs, Index, Sources, Source.Source);
 	}
 	else if (Source.Mode == ShaderSource::Variant::STR)
 	{
@@ -217,12 +217,12 @@ const std::string GetShaderExtensions(GLenum ShaderType)
 		"#extension GL_ARB_shading_language_420pack : require\n";
 
 	static const std::string ShaderTypeMeta = \
-		"#define GL_VERTEX_SHADER " + std::to_string(GL_VERTEX_SHADER) + "\n" + \
-		"#define GL_TESS_CONTROL_SHADER " + std::to_string(GL_TESS_CONTROL_SHADER) + "\n" + \
-		"#define GL_TESS_EVALUATION_SHADER " + std::to_string(GL_TESS_EVALUATION_SHADER) + "\n" + \
-		"#define GL_GEOMETRY_SHADER " + std::to_string(GL_GEOMETRY_SHADER) + "\n" + \
-		"#define GL_FRAGMENT_SHADER " + std::to_string(GL_FRAGMENT_SHADER) + "\n" + \
-		"#define GL_COMPUTE_SHADER " + std::to_string(GL_COMPUTE_SHADER) + "\n";
+		"#define VERTEX_SHADER " + std::to_string(GL_VERTEX_SHADER) + "\n" + \
+		"#define TESS_CONTROL_SHADER " + std::to_string(GL_TESS_CONTROL_SHADER) + "\n" + \
+		"#define TESS_EVALUATION_SHADER " + std::to_string(GL_TESS_EVALUATION_SHADER) + "\n" + \
+		"#define GEOMETRY_SHADER " + std::to_string(GL_GEOMETRY_SHADER) + "\n" + \
+		"#define FRAGMENT_SHADER " + std::to_string(GL_FRAGMENT_SHADER) + "\n" + \
+		"#define COMPUTE_SHADER " + std::to_string(GL_COMPUTE_SHADER) + "\n";
 
 	const std::string ShaderTypeDefine = ShaderTypeMeta + "#define SHADER_TYPE " + std::to_string(ShaderType) + "\n";
 

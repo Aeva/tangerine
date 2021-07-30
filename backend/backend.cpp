@@ -72,15 +72,65 @@ StatusCode Recontextualize()
 }
 
 #elif defined(__GNUC__)
-Display* RacketDeviceContext;
+Display* RacketDisplay;
+GLXDrawable RacketDrawable;
 GLXContext UpgradedContext;
-
 StatusCode Recontextualize()
 {
-	RacketDeviceContext = glXGetCurrentDisplay();
-	GLXContext RacketGLContext = glXGetCurrentContext();
-	if (gladLoadGLX(RacketDeviceContext, 0))
+	if (gladLoadGLX(nullptr, 0))
 	{
+		RacketDisplay = glXGetCurrentDisplay();
+		RacketDrawable = glXGetCurrentDrawable();
+		GLXContext RacketGLContext = glXGetCurrentContext();
+
+		int Screen;
+		glXQueryContext(RacketDisplay, RacketGLContext, GLX_SCREEN, &Screen);
+
+		GLXFBConfig Config;
+		{
+			int ConfigId;
+			glXQueryContext(RacketDisplay, RacketGLContext, GLX_FBCONFIG_ID, &ConfigId);
+
+			std::vector<int> ConfigAttributes;
+			ConfigAttributes.push_back(GLX_FBCONFIG_ID);
+			ConfigAttributes.push_back(ConfigId);
+			ConfigAttributes.push_back(None);
+
+			int Count;
+			GLXFBConfig* Found = glXChooseFBConfig(RacketDisplay, Screen, ConfigAttributes.data(), &Count);
+			if (Count != 1)
+			{
+				XFree(Found);
+				return StatusCode::FAIL;
+			}
+			Config = *Found;
+			XFree(Found);
+		}
+
+		std::vector<int> ContextAttributes;
+
+		// Request OpenGL 4.2
+		ContextAttributes.push_back(GLX_CONTEXT_MAJOR_VERSION_ARB);
+		ContextAttributes.push_back(4);
+		ContextAttributes.push_back(GLX_CONTEXT_MINOR_VERSION_ARB);
+		ContextAttributes.push_back(2);
+
+		// Request Core Profile
+		ContextAttributes.push_back(GLX_CONTEXT_PROFILE_MASK_ARB);
+		ContextAttributes.push_back(GLX_CONTEXT_CORE_PROFILE_BIT_ARB);
+
+		// Terminate attributes list.
+		ContextAttributes.push_back(0);
+
+		UpgradedContext = glXCreateContextAttribsARB(RacketDisplay, Config, RacketGLContext, true, ContextAttributes.data());
+		if (UpgradedContext == NULL)
+		{
+			return StatusCode::FAIL;
+		}
+
+		glXMakeCurrent(RacketDisplay, RacketDrawable, UpgradedContext);
+
+		return StatusCode::PASS;
 	}
 	else
 	{
@@ -165,6 +215,8 @@ void Renderer()
 {
 #if _WIN64
 	wglMakeCurrent(RacketDeviceContext, UpgradedContext);
+#elif defined(__GNUC__)
+	glXMakeCurrent(RacketDisplay, RacketDrawable, UpgradedContext);
 #endif
 
 	while (RenderThreadLive.load())
@@ -241,6 +293,10 @@ void Renderer()
 
 #if _WIN64
 		SwapBuffers(RacketDeviceContext);
+#elif defined(__GNUC__)
+		XLockDisplay(RacketDisplay);
+		glXSwapBuffers(RacketDisplay, RacketDrawable);
+		XUnlockDisplay(RacketDisplay);
 #endif
 	}
 }
@@ -253,10 +309,7 @@ StatusCode Setup()
 	if (!Initialized)
 	{
 		Initialized = true;
-
-#if _WIN64
 		RETURN_ON_FAIL(Recontextualize());
-#endif
 
 		if (gladLoadGL())
 		{
