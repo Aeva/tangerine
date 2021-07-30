@@ -4,3 +4,4 @@ windows/x64
 *.lib
 *.pdb
 *.exp
+*.so

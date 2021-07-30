@@ -18,13 +18,22 @@
 #include "errors.h"
 
 
-extern "C" StatusCode __declspec(dllexport) Setup();
+#if _WIN64
+#define BACKEND_API __declspec(dllexport)
+
+#elif defined(__GNUC__)
+#define BACKEND_API __attribute__ ((visibility ("default")))
+
+#endif
 
 
-extern "C" void __declspec(dllexport) Resize(int NewWidth, int NewHeight);
+extern "C" StatusCode BACKEND_API Setup();
 
 
-extern "C" void __declspec(dllexport) NewShader(const char* GeneratedSource);
+extern "C" void BACKEND_API Resize(int NewWidth, int NewHeight);
 
 
-extern "C" void __declspec(dllexport) Shutdown();
+extern "C" void BACKEND_API NewShader(const char* GeneratedSource);
+
+
+extern "C" void BACKEND_API Shutdown();

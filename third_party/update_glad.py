@@ -43,6 +43,21 @@ def wgl_params(debug):
     }
 
 
+def glx_params(debug):
+    extensions = \
+    sorted([
+        "GLX_ARB_create_context",
+        "GLX_ARB_create_context_profile",
+    ])
+    return {
+        "out-path" : "glad",
+        "api" : "glx=1.4",
+        "generator" : "c-debug" if debug else "c",
+        "spec" : "glx",
+        "extensions" : f"{','.join(extensions)}",
+    }
+
+
 def download_glad(params):
     glad = ["python", "-m glad", "--local-files"] + [f" --{n}={v}" for (n,v) in params.items()]
     subprocess.call(" ".join(glad), shell=True)
@@ -50,4 +65,5 @@ def download_glad(params):
 
 if __name__ == "__main__":
     download_glad(wgl_params(False))
+    download_glad(glx_params(False))
     download_glad(opengl_params(False))

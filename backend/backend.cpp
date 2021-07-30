@@ -15,6 +15,9 @@
 
 #if _WIN64
 #include <glad/glad_wgl.h>
+#elif defined(__GNUC__)
+#include <glad/glad_glx.h>
+#undef CurrentTime
 #endif
 #include <glad/glad.h>
 #include <glm/vec3.hpp>
@@ -67,6 +70,25 @@ StatusCode Recontextualize()
 		return StatusCode::FAIL;
 	}
 }
+
+#elif defined(__GNUC__)
+Display* RacketDeviceContext;
+GLXContext UpgradedContext;
+
+StatusCode Recontextualize()
+{
+	RacketDeviceContext = glXGetCurrentDisplay();
+	GLXContext RacketGLContext = glXGetCurrentContext();
+	if (gladLoadGLX(RacketDeviceContext, 0))
+	{
+	}
+	else
+	{
+		std::cout << "Unable to create a modern OpenGL context :(\n";
+		return StatusCode::FAIL;
+	}
+}
+
 #endif
 
 
@@ -135,9 +157,9 @@ void SetupNewShader()
 }
 
 
-std::atomic_bool RenderThreadLive = true;
-std::atomic_int ScreenWidth = 200;
-std::atomic_int ScreenHeight = 200;
+std::atomic_bool RenderThreadLive(true);
+std::atomic_int ScreenWidth(200);
+std::atomic_int ScreenHeight(200);
 std::thread* RenderThread;
 void Renderer()
 {
@@ -204,7 +226,7 @@ void Renderer()
 				ClipToView,
 				glm::vec4(CameraOrigin, 1.0f),
 				glm::vec4(Width, Height, 1.0f / Width, 1.0f / Height),
-				CurrentTime,
+				float(CurrentTime),
 			};
 			ViewInfo.Upload((void*)&BufferData, sizeof(BufferData));
 			ViewInfo.Bind(GL_UNIFORM_BUFFER, 0);
@@ -252,6 +274,10 @@ StatusCode Setup()
 			return StatusCode::FAIL;
 		}
 	}
+	else
+	{
+		return StatusCode::PASS;
+	}
 }
 
 
@@ -276,5 +302,7 @@ void Shutdown()
 	std::cout << "Shutting down...\n";
 	RenderThreadLive.store(false);
 	RenderThread->join();
+#if _WIN64
 	wglDeleteContext(UpgradedContext);
+#endif
 }
