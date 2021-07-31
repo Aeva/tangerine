@@ -81,6 +81,7 @@ StatusCode Recontextualize()
 	}
 }
 
+
 #elif defined(__GNUC__)
 Display* RacketDisplay;
 GLXDrawable RacketDrawable;
@@ -148,7 +149,6 @@ StatusCode Recontextualize()
 		return StatusCode::FAIL;
 	}
 }
-
 #endif
 
 
@@ -290,17 +290,11 @@ void RenderInner()
 		glDrawArrays(GL_TRIANGLES, 0, 3);
 		glPopDebugGroup();
 	}
-}
 
-
-void PresentInner()
-{
 #if _WIN64
 	SwapBuffers(RacketDeviceContext);
 #elif defined(__GNUC__)
-	XLockDisplay(RacketDisplay);
 	glXSwapBuffers(RacketDisplay, RacketDrawable);
-	XUnlockDisplay(RacketDisplay);
 #endif
 }
 
@@ -313,17 +307,6 @@ void RenderFrame()
 	glXMakeCurrent(RacketDisplay, RacketDrawable, UpgradedContext);
 #endif
 	RenderInner();
-}
-
-
-void PresentFrame()
-{
-#if _WIN64
-	wglMakeCurrent(RacketDeviceContext, UpgradedContext);
-#elif defined(__GNUC__)
-	glXMakeCurrent(RacketDisplay, RacketDrawable, UpgradedContext);
-#endif
-	PresentInner();
 }
 
 
@@ -340,7 +323,6 @@ void Renderer()
 	while (RenderThreadLive.load())
 	{
 		RenderInner();
-		PresentInner();
 	}
 }
 
@@ -363,11 +345,14 @@ StatusCode Setup(bool AsyncRenderer)
 
 			if (AsyncRenderer)
 			{
-#if _WIN64
-				RenderThread = new std::thread(Renderer);
-#else
-				return StatusCode::FAIL:
-#endif
+				if (PlatformSupportsAsyncRenderer())
+				{
+					RenderThread = new std::thread(Renderer);
+				}
+				else
+				{
+					return StatusCode::FAIL;
+				}
 			}
 			return StatusCode::PASS;
 		}

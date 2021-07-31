@@ -29,15 +29,11 @@
                                  (error("Failed to initialize OpenGL.\n")))))
 
 (define-backend RenderFrame(_fun #:blocking? #t
+                                 #:in-original-place? #t
                                  -> _void))
-
-(define-backend PresentFrame (_fun #:blocking? #t
-                                   #:in-original-place? #t
-                                   -> _void))
 
 (define (endless)
   (RenderFrame)
-  (PresentFrame)
   (endless))
 
 (define (start-render-thread)
