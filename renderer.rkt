@@ -1,4 +1,4 @@
-#lang racket
+#lang racket/base
 
 ; Copyright 2021 Aeva Palecek
 ;
@@ -16,35 +16,45 @@
 
 (require ffi/unsafe
          ffi/unsafe/define)
+(require racket/place)
 
-(provide start-renderer)
+(provide start-renderer
+         halt-renderer)
+
+(define render-thread #f)
 
 (define-ffi-definer define-backend (ffi-lib "tangerine"))
 
 (define-backend PlatformSupportsAsyncRenderer (_fun -> _bool))
 
-(define-backend Setup (_fun _bool
+(define-backend Setup (_fun #:in-original-place? #t
                             -> (status : _int)
                             -> (when (eq? status 1)
-                                 (error("Failed to initialize OpenGL.\n")))))
+                                 (error "Failed to initialize OpenGL.\n"))))
 
 (define-backend RenderFrame(_fun #:blocking? #t
                                  #:in-original-place? #t
                                  -> _void))
+
+(define-backend Shutdown (_fun #:blocking? #t
+                               #:in-original-place? #t
+                               -> _void))
 
 (define (endless)
   (RenderFrame)
   (endless))
 
 (define (start-render-thread)
-  (define render-thread
+  (set! render-thread
     (place main-thread
            (endless)))
   (void))
 
 (define (start-renderer)
-  (let ([async (PlatformSupportsAsyncRenderer)])
-    (Setup async)
-    (when (not async)
-      (start-render-thread))
-    (void)))
+  (Setup)
+  (when (not (PlatformSupportsAsyncRenderer))
+    (start-render-thread))
+  (void))
+
+(define (halt-renderer)
+  (Shutdown))

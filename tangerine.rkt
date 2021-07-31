@@ -21,7 +21,6 @@
 (define-ffi-definer define-backend (ffi-lib "tangerine"))
 (define-backend Resize (_fun _int _int -> _void))
 (define-backend NewShader (_fun _string/utf-8 -> _void))
-(define-backend Shutdown (_fun -> _void))
 
 ; Access the GL canvas's gl context.
 (define (get-gl-context)
@@ -32,7 +31,7 @@
   (new
    (class frame% (super-new)
      (define/augment (on-close)
-       (send (get-gl-context) call-as-current Shutdown)))
+       (send (get-gl-context) call-as-current halt-renderer)))
    [label "Tangerine"]))
 
 ; The OpenGL context will be created the core profile and no depth buffer.

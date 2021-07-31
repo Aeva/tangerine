@@ -15,10 +15,14 @@
 
 #if _WIN64
 #include <glad/glad_wgl.h>
+#define THREADSAFE_CONTEXT true
+
 #elif defined(__GNUC__)
 #include <glad/glad_glx.h>
 #undef CurrentTime
+#define THREADSAFE_CONTEXT false
 #endif
+
 #include <glad/glad.h>
 #include <glm/vec3.hpp>
 #include <glm/vec4.hpp>
@@ -35,13 +39,13 @@
 #include "gl_boilerplate.h"
 
 
+#define MINIMUM_VERSION_MAJOR 4
+#define MINIMUM_VERSION_MINOR 2
+
+
 bool PlatformSupportsAsyncRenderer()
 {
-#if _WIN64
-	return true;
-#else
-	return false;
-#endif
+	return THREADSAFE_CONTEXT;
 }
 
 
@@ -52,16 +56,15 @@ HGLRC UpgradedContext;
 StatusCode Recontextualize()
 {
 	RacketDeviceContext = wglGetCurrentDC();
-	HGLRC RacketGLContext = wglGetCurrentContext();
 	if (gladLoadWGL(RacketDeviceContext))
 	{
 		std::vector<int> ContextAttributes;
 
 		// Request OpenGL 4.2
 		ContextAttributes.push_back(WGL_CONTEXT_MAJOR_VERSION_ARB);
-		ContextAttributes.push_back(4);
+		ContextAttributes.push_back(MINIMUM_VERSION_MAJOR);
 		ContextAttributes.push_back(WGL_CONTEXT_MINOR_VERSION_ARB);
-		ContextAttributes.push_back(2);
+		ContextAttributes.push_back(MINIMUM_VERSION_MINOR);
 
 		// Request Core Profile
 		ContextAttributes.push_back(WGL_CONTEXT_PROFILE_MASK_ARB);
@@ -70,15 +73,36 @@ StatusCode Recontextualize()
 		// Terminate attributes list.
 		ContextAttributes.push_back(0);
 
+		HGLRC RacketGLContext = wglGetCurrentContext();
 		UpgradedContext = wglCreateContextAttribsARB(RacketDeviceContext, RacketGLContext, ContextAttributes.data());
+		if (UpgradedContext == NULL)
+		{
+			std::cout << "Unable to create OpenGL " << MINIMUM_VERSION_MAJOR << "." << MINIMUM_VERSION_MINOR << " core context: ";
+			int Error = GetLastError() & 0x0000FFFF;
+			if (Error == ERROR_INVALID_VERSION_ARB)
+			{
+				std::cout << "this OpenGL version is not available on your computer.\n";
+			}
+			else
+			{
+				std::cout << "unknown error.\n";
+			}
+			return StatusCode::FAIL;
+		}
 		wglMakeCurrent(RacketDeviceContext, UpgradedContext);
 		return StatusCode::PASS;
 	}
 	else
 	{
-		std::cout << "Unable to create a modern OpenGL context :(\n";
+		std::cout << "Unable to load WGL.\n";
 		return StatusCode::FAIL;
 	}
+}
+
+
+void ConnectContext()
+{
+	wglMakeCurrent(RacketDeviceContext, UpgradedContext);
 }
 
 
@@ -122,9 +146,9 @@ StatusCode Recontextualize()
 
 		// Request OpenGL 4.2
 		ContextAttributes.push_back(GLX_CONTEXT_MAJOR_VERSION_ARB);
-		ContextAttributes.push_back(4);
+		ContextAttributes.push_back(MINIMUM_VERSION_MAJOR);
 		ContextAttributes.push_back(GLX_CONTEXT_MINOR_VERSION_ARB);
-		ContextAttributes.push_back(2);
+		ContextAttributes.push_back(MINIMUM_VERSION_MINOR);
 
 		// Request Core Profile
 		ContextAttributes.push_back(GLX_CONTEXT_PROFILE_MASK_ARB);
@@ -136,6 +160,7 @@ StatusCode Recontextualize()
 		UpgradedContext = glXCreateContextAttribsARB(RacketDisplay, Config, RacketGLContext, true, ContextAttributes.data());
 		if (UpgradedContext == NULL)
 		{
+			std::cout << "Unable to create OpenGL " << MINIMUM_VERSION_MAJOR << "." << MINIMUM_VERSION_MINOR << " core context.\n";
 			return StatusCode::FAIL;
 		}
 
@@ -145,9 +170,15 @@ StatusCode Recontextualize()
 	}
 	else
 	{
-		std::cout << "Unable to create a modern OpenGL context :(\n";
+		std::cout << "Unable to load GLX.\n";
 		return StatusCode::FAIL;
 	}
+}
+
+
+void ConnectContext()
+{
+	glXMakeCurrent(RacketDisplay, RacketDrawable, UpgradedContext);
 }
 #endif
 
@@ -299,36 +330,38 @@ void RenderInner()
 }
 
 
-void RenderFrame()
+std::atomic_bool RenderLive(true);
+bool RenderFrame()
 {
-#if _WIN64
-	wglMakeCurrent(RacketDeviceContext, UpgradedContext);
-#elif defined(__GNUC__)
-	glXMakeCurrent(RacketDisplay, RacketDrawable, UpgradedContext);
+#if !THREADSAFE_CONTEXT
+	if (RenderLive.load())
+	{
+		ConnectContext();
+		RenderInner();
+		return true;
+	}
 #endif
-	RenderInner();
+	return false;
 }
 
 
-std::atomic_bool RenderThreadLive(true);
+#if THREADSAFE_CONTEXT
 std::thread* RenderThread;
-void Renderer()
-{
-#if _WIN64
-	wglMakeCurrent(RacketDeviceContext, UpgradedContext);
-#elif defined(__GNUC__)
-	glXMakeCurrent(RacketDisplay, RacketDrawable, UpgradedContext);
 #endif
-
-	while (RenderThreadLive.load())
+void StartRenderThread()
+{
+#if THREADSAFE_CONTEXT
+	ConnectContext();
+	while (RenderLive.load())
 	{
 		RenderInner();
 	}
+#endif
 }
 
 
 // Load OpenGL and then perform additional setup.
-StatusCode Setup(bool AsyncRenderer)
+StatusCode Setup()
 {
 	static bool Initialized = false;
 	if (!Initialized)
@@ -343,22 +376,14 @@ StatusCode Setup(bool AsyncRenderer)
 
 			RETURN_ON_FAIL(SetupInner());
 
-			if (AsyncRenderer)
-			{
-				if (PlatformSupportsAsyncRenderer())
-				{
-					RenderThread = new std::thread(Renderer);
-				}
-				else
-				{
-					return StatusCode::FAIL;
-				}
-			}
+#if THREADSAFE_CONTEXT
+			RenderThread = new std::thread(StartRenderThread);
+#endif
 			return StatusCode::PASS;
 		}
 		else
 		{
-			std::cout << "Failed to load OpenGL!\n";
+			std::cout << "Failed to load OpenGL.\n";
 			return StatusCode::FAIL;
 		}
 	}
@@ -387,13 +412,12 @@ void NewShader(const char* GeneratedSource)
 
 void Shutdown()
 {
-	std::cout << "Shutting down...\n";
-	if (RenderThread)
-	{
-		RenderThreadLive.store(false);
-		RenderThread->join();
-		delete RenderThread;
-	}
+	RenderLive.store(false);
+#if THREADSAFE_CONTEXT
+	RenderThread->join();
+	delete RenderThread;
+#endif
+
 #if _WIN64
 	wglDeleteContext(UpgradedContext);
 #endif
