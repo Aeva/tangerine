@@ -27,7 +27,16 @@
 #endif
 
 
-extern "C" StatusCode BACKEND_API Setup();
+extern "C" bool BACKEND_API PlatformSupportsAsyncRenderer();
+
+
+extern "C" StatusCode BACKEND_API Setup(bool AsyncRenderer);
+
+
+extern "C" void BACKEND_API RenderFrame();
+
+
+extern "C" void BACKEND_API PresentFrame();
 
 
 extern "C" void BACKEND_API Resize(int NewWidth, int NewHeight);

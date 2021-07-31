@@ -35,6 +35,16 @@
 #include "gl_boilerplate.h"
 
 
+bool PlatformSupportsAsyncRenderer()
+{
+#if _WIN64
+	return true;
+#else
+	return false;
+#endif
+}
+
+
 #if _WIN64
 HDC RacketDeviceContext;
 HGLRC UpgradedContext;
@@ -207,9 +217,117 @@ void SetupNewShader()
 }
 
 
-std::atomic_bool RenderThreadLive(true);
 std::atomic_int ScreenWidth(200);
 std::atomic_int ScreenHeight(200);
+void RenderInner()
+{
+	if (NewShaderReady.load())
+	{
+		SetupNewShader();
+	}
+
+	double DeltaTime;
+	double CurrentTime;
+	{
+		using Clock = std::chrono::high_resolution_clock;
+		static Clock::time_point StartTimePoint = Clock::now();
+		static Clock::time_point LastTimePoint = StartTimePoint;
+		Clock::time_point CurrentTimePoint = Clock::now();
+		{
+			std::chrono::duration<double, std::milli> FrameDelta = CurrentTimePoint - LastTimePoint;
+			DeltaTime = FrameDelta.count();
+		}
+		{
+			std::chrono::duration<double, std::milli> EpochDelta = CurrentTimePoint - StartTimePoint;
+			CurrentTime = EpochDelta.count();
+		}
+		LastTimePoint = CurrentTimePoint;
+	}
+
+	static int FrameNumber = 0;
+	++FrameNumber;
+
+	static int Width = 0;
+	static int Height = 0;
+	{
+		int NewWidth = ScreenWidth.load();
+		int NewHeight = ScreenHeight.load();
+		if (NewWidth != Width || NewHeight != Height)
+		{
+			Width = NewWidth;
+			Height = NewHeight;
+			glViewport(0, 0, Width, Height);
+		}
+	}
+
+	{
+		const glm::vec3 CameraOrigin = glm::vec3(0.0, -5.0, 0.0);
+		const glm::vec3 CameraFocus = glm::vec3(0.0, 0.0, 0.0);
+		const glm::vec3 UpVector = glm::vec3(0.0, 0.0, 1.0);
+		const glm::mat4 WorldToView = glm::lookAt(CameraOrigin, CameraFocus, UpVector);
+		const glm::mat4 ViewToWorld = glm::inverse(WorldToView);
+
+		const float AspectRatio = float(Width) / float(Height);
+		const glm::mat4 ViewToClip = glm::infinitePerspective(glm::radians(45.f), AspectRatio, 1.0f);
+		const glm::mat4 ClipToView = inverse(ViewToClip);
+
+		ViewInfoUpload BufferData = {
+			WorldToView,
+			ViewToWorld,
+			ViewToClip,
+			ClipToView,
+			glm::vec4(CameraOrigin, 1.0f),
+			glm::vec4(Width, Height, 1.0f / Width, 1.0f / Height),
+			float(CurrentTime),
+		};
+		ViewInfo.Upload((void*)&BufferData, sizeof(BufferData));
+		ViewInfo.Bind(GL_UNIFORM_BUFFER, 0);
+	}
+
+	{
+		glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Test Draw Pass");
+		TestShader.Activate();
+		glDrawArrays(GL_TRIANGLES, 0, 3);
+		glPopDebugGroup();
+	}
+}
+
+
+void PresentInner()
+{
+#if _WIN64
+	SwapBuffers(RacketDeviceContext);
+#elif defined(__GNUC__)
+	XLockDisplay(RacketDisplay);
+	glXSwapBuffers(RacketDisplay, RacketDrawable);
+	XUnlockDisplay(RacketDisplay);
+#endif
+}
+
+
+void RenderFrame()
+{
+#if _WIN64
+	wglMakeCurrent(RacketDeviceContext, UpgradedContext);
+#elif defined(__GNUC__)
+	glXMakeCurrent(RacketDisplay, RacketDrawable, UpgradedContext);
+#endif
+	RenderInner();
+}
+
+
+void PresentFrame()
+{
+#if _WIN64
+	wglMakeCurrent(RacketDeviceContext, UpgradedContext);
+#elif defined(__GNUC__)
+	glXMakeCurrent(RacketDisplay, RacketDrawable, UpgradedContext);
+#endif
+	PresentInner();
+}
+
+
+std::atomic_bool RenderThreadLive(true);
 std::thread* RenderThread;
 void Renderer()
 {
@@ -221,89 +339,14 @@ void Renderer()
 
 	while (RenderThreadLive.load())
 	{
-		if (NewShaderReady.load())
-		{
-			SetupNewShader();
-		}
-
-		double DeltaTime;
-		double CurrentTime;
-		{
-			using Clock = std::chrono::high_resolution_clock;
-			static Clock::time_point StartTimePoint = Clock::now();
-			static Clock::time_point LastTimePoint = StartTimePoint;
-			Clock::time_point CurrentTimePoint = Clock::now();
-			{
-				std::chrono::duration<double, std::milli> FrameDelta = CurrentTimePoint - LastTimePoint;
-				DeltaTime = FrameDelta.count();
-			}
-			{
-				std::chrono::duration<double, std::milli> EpochDelta = CurrentTimePoint - StartTimePoint;
-				CurrentTime = EpochDelta.count();
-			}
-			LastTimePoint = CurrentTimePoint;
-		}
-
-		static int FrameNumber = 0;
-		++FrameNumber;
-
-		static int Width = 0;
-		static int Height = 0;
-		{
-			int NewWidth = ScreenWidth.load();
-			int NewHeight = ScreenHeight.load();
-			if (NewWidth != Width || NewHeight != Height)
-			{
-				Width = NewWidth;
-				Height = NewHeight;
-				glViewport(0, 0, Width, Height);
-			}
-		}
-
-		{
-			const glm::vec3 CameraOrigin = glm::vec3(0.0, -5.0, 0.0);
-			const glm::vec3 CameraFocus = glm::vec3(0.0, 0.0, 0.0);
-			const glm::vec3 UpVector = glm::vec3(0.0, 0.0, 1.0);
-			const glm::mat4 WorldToView = glm::lookAt(CameraOrigin, CameraFocus, UpVector);
-			const glm::mat4 ViewToWorld = glm::inverse(WorldToView);
-
-			const float AspectRatio = float(Width) / float(Height);
-			const glm::mat4 ViewToClip = glm::infinitePerspective(glm::radians(45.f), AspectRatio, 1.0f);
-			const glm::mat4 ClipToView = inverse(ViewToClip);
-
-			ViewInfoUpload BufferData = {
-				WorldToView,
-				ViewToWorld,
-				ViewToClip,
-				ClipToView,
-				glm::vec4(CameraOrigin, 1.0f),
-				glm::vec4(Width, Height, 1.0f / Width, 1.0f / Height),
-				float(CurrentTime),
-			};
-			ViewInfo.Upload((void*)&BufferData, sizeof(BufferData));
-			ViewInfo.Bind(GL_UNIFORM_BUFFER, 0);
-		}
-
-		{
-			glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Test Draw Pass");
-			TestShader.Activate();
-			glDrawArrays(GL_TRIANGLES, 0, 3);
-			glPopDebugGroup();
-		}
-
-#if _WIN64
-		SwapBuffers(RacketDeviceContext);
-#elif defined(__GNUC__)
-		XLockDisplay(RacketDisplay);
-		glXSwapBuffers(RacketDisplay, RacketDrawable);
-		XUnlockDisplay(RacketDisplay);
-#endif
+		RenderInner();
+		PresentInner();
 	}
 }
 
 
 // Load OpenGL and then perform additional setup.
-StatusCode Setup()
+StatusCode Setup(bool AsyncRenderer)
 {
 	static bool Initialized = false;
 	if (!Initialized)
@@ -318,7 +361,14 @@ StatusCode Setup()
 
 			RETURN_ON_FAIL(SetupInner());
 
-			RenderThread = new std::thread(Renderer);
+			if (AsyncRenderer)
+			{
+#if _WIN64
+				RenderThread = new std::thread(Renderer);
+#else
+				return StatusCode::FAIL:
+#endif
+			}
 			return StatusCode::PASS;
 		}
 		else
@@ -353,8 +403,12 @@ void NewShader(const char* GeneratedSource)
 void Shutdown()
 {
 	std::cout << "Shutting down...\n";
-	RenderThreadLive.store(false);
-	RenderThread->join();
+	if (RenderThread)
+	{
+		RenderThreadLive.store(false);
+		RenderThread->join();
+		delete RenderThread;
+	}
 #if _WIN64
 	wglDeleteContext(UpgradedContext);
 #endif

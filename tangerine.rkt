@@ -16,10 +16,9 @@
 
 (require ffi/unsafe
          ffi/unsafe/define)
+(require "renderer.rkt")
 
-; Functions provided by the backend dll.
 (define-ffi-definer define-backend (ffi-lib "tangerine"))
-(define-backend Setup (_fun -> _int))
 (define-backend Resize (_fun _int _int -> _void))
 (define-backend NewShader (_fun _string/utf-8 -> _void))
 (define-backend Shutdown (_fun -> _void))
@@ -42,13 +41,6 @@
 (send gl-config set-depth-size 0)
 (send gl-config set-sync-swap #t)
 
-; Backend error handling.
-(define (verify hint gl-ctx thunk)
-  (let ([status (send gl-ctx call-as-current thunk)])
-    (when (eq? status 1)
-      (display (~a "Fatal error in " hint "."))
-      (exit))))
-
 ; Create the OpenGL canvas widget.
 (define canvas
   (new canvas%
@@ -66,7 +58,7 @@
 (send frame show #t)
 
 ; Initialize OpenGL.
-(verify "Setup" (get-gl-context) Setup)
+(send (get-gl-context) call-as-current start-renderer)
 
 ; Send a new program.
 (NewShader "float SceneDist(vec3 Point)\n{\n\treturn SphereDist(Point, 1.8);\n}\n")
