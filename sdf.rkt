@@ -26,7 +26,10 @@
          smooth-union
          smooth-inter
          smooth-cut
-         trans)
+         trans
+         trans-x
+         trans-y
+         trans-z)
 
 (struct sdf-part (wrapped))
 
@@ -38,12 +41,12 @@
 (define (sphere diameter)
   (sdf-part
    (λ (point)
-    @~a{SphereBrush(@point, @diameter)})))
+    @~a{SphereBrush(@point, @diameter * 0.5)})))
 
 (define (box width depth height)
   (sdf-part
    (λ (point)
-     @~a{BoxBrush(@point, vec3(@width, @depth, @height))})))
+     @~a{BoxBrush(@point, vec3(@width, @depth, @height) * 0.5)})))
 
 (define (cube extent)
   (box extent extent extent))
@@ -81,3 +84,14 @@
    (λ (point)
      ((sdf-part-wrapped child) @~a{(@point - vec3(@x, @y, @z))}))))
 
+
+(define (trans-x x child)
+  (trans x 0. 0. child))
+
+
+(define (trans-y y child)
+  (trans 0. y 0. child))
+
+
+(define (trans-z z child)
+  (trans 0. 0. z child))

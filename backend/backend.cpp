@@ -292,7 +292,7 @@ void RenderInner()
 	}
 
 	{
-		const glm::vec3 CameraOrigin = glm::vec3(0.0, -5.0, 0.0);
+		const glm::vec3 CameraOrigin = glm::vec3(-4.0, -14.0, 4.0);
 		const glm::vec3 CameraFocus = glm::vec3(0.0, 0.0, 0.0);
 		const glm::vec3 UpVector = glm::vec3(0.0, 0.0, 1.0);
 		const glm::mat4 WorldToView = glm::lookAt(CameraOrigin, CameraFocus, UpVector);
