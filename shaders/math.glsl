@@ -20,6 +20,13 @@ float SphereBrush(vec3 Point, float Radius)
 }
 
 
+float BoxBrush(vec3 Point, vec3 Extent)
+{
+	vec3 A = abs(Point) - Extent;
+	return length(max(A, 0.0)) + min(max(max(A.x, A.y), A.z), 0.0);
+}
+
+
 float UnionOp(float LHS, float RHS)
 {
 	return min(LHS, RHS);

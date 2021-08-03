@@ -1,8 +1,25 @@
 #lang at-exp racket/base
+
+; Copyright 2021 Aeva Palecek
+;
+; Licensed under the Apache License, Version 2.0 (the "License");
+; you may not use this file except in compliance with the License.
+; You may obtain a copy of the License at
+;
+;     http://www.apache.org/licenses/LICENSE-2.0
+;
+; Unless required by applicable law or agreed to in writing, software
+; distributed under the License is distributed on an "AS IS" BASIS,
+; WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+; See the License for the specific language governing permissions and
+; limitations under the License.
+
 (require racket/format)
 
 (provide scene
          sphere
+         box
+         cube
          union
          inter
          cut
@@ -23,6 +40,13 @@
    (λ (point)
     @~a{SphereBrush(@point, @diameter)})))
 
+(define (box width depth height)
+  (sdf-part
+   (λ (point)
+     @~a{BoxBrush(@point, vec3(@width, @depth, @height))})))
+
+(define (cube extent)
+  (box extent extent extent))
 
 (define (make-operator op)
   (λ (lhs rhs)
