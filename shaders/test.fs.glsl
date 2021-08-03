@@ -55,7 +55,7 @@ void main()
 	bool Hit = false;
 	float Travel = 0;
 	vec3 Position;
-	for (int i = 0; i < 1000; ++i)
+	for (int i = 0; i < 100; ++i)
 	{
 		Position = EyeRay * Travel + CameraOrigin.xyz;
 		float Dist = SceneDist(Position);
