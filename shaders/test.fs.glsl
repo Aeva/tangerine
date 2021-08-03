@@ -55,7 +55,7 @@ void main()
 	bool Hit = false;
 	float Travel = 0;
 	vec3 Position;
-	for (int i = 0; i < 100; ++i)
+	for (int i = 0; i < 1000; ++i)
 	{
 		Position = EyeRay * Travel + CameraOrigin.xyz;
 		float Dist = SceneDist(Position);
@@ -75,7 +75,8 @@ void main()
 		vec3 Normal = normalize(Gradient(Position));
 		vec3 LightRay = normalize(vec3(-1.0, 1.0, -1.0));
 		float Diffuse = max(-dot(Normal, LightRay), 0.2);
-		FragColor = vec4(vec3(Diffuse), 1.0);
+		//FragColor = vec4(vec3(Diffuse), 1.0);
+		FragColor = vec4((Normal * 0.5 + 0.5) * Diffuse, 1.0);
 	}
 	else
 	{

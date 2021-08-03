@@ -14,7 +14,47 @@
 // limitations under the License.
 
 
-float SphereDist(vec3 Point, float Radius)
+float SphereBrush(vec3 Point, float Radius)
 {
 	return length(Point) - Radius;
+}
+
+
+float UnionOp(float LHS, float RHS)
+{
+	return min(LHS, RHS);
+}
+
+
+float IntersectionOp(float LHS, float RHS)
+{
+	return max(LHS, RHS);
+}
+
+
+float CutOp(float LHS, float RHS)
+{
+	return max(LHS, -RHS);
+}
+
+
+
+float SmoothUnionOp(float LHS, float RHS, float Threshold)
+{
+	float H = max(Threshold - abs(LHS - RHS), 0.0);
+	return min(LHS, RHS) - H * H * 0.25 / Threshold;
+}
+
+
+float SmoothIntersectionOp(float LHS, float RHS, float Threshold)
+{
+	float H = max(Threshold - abs(LHS - RHS), 0.0);
+	return max(LHS, RHS) + H * H * 0.25 / Threshold;
+}
+
+
+float SmoothCutOp(float LHS, float RHS, float Threshold)
+{
+	float H = max(Threshold - abs(LHS + RHS), 0.0);
+	return max(LHS, -RHS) + H * H * 0.25 / Threshold;
 }

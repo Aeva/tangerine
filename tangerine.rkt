@@ -17,6 +17,7 @@
 (require ffi/unsafe
          ffi/unsafe/define)
 (require "renderer.rkt")
+(require "test-shape.rkt")
 
 (define-ffi-definer define-backend (ffi-lib "tangerine"))
 (define-backend Resize (_fun _int _int -> _void))
@@ -60,4 +61,4 @@
 (send (get-gl-context) call-as-current start-renderer)
 
 ; Send a new program.
-(NewShader "float SceneDist(vec3 Point)\n{\n\treturn SphereDist(Point, 1.8);\n}\n")
+(NewShader (emit-glsl))

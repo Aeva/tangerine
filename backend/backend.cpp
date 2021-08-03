@@ -210,7 +210,7 @@ StatusCode SetupInner()
 	std::string SimpleScene = \
 		"float SceneDist(vec3 Point)\n"
 		"{\n"
-		"	return SphereDist(Point, 0.1);\n"
+		"	return SphereBrush(Point, 0.1);\n"
 		"}\n";
 
 	RETURN_ON_FAIL(TestShader.Setup(
