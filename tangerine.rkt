@@ -38,7 +38,7 @@
 ; The OpenGL context will be created the core profile and no depth buffer.
 (define gl-config (new gl-config%))
 (send gl-config set-legacy? #f)
-(send gl-config set-depth-size 0)
+(send gl-config set-depth-size 24)
 (send gl-config set-sync-swap #t)
 
 ; Create the OpenGL canvas widget.

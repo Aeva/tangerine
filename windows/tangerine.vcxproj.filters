@@ -64,5 +64,11 @@
     <None Include="..\shaders\math.glsl">
       <Filter>Shaders</Filter>
     </None>
+    <None Include="..\shaders\cube.fs.glsl">
+      <Filter>Shaders</Filter>
+    </None>
+    <None Include="..\shaders\cube.vs.glsl">
+      <Filter>Shaders</Filter>
+    </None>
   </ItemGroup>
 </Project>

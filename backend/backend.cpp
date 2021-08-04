@@ -24,6 +24,7 @@
 #endif
 
 #include <glad/glad.h>
+#define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include <glm/vec3.hpp>
 #include <glm/vec4.hpp>
 #include <glm/mat4x4.hpp>
@@ -185,6 +186,7 @@ void ConnectContext()
 
 GLuint NullVAO;
 ShaderPipeline TestShader;
+ShaderPipeline RasterShader;
 Buffer ViewInfo("ViewInfo Buffer");
 
 
@@ -217,6 +219,13 @@ StatusCode SetupInner()
 		{ {GL_VERTEX_SHADER, ShaderSource("shaders/test.vs.glsl", true)},
 		  {GL_FRAGMENT_SHADER, GeneratedShader("shaders/math.glsl", SimpleScene, "shaders/test.fs.glsl")} },
 		"Test Shader"));
+	RETURN_ON_FAIL(RasterShader.Setup(
+		{ {GL_VERTEX_SHADER, ShaderSource("shaders/cube.vs.glsl", true)},
+		  {GL_FRAGMENT_SHADER, GeneratedShader("shaders/math.glsl", SimpleScene, "shaders/cube.fs.glsl")} },
+		"Test Shader"));
+
+	glClipControl(GL_LOWER_LEFT, GL_ZERO_TO_ONE);
+	glDepthRange(1.0, 0.0);
 
 	return StatusCode::PASS;
 }
@@ -227,6 +236,7 @@ std::atomic_bool NewShaderReady;
 std::string NewShaderSource;
 void SetupNewShader()
 {
+#if 0
 	NewShaderLock.lock();
 	ShaderPipeline NewShader;
 	StatusCode Result = NewShader.Setup(
@@ -245,6 +255,7 @@ void SetupNewShader()
 		TestShader.Reset();
 		TestShader = NewShader;
 	}
+#endif
 }
 
 
@@ -315,12 +326,30 @@ void RenderInner()
 		ViewInfo.Bind(GL_UNIFORM_BUFFER, 0);
 	}
 
+#if 0
 	{
 		glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Test Draw Pass");
+		glDisable(GL_DEPTH_TEST);
+		glClearDepth(0.0);
+		glClearColor(0.0, 0.0, 0.0, 1.0);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		TestShader.Activate();
 		glDrawArrays(GL_TRIANGLES, 0, 3);
 		glPopDebugGroup();
 	}
+#else
+	{
+		glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Raster Draw Pass");
+		glEnable(GL_DEPTH_TEST);
+		glDepthFunc(GL_GREATER);
+		glClearDepth(0.0);
+		glClearColor(0.0, 0.0, 0.0, 1.0);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		RasterShader.Activate();
+		glDrawArrays(GL_TRIANGLES, 0, 36);
+		glPopDebugGroup();
+	}
+#endif
 
 #if _WIN64
 	SwapBuffers(RacketDeviceContext);
@@ -403,10 +432,12 @@ void Resize(int NewWidth, int NewHeight)
 
 void NewShader(const char* GeneratedSource)
 {
+#if 0
 	NewShaderLock.lock();
 	NewShaderSource = GeneratedSource;
 	NewShaderReady.store(true);
 	NewShaderLock.unlock();
+#endif
 }
 
 

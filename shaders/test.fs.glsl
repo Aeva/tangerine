@@ -55,10 +55,11 @@ void main()
 	bool Hit = false;
 	float Travel = 0;
 	vec3 Position;
-	for (int i = 0; i < 100; ++i)
+	for (int i = 0; i < 1000; ++i)
 	{
 		Position = EyeRay * Travel + CameraOrigin.xyz;
-		float Dist = SceneDist(Position);
+		//float Dist = SceneDist(Position);
+		float Dist = BoxBrush(Position, vec3(2.0, 6.0, 3.0));
 		if (Dist <= 0.0001)
 		{
 			Hit = true;
@@ -72,11 +73,14 @@ void main()
 
 	if (Hit)
 	{
-		vec3 Normal = normalize(Gradient(Position));
-		vec3 LightRay = normalize(vec3(-1.0, 1.0, -1.0));
-		float Diffuse = max(-dot(Normal, LightRay), 0.2);
-		//FragColor = vec4(vec3(Diffuse), 1.0);
-		FragColor = vec4((Normal * 0.5 + 0.5) * Diffuse, 1.0);
+		vec4 ViewPosition = WorldToView * vec4(Position, 1.0);
+		ViewPosition /= ViewPosition.w;
+		vec4 ClipPosition = ViewToClip * ViewPosition;
+		float DeviceZ = ClipPosition.z / ClipPosition.w;
+
+		// corresponds to glClipControl(any, GL_ZERO_TO_ONE) and glDepthRange(1, 0)
+		// see https://www.khronos.org/registry/OpenGL-Refpages/gl4/html/glClipControl.xhtml
+		FragColor = vec4(vec3(1.0 - DeviceZ), 1.0);
 	}
 	else
 	{
