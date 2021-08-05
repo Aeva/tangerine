@@ -14,9 +14,22 @@
 // limitations under the License.
 
 
+struct AABB
+{
+	vec3 Center;
+	vec3 Extent;
+};
+
+
 float SphereBrush(vec3 Point, float Radius)
 {
 	return length(Point) - Radius;
+}
+
+
+AABB SphereBrushBounds(float Radius)
+{
+	return AABB(vec3(0.0), vec3(Radius));
 }
 
 
@@ -27,9 +40,25 @@ float BoxBrush(vec3 Point, vec3 Extent)
 }
 
 
+AABB BoxBrushBounds(vec3 Extent)
+{
+	return AABB(vec3(0.0), Extent);
+}
+
+
 float UnionOp(float LHS, float RHS)
 {
 	return min(LHS, RHS);
+}
+
+
+AABB UnionOpBounds(AABB LHS, AABB RHS)
+{
+	vec3 BoundsMin = min(LHS.Center - LHS.Extent, RHS.Center - RHS.Extent);
+	vec3 BoundsMax = max(LHS.Center + LHS.Extent, RHS.Center + RHS.Extent);
+	vec3 Extent = BoundsMax - BoundsMin;
+	vec3 Center = Extent * 0.5 + BoundsMin;
+	return AABB(Center, Extent);
 }
 
 
@@ -39,17 +68,42 @@ float IntersectionOp(float LHS, float RHS)
 }
 
 
+AABB IntersectionOpBounds(AABB LHS, AABB RHS)
+{
+	vec3 BoundsMin = max(LHS.Center - LHS.Extent, RHS.Center - RHS.Extent);
+	vec3 BoundsMax = min(LHS.Center + LHS.Extent, RHS.Center + RHS.Extent);
+	vec3 Extent = max(BoundsMax - BoundsMin, 0.0);
+	vec3 Center = Extent * 0.5 + BoundsMin;
+	return AABB(Center, Extent);
+}
+
+
 float CutOp(float LHS, float RHS)
 {
 	return max(LHS, -RHS);
 }
 
 
+AABB CutOpBounds(AABB LHS, AABB RHS)
+{
+	return LHS;
+}
+
 
 float SmoothUnionOp(float LHS, float RHS, float Threshold)
 {
 	float H = max(Threshold - abs(LHS - RHS), 0.0);
 	return min(LHS, RHS) - H * H * 0.25 / Threshold;
+}
+
+
+AABB SmoothUnionOpBounds(AABB LHS, AABB RHS, float Threshold)
+{
+	AABB Union = UnionOpBounds(LHS, RHS);
+	AABB Distortion = IntersectionOpBounds(
+		AABB(LHS.Center, LHS.Extent + Threshold),
+		AABB(RHS.Center, RHS.Extent + Threshold));
+	return UnionOpBounds(Union, Distortion);
 }
 
 
@@ -60,8 +114,29 @@ float SmoothIntersectionOp(float LHS, float RHS, float Threshold)
 }
 
 
+AABB SmoothIntersectionOpBounds(AABB LHS, AABB RHS, float Threshold)
+{
+	AABB Intersection = IntersectionOpBounds(LHS, RHS);
+	Intersection.Extent += Threshold * Threshold * 0.25 / Threshold;
+	return Intersection;
+}
+
+
 float SmoothCutOp(float LHS, float RHS, float Threshold)
 {
 	float H = max(Threshold - abs(LHS + RHS), 0.0);
 	return max(LHS, -RHS) + H * H * 0.25 / Threshold;
+}
+
+
+AABB SmoothCutOpBounds(AABB LHS, AABB RHS, float Threshold)
+{
+	return LHS;
+}
+
+
+AABB TranslateAABB(AABB Bounds, vec3 Offset)
+{
+	Bounds.Center += Offset;
+	return Bounds;
 }
