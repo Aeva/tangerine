@@ -198,6 +198,7 @@ struct ViewInfoUpload
 	glm::vec4 CameraOrigin;
 	glm::vec4 ScreenSize;
 	float CurrentTime;
+	float Padding[3] = { 0 };
 };
 
 
