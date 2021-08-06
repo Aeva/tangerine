@@ -27,8 +27,10 @@ uniform ViewInfoBlock
 	float CurrentTime;
 };
 
+in vec3 WorldSpace;
 
 out vec4 FragColor;
+layout (depth_less) out float gl_FragDepth;
 
 
 vec3 Gradient(vec3 Position)
@@ -53,11 +55,11 @@ void main()
 	vec3 EyeRay = normalize(World.xyz - CameraOrigin.xyz);
 
 	bool Hit = false;
-	float Travel = 0;
+	float Travel = 0.0;
 	vec3 Position;
 	for (int i = 0; i < 100; ++i)
 	{
-		Position = EyeRay * Travel + CameraOrigin.xyz;
+		Position = EyeRay * Travel + WorldSpace;
 		float Dist = SceneDist(Position);
 		if (Dist <= 0.0001)
 		{
@@ -77,9 +79,15 @@ void main()
 		float Diffuse = max(-dot(Normal, LightRay), 0.2);
 		//FragColor = vec4(vec3(Diffuse), 1.0);
 		FragColor = vec4((Normal * 0.5 + 0.5) * Diffuse, 1.0);
+
+		vec4 ViewPosition = WorldToView * vec4(Position, 1.0);
+		ViewPosition /= ViewPosition.w;
+		vec4 ClipPosition = ViewToClip * ViewPosition;
+		gl_FragDepth = 1.0 - (ClipPosition.z / ClipPosition.w);
 	}
 	else
 	{
 		FragColor = vec4(0.0, 0.0, 0.0, 1.0);
+		gl_FragDepth = 0.0;
 	}
 }

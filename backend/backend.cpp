@@ -24,6 +24,7 @@
 #endif
 
 #include <glad/glad.h>
+#define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include <glm/vec3.hpp>
 #include <glm/vec4.hpp>
 #include <glm/mat4x4.hpp>
@@ -211,12 +212,25 @@ StatusCode SetupInner()
 		"float SceneDist(vec3 Point)\n"
 		"{\n"
 		"	return SphereBrush(Point, 0.1);\n"
+		"}\n"
+		"AABB SceneBounds()\n"
+		"{\n"
+		"	return SphereBrushBounds(0.1);\n"
 		"}\n";
 
 	RETURN_ON_FAIL(TestShader.Setup(
-		{ {GL_VERTEX_SHADER, ShaderSource("shaders/test.vs.glsl", true)},
+		{ {GL_VERTEX_SHADER, GeneratedShader("shaders/math.glsl", SimpleScene, "shaders/test.vs.glsl")},
 		  {GL_FRAGMENT_SHADER, GeneratedShader("shaders/math.glsl", SimpleScene, "shaders/test.fs.glsl")} },
 		"Test Shader"));
+
+	glDisable(GL_MULTISAMPLE);
+	glEnable(GL_CULL_FACE);
+	glEnable(GL_DEPTH_TEST);
+	glClipControl(GL_LOWER_LEFT, GL_ZERO_TO_ONE);
+	glDepthRange(1.0, 0.0);
+	glDepthFunc(GL_GREATER);
+	glClearColor(0.0, 0.0, 0.0, 1.0);
+	glClearDepth(0.0);
 
 	return StatusCode::PASS;
 }
@@ -230,7 +244,7 @@ void SetupNewShader()
 	NewShaderLock.lock();
 	ShaderPipeline NewShader;
 	StatusCode Result = NewShader.Setup(
-		{ {GL_VERTEX_SHADER, ShaderSource("shaders/test.vs.glsl", true)},
+		{ {GL_VERTEX_SHADER, GeneratedShader("shaders/math.glsl", NewShaderSource, "shaders/test.vs.glsl")},
 		  {GL_FRAGMENT_SHADER, GeneratedShader("shaders/math.glsl", NewShaderSource, "shaders/test.fs.glsl")} },
 		"Generated Shader");
 	NewShaderReady.store(false);
@@ -318,7 +332,8 @@ void RenderInner()
 	{
 		glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Test Draw Pass");
 		TestShader.Activate();
-		glDrawArrays(GL_TRIANGLES, 0, 3);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		glDrawArrays(GL_TRIANGLES, 0, 36);
 		glPopDebugGroup();
 	}
 

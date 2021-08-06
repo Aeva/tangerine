@@ -56,8 +56,8 @@ AABB UnionOpBounds(AABB LHS, AABB RHS)
 {
 	vec3 BoundsMin = min(LHS.Center - LHS.Extent, RHS.Center - RHS.Extent);
 	vec3 BoundsMax = max(LHS.Center + LHS.Extent, RHS.Center + RHS.Extent);
-	vec3 Extent = BoundsMax - BoundsMin;
-	vec3 Center = Extent * 0.5 + BoundsMin;
+	vec3 Extent = (BoundsMax - BoundsMin) * 0.5;
+	vec3 Center = BoundsMin + Extent;
 	return AABB(Center, Extent);
 }
 
@@ -72,8 +72,8 @@ AABB IntersectionOpBounds(AABB LHS, AABB RHS)
 {
 	vec3 BoundsMin = max(LHS.Center - LHS.Extent, RHS.Center - RHS.Extent);
 	vec3 BoundsMax = min(LHS.Center + LHS.Extent, RHS.Center + RHS.Extent);
-	vec3 Extent = max(BoundsMax - BoundsMin, 0.0);
-	vec3 Center = Extent * 0.5 + BoundsMin;
+	vec3 Extent = max(BoundsMax - BoundsMin, 0.0) * 0.5;
+	vec3 Center = BoundsMin + Extent;
 	return AABB(Center, Extent);
 }
 
@@ -99,11 +99,19 @@ float SmoothUnionOp(float LHS, float RHS, float Threshold)
 
 AABB SmoothUnionOpBounds(AABB LHS, AABB RHS, float Threshold)
 {
+	float MaxH = Threshold * Threshold * 0.25 / Threshold;
 	AABB Union = UnionOpBounds(LHS, RHS);
-	AABB Distortion = IntersectionOpBounds(
-		AABB(LHS.Center, LHS.Extent + Threshold),
-		AABB(RHS.Center, RHS.Extent + Threshold));
-	return UnionOpBounds(Union, Distortion);
+	if (any(greaterThan(Union.Extent, LHS.Extent + RHS.Extent + MaxH)))
+	{
+		return Union;
+	}
+	else
+	{
+		AABB Distortion = IntersectionOpBounds(
+			AABB(LHS.Center, LHS.Extent + MaxH),
+			AABB(RHS.Center, RHS.Extent + MaxH));
+		return UnionOpBounds(Union, Distortion);
+	}
 }
 
 
@@ -116,9 +124,7 @@ float SmoothIntersectionOp(float LHS, float RHS, float Threshold)
 
 AABB SmoothIntersectionOpBounds(AABB LHS, AABB RHS, float Threshold)
 {
-	AABB Intersection = IntersectionOpBounds(LHS, RHS);
-	Intersection.Extent += Threshold * Threshold * 0.25 / Threshold;
-	return Intersection;
+	return IntersectionOpBounds(LHS, RHS);
 }
 
 
