@@ -186,7 +186,66 @@ void ConnectContext()
 
 GLuint NullVAO;
 ShaderPipeline TestShader;
+ShaderPipeline PaintShader;
 Buffer ViewInfo("ViewInfo Buffer");
+
+GLuint DepthPass;
+GLuint DepthBuffer;
+GLuint PositionBuffer;
+GLuint NormalBuffer;
+const GLuint FinalPass = 0;
+
+
+void AllocateRenderTargets(int ScreenWidth, int ScreenHeight)
+{
+	static bool Initialized = false;
+	if (Initialized)
+	{
+		glDeleteFramebuffers(1, &DepthPass);
+		glDeleteTextures(1, &DepthBuffer);
+		glDeleteTextures(1, &PositionBuffer);
+		glDeleteTextures(1, &NormalBuffer);
+	}
+	else
+	{
+		Initialized = true;
+	}
+
+	// Depth Pass
+	{
+		glCreateTextures(GL_TEXTURE_2D, 1, &DepthBuffer);
+		glTextureStorage2D(DepthBuffer, 1, GL_DEPTH_COMPONENT32F, ScreenWidth, ScreenHeight);
+		glTextureParameteri(DepthBuffer, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+		glTextureParameteri(DepthBuffer, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+		glTextureParameteri(DepthBuffer, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+		glTextureParameteri(DepthBuffer, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+		glObjectLabel(GL_TEXTURE, DepthBuffer, -1, "DepthBuffer");
+
+		glCreateTextures(GL_TEXTURE_2D, 1, &PositionBuffer);
+		glTextureStorage2D(PositionBuffer, 1, GL_RGB32F, ScreenWidth, ScreenHeight);
+		glTextureParameteri(PositionBuffer, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+		glTextureParameteri(PositionBuffer, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+		glTextureParameteri(PositionBuffer, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+		glTextureParameteri(PositionBuffer, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+		glObjectLabel(GL_TEXTURE, PositionBuffer, -1, "World Position");
+
+		glCreateTextures(GL_TEXTURE_2D, 1, &NormalBuffer);
+		glTextureStorage2D(NormalBuffer, 1, GL_RGB8_SNORM, ScreenWidth, ScreenHeight);
+		glTextureParameteri(NormalBuffer, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+		glTextureParameteri(NormalBuffer, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+		glTextureParameteri(NormalBuffer, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+		glTextureParameteri(NormalBuffer, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+		glObjectLabel(GL_TEXTURE, NormalBuffer, -1, "World Normal");
+
+		glCreateFramebuffers(1, &DepthPass);
+		glObjectLabel(GL_FRAMEBUFFER, DepthPass, -1, "DepthPass");
+		glNamedFramebufferTexture(DepthPass, GL_DEPTH_ATTACHMENT, DepthBuffer, 0);
+		glNamedFramebufferTexture(DepthPass, GL_COLOR_ATTACHMENT0, PositionBuffer, 0);
+		glNamedFramebufferTexture(DepthPass, GL_COLOR_ATTACHMENT1, NormalBuffer, 0);
+		GLenum ColorAttachments[2] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1 };
+		glNamedFramebufferDrawBuffers(DepthPass, 2, ColorAttachments);
+	}
+}
 
 
 struct ViewInfoUpload
@@ -223,6 +282,11 @@ StatusCode SetupInner()
 		{ {GL_VERTEX_SHADER, GeneratedShader("shaders/math.glsl", SimpleScene, "shaders/test.vs.glsl")},
 		  {GL_FRAGMENT_SHADER, GeneratedShader("shaders/math.glsl", SimpleScene, "shaders/test.fs.glsl")} },
 		"Test Shader"));
+
+	RETURN_ON_FAIL(PaintShader.Setup(
+		{ {GL_VERTEX_SHADER, ShaderSource("shaders/splat.vs.glsl", true)},
+		 {GL_FRAGMENT_SHADER, ShaderSource("shaders/outliner.fs.glsl", true)} },
+		"Outliner Shader"));
 
 	glDisable(GL_MULTISAMPLE);
 	glEnable(GL_CULL_FACE);
@@ -303,6 +367,7 @@ void RenderInner()
 			Width = NewWidth;
 			Height = NewHeight;
 			glViewport(0, 0, Width, Height);
+			AllocateRenderTargets(Width, Height);
 		}
 	}
 
@@ -331,10 +396,26 @@ void RenderInner()
 	}
 
 	{
-		glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Test Draw Pass");
+		glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Depth");
+		glDepthMask(GL_TRUE);
+		glEnable(GL_DEPTH_TEST);
+		glBindFramebuffer(GL_FRAMEBUFFER, DepthPass);
 		TestShader.Activate();
-		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		glClear(GL_DEPTH_BUFFER_BIT);
 		glDrawArrays(GL_TRIANGLES, 0, 36);
+		glPopDebugGroup();
+	}
+
+	{
+		glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Paint");
+		glDisable(GL_DEPTH_TEST);
+		glDepthMask(GL_FALSE);
+		glBindFramebuffer(GL_FRAMEBUFFER, FinalPass);
+		glBindTextureUnit(1, DepthBuffer);
+		glBindTextureUnit(2, PositionBuffer);
+		glBindTextureUnit(3, NormalBuffer);
+		PaintShader.Activate();
+		glDrawArrays(GL_TRIANGLES, 0, 3);
 		glPopDebugGroup();
 	}
 

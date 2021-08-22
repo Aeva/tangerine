@@ -163,6 +163,8 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="..\shaders\math.glsl" />
+    <None Include="..\shaders\outliner.fs.glsl" />
+    <None Include="..\shaders\splat.vs.glsl" />
     <None Include="..\shaders\test.fs.glsl" />
     <None Include="..\shaders\test.vs.glsl" />
   </ItemGroup>
