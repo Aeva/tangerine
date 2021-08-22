@@ -86,23 +86,26 @@ void main()
 					AverageNeighbor = (Positions[i] + Positions[j]) * 0.5;
 				}
 			}
-			OutColor = vec4(vec3(0.5), 1.0);
+			{
+				float Highlight = dot(CenterNormal, normalize(CameraOrigin.xyz - CenterPosition));
+				OutColor = vec4(vec3(Highlight), 1.0);
+			}
 			if (Angle > -0.707)
 			{
 				float Delta = distance(AverageNeighbor, CameraOrigin.xyz) - distance(CameraOrigin.xyz, CenterPosition);
 				if (Delta < 0.0)
 				{
-					OutColor.xyz = vec3(0.0);
+					OutColor.xyz -= 0.75;
 				}
 				else
 				{
-					OutColor.xyz = vec3(1.0);
+					OutColor.xyz += 0.75;
 				}
 			}
 		}
 	}
 	else
 	{
-		OutColor = vec4(vec3(0.25), 1.0);
+		OutColor = vec4(vec3(0.6), 1.0);
 	}
 }
