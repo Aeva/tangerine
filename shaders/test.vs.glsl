@@ -83,10 +83,14 @@ ivec3 Indices[12] = \
 
 
 out vec3 WorldSpace;
+out flat vec3 WorldMin;
+out flat vec3 WorldMax;
 
 void main()
 {
 	AABB Bounds = SceneBounds();
+	WorldMin = Bounds.Center - Bounds.Extent;
+	WorldMax = Bounds.Center + Bounds.Extent;
 	const int Tri = gl_VertexID / 3;
 	const int Vert = gl_VertexID % 3;
 	int Index = Indices[Tri][Vert];

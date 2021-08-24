@@ -74,8 +74,37 @@
   tree)
 
 
+(define (hole-punch tree)
+  (for ([n (in-range 6)])
+    (let* ([x (+ (random -5 5) (random))]
+           [z (+ (random -5 5) (random))]
+           [r1 (+ (random 2 4) (random))]
+           [r2 (- r1 0.2)]
+           [r3 (* r2 0.1)]
+           [e (+ 0.01 (* (random) 0.5))])
+    (set! tree
+          (union
+           (cut tree
+                (trans x 0 z
+                       (sphere r1)))
+           (trans x 0 z
+                  (cut
+                   (inter
+                    (sphere r2)
+                    (box r2 e r2))
+                   (inter
+                    (trans-z r3
+                             (sphere r2))
+                    (trans-z (* -1. r3)
+                             (sphere r2)))))))))
+  tree)
+
+
 (define (emit-glsl)
-  (scene (wall 10.0
-               '(-3.0 0.0)
-               '(0.0 0.3)
-               '(3.0 0.8))))
+  (scene
+   (quat 0.042133 0.01129 -0.258573 0.965007
+         (hole-punch
+          (wall 10.0
+                '(-3.0 0.0)
+                '(0.0 0.3)
+                '(3.0 0.8))))))

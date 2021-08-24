@@ -146,3 +146,47 @@ AABB TranslateAABB(AABB Bounds, vec3 Offset)
 	Bounds.Center += Offset;
 	return Bounds;
 }
+
+
+vec3 QuaternionTransform(vec3 Point, vec4 Quat)
+{
+	vec2 Sign = vec2(1.0, -1.0);
+	vec4 Tmp = vec4(
+		dot(Sign.xyx * Quat.wzy, Point),
+		dot(Sign.xxy * Quat.zwx, Point),
+		dot(Sign.yxx * Quat.yxw, Point),
+		dot(Sign.yyy * Quat.xyz, Point));
+	return vec3(
+		dot(Sign.xyxy * Quat.wzyx, Tmp),
+		dot(Sign.xxyy * Quat.zwxy, Tmp),
+		dot(Sign.yxxy * Quat.yxwz, Tmp));
+}
+
+
+AABB QuaternionTransformAABB(AABB Bounds, vec4 Quat)
+{
+	vec3 A = Bounds.Center - Bounds.Extent;
+	vec3 B = Bounds.Center + Bounds.Extent;
+
+	vec3 NewMin = QuaternionTransform(A, Quat);
+	vec3 NewMax = NewMin;
+	vec3 Tmp;
+#define CRANK(var) \
+	Tmp = QuaternionTransform(var, Quat); \
+	NewMin = min(NewMin, Tmp.xyz); \
+	NewMax = max(NewMax, Tmp.xyz);
+
+	CRANK(B);
+	CRANK(vec3(B.x, A.yz));
+	CRANK(vec3(A.x, B.y, A.z));
+	CRANK(vec3(A.xy, B.z));
+	CRANK(vec3(A.x, B.yz));
+	CRANK(vec3(B.x, A.y, B.z));
+	CRANK(vec3(B.xy, A.z));
+
+	AABB NewBounds;
+	NewBounds.Extent = (NewMax - NewMin) * 0.5;
+	NewBounds.Center = NewBounds.Extent + NewMin;
+	return NewBounds;
+#undef CRANK
+}

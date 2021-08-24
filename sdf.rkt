@@ -29,7 +29,8 @@
          trans
          trans-x
          trans-y
-         trans-z)
+         trans-z
+         quat)
 
 
 (struct sdf-part (dist aabb))
@@ -131,3 +132,33 @@
 
 (define (trans-z z child)
   (trans 0. 0. z child))
+
+
+(define (normalize-quat x y z w)
+  (let ([dot-quat (+ (* x x)
+                (* y y)
+                (* z z)
+                (* w w))])
+    (values (/ x dot-quat)
+            (/ y dot-quat)
+            (/ z dot-quat)
+            (/ w dot-quat))))
+
+
+(define (inverse-quat x y z w)
+  (let-values([(x y z w) (normalize-quat x y z w)])
+    (values (* -1. x)
+            (* -1. y)
+            (* -1. z)
+            w)))
+
+
+(define (quat x y z w child)
+    (sdf-part
+     (let-values([(x y z w) (normalize-quat x y z w)])
+       (λ (point)
+         ((sdf-part-dist child) @~a{QuaternionTransform(@point, vec4(@x, @y, @z, @w))})))
+     (let-values([(x y z w) (inverse-quat x y z w)])
+       (λ ()
+         (let ([aabb ((sdf-part-aabb child))])
+           @~a{QuaternionTransformAABB(@aabb, vec4(@x, @y, @z, @w))})))))

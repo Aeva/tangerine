@@ -28,8 +28,10 @@ uniform ViewInfoBlock
 };
 
 in vec3 WorldSpace;
+in flat vec3 WorldMin;
+in flat vec3 WorldMax;
 
-layout (depth_less) out float gl_FragDepth;
+layout(depth_less) out float gl_FragDepth;
 layout(location = 0) out vec3 OutPosition;
 layout(location = 1) out vec3 OutNormal;
 
@@ -54,22 +56,31 @@ void main()
 	vec4 World = ViewToWorld * View;
 	World /= World.w;
 	vec3 EyeRay = normalize(World.xyz - CameraOrigin.xyz);
+	vec3 RayStart = clamp(WorldSpace, WorldMin, WorldMax);
 
 	bool Hit = false;
 	float Travel = 0.0;
 	vec3 Position;
 	for (int i = 0; i < 200; ++i)
 	{
-		Position = EyeRay * Travel + WorldSpace;
-		float Dist = SceneDist(Position);
-		if (Dist <= 0.005)
+		Position = EyeRay * Travel + RayStart;
+		if (any(lessThan(Position, WorldMin)) || any(greaterThan(Position, WorldMax)))
 		{
-			Hit = true;
+			Hit = false;
 			break;
 		}
 		else
 		{
-			Travel += Dist;
+			float Dist = SceneDist(Position);
+			if (Dist <= 0.005)
+			{
+				Hit = true;
+				break;
+			}
+			else
+			{
+				Travel += Dist;
+			}
 		}
 	}
 
