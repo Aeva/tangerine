@@ -100,10 +100,51 @@
   tree)
 
 
+;(define (emit-glsl)
+;  (scene
+;   (hole-punch
+;    (wall 10.0
+;          '(-3.0 0.0)
+;          '(0.0 0.3)
+;          '(3.0 0.8)))))
+
+
+(define (wheel)
+  (define (tread deg)
+    (rotate
+     (quat-rot-x deg)
+     (trans-z 0.75
+              (rotate
+               (quat-rot-z 45.)
+               (cut
+                (box 1. 1. 1.)
+                (trans 0.15 0.15 0.15
+                       (box 1. 1. 1.)))))))
+  (define tree (tread 0.))
+  (let ([step 20])
+    (for ([deg (in-range step 360 step)])
+      (set! tree
+            (union
+             tree
+             (tread deg)))))
+  (cut
+   (smooth-inter 0.25
+                 (union
+                  (inter
+                   (sphere 2.5)
+                   tree)
+                  (sphere 2.35))
+                 (box 1. 3. 3.))
+   (sphere 1.75)))
+
+
 (define (emit-glsl)
   (scene
-   (hole-punch
-    (wall 10.0
-          '(-3.0 0.0)
-          '(0.0 0.3)
-          '(3.0 0.8)))))
+   (trans-y -6.
+   (union
+    (trans-x 2.
+             (rotate
+              (quat-rot-z 90.)
+              (wheel)))
+    (trans-x -2.
+             (wheel))))))
