@@ -118,7 +118,7 @@
                (quat-rot-z 45.)
                (cut
                 (box 1. 1. 1.)
-                (trans 0.15 0.15 0.15
+                (trans 0.125 0.125 0.125
                        (box 1. 1. 1.)))))))
   (define tree (tread 0.))
   (let ([step 20])
@@ -127,29 +127,20 @@
             (union
              tree
              (tread deg)))))
-  ;(cut
-  ; (smooth-inter 0.25
-  ;               (union
-  ;                (inter
-  ;                 (sphere 2.5)
-  ;                 tree)
-  ;                (sphere 2.35))
-  ;               (box 1. 3. 3.))
-  ; (sphere 1.75)))
   (cut
-   (union
+   (smooth-union 0.05
     (smooth-inter 0.1
                   (rotate
                    (quat-rot-y 90.)
                    (smooth-union .5
-                                 (trans-z .25
+                                 (trans-z .24
                                           (torus 2.6 .8))
-                                 (trans-z -0.25
+                                 (trans-z -0.24
                                           (torus 2.6 .8))))
                   (sphere 2.45))
     (cut
      (inter
-      (sphere 2.5)
+      (sphere 2.55)
       tree)
      (union
       (trans-x 2.2
@@ -162,19 +153,11 @@
 
 (define (emit-glsl)
   (scene
-   (trans-y -6.
+   (trans-y -8.
    (union
-    (trans-x 2.
+    (trans-x 1.
              (rotate
               (quat-rot-z 90.)
               (wheel)))
-    (trans-x -2.
+    (trans-x -1.3
              (wheel))))))
-
-
-;(define (emit-glsl)
-;  (scene
-;   (rotate
-;    (quat-rot-x 90.
-;                (quat-rot-z 45.))
-;    (torus 4. 1.))))
