@@ -46,6 +46,18 @@ AABB BoxBrushBounds(vec3 Extent)
 }
 
 
+float TorusBrush(vec3 Point, float MajorRadius, float MinorRadius)
+{
+	return length(vec2(length(Point.xy) - MajorRadius, Point.z)) - MinorRadius;
+}
+
+
+AABB TorusBrushBounds(float MajorRadius, float MinorRadius)
+{
+	return AABB(vec3(0.0), vec3(MajorRadius + MinorRadius, MajorRadius + MinorRadius, MinorRadius));
+}
+
+
 float UnionOp(float LHS, float RHS)
 {
 	return min(LHS, RHS);

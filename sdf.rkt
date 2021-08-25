@@ -21,6 +21,7 @@
          sphere
          box
          cube
+         torus
          union
          inter
          cut
@@ -79,6 +80,16 @@
 
 (define (cube extent)
   (box extent extent extent))
+
+
+(define (torus major-diameter minor-diameter)
+  (let* ([minor-radius (/ minor-diameter 2.)]
+         [major-radius (- (/ major-diameter 2.) minor-radius)])
+  (sdf-part
+   (λ (point)
+     @~a{TorusBrush(@point, @major-radius, @minor-radius)})
+   (λ ()
+     @~a{TorusBrushBounds(@major-radius, @minor-radius)}))))
 
 
 (define (make-operator op)
