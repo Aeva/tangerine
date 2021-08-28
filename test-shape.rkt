@@ -109,7 +109,7 @@
 ;          '(3.0 0.8)))))
 
 
-(define (wheel)
+(define (tire)
   (define (tread deg)
     (rotate
      (quat-rot-x deg)
@@ -151,13 +151,81 @@
    (sphere 1.6)))
 
 
+(define (tire-cut)
+  (rotate-y 90.
+            (cylinder 2.75 1.5)))
+
+
+(define (spin-steps rotate-n steps stamp [csg-op union])
+  (let ([step (/ 360. steps)]
+        [acc stamp])
+        (for ([deg (in-range step 360 step)])
+          (set! acc
+                (csg-op
+                 acc
+                 (rotate-n deg stamp))))
+        acc))
+
+
+(define (nut width depth)
+  (spin-steps rotate-z 3. (box (* width 2.) width depth) inter))
+
+
+(define (hub)
+  (let* ([outset 0.55]
+         [diameter 1.25]
+         [lip 0.075]
+         [lip-blend (/ lip 3.0)]
+         [inner-diameter (- diameter (/ lip 2.))]
+         [cuts-radius (/ inner-diameter 2.5)]
+         [rim (torus diameter lip)]
+         [plate (ellipsoid inner-diameter inner-diameter .2)]
+         [edge-cut-limit (cylinder (- inner-diameter lip lip-blend) .2)]
+         [edge-cut-stamp (trans-y cuts-radius (ellipsoid .4 .2 .2))]
+         [edge-cuts (inter edge-cut-limit (spin-steps rotate-z 6. edge-cut-stamp))]
+         [recess (cylinder .7 .2)]
+         [stud-length .07]
+         [stud-diameter 0.06]
+         [stud (trans-z (/ stud-length 2.) (cylinder stud-diameter stud-length))]
+         [nut-width .1]
+         [nut-depth (/ nut-width 2.)]
+         [lug-nut (trans-z (* nut-depth 0.52)  (rotate-z (* (random) 120.) (nut nut-width nut-depth)))]
+         [lug-nutz (spin-steps rotate-z 5. (trans-x .2 (union stud lug-nut)))])
+    (trans-x
+     outset
+     (rotate-y
+      90.
+      (union
+       (smooth-union lip-blend
+                     rim
+                     (cut
+                      (smooth-cut .05
+                                  plate
+                                  (trans-z .1 recess))
+                      edge-cuts))
+       lug-nutz)))))
+
+
+(define (wheel [angle 0.])
+  (let ([shape (union
+                (tire)
+                (hub))])
+    (if (eq? angle 0.)
+        shape
+        (rotate-z angle shape))))
+
+
+(define (gallery tree)
+  (let ([lhs (trans-x 1.
+                      (rotate-z -90.
+                                tree))]
+        [rhs (trans-x -1.3
+                      (rotate-z -10.
+                                tree))])
+    (trans-y -8.
+             (union lhs rhs))))
+
+
 (define (emit-glsl)
   (scene
-   (trans-y -8.
-   (union
-    (trans-x 1.
-             (rotate
-              (quat-rot-z 90.)
-              (wheel)))
-    (trans-x -1.3
-             (wheel))))))
+   (gallery (wheel))))

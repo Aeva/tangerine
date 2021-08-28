@@ -33,6 +33,20 @@ AABB SphereBrushBounds(float Radius)
 }
 
 
+float EllipsoidBrush(vec3 Point, vec3 Radipodes)
+{
+	float K0 = length(Point / Radipodes);
+	float K1 = length(Point / (Radipodes * Radipodes));
+	return K0 * (K0 - 1.0) / K1;
+}
+
+
+AABB EllipsoidBrushBounds(vec3 Radipodes)
+{
+	return AABB(vec3(0.0), Radipodes);
+}
+
+
 float BoxBrush(vec3 Point, vec3 Extent)
 {
 	vec3 A = abs(Point) - Extent;
@@ -55,6 +69,19 @@ float TorusBrush(vec3 Point, float MajorRadius, float MinorRadius)
 AABB TorusBrushBounds(float MajorRadius, float MinorRadius)
 {
 	return AABB(vec3(0.0), vec3(MajorRadius + MinorRadius, MajorRadius + MinorRadius, MinorRadius));
+}
+
+
+float CylinderBrush(vec3 Point, float Radius, float Extent)
+{
+	vec2 D = abs(vec2(length(Point.xy), Point.z)) - vec2(Radius, Extent);
+	return min(max(D.x, D.y), 0.0) + length(max(D, 0.0));
+}
+
+
+AABB CylinderBrushBounds(float Radius, float Extent)
+{
+	return AABB(vec3(0.0), vec3(Radius, Radius, Extent));
 }
 
 

@@ -19,9 +19,11 @@
 
 (provide scene
          sphere
+         ellipsoid
          box
          cube
          torus
+         cylinder
          union
          inter
          cut
@@ -37,7 +39,11 @@
          quat-rot-x
          quat-rot-y
          quat-rot-z
-         rotate)
+         rotate
+         rotate-x
+         rotate-y
+         rotate-z
+         lerp)
 
 
 (struct sdf-part (dist aabb))
@@ -70,6 +76,17 @@
     @~a{SphereBrushBounds(@diameter * 0.5)})))
 
 
+(define (ellipsoid dia-x dia-y dia-z)
+  (let ([rad-x (/ dia-x 2.)]
+        [rad-y (/ dia-y 2.)]
+        [rad-z (/ dia-z 2.)])
+    (sdf-part
+     (λ (point)
+       @~a{EllipsoidBrush(@point, vec3(@rad-x, @rad-y, @rad-z))})
+     (λ ()
+       @~a{EllipsoidBrushBounds(vec3(@rad-x, @rad-y, @rad-z))}))))
+
+
 (define (box width depth height)
   (sdf-part
    (λ (point)
@@ -90,6 +107,16 @@
      @~a{TorusBrush(@point, @major-radius, @minor-radius)})
    (λ ()
      @~a{TorusBrushBounds(@major-radius, @minor-radius)}))))
+
+
+(define (cylinder diameter extent)
+  (let ([radius (/ diameter 2.)]
+        [extent (/ extent 2.)])
+    (sdf-part
+     (λ (point)
+       @~a{CylinderBrush(@point, @radius, @extent)})
+     (λ ()
+       @~a{CylinderBrushBounds(@radius, @extent)}))))
 
 
 (define (make-operator op)
@@ -231,3 +258,27 @@
      (λ ()
        (let ([aabb ((sdf-part-aabb child))])
          @~a{QuaternionTransformAABB(@aabb, vec4(@x, @y, @z, @w))})))))
+
+
+(define (rotate-x degrees child)
+  (rotate
+   (quat-rot-x degrees)
+   child))
+
+
+(define (rotate-y degrees child)
+  (rotate
+   (quat-rot-y degrees)
+   child))
+
+
+(define (rotate-z degrees child)
+  (rotate
+   (quat-rot-z degrees)
+   child))
+
+
+(define (lerp lhs rhs alpha)
+  (+
+   (* lhs (- 1. alpha))
+   (* rhs alpha)))
