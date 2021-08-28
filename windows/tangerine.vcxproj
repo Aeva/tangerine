@@ -156,6 +156,7 @@
     <ClInclude Include="..\backend\backend.h" />
     <ClInclude Include="..\backend\errors.h" />
     <ClInclude Include="..\backend\gl_boilerplate.h" />
+    <ClInclude Include="..\shaders\defines.h" />
     <ClInclude Include="..\third_party\glad\glad.h" />
     <ClInclude Include="..\third_party\glad\glad_wgl.h" />
     <ClInclude Include="..\third_party\glad\khrplatform.h" />

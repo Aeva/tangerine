@@ -33,7 +33,11 @@ in flat vec3 WorldMax;
 
 layout(depth_less) out float gl_FragDepth;
 layout(location = 0) out vec3 OutPosition;
+#if VISUALIZE_TRACING_ERROR
+layout(location = 1) out vec4 OutNormal;
+#else
 layout(location = 1) out vec3 OutNormal;
+#endif
 
 
 vec3 Gradient(vec3 Position)
@@ -45,6 +49,14 @@ vec3 Gradient(vec3 Position)
 		SceneDist(vec3(Position.x, Position.y + AlmostZero, Position.z)) - Dist,
 		SceneDist(vec3(Position.x, Position.y, Position.z + AlmostZero)) - Dist);
 }
+
+
+struct Coverage
+{
+	float Low;
+	float High;
+	float Sign;
+};
 
 
 void main()
@@ -61,7 +73,63 @@ void main()
 	bool Hit = false;
 	float Travel = 0.0;
 	vec3 Position;
-	for (int i = 0; i < 200; ++i)
+	float Dist = 0.0;
+#if USE_COVERAGE_SEARCH
+	{
+		const float AlmostZero = 0.001;
+		float MaxTravel = distance(WorldMin, WorldMax); // Overestimate, bad for perf;
+		float PivotTravel = mix(Travel, MaxTravel, 0.5);
+		float PivotRadius = SceneDist(EyeRay * PivotTravel + RayStart);
+
+		const int MaxStack = 14;
+		Coverage Stack[MaxStack];
+		Stack[0] = Coverage(MaxTravel, MaxTravel, 0.0);
+		Stack[1] = Coverage(PivotTravel - abs(PivotRadius), PivotTravel + abs(PivotRadius), sign(PivotRadius));
+		int Top = 1;
+		Coverage Cursor = Coverage(Travel, Travel, 0.0);
+
+		for (int i = 0; i < 200; ++i)
+		{
+			if (Stack[Top].Low - AlmostZero <= Cursor.High)
+			{
+				Cursor = Stack[Top];
+				--Top;
+				if (Top == -1 || Cursor.Sign < 0)
+				{
+					break;
+				}
+			}
+			else
+			{
+				PivotTravel = (Stack[Top].Low + Cursor.High) * 0.5;
+				PivotRadius = SceneDist(EyeRay * PivotTravel + RayStart);
+				Coverage Next = Coverage(PivotTravel - abs(PivotRadius), PivotTravel + abs(PivotRadius), sign(PivotRadius));
+				if (abs(Stack[Top].Sign + Next.Sign) > 0 && Stack[Top].Low - AlmostZero <= Next.High)
+				{
+					Stack[Top].Low = Next.Low;
+				}
+				else if (Top < MaxStack - 1)
+				{
+					++Top;
+					Stack[Top] = Next;
+				}
+				else
+				{
+					// Ran out of stack!
+					break;
+				}
+			}
+		}
+		if (Cursor.Sign == -1)
+		{
+			Travel = max(0.0, Cursor.Low);
+			Position = EyeRay * Travel + RayStart;
+			Dist = SceneDist(Position);
+			Hit = true;
+		}
+	}
+#else
+	for (int i = 0; i < 100; ++i)
 	{
 		Position = EyeRay * Travel + RayStart;
 		if (any(lessThan(Position, WorldMin)) || any(greaterThan(Position, WorldMax)))
@@ -71,8 +139,8 @@ void main()
 		}
 		else
 		{
-			float Dist = SceneDist(Position);
-			if (Dist <= 0.005)
+			Dist = SceneDist(Position);
+			if (Dist <= 0.001)
 			{
 				Hit = true;
 				break;
@@ -83,13 +151,17 @@ void main()
 			}
 		}
 	}
+#endif
 
 	if (Hit)
 	{
 		OutPosition = Position;
-		OutNormal = normalize(Gradient(Position));
+		OutNormal.xyz = normalize(Gradient(Position));
+#if VISUALIZE_TRACING_ERROR
+		OutNormal.a = abs(clamp(Dist, -0.005, 0.005) / 0.005);
+#endif
 		vec3 LightRay = normalize(vec3(-1.0, 1.0, -1.0));
-		float Diffuse = max(-dot(OutNormal, LightRay), 0.2);
+		float Diffuse = max(-dot(OutNormal.xyz, LightRay), 0.2);
 
 		vec4 ViewPosition = WorldToView * vec4(Position, 1.0);
 		ViewPosition /= ViewPosition.w;

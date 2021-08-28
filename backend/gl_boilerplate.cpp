@@ -22,6 +22,7 @@
 ShaderSource GeneratedShader(std::string PrePath, std::string Generated, std::string PostPath)
 {
 	std::vector<ShaderSource> Sources = {
+		ShaderSource("shaders/defines.h", true),
 		ShaderSource(PrePath, true),
 		ShaderSource(Generated, false),
 		ShaderSource(PostPath, true)

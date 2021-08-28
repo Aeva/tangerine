@@ -53,6 +53,9 @@
     <ClInclude Include="..\third_party\glad\glad_wgl.h">
       <Filter>Third Party\Glad</Filter>
     </ClInclude>
+    <ClInclude Include="..\shaders\defines.h">
+      <Filter>Shaders</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="..\shaders\test.fs.glsl">

@@ -38,6 +38,7 @@
 #include <mutex>
 #include "backend.h"
 #include "gl_boilerplate.h"
+#include "../shaders/defines.h"
 
 
 #define MINIMUM_VERSION_MAJOR 4
@@ -230,7 +231,11 @@ void AllocateRenderTargets(int ScreenWidth, int ScreenHeight)
 		glObjectLabel(GL_TEXTURE, PositionBuffer, -1, "World Position");
 
 		glCreateTextures(GL_TEXTURE_2D, 1, &NormalBuffer);
+#if VISUALIZE_TRACING_ERROR
+		glTextureStorage2D(NormalBuffer, 1, GL_RGBA8_SNORM, ScreenWidth, ScreenHeight);
+#else
 		glTextureStorage2D(NormalBuffer, 1, GL_RGB8_SNORM, ScreenWidth, ScreenHeight);
+#endif
 		glTextureParameteri(NormalBuffer, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 		glTextureParameteri(NormalBuffer, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 		glTextureParameteri(NormalBuffer, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
@@ -372,7 +377,8 @@ void RenderInner()
 	}
 
 	{
-		const glm::vec3 CameraOrigin = glm::vec3(-4.0, -14.0, 4.0);
+		//const glm::vec3 CameraOrigin = glm::vec3(-4.0, -14.0, 4.0);
+		const glm::vec3 CameraOrigin = glm::vec3(0.0, -14.0, 0.0);
 		const glm::vec3 CameraFocus = glm::vec3(0.0, 0.0, 0.0);
 		const glm::vec3 UpVector = glm::vec3(0.0, 0.0, 1.0);
 		const glm::mat4 WorldToView = glm::lookAt(CameraOrigin, CameraFocus, UpVector);
