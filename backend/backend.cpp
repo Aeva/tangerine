@@ -186,10 +186,19 @@ void ConnectContext()
 
 
 GLuint NullVAO;
+ShaderPipeline ClusterCullShader;
+ShaderPipeline ClusterTallyShader;
+#if VISUALIZE_CLUSTER_COVERAGE
+ShaderPipeline ClusterCoverageShader;
+#endif
 ShaderPipeline TestShader;
 ShaderPipeline PaintShader;
+
 Buffer ViewInfo("ViewInfo Buffer");
 
+Buffer TileDrawArgs("Indirect Tile Drawing Arguments");
+Buffer TileHeapInfo("Tile Draw Heap Info");
+Buffer TileHeap("Tile Draw Heap");
 GLuint DepthPass;
 GLuint DepthBuffer;
 GLuint PositionBuffer;
@@ -266,6 +275,41 @@ struct ViewInfoUpload
 };
 
 
+struct TileDrawArgsUpload
+{
+	GLuint PrimitiveCount;
+	GLuint InstanceCount;
+	GLuint First;
+	GLuint BaseIntstance;
+};
+
+
+struct TileHeapInfoUpload
+{
+	GLuint HeapSize;
+	GLuint StackPtr;
+};
+
+
+struct TileHeapEntry
+{
+	GLuint TileID;
+};
+
+
+StatusCode CompileGeneratedShaders(std::string& GeneratedSource, ShaderPipeline& ClusterCullShader, ShaderPipeline& TestShader)
+{
+	RETURN_ON_FAIL(ClusterCullShader.Setup(
+		{ {GL_COMPUTE_SHADER, GeneratedShader("shaders/math.glsl", GeneratedSource, "shaders/cluster_cull.cs.glsl")} },
+		"Cluster Culling Shader"));
+
+	RETURN_ON_FAIL(TestShader.Setup(
+		{ {GL_VERTEX_SHADER, GeneratedShader("shaders/math.glsl", GeneratedSource, "shaders/test.vs.glsl")},
+		  {GL_FRAGMENT_SHADER, GeneratedShader("shaders/math.glsl", GeneratedSource, "shaders/test.fs.glsl")} },
+		"Generated Shader"));
+}
+
+
 // Application specific setup stuff.
 StatusCode SetupInner()
 {
@@ -283,6 +327,22 @@ StatusCode SetupInner()
 		"	return SphereBrushBounds(0.1);\n"
 		"}\n";
 
+	CompileGeneratedShaders(SimpleScene, ClusterCullShader, TestShader);
+
+	RETURN_ON_FAIL(ClusterCullShader.Setup(
+		{ {GL_COMPUTE_SHADER, GeneratedShader("shaders/math.glsl", SimpleScene, "shaders/cluster_cull.cs.glsl")} },
+		"Cluster Culling Shader"));
+
+	RETURN_ON_FAIL(ClusterTallyShader.Setup(
+		{ {GL_COMPUTE_SHADER, ShaderSource("shaders/cluster_tally.cs.glsl", true)} },
+		"Cluster Tally Shader"));
+
+#if VISUALIZE_CLUSTER_COVERAGE
+	RETURN_ON_FAIL(ClusterCoverageShader.Setup(
+		{ {GL_VERTEX_SHADER, ShaderSource("shaders/cluster_coverage.vs.glsl", true)},
+		 {GL_FRAGMENT_SHADER, ShaderSource("shaders/cluster_coverage.fs.glsl", true)} },
+		"Cluster Coverage Shader"));
+#else
 	RETURN_ON_FAIL(TestShader.Setup(
 		{ {GL_VERTEX_SHADER, GeneratedShader("shaders/math.glsl", SimpleScene, "shaders/test.vs.glsl")},
 		  {GL_FRAGMENT_SHADER, GeneratedShader("shaders/math.glsl", SimpleScene, "shaders/test.fs.glsl")} },
@@ -292,6 +352,12 @@ StatusCode SetupInner()
 		{ {GL_VERTEX_SHADER, ShaderSource("shaders/splat.vs.glsl", true)},
 		 {GL_FRAGMENT_SHADER, ShaderSource("shaders/outliner.fs.glsl", true)} },
 		"Outliner Shader"));
+#endif
+
+	{
+		TileDrawArgsUpload BufferData = { 0, 0, 0, 0 };
+		TileDrawArgs.Upload((void*)&BufferData, sizeof(BufferData));
+	}
 
 	glDisable(GL_MULTISAMPLE);
 	glEnable(GL_CULL_FACE);
@@ -312,22 +378,25 @@ std::string NewShaderSource;
 void SetupNewShader()
 {
 	NewShaderLock.lock();
-	ShaderPipeline NewShader;
-	StatusCode Result = NewShader.Setup(
-		{ {GL_VERTEX_SHADER, GeneratedShader("shaders/math.glsl", NewShaderSource, "shaders/test.vs.glsl")},
-		  {GL_FRAGMENT_SHADER, GeneratedShader("shaders/math.glsl", NewShaderSource, "shaders/test.fs.glsl")} },
-		"Generated Shader");
+	ShaderPipeline NewClusterCullShader;
+	ShaderPipeline NewTestShader;
+	StatusCode Result = CompileGeneratedShaders(NewShaderSource, NewClusterCullShader, NewTestShader);
+
 	NewShaderReady.store(false);
 	NewShaderLock.unlock();
 
 	if (Result == StatusCode::FAIL)
 	{
-		NewShader.Reset();
+		NewClusterCullShader.Reset();
+		NewTestShader.Reset();
 	}
 	else
 	{
+		ClusterCullShader.Reset();
+		ClusterCullShader = NewClusterCullShader;
+
 		TestShader.Reset();
-		TestShader = NewShader;
+		TestShader = NewTestShader;
 	}
 }
 
@@ -401,6 +470,65 @@ void RenderInner()
 		ViewInfo.Bind(GL_UNIFORM_BUFFER, 0);
 	}
 
+	const unsigned int TilesX = DIV_UP(Width, TILE_SIZE_X);
+	const unsigned int TilesY = DIV_UP(Height, TILE_SIZE_Y);
+	{
+		static unsigned int HeapSize = 0;
+		const unsigned int TileCount = TilesX * TilesY;
+
+		TileHeapInfoUpload BufferData = {
+			TileCount,
+			0
+		};
+		TileHeapInfo.Upload((void*)&BufferData, sizeof(BufferData));
+		glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+
+		if (TileCount != HeapSize)
+		{
+			HeapSize = TileCount;
+			TileHeap.Reserve(sizeof(TileHeapEntry) * HeapSize);
+		}
+	}
+
+	{
+		glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Cluster Culling Pass");
+		ClusterCullShader.Activate();
+		TileHeap.Bind(GL_SHADER_STORAGE_BUFFER, 0);
+		TileHeapInfo.Bind(GL_SHADER_STORAGE_BUFFER, 1);
+		// Each lane is a tile, so we have to tile the tiles...
+		const unsigned int GroupX = DIV_UP(TilesX, TILE_SIZE_X);
+		const unsigned int GroupY = DIV_UP(TilesY, TILE_SIZE_Y);
+		glDispatchCompute(GroupX, GroupY, 1);
+		glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+		glPopDebugGroup();
+	}
+
+	{
+		glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Cluster Tally Pass");
+		ClusterTallyShader.Activate();
+		TileDrawArgs.Bind(GL_SHADER_STORAGE_BUFFER, 0);
+		TileHeapInfo.Bind(GL_SHADER_STORAGE_BUFFER, 1);
+		glDispatchCompute(1, 1, 1);
+		glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT | GL_COMMAND_BARRIER_BIT);
+		glPopDebugGroup();
+	}
+
+#if VISUALIZE_CLUSTER_COVERAGE
+	{
+		glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Visualize Cluster Coverage");
+		glDisable(GL_DEPTH_TEST);
+		glDepthMask(GL_FALSE);
+		glBindFramebuffer(GL_FRAMEBUFFER, FinalPass);
+		ClusterCoverageShader.Activate();
+		glClear(GL_COLOR_BUFFER_BIT);
+		TileDrawArgs.Bind(GL_DRAW_INDIRECT_BUFFER);
+		TileHeap.Bind(GL_SHADER_STORAGE_BUFFER, 0);
+		TileHeapInfo.Bind(GL_SHADER_STORAGE_BUFFER, 1);
+		glDrawArraysIndirect(GL_TRIANGLES, 0);
+		glDrawArrays(GL_TRIANGLES, 0, 3);
+		glPopDebugGroup();
+	}
+#else
 	{
 		glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Depth");
 		glDepthMask(GL_TRUE);
@@ -408,7 +536,8 @@ void RenderInner()
 		glBindFramebuffer(GL_FRAMEBUFFER, DepthPass);
 		TestShader.Activate();
 		glClear(GL_DEPTH_BUFFER_BIT);
-		glDrawArrays(GL_TRIANGLES, 0, 36);
+		TileDrawArgs.Bind(GL_DRAW_INDIRECT_BUFFER);
+		glDrawArraysIndirect(GL_TRIANGLES, 0);
 		glPopDebugGroup();
 	}
 
@@ -424,6 +553,7 @@ void RenderInner()
 		glDrawArrays(GL_TRIANGLES, 0, 3);
 		glPopDebugGroup();
 	}
+#endif
 
 #if _WIN64
 	SwapBuffers(RacketDeviceContext);

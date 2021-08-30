@@ -1,3 +1,4 @@
+--------------------------------------------------------------------------------
 
 // Copyright 2021 Aeva Palecek
 //
@@ -13,12 +14,8 @@
 // See the License for the specific language governing permissionsand
 // limitations under the License.
 
-// This file is imported by GLSL and C++ sources.
 
-#define DIV_UP(X, Y) ((X + Y - 1) / Y)
-#define TILE_SIZE_X 8
-#define TILE_SIZE_Y 8
-
-#define USE_COVERAGE_SEARCH 0
-#define VISUALIZE_TRACING_ERROR 0
-#define VISUALIZE_CLUSTER_COVERAGE 1
+struct TileHeapEntry
+{
+	uint TileID;
+};

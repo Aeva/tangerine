@@ -163,11 +163,16 @@
     <ClInclude Include="..\third_party\glm\glm.hpp" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="..\shaders\cluster_coverage.fs.glsl" />
+    <None Include="..\shaders\cluster_coverage.vs.glsl" />
+    <None Include="..\shaders\cluster_cull.cs.glsl" />
+    <None Include="..\shaders\cluster_tally.cs.glsl" />
     <None Include="..\shaders\math.glsl" />
     <None Include="..\shaders\outliner.fs.glsl" />
     <None Include="..\shaders\splat.vs.glsl" />
     <None Include="..\shaders\test.fs.glsl" />
     <None Include="..\shaders\test.vs.glsl" />
+    <None Include="..\shaders\tile_heap.glsl" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

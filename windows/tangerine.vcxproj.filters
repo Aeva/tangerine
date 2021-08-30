@@ -73,5 +73,20 @@
     <None Include="..\shaders\splat.vs.glsl">
       <Filter>Shaders</Filter>
     </None>
+    <None Include="..\shaders\cluster_cull.cs.glsl">
+      <Filter>Shaders</Filter>
+    </None>
+    <None Include="..\shaders\cluster_tally.cs.glsl">
+      <Filter>Shaders</Filter>
+    </None>
+    <None Include="..\shaders\cluster_coverage.vs.glsl">
+      <Filter>Shaders</Filter>
+    </None>
+    <None Include="..\shaders\cluster_coverage.fs.glsl">
+      <Filter>Shaders</Filter>
+    </None>
+    <None Include="..\shaders\tile_heap.glsl">
+      <Filter>Shaders</Filter>
+    </None>
   </ItemGroup>
 </Project>
