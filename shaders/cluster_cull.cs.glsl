@@ -48,6 +48,39 @@ layout(std140, binding = 1) buffer TileHeapInfo
 };
 
 
+void ClipBounds(out vec3 ClipMin, out vec3 ClipMax)
+{
+	AABB Bounds = SceneBounds();
+	vec3 A = Bounds.Center - Bounds.Extent;
+	vec3 B = Bounds.Center + Bounds.Extent;
+
+	vec4 Tmp;
+#define TRANSFORM(World) \
+	Tmp = (ViewToClip * WorldToView * vec4(World, 1.0));\
+	Tmp /= Tmp.w;
+
+	TRANSFORM(A);
+	ClipMin = Tmp.xyz;
+	ClipMax = ClipMin;
+
+#define CRANK(var) \
+	TRANSFORM(var); \
+	ClipMin = min(ClipMin, Tmp.xyz); \
+	ClipMax = max(ClipMax, Tmp.xyz);
+
+	CRANK(B);
+	CRANK(vec3(B.x, A.yz));
+	CRANK(vec3(A.x, B.y, A.z));
+	CRANK(vec3(A.xy, B.z));
+	CRANK(vec3(A.x, B.yz));
+	CRANK(vec3(B.x, A.y, B.z));
+	CRANK(vec3(B.xy, A.z));
+
+#undef CRANK
+#undef TO_CLIP
+}
+
+
 layout(local_size_x = TILE_SIZE_X, local_size_y = TILE_SIZE_Y, local_size_z = 1) in;
 void main()
 {
@@ -61,23 +94,13 @@ void main()
 		vec2 TileClipMin = ScreenMin * ScreenSize.zw * 2.0 - 1.0;
 		vec2 TileClipMax = ScreenMax * ScreenSize.zw * 2.0 - 1.0;
 
-		vec2 TestClipMin;
-		vec2 TestClipMax;
-		{
-			AABB Bounds = SceneBounds();
-			vec3 WorldMin = Bounds.Center - Bounds.Extent;
-			vec3 WorldMax = Bounds.Center + Bounds.Extent;
-			vec4 TestClipA = ViewToClip * WorldToView * vec4(WorldMin, 1.0);
-			vec4 TestClipB = ViewToClip * WorldToView * vec4(WorldMax, 1.0);
-			if (TestClipA.z < 0.0 && TestClipB.z < 0.0)
-			{
-				return;
-			}
-			TestClipMin = min(TestClipA.xy, TestClipB.xy);
-			TestClipMax = max(TestClipA.xy, TestClipB.xy);
-		}
-		if (all(lessThanEqual(TileClipMin, TestClipMax)) &&\
-			all(lessThanEqual(TestClipMin, TileClipMax)))
+		vec3 TestClipMin;
+		vec3 TestClipMax;
+		ClipBounds(TestClipMin, TestClipMax);
+
+		if (TestClipMin.z >= 0.0 && \
+			all(lessThanEqual(TileClipMin, TestClipMax.xy)) && \
+			all(lessThanEqual(TestClipMin.xy, TileClipMax)))
 		{
 			uint Ptr = atomicAdd(StackPtr, 1);
 			TileHeapEntry Tile;
