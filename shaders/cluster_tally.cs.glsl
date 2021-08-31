@@ -36,11 +36,7 @@ layout(std140, binding = 1) restrict readonly buffer TileHeapInfo
 layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
 void main()
 {
-#if VISUALIZE_CLUSTER_COVERAGE
 	PrimitiveCount = 6;
-#else
-	PrimitiveCount = 36;
-#endif
 	InstanceCount = min(StackPtr, HeapSize);
 	First = 0;
 	BaseInstance = 0;

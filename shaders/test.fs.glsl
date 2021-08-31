@@ -27,7 +27,6 @@ uniform ViewInfoBlock
 	float CurrentTime;
 };
 
-in vec3 WorldSpace;
 in flat vec3 WorldMin;
 in flat vec3 WorldMax;
 
@@ -68,7 +67,7 @@ void main()
 	vec4 World = ViewToWorld * View;
 	World /= World.w;
 	vec3 EyeRay = normalize(World.xyz - CameraOrigin.xyz);
-	vec3 RayStart = clamp(WorldSpace, WorldMin, WorldMax);
+	vec3 RayStart = CameraOrigin.xyz;
 
 	bool Hit = false;
 	float Travel = 0.0;
@@ -132,12 +131,14 @@ void main()
 	for (int i = 0; i < 100; ++i)
 	{
 		Position = EyeRay * Travel + RayStart;
+#if 0 // Starting position is currently out of bounds :(
 		if (any(lessThan(Position, WorldMin)) || any(greaterThan(Position, WorldMax)))
 		{
 			Hit = false;
 			break;
 		}
 		else
+#endif
 		{
 			Dist = SceneDist(Position);
 			if (Dist <= 0.001)
@@ -160,8 +161,6 @@ void main()
 #if VISUALIZE_TRACING_ERROR
 		OutNormal.a = abs(clamp(Dist, -0.005, 0.005) / 0.005);
 #endif
-		vec3 LightRay = normalize(vec3(-1.0, 1.0, -1.0));
-		float Diffuse = max(-dot(OutNormal.xyz, LightRay), 0.2);
 
 		vec4 ViewPosition = WorldToView * vec4(Position, 1.0);
 		ViewPosition /= ViewPosition.w;

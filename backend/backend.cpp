@@ -537,14 +537,16 @@ void RenderInner()
 		TestShader.Activate();
 		glClear(GL_DEPTH_BUFFER_BIT);
 		TileDrawArgs.Bind(GL_DRAW_INDIRECT_BUFFER);
+		TileHeap.Bind(GL_SHADER_STORAGE_BUFFER, 0);
+		TileHeapInfo.Bind(GL_SHADER_STORAGE_BUFFER, 1);
 		glDrawArraysIndirect(GL_TRIANGLES, 0);
 		glPopDebugGroup();
 	}
 
 	{
 		glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Paint");
-		glDisable(GL_DEPTH_TEST);
 		glDepthMask(GL_FALSE);
+		glDisable(GL_DEPTH_TEST);
 		glBindFramebuffer(GL_FRAMEBUFFER, FinalPass);
 		glBindTextureUnit(1, DepthBuffer);
 		glBindTextureUnit(2, PositionBuffer);

@@ -1,3 +1,4 @@
+prepend: shaders/tile_heap.glsl
 --------------------------------------------------------------------------------
 
 // Copyright 2021 Aeva Palecek
@@ -28,6 +29,19 @@ uniform ViewInfoBlock
 };
 
 
+layout(std430, binding = 0) restrict readonly buffer TileHeap
+{
+	TileHeapEntry Heap[];
+};
+
+
+layout(std140, binding = 1) restrict readonly buffer TileHeapInfo
+{
+	uint HeapSize;
+	uint StackPtr;
+};
+
+
 out gl_PerVertex
 {
 	vec4 gl_Position;
@@ -36,64 +50,48 @@ out gl_PerVertex
 };
 
 
-vec3 Verts[24] = \
-{
-	vec3(-1.0, -1.0, 1.0),
-	vec3(1.0, -1.0, 1.0),
-	vec3(1.0, 1.0, 1.0),
-	vec3(-1.0, 1.0, 1.0),
-	vec3(-1.0, -1.0, -1.0),
-	vec3(-1.0, 1.0, -1.0),
-	vec3(1.0, 1.0, -1.0),
-	vec3(1.0, -1.0, -1.0),
-	vec3(-1.0, 1.0, -1.0),
-	vec3(-1.0, 1.0, 1.0),
-	vec3(1.0, 1.0, 1.0),
-	vec3(1.0, 1.0, -1.0),
-	vec3(-1.0, -1.0, -1.0),
-	vec3(1.0, -1.0, -1.0),
-	vec3(1.0, -1.0, 1.0),
-	vec3(-1.0, -1.0, 1.0),
-	vec3(1.0, -1.0, -1.0),
-	vec3(1.0, 1.0, -1.0),
-	vec3(1.0, 1.0, 1.0),
-	vec3(1.0, -1.0, 1.0),
-	vec3(-1.0, -1.0, -1.0),
-	vec3(-1.0, -1.0, 1.0),
-	vec3(-1.0, 1.0, 1.0),
-	vec3(-1.0, 1.0, -1.0)
-};
-
-
-ivec3 Indices[12] = \
-{
-	ivec3(0, 1, 2),
-	ivec3(0, 2, 3),
-	ivec3(4, 5, 6),
-	ivec3(4, 6, 7),
-	ivec3(8, 9, 10),
-	ivec3(8, 10, 11),
-	ivec3(12, 13, 14),
-	ivec3(12, 14, 15),
-	ivec3(16, 17, 18),
-	ivec3(16, 18, 19),
-	ivec3(20, 21, 22),
-	ivec3(20, 22, 23)
-};
-
-
-out vec3 WorldSpace;
 out flat vec3 WorldMin;
 out flat vec3 WorldMax;
+
+
+vec2 Verts[4] = \
+{
+	vec2(0.0, 0.0),
+	vec2(1.0, 0.0),
+	vec2(1.0, 1.0),
+	vec2(0.0, 1.0)
+};
+
+
+ivec3 Indices[2] = \
+{
+	ivec3(0, 1, 2),
+	ivec3(0, 2, 3)
+};
+
 
 void main()
 {
 	AABB Bounds = SceneBounds();
 	WorldMin = Bounds.Center - Bounds.Extent;
 	WorldMax = Bounds.Center + Bounds.Extent;
-	const int Tri = gl_VertexID / 3;
-	const int Vert = gl_VertexID % 3;
-	int Index = Indices[Tri][Vert];
-	WorldSpace = Verts[Index] * Bounds.Extent + Bounds.Center;
-	gl_Position = ViewToClip * WorldToView * vec4(WorldSpace, 1.0);
+
+	vec2 MinNDC;
+	vec2 MaxNDC;
+	{
+		TileHeapEntry Tile = Heap[gl_InstanceID];
+		vec2 TileCoords = vec2(float(Tile.TileID & 0xFFFF), float(Tile.TileID >> 16));
+		vec2 TileSize = vec2(float(TILE_SIZE_X), float(TILE_SIZE_Y));
+		vec2 ScreenMin = TileCoords * TileSize;
+		vec2 ScreenMax = min(ScreenMin + TileSize, ScreenSize.xy);
+		MinNDC = ScreenMin * ScreenSize.zw * 2.0 - 1.0;
+		MaxNDC = ScreenMax * ScreenSize.zw * 2.0 - 1.0;
+	}
+	{
+		const int Tri = gl_VertexID / 3;
+		const int Vert = gl_VertexID % 3;
+		int Index = Indices[Tri][Vert];
+		vec2 NDC = mix(MinNDC, MaxNDC, Verts[Index]);
+		gl_Position = vec4(NDC, 0.0, 1.0);
+	}
 }
