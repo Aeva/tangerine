@@ -27,8 +27,11 @@ uniform ViewInfoBlock
 	float CurrentTime;
 };
 
+
+in flat AABB Bounds;
 in flat vec3 WorldMin;
 in flat vec3 WorldMax;
+
 
 layout(depth_less) out float gl_FragDepth;
 layout(location = 0) out vec3 OutPosition;
@@ -67,7 +70,8 @@ void main()
 	vec4 World = ViewToWorld * View;
 	World /= World.w;
 	vec3 EyeRay = normalize(World.xyz - CameraOrigin.xyz);
-	vec3 RayStart = CameraOrigin.xyz;
+	vec3 RayStart = EyeRay * BoxBrush(CameraOrigin.xyz - Bounds.Center, Bounds.Extent) + CameraOrigin.xyz;
+	RayStart = clamp(RayStart, WorldMin, WorldMax);
 
 	bool Hit = false;
 	float Travel = 0.0;
@@ -131,14 +135,12 @@ void main()
 	for (int i = 0; i < 100; ++i)
 	{
 		Position = EyeRay * Travel + RayStart;
-#if 0 // Starting position is currently out of bounds :(
 		if (any(lessThan(Position, WorldMin)) || any(greaterThan(Position, WorldMax)))
 		{
 			Hit = false;
 			break;
 		}
 		else
-#endif
 		{
 			Dist = SceneDist(Position);
 			if (Dist <= 0.001)

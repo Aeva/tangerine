@@ -50,6 +50,7 @@ out gl_PerVertex
 };
 
 
+out flat AABB Bounds;
 out flat vec3 WorldMin;
 out flat vec3 WorldMax;
 
@@ -72,7 +73,7 @@ ivec3 Indices[2] = \
 
 void main()
 {
-	AABB Bounds = SceneBounds();
+	Bounds = SceneBounds();
 	WorldMin = Bounds.Center - Bounds.Extent;
 	WorldMax = Bounds.Center + Bounds.Extent;
 
