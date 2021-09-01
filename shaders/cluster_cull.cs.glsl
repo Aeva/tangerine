@@ -48,12 +48,8 @@ layout(std140, binding = 1) buffer TileHeapInfo
 };
 
 
-void ClipBounds(out vec3 ClipMin, out vec3 ClipMax)
+void ClipBounds(vec3 A, vec3 B, out vec3 ClipMin, out vec3 ClipMax)
 {
-	AABB Bounds = SceneBounds();
-	vec3 A = Bounds.Center - Bounds.Extent;
-	vec3 B = Bounds.Center + Bounds.Extent;
-
 	vec4 Tmp;
 #define TRANSFORM(World) \
 	Tmp = (ViewToClip * WorldToView * vec4(World, 1.0));\
@@ -94,18 +90,59 @@ void main()
 		vec2 TileClipMin = ScreenMin * ScreenSize.zw * 2.0 - 1.0;
 		vec2 TileClipMax = ScreenMax * ScreenSize.zw * 2.0 - 1.0;
 
+		AABB Bounds = SceneBounds();
+		vec3 WorldMin = Bounds.Center - Bounds.Extent;
+		vec3 WorldMax = Bounds.Center + Bounds.Extent;
 		vec3 TestClipMin;
 		vec3 TestClipMax;
-		ClipBounds(TestClipMin, TestClipMax);
+		ClipBounds(WorldMin, WorldMax, TestClipMin, TestClipMax);
 
 		if (TestClipMin.z >= 0.0 && \
 			all(lessThanEqual(TileClipMin, TestClipMax.xy)) && \
 			all(lessThanEqual(TestClipMin.xy, TileClipMax)))
 		{
-			uint Ptr = atomicAdd(StackPtr, 1);
-			TileHeapEntry Tile;
-			Tile.TileID = ((gl_GlobalInvocationID.y & 0xFFFF) << 16) | (gl_GlobalInvocationID.x & 0xFFFF);
-			Heap[Ptr] = Tile;
+			vec4 Clip = vec4((TileClipMin + TileClipMax) * 0.5, -1.0, 1.0);
+			vec4 View = ClipToView * Clip;
+			View /= View.w;
+			vec4 World = ViewToWorld * View;
+			World /= World.w;
+			vec3 EyeRay = normalize(World.xyz - CameraOrigin.xyz);
+			vec3 RayStart = EyeRay * BoxBrush(CameraOrigin.xyz - Bounds.Center, Bounds.Extent) + CameraOrigin.xyz;
+			RayStart = clamp(RayStart, WorldMin, WorldMax);
+
+			bool RayEscaped = false;
+			{
+				float Travel = 0;
+				for (int i = 0; i < 50; ++i)
+				{
+					vec3 Position = EyeRay * Travel + RayStart;
+					if (any(lessThan(Position, WorldMin)) || any(greaterThan(Position, WorldMax)))
+					{
+						RayEscaped = true;
+						break;
+					}
+					else
+					{
+						float Dist = SceneDist(Position);
+						if (Dist <= 0.1)
+						{
+							RayEscaped = false;
+							break;
+						}
+						else
+						{
+							Travel += Dist;
+						}
+					}
+				}
+			}
+			if (!RayEscaped)
+			{
+				uint Ptr = atomicAdd(StackPtr, 1);
+				TileHeapEntry Tile;
+				Tile.TileID = ((gl_GlobalInvocationID.y & 0xFFFF) << 16) | (gl_GlobalInvocationID.x & 0xFFFF);
+				Heap[Ptr] = Tile;
+			}
 		}
 	}
 }
