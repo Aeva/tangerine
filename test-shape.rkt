@@ -14,7 +14,29 @@
 ; See the License for the specific language governing permissions and
 ; limitations under the License.
 
-(require "sdf.rkt")
+(require "csgst.rkt")
+
+; compatibility stuff
+(define scene compile)
+(define trans move)
+(define trans-x move-x)
+(define trans-y move-y)
+(define trans-z move-z)
+(define cut diff)
+(define (smooth-union threshold lhs rhs) (blend union threshold lhs rhs))
+(define (smooth-inter threshold lhs rhs) (blend inter threshold lhs rhs))
+(define (smooth-cut threshold lhs rhs) (blend cut threshold lhs rhs))
+(define (quat-rot-x deg) `(x ,deg))
+(define (quat-rot-y deg) `(y ,deg))
+(define (quat-rot-z deg) `(z ,deg))
+(define (rotate params child)
+  (let ([axis (car params)]
+        [degrees (cadr params)])
+    (case axis
+      [(x) (rotate-x degrees child)]
+       [(y) (rotate-y degrees child)]
+       [(z) (rotate-z degrees child)])))
+
 
 (provide emit-glsl)
 
