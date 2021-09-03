@@ -71,7 +71,8 @@ void main()
 	World /= World.w;
 	vec3 EyeRay = normalize(World.xyz - CameraOrigin.xyz);
 	vec3 RayStart = EyeRay * BoxBrush(CameraOrigin.xyz - Bounds.Center, Bounds.Extent) + CameraOrigin.xyz;
-	RayStart = clamp(RayStart, WorldMin, WorldMax);
+	vec3 SearchMin = min(RayStart, WorldMin);
+	vec3 SearchMax = max(RayStart, WorldMax);
 
 	bool Hit = false;
 	float Travel = 0.0;
@@ -135,7 +136,7 @@ void main()
 	for (int i = 0; i < 100; ++i)
 	{
 		Position = EyeRay * Travel + RayStart;
-		if (any(lessThan(Position, WorldMin)) || any(greaterThan(Position, WorldMax)))
+		if (any(lessThan(Position, SearchMin)) || any(greaterThan(Position, SearchMax)))
 		{
 			Hit = false;
 			break;
