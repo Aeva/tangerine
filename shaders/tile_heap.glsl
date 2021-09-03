@@ -18,4 +18,5 @@
 struct TileHeapEntry
 {
 	uint TileID;
+	uint Variant;
 };

@@ -15,6 +15,7 @@
 ; limitations under the License.
 
 (require racket/format)
+(require racket/string)
 
 
 (provide simple-scene-glsl)
@@ -95,7 +96,10 @@
       [else (error "Unknown CSGST node:" csgst)])))
 
 
-(define (eval-bounds csgst)
+; Note: the culling? arg is a special case for variant testing in the cluster culling
+; pass.  This is intentionally only propogated by transforms, and only is important
+; for the the union op variants.
+(define (eval-bounds csgst [culling? #f])
   (let ([node (car csgst)]
         [args (cdr csgst)])
     (case node
@@ -122,7 +126,9 @@
 
       [(union)
        (let-values ([(lhs rhs) (splat (map (λ (branch) (eval-bounds branch)) args))])
-         @~a{UnionOpBounds(@lhs, @rhs)})]
+         (if culling?
+             @~a{IntersectionOpBounds(@lhs, @rhs)}
+             @~a{UnionOpBounds(@lhs, @rhs)}))]
 
       [(diff)
        (let-values ([(lhs rhs) (splat (map (λ (branch) (eval-bounds branch)) args))])
@@ -136,7 +142,9 @@
        (let ([threshold (car args)]
              [lhs (eval-bounds (cadr args))]
              [rhs (eval-bounds (caddr args))])
-         @~a{SmoothUnionOpBounds(@lhs, @rhs, @threshold)})]
+         (if culling?
+             @~a{ThresholdBounds(@lhs, @rhs, @threshold)}
+             @~a{SmoothUnionOpBounds(@lhs, @rhs, @threshold)}))]
 
       [(blend-diff)
        (let ([threshold (car args)]
@@ -152,15 +160,92 @@
 
       [(move)
        (let*-values ([(x y z child) (splat args)]
-                     [(child) (eval-bounds child)])
+                     [(child) (eval-bounds child culling?)])
          @~a{TranslateAABB(@child, vec3(@x, @y, @z))})]
 
       [(quat)
        (let*-values ([(x y z w child) (splat args)]
-                     [(child) (eval-bounds child)])
+                     [(child) (eval-bounds child culling?)])
          @~a{QuaternionTransformAABB(@child, vec4(@x, @y, @z, @w))})]
 
       [else (error "Unknown CSGST node:" csgst)])))
+
+
+; Used by selectral to re-apply a stack of transforms to the base of a subtree.
+(define (stitch root transforms)
+  (if (null? transforms)
+      root
+      (stitch
+       (append (car transforms) (list root))
+       (cdr transforms))))
+
+
+; Used by selectral to remove a transform from the tree to re-apply later.
+(define (peel root)
+  (let ([node (car root)]
+        [args (cdr root)])
+    (case node
+      [(move)
+       (let-values ([(x y z child) (splat args)])
+         (values `(move ,x ,y ,z) child))]
+      [(quat)
+       (let-values ([(x y z w child) (splat args)])
+         (values `(quat ,x ,y ,z ,w) child))])))
+
+
+; This function takes a CSG tree and returns a list of all possible subtrees,
+; preserving inherited transforms.
+(define (selectral root [routes '()] [transforms '()])
+  (if (null? root)
+      routes
+      (let ([node (car root)]
+            [args (cdr root)])
+        (case node
+
+          ; Push transforms onto the stack and recur on the transform's child.
+          [(move quat)
+           (let-values ([(transform new-root) (peel root)])
+             (selectral new-root routes (cons transform transforms)))]
+
+          ; Unions produce a subtree for the intersection of both branches, and
+          ; one for each branch.
+          [(union)
+           (let-values ([(left right) (splat args)])
+             (let* ([traverse-right (selectral right routes transforms)]
+                    [traverse-left (selectral left traverse-right transforms)])
+               (cons (stitch root transforms) traverse-left)))]
+          [(union-blend)
+           (let-values ([(threshold left right) (splat args)])
+             (let* ([traverse-right (selectral right routes transforms)]
+                    [traverse-left (selectral left traverse-right transforms)])
+               (cons (stitch root transforms) traverse-left)))]
+
+          ; Diffs only produce a subtree for the intersection of both branches,
+          ; and one for the left branch.
+          [(diff blend-diff)
+           (let ([left (cadr root)])
+             (cons (stitch root transforms)
+                   (selectral left routes transforms)))]
+
+          ; Everything else terminates the current branch.
+          [else (cons (stitch root transforms) routes)]))))
+
+
+(define (scene-select csgst)
+  (string-append
+   "int SceneSelect(mat4 WorldToClip, vec4 Tile)\n"
+   "{\n"
+   (string-append*
+    (let ([variants (selectral csgst)])
+      (for/list ([index (in-naturals 0)]
+                 [subtree variants])
+        (let ([bounds (eval-bounds subtree #t)])
+          (~a "\tif (ClipTest(WorldToClip, Tile, " bounds "))\n"
+              "\t{\n"
+              "\t\t return " index ";\n"
+              "\t}\n")))))
+   "\treturn -1;\n"
+   "}\n"))
 
 
 (define (scene-dist csgst)
@@ -179,4 +264,6 @@
   (~a (scene-dist csgst)
       "\n"
       (scene-aabb csgst)
+      "\n"
+      (scene-select csgst)
       "\n"))

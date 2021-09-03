@@ -294,6 +294,7 @@ struct TileHeapInfoUpload
 struct TileHeapEntry
 {
 	GLuint TileID;
+	GLuint Variant;
 };
 
 
@@ -325,6 +326,14 @@ StatusCode SetupInner()
 		"AABB SceneBounds()\n"
 		"{\n"
 		"	return SphereBrushBounds(0.1);\n"
+		"}\n"
+		"int SceneSelect(mat4 WorldToClip, vec4 Tile)\n"
+		"{\n"
+		"	if (ClipTest(WorldToClip, Tile, SphereBrushBounds(0.1)))\n"
+		"	{\n"
+		"		return 0;\n"
+		"	}\n"
+		"	return -1;\n"
 		"}\n";
 
 	CompileGeneratedShaders(SimpleScene, ClusterCullShader, TestShader);

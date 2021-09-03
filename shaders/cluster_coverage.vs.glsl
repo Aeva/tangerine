@@ -68,6 +68,7 @@ ivec3 Indices[2] = \
 
 
 out flat vec2 TileCoords;
+out flat uint Variant;
 
 
 void main()
@@ -79,6 +80,7 @@ void main()
 		{
 			TileHeapEntry Tile = Heap[gl_InstanceID];
 			TileCoords = vec2(float(Tile.TileID & 0xFFFF), float(Tile.TileID >> 16));
+			Variant = Tile.Variant;
 			vec2 TileSize = vec2(float(TILE_SIZE_X), float(TILE_SIZE_Y));
 			vec2 ScreenMin = TileCoords * TileSize;
 			vec2 ScreenMax = min(ScreenMin + TileSize, ScreenSize.xy);

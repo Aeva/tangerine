@@ -29,12 +29,6 @@ uniform ViewInfoBlock
 };
 
 
-struct TileHeapEntry
-{
-	uint TileID;
-};
-
-
 layout(std430, binding = 0) restrict writeonly buffer TileHeap
 {
 	TileHeapEntry Heap[];
@@ -48,35 +42,6 @@ layout(std140, binding = 1) buffer TileHeapInfo
 };
 
 
-void ClipBounds(vec3 A, vec3 B, out vec3 ClipMin, out vec3 ClipMax)
-{
-	vec4 Tmp;
-#define TRANSFORM(World) \
-	Tmp = (ViewToClip * WorldToView * vec4(World, 1.0));\
-	Tmp /= Tmp.w;
-
-	TRANSFORM(A);
-	ClipMin = Tmp.xyz;
-	ClipMax = ClipMin;
-
-#define CRANK(var) \
-	TRANSFORM(var); \
-	ClipMin = min(ClipMin, Tmp.xyz); \
-	ClipMax = max(ClipMax, Tmp.xyz);
-
-	CRANK(B);
-	CRANK(vec3(B.x, A.yz));
-	CRANK(vec3(A.x, B.y, A.z));
-	CRANK(vec3(A.xy, B.z));
-	CRANK(vec3(A.x, B.yz));
-	CRANK(vec3(B.x, A.y, B.z));
-	CRANK(vec3(B.xy, A.z));
-
-#undef CRANK
-#undef TO_CLIP
-}
-
-
 layout(local_size_x = TILE_SIZE_X, local_size_y = TILE_SIZE_Y, local_size_z = 1) in;
 void main()
 {
@@ -87,21 +52,16 @@ void main()
 	if (all(lessThanEqual(ScreenMin, ScreenSize.xy)))
 	{
 		vec2 ScreenMax = min(ScreenMin + TileSize, ScreenSize.xy);
-		vec2 TileClipMin = ScreenMin * ScreenSize.zw * 2.0 - 1.0;
-		vec2 TileClipMax = ScreenMax * ScreenSize.zw * 2.0 - 1.0;
+		vec4 TileClip = vec4(ScreenMin, ScreenMax) * ScreenSize.zwzw * 2.0 - 1.0;
 
 		AABB Bounds = SceneBounds();
 		vec3 WorldMin = Bounds.Center - Bounds.Extent;
 		vec3 WorldMax = Bounds.Center + Bounds.Extent;
-		vec3 TestClipMin;
-		vec3 TestClipMax;
-		ClipBounds(WorldMin, WorldMax, TestClipMin, TestClipMax);
 
-		if (TestClipMin.z >= 0.0 && \
-			all(lessThanEqual(TileClipMin, TestClipMax.xy)) && \
-			all(lessThanEqual(TestClipMin.xy, TileClipMax)))
+		int Variant = SceneSelect(ViewToClip * WorldToView, TileClip);
+		if (Variant > -1)
 		{
-			vec4 Clip = vec4((TileClipMin + TileClipMax) * 0.5, -1.0, 1.0);
+			vec4 Clip = vec4((TileClip.xy + TileClip.zw) * 0.5, -1.0, 1.0);
 			vec4 View = ClipToView * Clip;
 			View /= View.w;
 			vec4 World = ViewToWorld * View;
@@ -142,6 +102,7 @@ void main()
 				uint Ptr = atomicAdd(StackPtr, 1);
 				TileHeapEntry Tile;
 				Tile.TileID = ((gl_GlobalInvocationID.y & 0xFFFF) << 16) | (gl_GlobalInvocationID.x & 0xFFFF);
+				Tile.Variant = Variant;
 				Heap[Ptr] = Tile;
 			}
 		}

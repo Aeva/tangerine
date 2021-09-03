@@ -154,6 +154,24 @@ AABB SmoothUnionOpBounds(AABB LHS, AABB RHS, float Threshold)
 }
 
 
+AABB ThresholdBounds(AABB LHS, AABB RHS, float Threshold)
+{
+	float MaxH = Threshold * Threshold * 0.25 / Threshold;
+	AABB Union = UnionOpBounds(LHS, RHS);
+	if (any(greaterThan(Union.Extent, LHS.Extent + RHS.Extent + MaxH)))
+	{
+		return AABB(vec3(0.0), vec3(0.0));
+	}
+	else
+	{
+		AABB Distortion = IntersectionOpBounds(
+			AABB(LHS.Center, LHS.Extent + MaxH),
+			AABB(RHS.Center, RHS.Extent + MaxH));
+		return UnionOpBounds(Union, Distortion);
+	}
+}
+
+
 float SmoothIntersectionOp(float LHS, float RHS, float Threshold)
 {
 	float H = max(Threshold - abs(LHS - RHS), 0.0);
@@ -228,4 +246,40 @@ AABB QuaternionTransformAABB(AABB Bounds, vec4 Quat)
 	NewBounds.Center = NewBounds.Extent + NewMin;
 	return NewBounds;
 #undef CRANK
+}
+
+
+bool ClipTest(mat4 WorldToClip, vec4 TileClip, AABB Bounds)
+{
+	vec3 A = Bounds.Center - Bounds.Extent;
+	vec3 B = Bounds.Center + Bounds.Extent;
+
+	vec4 Tmp;
+#define TRANSFORM(World) \
+	Tmp = (WorldToClip * vec4(World, 1.0));\
+	Tmp /= Tmp.w;
+
+	TRANSFORM(A);
+	vec3 BoundsClipMin = Tmp.xyz;
+	vec3 BoundsClipMax = BoundsClipMin;
+
+#define CRANK(var) \
+	TRANSFORM(var); \
+	BoundsClipMin = min(BoundsClipMin, Tmp.xyz); \
+	BoundsClipMax = max(BoundsClipMax, Tmp.xyz);
+
+	CRANK(B);
+	CRANK(vec3(B.x, A.yz));
+	CRANK(vec3(A.x, B.y, A.z));
+	CRANK(vec3(A.xy, B.z));
+	CRANK(vec3(A.x, B.yz));
+	CRANK(vec3(B.x, A.y, B.z));
+	CRANK(vec3(B.xy, A.z));
+
+#undef CRANK
+#undef TO_CLIP
+
+	return BoundsClipMin.z >= 0.0 && \
+		all(lessThanEqual(TileClip.xy, BoundsClipMax.xy)) && \
+		all(lessThanEqual(BoundsClipMin.xy, TileClip.zw));
 }

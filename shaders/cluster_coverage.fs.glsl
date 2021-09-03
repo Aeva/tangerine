@@ -28,11 +28,12 @@ uniform ViewInfoBlock
 };
 
 in flat vec2 TileCoords;
+in flat uint Variant;
 
 layout(location = 0) out vec4 OutColor;
 
 
 void main()
 {
-	OutColor = vec4(vec2(1.0) - (mod(TileCoords, 8.0) / 8.0), 1.0, 1.0);
+	OutColor = vec4(vec2(1.0) - (mod(TileCoords, 8.0) / 8.0), float(Variant) / 64.0, 1.0);
 }
