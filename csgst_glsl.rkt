@@ -18,7 +18,7 @@
 (require racket/string)
 
 
-(provide simple-scene-glsl)
+(provide generate-glsl)
 
 
 (define (splat args)
@@ -231,20 +231,64 @@
           [else (cons (stitch root transforms) routes)]))))
 
 
-(define (scene-select csgst)
+(define (scene-select subtrees)
   (string-append
    "int SceneSelect(mat4 WorldToClip, vec4 Tile)\n"
    "{\n"
    (string-append*
-    (let ([variants (selectral csgst)])
-      (for/list ([index (in-naturals 0)]
-                 [subtree variants])
-        (let ([bounds (eval-bounds subtree #t)])
-          (~a "\tif (ClipTest(WorldToClip, Tile, " bounds "))\n"
-              "\t{\n"
-              "\t\t return " index ";\n"
-              "\t}\n")))))
+    (for/list ([index (in-naturals 0)]
+               [subtree subtrees])
+      (let ([bounds (eval-bounds subtree #t)])
+        (~a "\tif (ClipTest(WorldToClip, Tile, " bounds "))\n"
+            "\t{\n"
+            "\t\t return " index ";\n"
+            "\t}\n"))))
    "\treturn -1;\n"
+   "}\n"))
+
+
+(define (subtree-aabb subtrees)
+  (string-append
+   "AABB SubtreeBounds(uint Variant)\n"
+   "{\n"
+   "\tswitch(Variant)\n"
+   "\t{\n"
+   (string-append*
+    (for/list ([index (in-naturals 0)]
+               [subtree subtrees])
+      (let ([bounds (eval-bounds subtree #t)])
+        (~a "\tcase " index ":\n"
+            "\t\treturn " bounds ";\n"))))
+   "\tdefault:\n"
+   "\t\treturn AABB(vec3(0.0), vec3(0.0));\n"
+   "\t}\n"
+   "}\n"))
+
+
+(define (subtree-dist subtrees)
+  (string-append
+   (string-append*
+    (for/list ([index (in-naturals 0)]
+               [subtree subtrees])
+      (let ([query (eval-dist subtree)])
+        (~a
+         "float SubtreeDist" index "(vec3 Point)\n"
+         "{\n"
+         "\treturn " query ";\n"
+         "}\n\n"))))
+   
+   "float SubtreeDist(uint Variant, vec3 Point)\n"
+   "{\n"
+   "\tswitch(Variant)\n"
+   "\t{\n"
+   (string-append*
+    (for/list ([index (in-naturals 0)]
+               [subtree subtrees])
+      (~a "\tcase " index ":\n"
+          "\t\treturn SubtreeDist" index "(Point);\n")))
+   "\tdefault:\n"
+   "\t\treturn 0.0 / 0.0;\n"
+   "\t}\n"
    "}\n"))
 
 
@@ -260,10 +304,10 @@
       ";\n}\n"))
 
 
-(define (simple-scene-glsl csgst)
-  (~a (scene-dist csgst)
-      "\n"
-      (scene-aabb csgst)
-      "\n"
-      (scene-select csgst)
-      "\n"))
+(define (generate-glsl csgst)
+  (let ([subtrees (selectral csgst)])
+    (~a (scene-select subtrees)
+        "\n"
+        (subtree-aabb subtrees)
+        "\n"
+        (subtree-dist subtrees))))

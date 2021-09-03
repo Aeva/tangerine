@@ -319,21 +319,21 @@ StatusCode SetupInner()
 	glBindVertexArray(NullVAO);
 
 	std::string SimpleScene = \
-		"float SceneDist(vec3 Point)\n"
-		"{\n"
-		"	return SphereBrush(Point, 0.1);\n"
-		"}\n"
-		"AABB SceneBounds()\n"
-		"{\n"
-		"	return SphereBrushBounds(0.1);\n"
-		"}\n"
 		"int SceneSelect(mat4 WorldToClip, vec4 Tile)\n"
 		"{\n"
-		"	if (ClipTest(WorldToClip, Tile, SphereBrushBounds(0.1)))\n"
-		"	{\n"
-		"		return 0;\n"
-		"	}\n"
 		"	return -1;\n"
+		"}\n"
+		"AABB SubtreeBounds(uint Variant)\n"
+		"{\n"
+		"	return AABB(vec3(0.0), vec3(0.0));\n"
+		"}\n"
+		"float SubtreeDist0(vec3 Point)\n"
+		"{\n"
+		"	return 0.0 / 0.0;\n"
+		"}\n"
+		"float SubtreeDist(uint Variant, vec3 Point)\n"
+		"{\n"
+		"	return 0.0 / 0.0;\n"
 		"}\n";
 
 	CompileGeneratedShaders(SimpleScene, ClusterCullShader, TestShader);

@@ -54,13 +54,13 @@ void main()
 		vec2 ScreenMax = min(ScreenMin + TileSize, ScreenSize.xy);
 		vec4 TileClip = vec4(ScreenMin, ScreenMax) * ScreenSize.zwzw * 2.0 - 1.0;
 
-		AABB Bounds = SceneBounds();
-		vec3 WorldMin = Bounds.Center - Bounds.Extent;
-		vec3 WorldMax = Bounds.Center + Bounds.Extent;
-
 		int Variant = SceneSelect(ViewToClip * WorldToView, TileClip);
 		if (Variant > -1)
 		{
+			AABB Bounds = SubtreeBounds(Variant);
+			vec3 WorldMin = Bounds.Center - Bounds.Extent;
+			vec3 WorldMax = Bounds.Center + Bounds.Extent;
+
 			vec4 Clip = vec4((TileClip.xy + TileClip.zw) * 0.5, -1.0, 1.0);
 			vec4 View = ClipToView * Clip;
 			View /= View.w;
@@ -84,7 +84,7 @@ void main()
 					}
 					else
 					{
-						float Dist = SceneDist(Position);
+						float Dist = SubtreeDist0(Position);
 						if (Dist <= 0.1)
 						{
 							RayEscaped = false;

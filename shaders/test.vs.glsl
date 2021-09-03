@@ -50,6 +50,7 @@ out gl_PerVertex
 };
 
 
+out flat uint Variant;
 out flat AABB Bounds;
 out flat vec3 WorldMin;
 out flat vec3 WorldMax;
@@ -73,14 +74,16 @@ ivec3 Indices[2] = \
 
 void main()
 {
-	Bounds = SceneBounds();
+	TileHeapEntry Tile = Heap[gl_InstanceID];
+	Variant = Tile.Variant;
+
+	Bounds = SubtreeBounds(Variant);
 	WorldMin = Bounds.Center - Bounds.Extent;
 	WorldMax = Bounds.Center + Bounds.Extent;
 
 	vec2 MinNDC;
 	vec2 MaxNDC;
 	{
-		TileHeapEntry Tile = Heap[gl_InstanceID];
 		vec2 TileCoords = vec2(float(Tile.TileID & 0xFFFF), float(Tile.TileID >> 16));
 		vec2 TileSize = vec2(float(TILE_SIZE_X), float(TILE_SIZE_Y));
 		vec2 ScreenMin = TileCoords * TileSize;

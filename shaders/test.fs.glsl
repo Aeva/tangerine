@@ -28,6 +28,7 @@ uniform ViewInfoBlock
 };
 
 
+in flat uint Variant;
 in flat AABB Bounds;
 in flat vec3 WorldMin;
 in flat vec3 WorldMax;
@@ -45,11 +46,11 @@ layout(location = 1) out vec3 OutNormal;
 vec3 Gradient(vec3 Position)
 {
 	float AlmostZero = 0.0001;
-	float Dist = SceneDist(Position);
+	float Dist = SubtreeDist(Variant, Position);
 	return vec3(
-		SceneDist(vec3(Position.x + AlmostZero, Position.y, Position.z)) - Dist,
-		SceneDist(vec3(Position.x, Position.y + AlmostZero, Position.z)) - Dist,
-		SceneDist(vec3(Position.x, Position.y, Position.z + AlmostZero)) - Dist);
+		SubtreeDist(Variant, vec3(Position.x + AlmostZero, Position.y, Position.z)) - Dist,
+		SubtreeDist(Variant, vec3(Position.x, Position.y + AlmostZero, Position.z)) - Dist,
+		SubtreeDist(Variant, vec3(Position.x, Position.y, Position.z + AlmostZero)) - Dist);
 }
 
 
@@ -78,61 +79,7 @@ void main()
 	float Travel = 0.0;
 	vec3 Position;
 	float Dist = 0.0;
-#if USE_COVERAGE_SEARCH
-	{
-		const float AlmostZero = 0.001;
-		float MaxTravel = distance(WorldMin, WorldMax); // Overestimate, bad for perf;
-		float PivotTravel = mix(Travel, MaxTravel, 0.5);
-		float PivotRadius = SceneDist(EyeRay * PivotTravel + RayStart);
 
-		const int MaxStack = 14;
-		Coverage Stack[MaxStack];
-		Stack[0] = Coverage(MaxTravel, MaxTravel, 0.0);
-		Stack[1] = Coverage(PivotTravel - abs(PivotRadius), PivotTravel + abs(PivotRadius), sign(PivotRadius));
-		int Top = 1;
-		Coverage Cursor = Coverage(Travel, Travel, 0.0);
-
-		for (int i = 0; i < 200; ++i)
-		{
-			if (Stack[Top].Low - AlmostZero <= Cursor.High)
-			{
-				Cursor = Stack[Top];
-				--Top;
-				if (Top == -1 || Cursor.Sign < 0)
-				{
-					break;
-				}
-			}
-			else
-			{
-				PivotTravel = (Stack[Top].Low + Cursor.High) * 0.5;
-				PivotRadius = SceneDist(EyeRay * PivotTravel + RayStart);
-				Coverage Next = Coverage(PivotTravel - abs(PivotRadius), PivotTravel + abs(PivotRadius), sign(PivotRadius));
-				if (abs(Stack[Top].Sign + Next.Sign) > 0 && Stack[Top].Low - AlmostZero <= Next.High)
-				{
-					Stack[Top].Low = Next.Low;
-				}
-				else if (Top < MaxStack - 1)
-				{
-					++Top;
-					Stack[Top] = Next;
-				}
-				else
-				{
-					// Ran out of stack!
-					break;
-				}
-			}
-		}
-		if (Cursor.Sign == -1)
-		{
-			Travel = max(0.0, Cursor.Low);
-			Position = EyeRay * Travel + RayStart;
-			Dist = SceneDist(Position);
-			Hit = true;
-		}
-	}
-#else
 	for (int i = 0; i < 100; ++i)
 	{
 		Position = EyeRay * Travel + RayStart;
@@ -143,7 +90,7 @@ void main()
 		}
 		else
 		{
-			Dist = SceneDist(Position);
+			Dist = SubtreeDist(Variant, Position);
 			if (Dist <= 0.001)
 			{
 				Hit = true;
@@ -155,7 +102,6 @@ void main()
 			}
 		}
 	}
-#endif
 
 	if (Hit)
 	{

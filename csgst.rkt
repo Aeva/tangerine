@@ -235,4 +235,4 @@
 
 (define (compile csgst)
   (assert-csg csgst)
-  (simple-scene-glsl csgst))
+  (generate-glsl csgst))
