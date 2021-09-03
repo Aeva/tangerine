@@ -534,7 +534,6 @@ void RenderInner()
 		TileHeap.Bind(GL_SHADER_STORAGE_BUFFER, 0);
 		TileHeapInfo.Bind(GL_SHADER_STORAGE_BUFFER, 1);
 		glDrawArraysIndirect(GL_TRIANGLES, 0);
-		glDrawArrays(GL_TRIANGLES, 0, 3);
 		glPopDebugGroup();
 	}
 #else
