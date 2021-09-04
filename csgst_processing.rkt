@@ -147,10 +147,9 @@
 
 
 ; Split an AABB by the corners of the clipping AABB, and return the list
-; of new AABBs which are either occluded or not occluded by the clipping
-; AABB, depending on the mode parameter.
-(define (aabb-clip aabb clip [return-exterior? #t])
-  (define (inner bounds points)
+; of new AABBs which are not occluded by the clipping AABB.
+(define (aabb-clip aabb clip)
+  (define (shatter bounds points)
     (if (null? points)
         bounds
         (let* ([pivot (car points)]
@@ -159,15 +158,32 @@
                 (append*
                  (for/list ([aabb (in-list bounds)])
                    (aabb-split aabb pivot)))])
-          (inner bounds next))))
-  (let ([filter-fn
-         (if return-exterior?
-             filter-not
-             filter)])
-    (filter-fn
-     (λ (aabb)
-       (occludes? clip aabb))
-     (inner (list aabb) (corners clip)))))
+          (shatter bounds next))))
+  ; First use the points in the solid AABB to split the clipping AABB,
+  (let* ([clip-parts (shatter (list clip) (corners aabb))]
+         [pivots (remove-duplicates (append* (map corners clip-parts)))]
+         ; Then use the points from the shattered clipping AABB to split the solid
+         ; AABB, and remove any of the resulting segments which are occluded by the
+         ; original clipping AABB.
+         [result (filter-not
+                  (λ (aabb)
+                    (occludes? clip aabb))
+                  (shatter (list aabb) pivots))])
+    ; And if the result is null, return an invalid AABB.
+    (if (null? result)
+        (list
+         (list (vec3 0.0)
+               (vec3 0.0)
+               (caddr aabb)))
+        result)))
+
+
+; Adjust the bounds of an AABB.
+(define (pad-aabb amount aabb)
+  (list
+   (vec- (car aabb) amount)
+   (vec+ (cadr aabb) amount)
+   (caddr aabb)))
 
 
 ; Convert a CSG syntax tree into list of AABBs of subtrees.
@@ -220,6 +236,23 @@
                       (for/list ([aabb (in-list (append lhs-aabbs rhs-aabbs))])
                         (aabb-clip aabb overlap)))))))]
 
+      [(blend-union)
+       (let-values ([(threshold lhs rhs) (splat args)])
+         (let* ([liminal (* threshold threshold 0.25 (rcp threshold))]
+                [lhs-aabbs (tree-aabb lhs)]
+                [rhs-aabbs (tree-aabb rhs)]
+                [lhs-merged (aabb-union lhs-aabbs)]
+                [rhs-merged (aabb-union rhs-aabbs)]
+                [blend (rewrite-subtree
+                        (aabb-inter
+                         (pad-aabb liminal lhs-merged)
+                         (pad-aabb liminal rhs-merged))
+                        (blend union threshold lhs rhs))])
+           (cons blend
+                 (append*
+                  (for/list ([aabb (in-list (append lhs-aabbs rhs-aabbs))])
+                    (aabb-clip aabb blend))))))]
+
       [(diff)
        (let-values ([(lhs rhs) (splat args)])
          (let* ([lhs-aabbs (tree-aabb lhs)]
@@ -271,15 +304,21 @@
 
 
 ; Tests
-(tree-aabb (cube 2))
-(tree-aabb (move-x 1 (cube 2)))
-(tree-aabb (rotate-z 45 (cube 2)))
-(tree-aabb (union (cube 2) (cube 2)))
-(tree-aabb (union (cube 1) (cube 2)))
-(tree-aabb (union (cube 2) (move 1 1 1 (cube 2))))
-(tree-aabb (diff (cube 2) (sphere 2.2)))
-(tree-aabb (diff (sphere 2.2) (cube 2)))
-(tree-aabb (diff (cube 2) (cube 2)))
-(tree-aabb (inter (move-x -1 (cube 2))
-                  (move-x 1 (cube 2))))
-(tree-aabb (inter (cube 2) (cube 2)))
+;(tree-aabb (cube 2))
+;(tree-aabb (move-x 1 (cube 2)))
+;(tree-aabb (rotate-z 45 (cube 2)))
+;(tree-aabb (union (cube 2) (cube 2)))
+;(tree-aabb (union (cube 1) (cube 2)))
+;(tree-aabb (union (cube 2) (move 1 1 1 (cube 2))))
+;(tree-aabb (diff (cube 2) (sphere 2.2)))
+;(tree-aabb (diff (sphere 2.2) (cube 2)))
+;(tree-aabb (diff (cube 2) (cube 2)))
+;(tree-aabb (inter (move-x -1 (cube 2))
+;                  (move-x 1 (cube 2))))
+;(tree-aabb (inter (cube 2) (cube 2)))
+;(tree-aabb (blend union 1 (sphere 2) (move-x 1 (sphere 2))))
+;(filter aabb-valid?
+;        (tree-aabb (blend union 1
+;                          (sphere 3)
+;                          (move-x 1.5 (sphere 2))
+;                          (move-x -1.5 (sphere 2)))))

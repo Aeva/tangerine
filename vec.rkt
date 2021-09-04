@@ -33,7 +33,8 @@
          vec-max
          vec-len
          normalize
-         quat-rotate)
+         quat-rotate
+         rcp)
 
 
 (define (vec size . params)
@@ -151,3 +152,9 @@
      (dot tmp (vec* (swiz sign 0 1 0 1) (swiz quat 3 2 1 0)))
      (dot tmp (vec* (swiz sign 0 0 1 1) (swiz quat 2 3 0 1)))
      (dot tmp (vec* (swiz sign 1 0 0 1) (swiz quat 1 0 3 2))))))
+
+
+(define (rcp vec)
+  (if (number? vec)
+      (/ 1.0 vec)
+      (vec/ 1.0 vec)))
