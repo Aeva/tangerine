@@ -17,7 +17,6 @@
 ; CSGST = Constructive Solid Geometry Syntax Tree
 
 
-(require racket/format)
 (require racket/list)
 (require "csgst.rkt")
 (require "vec.rkt")

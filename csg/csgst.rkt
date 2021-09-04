@@ -18,14 +18,13 @@
 
 (require racket/flonum)
 (require racket/math)
-(require "csgst_glsl.rkt")
 
 
-(provide compile
-         brush?
+(provide brush?
          operator?
          transform?
          csg?
+         assert-csg
          sphere
          ellipsoid
          box
@@ -235,8 +234,3 @@
       ,(+ (* z c) (* w s))
       ,(- (* w c) (* z s))
       ,child)))
-
-
-(define (compile csgst)
-  (assert-csg csgst)
-  (generate-glsl csgst))

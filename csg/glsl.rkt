@@ -256,7 +256,7 @@
    (string-append*
     (for/list ([index (in-naturals 0)]
                [subtree subtrees])
-      (let ([bounds (eval-bounds subtree #t)])
+      (let ([bounds (eval-bounds subtree #f)])
         (~a "\tcase " index ":\n"
             "\t\treturn " bounds ";\n"))))
    "\tdefault:\n"
