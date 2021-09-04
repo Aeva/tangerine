@@ -17,6 +17,7 @@
 ; CSGST = Constructive Solid Geometry Syntax Tree
 
 
+(require racket/format)
 (require racket/list)
 (require "csgst.rkt")
 (require "vec.rkt")
@@ -24,6 +25,20 @@
 
 (define (splat args)
   (apply values args))
+
+
+; Is it an AABB?
+(define (aabb? thing)
+  (and
+   (list? thing)
+   (vec3? (car thing))
+   (vec3? (cadr thing))
+   (csg? (caddr thing))))
+
+
+; Is it a list of AABBs?
+(define (aabb-list? thing)
+  (andmap aabb? thing))
 
 
 ; Test if a point is within an AABB's bounds, inclusive of the edges.
@@ -104,9 +119,9 @@
                               #:when (equal? (caddr aabb) subtree))
                      aabb))]
          [merged (map merge-group groups)])
-    (if (> (length merged) 1)
-        (car (merge-group merged (apply combiner subtrees)))
-        (car merged))))
+    (if (eq? 1 (length merged))
+        (car merged)
+        (merge-group merged (apply combiner subtrees)))))
 
 
 ; Split an AABB upon the given pivot point.  If the point is outside the AABB
@@ -132,8 +147,9 @@
 
 
 ; Split an AABB by the corners of the clipping AABB, and return the list
-; of new AABBs which are not occluded by the clipping AABB.
-(define (aabb-clip aabb clip)
+; of new AABBs which are either occluded or not occluded by the clipping
+; AABB, depending on the mode parameter.
+(define (aabb-clip aabb clip [return-exterior? #t])
   (define (inner bounds points)
     (if (null? points)
         bounds
@@ -144,10 +160,14 @@
                  (for/list ([aabb (in-list bounds)])
                    (aabb-split aabb pivot)))])
           (inner bounds next))))
-  (filter-not
-   (λ (aabb)
-     (occludes? clip aabb))
-   (inner (list aabb) (corners clip))))
+  (let ([filter-fn
+         (if return-exterior?
+             filter-not
+             filter)])
+    (filter-fn
+     (λ (aabb)
+       (occludes? clip aabb))
+     (inner (list aabb) (corners clip)))))
 
 
 ; Convert a CSG syntax tree into list of AABBs of subtrees.
@@ -186,20 +206,48 @@
 
       [(union)
        (let-values ([(lhs rhs) (splat args)])
-         (let* ([lhs (tree-aabb lhs)]
-                [rhs (tree-aabb rhs)]
-                [lhs-merged (aabb-union lhs)]
-                [rhs-merged (aabb-union rhs)]
-                [interior (rewrite-subtree
-                           (aabb-inter lhs-merged rhs-merged)
-                           (apply union
-                                  (append
-                                   (extract-subtrees lhs)
-                                   (extract-subtrees rhs))))])
-           (cons interior
+         (if (equal? lhs rhs)
+             (tree-aabb lhs)
+             (let* ([lhs-aabbs (tree-aabb lhs)]
+                    [rhs-aabbs (tree-aabb rhs)]
+                    [lhs-merged (aabb-union lhs-aabbs)]
+                    [rhs-merged (aabb-union rhs-aabbs)]
+                    [overlap (rewrite-subtree
+                              (aabb-inter lhs-merged rhs-merged)
+                              (union lhs rhs))])
+               (cons overlap
+                     (append*
+                      (for/list ([aabb (in-list (append lhs-aabbs rhs-aabbs))])
+                        (aabb-clip aabb overlap)))))))]
+
+      [(diff)
+       (let-values ([(lhs rhs) (splat args)])
+         (let* ([lhs-aabbs (tree-aabb lhs)]
+                [rhs-aabbs (tree-aabb rhs)]
+                [lhs-merged (aabb-union lhs-aabbs)]
+                [rhs-merged (aabb-union rhs-aabbs)]
+                [diff-region (rewrite-subtree
+                              (aabb-inter lhs-merged rhs-merged)
+                              (diff lhs
+                                    rhs))])
+           (cons diff-region
                  (append*
-                  (for/list ([aabb (in-list (append lhs rhs))])
-                    (aabb-clip aabb interior))))))]
+                  (for/list ([aabb (in-list lhs-aabbs)])
+                    (aabb-clip aabb diff-region))))))]
+
+      [(inter)
+       (let-values ([(lhs rhs) (splat args)])
+         (if (equal? lhs rhs)
+             (tree-aabb lhs)
+             (let* ([lhs-aabbs (tree-aabb lhs)]
+                    [rhs-aabbs (tree-aabb rhs)]
+                    [lhs-merged (aabb-union lhs-aabbs)]
+                    [rhs-merged (aabb-union rhs-aabbs)]
+                    [inter-region (rewrite-subtree
+                                   (aabb-inter lhs-merged rhs-merged)
+                                   (inter lhs
+                                          rhs))])
+               inter-region)))]
 
       [(move)
        (let-values ([(x y z child) (splat args)])
@@ -220,3 +268,18 @@
                     [low (apply vec-min points)]
                     [high (apply vec-max points)])
                (list low high root)))))])))
+
+
+; Tests
+(tree-aabb (cube 2))
+(tree-aabb (move-x 1 (cube 2)))
+(tree-aabb (rotate-z 45 (cube 2)))
+(tree-aabb (union (cube 2) (cube 2)))
+(tree-aabb (union (cube 1) (cube 2)))
+(tree-aabb (union (cube 2) (move 1 1 1 (cube 2))))
+(tree-aabb (diff (cube 2) (sphere 2.2)))
+(tree-aabb (diff (sphere 2.2) (cube 2)))
+(tree-aabb (diff (cube 2) (cube 2)))
+(tree-aabb (inter (move-x -1 (cube 2))
+                  (move-x 1 (cube 2))))
+(tree-aabb (inter (cube 2) (cube 2)))

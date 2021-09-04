@@ -22,6 +22,9 @@
          vec4
          vec3
          vec2
+         vec4?
+         vec3?
+         vec2?
          vec+
          vec-
          vec*
@@ -54,6 +57,30 @@
 
 (define (vec2 . params)
   (apply vec (cons 2 params)))
+
+
+(define (vec4? thing)
+  (and (list? thing)
+       (eq? 4 (length thing))
+       (number? (car thing))
+       (number? (cadr thing))
+       (number? (caddr thing))
+       (number? (cadddr thing))))
+
+
+(define (vec3? thing)
+  (and (list? thing)
+       (eq? 3 (length thing))
+       (number? (car thing))
+       (number? (cadr thing))
+       (number? (caddr thing))))
+
+
+(define (vec2? thing)
+  (and (list? thing)
+       (eq? 2 (length thing))
+       (number? (car thing))
+       (number? (cadr thing))))
 
 
 (define (swiz vec . channels)

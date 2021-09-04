@@ -22,6 +22,10 @@
 
 
 (provide compile
+         brush?
+         operator?
+         transform?
+         csg?
          sphere
          ellipsoid
          box
