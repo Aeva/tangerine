@@ -18,7 +18,9 @@
 (require racket/string)
 
 
-(provide generate-glsl)
+(provide eval-dist
+         eval-bounds
+         generate-glsl)
 
 
 (define (splat args)

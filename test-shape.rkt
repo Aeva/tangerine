@@ -15,6 +15,8 @@
 ; limitations under the License.
 
 (require "csg.rkt")
+(require "csg/bounds.rkt")
+(require "csg/bpy-export.rkt")
 
 ; compatibility stuff
 (define scene compile)
@@ -249,5 +251,9 @@
 
 
 (define (emit-glsl)
-  (scene
+  (compile
    (gallery (wheel))))
+
+
+;(display
+; (compile-bpy (gallery (wheel))))

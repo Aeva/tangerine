@@ -21,7 +21,9 @@
 
 (define-ffi-definer define-backend (ffi-lib "tangerine"))
 (define-backend Resize (_fun _int _int -> _void))
-(define-backend NewShader (_fun _string/utf-8 -> _void))
+(define-backend LockShaders (_fun -> _void))
+(define-backend PostShader (_fun _string/utf-8 _string/utf-8 -> _void))
+(define-backend UnlockShaders (_fun -> _void))
 
 ; Access the GL canvas's gl context.
 (define (get-gl-context)
@@ -62,4 +64,8 @@
 (send (get-gl-context) call-as-current start-renderer)
 
 ; Send a new program.
-(NewShader (emit-glsl))
+(let ([clusters (emit-glsl)])
+  (LockShaders)
+  (for ([cluster (in-list clusters)])
+    (PostShader (car cluster) (cdr cluster)))
+  (UnlockShaders))

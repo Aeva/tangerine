@@ -50,7 +50,6 @@ out gl_PerVertex
 };
 
 
-out flat uint Variant;
 out flat AABB Bounds;
 out flat vec3 WorldMin;
 out flat vec3 WorldMax;
@@ -75,9 +74,8 @@ ivec3 Indices[2] = \
 void main()
 {
 	TileHeapEntry Tile = Heap[gl_InstanceID];
-	Variant = Tile.Variant;
 
-	Bounds = SubtreeBounds(Variant);
+	Bounds = Tile.Bounds;
 	WorldMin = Bounds.Center - Bounds.Extent;
 	WorldMax = Bounds.Center + Bounds.Extent;
 

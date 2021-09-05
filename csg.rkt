@@ -1,4 +1,4 @@
-#lang racket/base
+#lang at-exp racket/base
 
 ; Copyright 2021 Aeva Palecek
 ;
@@ -14,9 +14,13 @@
 ; See the License for the specific language governing permissions and
 ; limitations under the License.
 
+(require racket/list)
+(require racket/string)
+(require racket/format)
 (require "csg/csgst.rkt")
 (require "csg/bounds.rkt")
 (require "csg/glsl.rkt")
+(require "csg/vec.rkt")
 
 (provide compile
          sphere
@@ -37,6 +41,39 @@
          rotate-y
          rotate-z)
 
+
+(define (glsl-vec3 vec)
+  (let-values ([(x y z) (apply values vec)])
+    @~a{vec3(@x, @y, @z)}))
+
+
 (define (compile csgst)
-  (assert-csg csgst)
-  (generate-glsl csgst))
+  (let ([parts (segments csgst)])
+    (for/list ([part (in-list (segments csgst))])
+      (let* ([subtree (car part)]
+             [bounds (cdr part)]
+             [count (length bounds)])
+        (cons
+         (string-join
+          (list
+           "float ClusterDist(vec3 Point)"
+           "{"
+           (~a "\treturn " (eval-dist subtree) ";")
+           "}\n")
+          "\n")
+         (string-join
+          (flatten
+           (list
+            @~a{const uint ClusterCount = @count;}
+            "AABB ClusterData[ClusterCount] = \\"
+            "{"
+            (string-join
+             (for/list ([bound (in-list bounds)])
+               (let* ([low (car bound)]
+                      [high (cdr bound)]
+                      [extent (vec* 0.5 (vec- high low))]
+                      [center (vec+ low extent)])
+                 {~a "\t" @~a{AABB(@(glsl-vec3 center), @(glsl-vec3 extent))}}
+                 )) ",\n")
+            "};\n"))
+          "\n"))))))

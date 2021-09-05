@@ -54,10 +54,9 @@ void main()
 		vec2 ScreenMax = min(ScreenMin + TileSize, ScreenSize.xy);
 		vec4 TileClip = vec4(ScreenMin, ScreenMax) * ScreenSize.zwzw * 2.0 - 1.0;
 
-		int Variant = SceneSelect(ViewToClip * WorldToView, TileClip);
-		if (Variant > -1)
+		for (int ClusterIndex = 0; ClusterIndex < ClusterCount; ++ClusterIndex)
 		{
-			AABB Bounds = SubtreeBounds(Variant);
+			AABB Bounds = ClusterData[ClusterIndex];
 			vec3 WorldMin = Bounds.Center - Bounds.Extent;
 			vec3 WorldMax = Bounds.Center + Bounds.Extent;
 
@@ -74,7 +73,7 @@ void main()
 			bool RayEscaped = false;
 			{
 				float Travel = 0;
-				for (int i = 0; i < 50; ++i)
+				for (int i = 0; i < 10; ++i)
 				{
 					vec3 Position = EyeRay * Travel + RayStart;
 					if (any(lessThan(Position, SearchMin)) || any(greaterThan(Position, SearchMax)))
@@ -84,7 +83,7 @@ void main()
 					}
 					else
 					{
-						float Dist = SubtreeDist0(Position);
+						float Dist = ClusterDist(Position);
 						if (Dist <= 0.1)
 						{
 							RayEscaped = false;
@@ -102,7 +101,7 @@ void main()
 				uint Ptr = atomicAdd(StackPtr, 1);
 				TileHeapEntry Tile;
 				Tile.TileID = ((gl_GlobalInvocationID.y & 0xFFFF) << 16) | (gl_GlobalInvocationID.x & 0xFFFF);
-				Tile.Variant = Variant;
+				Tile.Bounds = Bounds;
 				Heap[Ptr] = Tile;
 			}
 		}

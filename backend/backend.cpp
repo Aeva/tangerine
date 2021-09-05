@@ -186,12 +186,12 @@ void ConnectContext()
 
 
 GLuint NullVAO;
-ShaderPipeline ClusterCullShader;
+std::vector<ShaderPipeline> ClusterCullingShaders;
 ShaderPipeline ClusterTallyShader;
 #if VISUALIZE_CLUSTER_COVERAGE
 ShaderPipeline ClusterCoverageShader;
 #endif
-ShaderPipeline TestShader;
+std::vector<ShaderPipeline> ClusterDepthShaders;
 ShaderPipeline PaintShader;
 
 Buffer ViewInfo("ViewInfo Buffer");
@@ -293,21 +293,38 @@ struct TileHeapInfoUpload
 
 struct TileHeapEntry
 {
+	GLfloat Bounds[8];
 	GLuint TileID;
-	GLuint Variant;
 };
 
 
-StatusCode CompileGeneratedShaders(std::string& GeneratedSource, ShaderPipeline& ClusterCullShader, ShaderPipeline& TestShader)
+StatusCode CompileGeneratedShaders(std::string& ClusterDist, std::string& ClusterData)
 {
-	RETURN_ON_FAIL(ClusterCullShader.Setup(
-		{ {GL_COMPUTE_SHADER, GeneratedShader("shaders/math.glsl", GeneratedSource, "shaders/cluster_cull.cs.glsl")} },
-		"Cluster Culling Shader"));
+	ShaderPipeline CullingShader;
+	StatusCode Result = CullingShader.Setup(
+		{ {GL_COMPUTE_SHADER, GeneratedShader("shaders/math.glsl", ClusterData + ClusterDist, "shaders/cluster_cull.cs.glsl")} },
+		"Cluster Culling Shader");
+	if (Result == StatusCode::FAIL)
+	{
+		CullingShader.Reset();
+		return Result;
+	}
 
-	RETURN_ON_FAIL(TestShader.Setup(
-		{ {GL_VERTEX_SHADER, GeneratedShader("shaders/math.glsl", GeneratedSource, "shaders/test.vs.glsl")},
-		  {GL_FRAGMENT_SHADER, GeneratedShader("shaders/math.glsl", GeneratedSource, "shaders/test.fs.glsl")} },
-		"Generated Shader"));
+	ShaderPipeline DepthShader;
+	Result = DepthShader.Setup(
+		{ {GL_VERTEX_SHADER, GeneratedShader("shaders/math.glsl", ClusterDist, "shaders/test.vs.glsl")},
+		  {GL_FRAGMENT_SHADER, GeneratedShader("shaders/math.glsl", ClusterDist, "shaders/test.fs.glsl")} },
+		"Generated Shader");
+	if (Result == StatusCode::FAIL)
+	{
+		CullingShader.Reset();
+		DepthShader.Reset();
+		return Result;
+	}
+
+	ClusterCullingShaders.push_back(CullingShader);
+	ClusterDepthShaders.push_back(DepthShader);
+	return StatusCode::PASS;
 }
 
 
@@ -318,29 +335,17 @@ StatusCode SetupInner()
 	glGenVertexArrays(1, &NullVAO);
 	glBindVertexArray(NullVAO);
 
-	std::string SimpleScene = \
-		"int SceneSelect(mat4 WorldToClip, vec4 Tile)\n"
+	std::string NullClusterDist = \
+		"float ClusterDist(vec3 Point)\n"
 		"{\n"
-		"	return -1;\n"
-		"}\n"
-		"AABB SubtreeBounds(uint Variant)\n"
-		"{\n"
-		"	return AABB(vec3(0.0), vec3(0.0));\n"
-		"}\n"
-		"float SubtreeDist0(vec3 Point)\n"
-		"{\n"
-		"	return 0.0 / 0.0;\n"
-		"}\n"
-		"float SubtreeDist(uint Variant, vec3 Point)\n"
-		"{\n"
-		"	return 0.0 / 0.0;\n"
+		"	return 0.0;\n"
 		"}\n";
 
-	CompileGeneratedShaders(SimpleScene, ClusterCullShader, TestShader);
+	std::string NullClusterData = \
+		"const uint ClusterCount = 1;\n"
+		"AABB ClusterData[ClusterCount] = { AABB(vec3(0.0), vec3(0.0)) };\n";
 
-	RETURN_ON_FAIL(ClusterCullShader.Setup(
-		{ {GL_COMPUTE_SHADER, GeneratedShader("shaders/math.glsl", SimpleScene, "shaders/cluster_cull.cs.glsl")} },
-		"Cluster Culling Shader"));
+	RETURN_ON_FAIL(CompileGeneratedShaders(NullClusterDist, NullClusterData));
 
 	RETURN_ON_FAIL(ClusterTallyShader.Setup(
 		{ {GL_COMPUTE_SHADER, ShaderSource("shaders/cluster_tally.cs.glsl", true)} },
@@ -352,10 +357,6 @@ StatusCode SetupInner()
 		 {GL_FRAGMENT_SHADER, ShaderSource("shaders/cluster_coverage.fs.glsl", true)} },
 		"Cluster Coverage Shader"));
 #else
-	RETURN_ON_FAIL(TestShader.Setup(
-		{ {GL_VERTEX_SHADER, GeneratedShader("shaders/math.glsl", SimpleScene, "shaders/test.vs.glsl")},
-		  {GL_FRAGMENT_SHADER, GeneratedShader("shaders/math.glsl", SimpleScene, "shaders/test.fs.glsl")} },
-		"Test Shader"));
 
 	RETURN_ON_FAIL(PaintShader.Setup(
 		{ {GL_VERTEX_SHADER, ShaderSource("shaders/splat.vs.glsl", true)},
@@ -381,32 +382,41 @@ StatusCode SetupInner()
 }
 
 
+struct GeneratedSources
+{
+	std::string ClusterDist;
+	std::string ClusterData;
+};
+
+
 std::mutex NewShaderLock;
 std::atomic_bool NewShaderReady;
-std::string NewShaderSource;
+std::vector<GeneratedSources> NewClusters;
 void SetupNewShader()
 {
 	NewShaderLock.lock();
-	ShaderPipeline NewClusterCullShader;
-	ShaderPipeline NewTestShader;
-	StatusCode Result = CompileGeneratedShaders(NewShaderSource, NewClusterCullShader, NewTestShader);
+	for (ShaderPipeline& CullingShader : ClusterCullingShaders)
+	{
+		CullingShader.Reset();
+	}
+	for (ShaderPipeline& DepthShader : ClusterDepthShaders)
+	{
+		DepthShader.Reset();
+	}
+	ClusterCullingShaders.clear();
+	ClusterDepthShaders.clear();
+
+	for (GeneratedSources& Generated : NewClusters)
+	{
+		StatusCode Result = CompileGeneratedShaders(Generated.ClusterDist, Generated.ClusterData);
+		if (Result == StatusCode::FAIL)
+		{
+			break;
+		}
+	}
 
 	NewShaderReady.store(false);
 	NewShaderLock.unlock();
-
-	if (Result == StatusCode::FAIL)
-	{
-		NewClusterCullShader.Reset();
-		NewTestShader.Reset();
-	}
-	else
-	{
-		ClusterCullShader.Reset();
-		ClusterCullShader = NewClusterCullShader;
-
-		TestShader.Reset();
-		TestShader = NewTestShader;
-	}
 }
 
 
@@ -483,7 +493,7 @@ void RenderInner()
 	const unsigned int TilesY = DIV_UP(Height, TILE_SIZE_Y);
 	{
 		static unsigned int HeapSize = 0;
-		const unsigned int TileCount = TilesX * TilesY;
+		const unsigned int TileCount = TilesX * TilesY * 20;
 
 		TileHeapInfoUpload BufferData = {
 			TileCount,
@@ -494,6 +504,7 @@ void RenderInner()
 
 		if (TileCount != HeapSize)
 		{
+			std::cout << "Tile heap size: " << TileCount << "\n";
 			HeapSize = TileCount;
 			TileHeap.Reserve(sizeof(TileHeapEntry) * HeapSize);
 		}
@@ -501,13 +512,16 @@ void RenderInner()
 
 	{
 		glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Cluster Culling Pass");
-		ClusterCullShader.Activate();
 		TileHeap.Bind(GL_SHADER_STORAGE_BUFFER, 0);
 		TileHeapInfo.Bind(GL_SHADER_STORAGE_BUFFER, 1);
 		// Each lane is a tile, so we have to tile the tiles...
 		const unsigned int GroupX = DIV_UP(TilesX, TILE_SIZE_X);
 		const unsigned int GroupY = DIV_UP(TilesY, TILE_SIZE_Y);
-		glDispatchCompute(GroupX, GroupY, 1);
+		for (ShaderPipeline& CullingShader : ClusterCullingShaders)
+		{
+			CullingShader.Activate();
+			glDispatchCompute(GroupX, GroupY, 1);
+		}
 		glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 		glPopDebugGroup();
 	}
@@ -539,15 +553,18 @@ void RenderInner()
 #else
 	{
 		glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Depth");
+		glBindFramebuffer(GL_FRAMEBUFFER, DepthPass);
 		glDepthMask(GL_TRUE);
 		glEnable(GL_DEPTH_TEST);
-		glBindFramebuffer(GL_FRAMEBUFFER, DepthPass);
-		TestShader.Activate();
 		glClear(GL_DEPTH_BUFFER_BIT);
 		TileDrawArgs.Bind(GL_DRAW_INDIRECT_BUFFER);
 		TileHeap.Bind(GL_SHADER_STORAGE_BUFFER, 0);
 		TileHeapInfo.Bind(GL_SHADER_STORAGE_BUFFER, 1);
-		glDrawArraysIndirect(GL_TRIANGLES, 0);
+		for (ShaderPipeline& DepthShader : ClusterDepthShaders)
+		{
+			DepthShader.Activate();
+			glDrawArraysIndirect(GL_TRIANGLES, 0);
+		}
 		glPopDebugGroup();
 	}
 
@@ -644,10 +661,20 @@ void Resize(int NewWidth, int NewHeight)
 }
 
 
-void NewShader(const char* GeneratedSource)
+void LockShaders()
 {
 	NewShaderLock.lock();
-	NewShaderSource = GeneratedSource;
+}
+
+
+void PostShader(const char* ClusterDist, const char* ClusterData)
+{
+	NewClusters.push_back({ std::string(ClusterDist), std::string(ClusterData) });
+}
+
+
+void UnlockShaders()
+{
 	NewShaderReady.store(true);
 	NewShaderLock.unlock();
 }

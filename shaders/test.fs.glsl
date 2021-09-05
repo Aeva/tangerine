@@ -28,7 +28,6 @@ uniform ViewInfoBlock
 };
 
 
-in flat uint Variant;
 in flat AABB Bounds;
 in flat vec3 WorldMin;
 in flat vec3 WorldMax;
@@ -46,11 +45,11 @@ layout(location = 1) out vec3 OutNormal;
 vec3 Gradient(vec3 Position)
 {
 	float AlmostZero = 0.0001;
-	float Dist = SubtreeDist(Variant, Position);
+	float Dist = ClusterDist(Position);
 	return vec3(
-		SubtreeDist(Variant, vec3(Position.x + AlmostZero, Position.y, Position.z)) - Dist,
-		SubtreeDist(Variant, vec3(Position.x, Position.y + AlmostZero, Position.z)) - Dist,
-		SubtreeDist(Variant, vec3(Position.x, Position.y, Position.z + AlmostZero)) - Dist);
+		ClusterDist(vec3(Position.x + AlmostZero, Position.y, Position.z)) - Dist,
+		ClusterDist(vec3(Position.x, Position.y + AlmostZero, Position.z)) - Dist,
+		ClusterDist(vec3(Position.x, Position.y, Position.z + AlmostZero)) - Dist);
 }
 
 
@@ -90,7 +89,7 @@ void main()
 		}
 		else
 		{
-			Dist = SubtreeDist(Variant, Position);
+			Dist = ClusterDist(Position);
 			if (Dist <= 0.001)
 			{
 				Hit = true;

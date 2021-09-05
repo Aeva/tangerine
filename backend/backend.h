@@ -39,7 +39,13 @@ extern "C" bool BACKEND_API RenderFrame();
 extern "C" void BACKEND_API Resize(int NewWidth, int NewHeight);
 
 
-extern "C" void BACKEND_API NewShader(const char* GeneratedSource);
+extern "C" void BACKEND_API LockShaders();
+
+
+extern "C" void BACKEND_API PostShader(const char* ClusterDist, const char* ClusterData);
+
+
+extern "C" void BACKEND_API UnlockShaders();
 
 
 extern "C" void BACKEND_API Shutdown();

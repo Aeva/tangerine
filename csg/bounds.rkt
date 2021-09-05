@@ -320,8 +320,9 @@
                [bounds (tree-aabb child)])
            (for/list ([aabb bounds])
              (let ([low (vec+ (car aabb) delta)]
-                   [high (vec+ (cadr aabb) delta)])
-               (list low high root)))))]
+                   [high (vec+ (cadr aabb) delta)]
+                   [subtree (caddr aabb)])
+               (list low high (move x y z subtree))))))]
 
       [(quat)
        (let-values ([(x y z w child) (splat args)])
@@ -331,8 +332,9 @@
              (let* ([points (map (λ (pt) (quat-rotate pt quat))
                                  (corners aabb))]
                     [low (apply vec-min points)]
-                    [high (apply vec-max points)])
-               (list low high root)))))]
+                    [high (apply vec-max points)]
+                    [subtree (caddr aabb)])
+               (list low high `(quat ,x ,y ,z ,w ,subtree))))))]
 
       [else (error "Unknown CSGST node:" node)])))
 
