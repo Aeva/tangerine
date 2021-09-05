@@ -22,6 +22,9 @@
 (require "vec.rkt")
 
 
+(provide segments)
+
+
 (define (splat args)
   (apply values args))
 
@@ -279,7 +282,7 @@
                                    (aabb-inter lhs-merged rhs-merged)
                                    (inter lhs
                                           rhs))])
-               inter-region)))]
+               (list inter-region))))]
 
       [(move)
        (let-values ([(x y z child) (splat args)])
@@ -300,6 +303,22 @@
                     [low (apply vec-min points)]
                     [high (apply vec-max points)])
                (list low high root)))))])))
+
+
+(define (segments csg-tree)
+  (assert-csg csg-tree)
+  (let* ([bounds
+          (remove-duplicates
+           (filter aabb-valid?
+                   (tree-aabb csg-tree)))]
+         [subtrees (extract-subtrees bounds)])
+    (for/list ([subtree (in-list subtrees)])
+      (list subtree
+            (remove-duplicates
+             (for/list ([aabb (in-list bounds)]
+                        #:when (equal? (caddr aabb) subtree))
+               (list (car aabb)
+                     (cadr aabb))))))))
 
 
 ; Tests
