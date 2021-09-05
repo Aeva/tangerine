@@ -270,6 +270,23 @@
                   (for/list ([aabb (in-list lhs-aabbs)])
                     (aabb-clip aabb diff-region))))))]
 
+      [(blend-diff)
+       (let-values ([(threshold lhs rhs) (splat args)])
+         (let* ([liminal (* threshold threshold 0.25 (rcp threshold))]
+                [lhs-aabbs (tree-aabb lhs)]
+                [rhs-aabbs (tree-aabb rhs)]
+                [lhs-merged (aabb-union lhs-aabbs)]
+                [rhs-merged (aabb-union rhs-aabbs)]
+                [diff-region (rewrite-subtree
+                              (aabb-inter
+                               (pad-aabb liminal lhs-merged)
+                               (pad-aabb liminal rhs-merged))
+                              (blend diff threshold lhs rhs))])
+           (cons diff-region
+                 (append*
+                  (for/list ([aabb (in-list lhs-aabbs)])
+                    (aabb-clip aabb diff-region))))))]
+
       [(inter)
        (let-values ([(lhs rhs) (splat args)])
          (if (equal? lhs rhs)
@@ -282,6 +299,19 @@
                                    (aabb-inter lhs-merged rhs-merged)
                                    (inter lhs
                                           rhs))])
+               (list inter-region))))]
+
+      [(blend-inter)
+       (let-values ([(threshold lhs rhs) (splat args)])
+         (if (equal? lhs rhs)
+             (tree-aabb lhs)
+             (let* ([lhs-aabbs (tree-aabb lhs)]
+                    [rhs-aabbs (tree-aabb rhs)]
+                    [lhs-merged (aabb-union lhs-aabbs)]
+                    [rhs-merged (aabb-union rhs-aabbs)]
+                    [inter-region (rewrite-subtree
+                                   (aabb-inter lhs-merged rhs-merged)
+                                   (blend inter threshold lhs rhs))])
                (list inter-region))))]
 
       [(move)
@@ -302,7 +332,9 @@
                                  (corners aabb))]
                     [low (apply vec-min points)]
                     [high (apply vec-max points)])
-               (list low high root)))))])))
+               (list low high root)))))]
+
+      [else (error "Unknown CSGST node:" node)])))
 
 
 (define (segments csg-tree)
@@ -313,11 +345,11 @@
                    (tree-aabb csg-tree)))]
          [subtrees (extract-subtrees bounds)])
     (for/list ([subtree (in-list subtrees)])
-      (list subtree
+      (cons subtree
             (remove-duplicates
              (for/list ([aabb (in-list bounds)]
                         #:when (equal? (caddr aabb) subtree))
-               (list (car aabb)
+               (cons (car aabb)
                      (cadr aabb))))))))
 
 
