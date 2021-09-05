@@ -38,7 +38,18 @@ layout(std430, binding = 0) restrict readonly buffer TileHeap
 layout(std140, binding = 1) restrict readonly buffer TileHeapInfo
 {
 	uint HeapSize;
+	uint SegmentStart;
 	uint StackPtr;
+};
+
+
+layout(std430, binding = 3) restrict readonly buffer TileDrawArgs
+{
+	uint PrimitiveCount;
+	uint InstanceCount;
+	uint First;
+	uint BaseInstance;
+	uint InstanceOffset; // Not a draw param.
 };
 
 
@@ -73,9 +84,9 @@ ivec3 Indices[2] = \
 
 void main()
 {
-	TileHeapEntry Tile = Heap[gl_InstanceID];
+	TileHeapEntry Tile = Heap[gl_InstanceID + InstanceOffset];
 
-	Bounds = Tile.Bounds;
+	Bounds = ClusterData[min(Tile.ClusterID, ClusterCount - 1)];
 	WorldMin = Bounds.Center - Bounds.Extent;
 	WorldMax = Bounds.Center + Bounds.Extent;
 

@@ -39,6 +39,7 @@ layout(std430, binding = 0) restrict readonly buffer TileHeap
 layout(std140, binding = 1) restrict readonly buffer TileHeapInfo
 {
 	uint HeapSize;
+	uint SegmentSize;
 	uint StackPtr;
 };
 

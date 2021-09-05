@@ -22,12 +22,14 @@ layout(std430, binding = 0) restrict writeonly buffer TileDrawArgs
 	uint InstanceCount;
 	uint First;
 	uint BaseInstance;
+	uint InstanceOffset; // Not a draw param.
 };
 
 
-layout(std140, binding = 1) restrict readonly buffer TileHeapInfo
+layout(std140, binding = 1) restrict buffer TileHeapInfo
 {
 	uint HeapSize;
+	uint SegmentStart;
 	uint StackPtr;
 };
 
@@ -36,8 +38,22 @@ layout(std140, binding = 1) restrict readonly buffer TileHeapInfo
 layout(local_size_x = 1, local_size_y = 1, local_size_z = 1) in;
 void main()
 {
-	PrimitiveCount = 6;
-	InstanceCount = min(StackPtr, HeapSize);
-	First = 0;
-	BaseInstance = 0;
+	if (SegmentStart < HeapSize)
+	{
+		uint SegmentEnd = min(HeapSize, StackPtr);
+		uint SegmentSize = SegmentEnd - SegmentStart;
+		PrimitiveCount = 6;
+		InstanceCount = SegmentSize;
+		First = 0;
+		BaseInstance = 0;
+		InstanceOffset = SegmentStart;
+		SegmentStart = SegmentEnd;
+	}
+	else
+	{
+		PrimitiveCount = 0;
+		InstanceCount = 0;
+		First = 0;
+		BaseInstance = 0;
+	}
 }

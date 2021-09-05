@@ -38,6 +38,7 @@ layout(std430, binding = 0) restrict writeonly buffer TileHeap
 layout(std140, binding = 1) buffer TileHeapInfo
 {
 	uint HeapSize;
+	uint SegmentStart;
 	uint StackPtr;
 };
 
@@ -101,7 +102,7 @@ void main()
 				uint Ptr = atomicAdd(StackPtr, 1);
 				TileHeapEntry Tile;
 				Tile.TileID = ((gl_GlobalInvocationID.y & 0xFFFF) << 16) | (gl_GlobalInvocationID.x & 0xFFFF);
-				Tile.Bounds = Bounds;
+				Tile.ClusterID = ClusterIndex;
 				Heap[Ptr] = Tile;
 			}
 		}

@@ -17,6 +17,6 @@
 
 struct TileHeapEntry
 {
-	AABB Bounds;
 	uint TileID;
+	uint ClusterID;
 };

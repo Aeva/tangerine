@@ -196,7 +196,7 @@ ShaderPipeline PaintShader;
 
 Buffer ViewInfo("ViewInfo Buffer");
 
-Buffer TileDrawArgs("Indirect Tile Drawing Arguments");
+std::vector<Buffer> TileDrawArgs;
 Buffer TileHeapInfo("Tile Draw Heap Info");
 Buffer TileHeap("Tile Draw Heap");
 GLuint DepthPass;
@@ -281,20 +281,22 @@ struct TileDrawArgsUpload
 	GLuint InstanceCount;
 	GLuint First;
 	GLuint BaseIntstance;
+	GLuint InstanceOffset; // Not a draw param.
 };
 
 
 struct TileHeapInfoUpload
 {
 	GLuint HeapSize;
+	GLuint SegmentStart;
 	GLuint StackPtr;
 };
 
 
 struct TileHeapEntry
 {
-	GLfloat Bounds[8];
 	GLuint TileID;
+	GLuint ClusterID;
 };
 
 
@@ -312,7 +314,7 @@ StatusCode CompileGeneratedShaders(std::string& ClusterDist, std::string& Cluste
 
 	ShaderPipeline DepthShader;
 	Result = DepthShader.Setup(
-		{ {GL_VERTEX_SHADER, GeneratedShader("shaders/math.glsl", ClusterDist, "shaders/test.vs.glsl")},
+		{ {GL_VERTEX_SHADER, GeneratedShader("shaders/math.glsl", ClusterData + ClusterDist, "shaders/test.vs.glsl")},
 		  {GL_FRAGMENT_SHADER, GeneratedShader("shaders/math.glsl", ClusterDist, "shaders/test.fs.glsl")} },
 		"Generated Shader");
 	if (Result == StatusCode::FAIL)
@@ -363,11 +365,6 @@ StatusCode SetupInner()
 		 {GL_FRAGMENT_SHADER, ShaderSource("shaders/outliner.fs.glsl", true)} },
 		"Outliner Shader"));
 #endif
-
-	{
-		TileDrawArgsUpload BufferData = { 0, 0, 0, 0 };
-		TileDrawArgs.Upload((void*)&BufferData, sizeof(BufferData));
-	}
 
 	glDisable(GL_MULTISAMPLE);
 	glEnable(GL_CULL_FACE);
@@ -427,6 +424,31 @@ void RenderInner()
 	if (NewShaderReady.load())
 	{
 		SetupNewShader();
+	}
+
+	{
+		static size_t LastDrawCount = 0;
+		size_t DrawCount =  ClusterCullingShaders.size();
+		if (LastDrawCount != DrawCount)
+		{
+			LastDrawCount = DrawCount;
+
+			for (Buffer& OldBuffer : TileDrawArgs)
+			{
+				OldBuffer.Release();
+			}
+
+			TileDrawArgs.resize(DrawCount);
+
+			for (int i = 0; i < DrawCount; ++i)
+			{
+				TileDrawArgs[i] = Buffer("Indirect Tile Drawing Arguments");
+				{
+					TileDrawArgsUpload BufferData = { 0, 0, 0, 0 };
+					TileDrawArgs[i].Upload((void*)&BufferData, sizeof(BufferData));
+				}
+			}
+		}
 	}
 
 	double DeltaTime;
@@ -497,6 +519,7 @@ void RenderInner()
 
 		TileHeapInfoUpload BufferData = {
 			TileCount,
+			0,
 			0
 		};
 		TileHeapInfo.Upload((void*)&BufferData, sizeof(BufferData));
@@ -512,27 +535,31 @@ void RenderInner()
 
 	{
 		glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Cluster Culling Pass");
-		TileHeap.Bind(GL_SHADER_STORAGE_BUFFER, 0);
-		TileHeapInfo.Bind(GL_SHADER_STORAGE_BUFFER, 1);
 		// Each lane is a tile, so we have to tile the tiles...
 		const unsigned int GroupX = DIV_UP(TilesX, TILE_SIZE_X);
 		const unsigned int GroupY = DIV_UP(TilesY, TILE_SIZE_Y);
+		int i = 0;
 		for (ShaderPipeline& CullingShader : ClusterCullingShaders)
 		{
-			CullingShader.Activate();
-			glDispatchCompute(GroupX, GroupY, 1);
+			glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Subtree");
+			{
+				CullingShader.Activate();
+				TileHeap.Bind(GL_SHADER_STORAGE_BUFFER, 0);
+				TileHeapInfo.Bind(GL_SHADER_STORAGE_BUFFER, 1);
+				glDispatchCompute(GroupX, GroupY, 1);
+				glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+			}
+			{
+				ClusterTallyShader.Activate();
+				TileDrawArgs[i].Bind(GL_SHADER_STORAGE_BUFFER, 0);
+				TileHeapInfo.Bind(GL_SHADER_STORAGE_BUFFER, 1);
+				glDispatchCompute(1, 1, 1);
+				glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+			}
+			++i;
+			glPopDebugGroup();
 		}
-		glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
-		glPopDebugGroup();
-	}
-
-	{
-		glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Cluster Tally Pass");
-		ClusterTallyShader.Activate();
-		TileDrawArgs.Bind(GL_SHADER_STORAGE_BUFFER, 0);
-		TileHeapInfo.Bind(GL_SHADER_STORAGE_BUFFER, 1);
-		glDispatchCompute(1, 1, 1);
-		glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT | GL_COMMAND_BARRIER_BIT);
+		glMemoryBarrier(GL_COMMAND_BARRIER_BIT);
 		glPopDebugGroup();
 	}
 
@@ -557,13 +584,17 @@ void RenderInner()
 		glDepthMask(GL_TRUE);
 		glEnable(GL_DEPTH_TEST);
 		glClear(GL_DEPTH_BUFFER_BIT);
-		TileDrawArgs.Bind(GL_DRAW_INDIRECT_BUFFER);
 		TileHeap.Bind(GL_SHADER_STORAGE_BUFFER, 0);
 		TileHeapInfo.Bind(GL_SHADER_STORAGE_BUFFER, 1);
+		int i = 0;
 		for (ShaderPipeline& DepthShader : ClusterDepthShaders)
 		{
+			//glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
 			DepthShader.Activate();
+			TileDrawArgs[i].Bind(GL_DRAW_INDIRECT_BUFFER);
+			TileDrawArgs[i].Bind(GL_SHADER_STORAGE_BUFFER, 3);
 			glDrawArraysIndirect(GL_TRIANGLES, 0);
+			++i;
 		}
 		glPopDebugGroup();
 	}
