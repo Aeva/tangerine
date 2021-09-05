@@ -27,23 +27,11 @@ float SphereBrush(vec3 Point, float Radius)
 }
 
 
-AABB SphereBrushBounds(float Radius)
-{
-	return AABB(vec3(0.0), vec3(Radius));
-}
-
-
 float EllipsoidBrush(vec3 Point, vec3 Radipodes)
 {
 	float K0 = length(Point / Radipodes);
 	float K1 = length(Point / (Radipodes * Radipodes));
 	return K0 * (K0 - 1.0) / K1;
-}
-
-
-AABB EllipsoidBrushBounds(vec3 Radipodes)
-{
-	return AABB(vec3(0.0), Radipodes);
 }
 
 
@@ -54,21 +42,9 @@ float BoxBrush(vec3 Point, vec3 Extent)
 }
 
 
-AABB BoxBrushBounds(vec3 Extent)
-{
-	return AABB(vec3(0.0), Extent);
-}
-
-
 float TorusBrush(vec3 Point, float MajorRadius, float MinorRadius)
 {
 	return length(vec2(length(Point.xy) - MajorRadius, Point.z)) - MinorRadius;
-}
-
-
-AABB TorusBrushBounds(float MajorRadius, float MinorRadius)
-{
-	return AABB(vec3(0.0), vec3(MajorRadius + MinorRadius, MajorRadius + MinorRadius, MinorRadius));
 }
 
 
@@ -79,25 +55,9 @@ float CylinderBrush(vec3 Point, float Radius, float Extent)
 }
 
 
-AABB CylinderBrushBounds(float Radius, float Extent)
-{
-	return AABB(vec3(0.0), vec3(Radius, Radius, Extent));
-}
-
-
 float UnionOp(float LHS, float RHS)
 {
 	return min(LHS, RHS);
-}
-
-
-AABB UnionOpBounds(AABB LHS, AABB RHS)
-{
-	vec3 BoundsMin = min(LHS.Center - LHS.Extent, RHS.Center - RHS.Extent);
-	vec3 BoundsMax = max(LHS.Center + LHS.Extent, RHS.Center + RHS.Extent);
-	vec3 Extent = (BoundsMax - BoundsMin) * 0.5;
-	vec3 Center = BoundsMin + Extent;
-	return AABB(Center, Extent);
 }
 
 
@@ -107,25 +67,9 @@ float IntersectionOp(float LHS, float RHS)
 }
 
 
-AABB IntersectionOpBounds(AABB LHS, AABB RHS)
-{
-	vec3 BoundsMin = max(LHS.Center - LHS.Extent, RHS.Center - RHS.Extent);
-	vec3 BoundsMax = min(LHS.Center + LHS.Extent, RHS.Center + RHS.Extent);
-	vec3 Extent = max(BoundsMax - BoundsMin, 0.0) * 0.5;
-	vec3 Center = BoundsMin + Extent;
-	return AABB(Center, Extent);
-}
-
-
 float CutOp(float LHS, float RHS)
 {
 	return max(LHS, -RHS);
-}
-
-
-AABB CutOpBounds(AABB LHS, AABB RHS)
-{
-	return LHS;
 }
 
 
@@ -136,42 +80,6 @@ float SmoothUnionOp(float LHS, float RHS, float Threshold)
 }
 
 
-AABB SmoothUnionOpBounds(AABB LHS, AABB RHS, float Threshold)
-{
-	float MaxH = Threshold * Threshold * 0.25 / Threshold;
-	AABB Union = UnionOpBounds(LHS, RHS);
-	if (any(greaterThan(Union.Extent, LHS.Extent + RHS.Extent + MaxH)))
-	{
-		return Union;
-	}
-	else
-	{
-		AABB Distortion = IntersectionOpBounds(
-			AABB(LHS.Center, LHS.Extent + MaxH),
-			AABB(RHS.Center, RHS.Extent + MaxH));
-		return UnionOpBounds(Union, Distortion);
-	}
-}
-
-
-AABB ThresholdBounds(AABB LHS, AABB RHS, float Threshold)
-{
-	float MaxH = Threshold * Threshold * 0.25 / Threshold;
-	AABB Union = UnionOpBounds(LHS, RHS);
-	if (any(greaterThan(Union.Extent, LHS.Extent + RHS.Extent + MaxH)))
-	{
-		return AABB(vec3(0.0), vec3(0.0));
-	}
-	else
-	{
-		AABB Distortion = IntersectionOpBounds(
-			AABB(LHS.Center, LHS.Extent + MaxH),
-			AABB(RHS.Center, RHS.Extent + MaxH));
-		return UnionOpBounds(Union, Distortion);
-	}
-}
-
-
 float SmoothIntersectionOp(float LHS, float RHS, float Threshold)
 {
 	float H = max(Threshold - abs(LHS - RHS), 0.0);
@@ -179,29 +87,10 @@ float SmoothIntersectionOp(float LHS, float RHS, float Threshold)
 }
 
 
-AABB SmoothIntersectionOpBounds(AABB LHS, AABB RHS, float Threshold)
-{
-	return IntersectionOpBounds(LHS, RHS);
-}
-
-
 float SmoothCutOp(float LHS, float RHS, float Threshold)
 {
 	float H = max(Threshold - abs(LHS + RHS), 0.0);
 	return max(LHS, -RHS) + H * H * 0.25 / Threshold;
-}
-
-
-AABB SmoothCutOpBounds(AABB LHS, AABB RHS, float Threshold)
-{
-	return LHS;
-}
-
-
-AABB TranslateAABB(AABB Bounds, vec3 Offset)
-{
-	Bounds.Center += Offset;
-	return Bounds;
 }
 
 
@@ -217,35 +106,6 @@ vec3 QuaternionTransform(vec3 Point, vec4 Quat)
 		dot(Sign.xyxy * Quat.wzyx, Tmp),
 		dot(Sign.xxyy * Quat.zwxy, Tmp),
 		dot(Sign.yxxy * Quat.yxwz, Tmp));
-}
-
-
-AABB QuaternionTransformAABB(AABB Bounds, vec4 Quat)
-{
-	vec3 A = Bounds.Center - Bounds.Extent;
-	vec3 B = Bounds.Center + Bounds.Extent;
-
-	vec3 NewMin = QuaternionTransform(A, Quat);
-	vec3 NewMax = NewMin;
-	vec3 Tmp;
-#define CRANK(var) \
-	Tmp = QuaternionTransform(var, Quat); \
-	NewMin = min(NewMin, Tmp.xyz); \
-	NewMax = max(NewMax, Tmp.xyz);
-
-	CRANK(B);
-	CRANK(vec3(B.x, A.yz));
-	CRANK(vec3(A.x, B.y, A.z));
-	CRANK(vec3(A.xy, B.z));
-	CRANK(vec3(A.x, B.yz));
-	CRANK(vec3(B.x, A.y, B.z));
-	CRANK(vec3(B.xy, A.z));
-
-	AABB NewBounds;
-	NewBounds.Extent = (NewMax - NewMin) * 0.5;
-	NewBounds.Center = NewBounds.Extent + NewMin;
-	return NewBounds;
-#undef CRANK
 }
 
 
