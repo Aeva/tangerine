@@ -290,17 +290,8 @@
        (let-values ([(lhs rhs) (splat args)])
          (if (equal? lhs rhs)
              (tree-aabb lhs)
-             (let* ([lhs-aabbs (tree-aabb lhs)]
-                    [rhs-aabbs (tree-aabb rhs)]
-                    [lhs-merged (aabb-union lhs-aabbs)]
-                    [rhs-merged (aabb-union rhs-aabbs)]
-                    [overlap (rewrite-subtree
-                              (aabb-inter lhs-merged rhs-merged)
-                              (union lhs rhs))])
-               (cons overlap
-                     (append*
-                      (for/list ([aabb (in-list (append lhs-aabbs rhs-aabbs))])
-                        (aabb-clip aabb overlap)))))))]
+             (append (tree-aabb lhs)
+                     (tree-aabb rhs))))]
 
       [(blend-union)
        (let-values ([(threshold lhs rhs) (splat args)])
