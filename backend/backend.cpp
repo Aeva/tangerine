@@ -589,7 +589,6 @@ void RenderInner()
 		int i = 0;
 		for (ShaderPipeline& DepthShader : ClusterDepthShaders)
 		{
-			//glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT);
 			DepthShader.Activate();
 			TileDrawArgs[i].Bind(GL_DRAW_INDIRECT_BUFFER);
 			TileDrawArgs[i].Bind(GL_SHADER_STORAGE_BUFFER, 3);

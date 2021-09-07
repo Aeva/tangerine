@@ -257,3 +257,29 @@
 
 ;(display
 ; (compile-bpy (gallery (wheel))))
+
+
+; intersection with no shared corners
+;(define test (diff (box 5. 5. 2.)
+;                    (box 2. 2. 5.)))
+
+; partial intersection with no shared corners
+;(define test (diff (box 5. 5. 2.)
+;                    (move-z 3. (box 2. 2. 5.))))
+
+; cut shape is fully within the positive shape
+;(define test (diff (cube 2)
+;                   (cube 1)))
+
+; corner overlaps
+;(define test (diff (cube 2)
+;                   (move 1 1 1 (cube 2))))
+
+; just a box!
+;(define test (cube 2))
+
+
+;(define (emit-glsl)
+;  (compile test))
+;(display
+; (compile-bpy test))

@@ -58,52 +58,57 @@ void main()
 		for (int ClusterIndex = 0; ClusterIndex < ClusterCount; ++ClusterIndex)
 		{
 			AABB Bounds = ClusterData[ClusterIndex];
-			vec3 WorldMin = Bounds.Center - Bounds.Extent;
-			vec3 WorldMax = Bounds.Center + Bounds.Extent;
-
-			vec4 Clip = vec4((TileClip.xy + TileClip.zw) * 0.5, -1.0, 1.0);
-			vec4 View = ClipToView * Clip;
-			View /= View.w;
-			vec4 World = ViewToWorld * View;
-			World /= World.w;
-			vec3 EyeRay = normalize(World.xyz - CameraOrigin.xyz);
-			vec3 RayStart = EyeRay * BoxBrush(CameraOrigin.xyz - Bounds.Center, Bounds.Extent) + CameraOrigin.xyz;
-			vec3 SearchMin = min(RayStart, WorldMin);
-			vec3 SearchMax = max(RayStart, WorldMax);
-
-			bool RayEscaped = false;
+			if (ClipTest(ViewToClip * WorldToView, TileClip, Bounds))
 			{
-				float Travel = 0;
-				for (int i = 0; i < 10; ++i)
+				vec3 WorldMin = Bounds.Center - Bounds.Extent;
+				vec3 WorldMax = Bounds.Center + Bounds.Extent;
+
+				vec4 Clip = vec4((TileClip.xy + TileClip.zw) * 0.5, -1.0, 1.0);
+				vec4 View = ClipToView * Clip;
+				View /= View.w;
+				vec4 World = ViewToWorld * View;
+				World /= World.w;
+				vec3 EyeRay = normalize(World.xyz - CameraOrigin.xyz);
+				vec3 RayStart = EyeRay * BoxBrush(CameraOrigin.xyz - Bounds.Center, Bounds.Extent) + CameraOrigin.xyz;
+				vec3 SearchMin = min(RayStart, WorldMin);
+				vec3 SearchMax = max(RayStart, WorldMax);
+
+#if 0
+				bool RayEscaped = false;
 				{
-					vec3 Position = EyeRay * Travel + RayStart;
-					if (any(lessThan(Position, SearchMin)) || any(greaterThan(Position, SearchMax)))
+					float Travel = 0;
+					for (int i = 0; i < 10; ++i)
 					{
-						RayEscaped = true;
-						break;
-					}
-					else
-					{
-						float Dist = ClusterDist(Position);
-						if (Dist <= 0.1)
+						vec3 Position = EyeRay * Travel + RayStart;
+						if (any(lessThan(Position, SearchMin)) || any(greaterThan(Position, SearchMax)))
 						{
-							RayEscaped = false;
+							RayEscaped = true;
 							break;
 						}
 						else
 						{
-							Travel += Dist;
+							float Dist = ClusterDist(Position);
+							if (Dist <= 0.1)
+							{
+								RayEscaped = false;
+								break;
+							}
+							else
+							{
+								Travel += Dist;
+							}
 						}
 					}
 				}
-			}
-			if (!RayEscaped)
-			{
-				uint Ptr = atomicAdd(StackPtr, 1);
-				TileHeapEntry Tile;
-				Tile.TileID = ((gl_GlobalInvocationID.y & 0xFFFF) << 16) | (gl_GlobalInvocationID.x & 0xFFFF);
-				Tile.ClusterID = ClusterIndex;
-				Heap[Ptr] = Tile;
+				if (!RayEscaped)
+#endif
+				{
+					uint Ptr = atomicAdd(StackPtr, 1);
+					TileHeapEntry Tile;
+					Tile.TileID = ((gl_GlobalInvocationID.y & 0xFFFF) << 16) | (gl_GlobalInvocationID.x & 0xFFFF);
+					Tile.ClusterID = ClusterIndex;
+					Heap[Ptr] = Tile;
+				}
 			}
 		}
 	}

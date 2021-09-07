@@ -143,3 +143,29 @@ bool ClipTest(mat4 WorldToClip, vec4 TileClip, AABB Bounds)
 		all(lessThanEqual(TileClip.xy, BoundsClipMax.xy)) && \
 		all(lessThanEqual(BoundsClipMin.xy, TileClip.zw));
 }
+
+
+float MaxComponent(vec3 Vector)
+{
+	return max(max(Vector.x, Vector.y), Vector.z);
+}
+
+
+float MinComponent(vec3 Vector)
+{
+	return min(min(Vector.x, Vector.y), Vector.z);
+}
+
+
+bool RayHitAABB(vec3 RayStart, vec3 RayDir, AABB Bounds, out vec3 Enter)
+{
+	vec3 InvRayDir = vec3(1.0 / RayDir);
+	vec3 A = InvRayDir * (RayStart - Bounds.Center);
+	vec3 B = abs(InvRayDir) * Bounds.Extent;
+	vec3 PointNear = -A - B;
+	vec3 PointFar = -A + B;
+	float TravelNear = MaxComponent(PointNear);
+	float TravelFar = MinComponent(PointFar);
+	Enter = clamp(RayDir * TravelNear + RayStart, Bounds.Center - Bounds.Extent, Bounds.Center + Bounds.Extent);
+	return TravelNear < TravelFar && TravelFar > 0.0;
+}

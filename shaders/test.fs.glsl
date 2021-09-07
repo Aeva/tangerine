@@ -71,33 +71,36 @@ void main()
 	World /= World.w;
 	vec3 EyeRay = normalize(World.xyz - CameraOrigin.xyz);
 	vec3 RayStart = EyeRay * BoxBrush(CameraOrigin.xyz - Bounds.Center, Bounds.Extent) + CameraOrigin.xyz;
-	vec3 SearchMin = min(RayStart, WorldMin);
-	vec3 SearchMax = max(RayStart, WorldMax);
+
+	bool CanHit = RayHitAABB(RayStart, EyeRay, Bounds, RayStart);
 
 	bool Hit = false;
 	float Travel = 0.0;
 	vec3 Position;
 	float Dist = 0.0;
 
-	for (int i = 0; i < 100; ++i)
+	if (CanHit)
 	{
-		Position = EyeRay * Travel + RayStart;
-		if (any(lessThan(Position, SearchMin)) || any(greaterThan(Position, SearchMax)))
+		for (int i = 0; i < 50; ++i)
 		{
-			Hit = false;
-			break;
-		}
-		else
-		{
-			Dist = ClusterDist(Position);
-			if (Dist <= 0.001)
+			Position = EyeRay * Travel + RayStart;
+			if (any(lessThan(Position, WorldMin)) || any(greaterThan(Position, WorldMax)))
 			{
-				Hit = true;
+				Hit = false;
 				break;
 			}
 			else
 			{
-				Travel += Dist;
+				Dist = ClusterDist(Position);
+				if (Dist <= 0.001)
+				{
+					Hit = true;
+					break;
+				}
+				else
+				{
+						Travel += Dist;
+				}
 			}
 		}
 	}
