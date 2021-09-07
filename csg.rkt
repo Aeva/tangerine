@@ -54,26 +54,28 @@
              [bounds (cdr part)]
              [count (length bounds)])
         (cons
-         (string-join
-          (list
-           "float ClusterDist(vec3 Point)"
-           "{"
-           (~a "\treturn " (eval-dist subtree) ";")
-           "}\n")
-          "\n")
-         (string-join
-          (flatten
+         (length bounds)
+         (cons
+          (string-join
            (list
-            @~a{const uint ClusterCount = @count;}
-            "AABB ClusterData[ClusterCount] = \\"
+            "float ClusterDist(vec3 Point)"
             "{"
-            (string-join
-             (for/list ([bound (in-list bounds)])
-               (let* ([low (car bound)]
-                      [high (cdr bound)]
-                      [extent (vec* 0.5 (vec- high low))]
-                      [center (vec+ low extent)])
-                 {~a "\t" @~a{AABB(@(glsl-vec3 center), @(glsl-vec3 extent))}}
-                 )) ",\n")
-            "};\n"))
-          "\n"))))))
+            (~a "\treturn " (eval-dist subtree) ";")
+            "}\n")
+           "\n")
+          (string-join
+           (flatten
+            (list
+             @~a{const uint ClusterCount = @count;}
+             "AABB ClusterData[ClusterCount] = \\"
+             "{"
+             (string-join
+              (for/list ([bound (in-list bounds)])
+                (let* ([low (car bound)]
+                       [high (cdr bound)]
+                       [extent (vec* 0.5 (vec- high low))]
+                       [center (vec+ low extent)])
+                  {~a "\t" @~a{AABB(@(glsl-vec3 center), @(glsl-vec3 extent))}}
+                  )) ",\n")
+             "};\n"))
+           "\n")))))))
