@@ -42,7 +42,7 @@ extern "C" void BACKEND_API Resize(int NewWidth, int NewHeight);
 extern "C" void BACKEND_API LockShaders();
 
 
-extern "C" void BACKEND_API PostShader(const char* ClusterDist, const char* ClusterData);
+extern "C" void BACKEND_API PostShader(int ClusterCount, const char* ClusterDist, const char* ClusterData);
 
 
 extern "C" void BACKEND_API UnlockShaders();

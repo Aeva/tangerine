@@ -55,8 +55,8 @@ void main()
 		vec2 ScreenMax = min(ScreenMin + TileSize, ScreenSize.xy);
 		vec4 TileClip = vec4(ScreenMin, ScreenMax) * ScreenSize.zwzw * 2.0 - 1.0;
 
-		for (int ClusterIndex = 0; ClusterIndex < ClusterCount; ++ClusterIndex)
 		{
+			const uint ClusterIndex = gl_GlobalInvocationID.z;
 			AABB Bounds = ClusterData[ClusterIndex];
 			if (ClipTest(ViewToClip * WorldToView, TileClip, Bounds))
 			{

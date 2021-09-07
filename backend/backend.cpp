@@ -206,6 +206,9 @@ GLuint NormalBuffer;
 const GLuint FinalPass = 0;
 
 
+std::vector<int> ClusterCounts;
+
+
 void AllocateRenderTargets(int ScreenWidth, int ScreenHeight)
 {
 	static bool Initialized = false;
@@ -347,6 +350,8 @@ StatusCode SetupInner()
 		"const uint ClusterCount = 1;\n"
 		"AABB ClusterData[ClusterCount] = { AABB(vec3(0.0), vec3(0.0)) };\n";
 
+	ClusterCounts.push_back(0);
+
 	RETURN_ON_FAIL(CompileGeneratedShaders(NullClusterDist, NullClusterData));
 
 	RETURN_ON_FAIL(ClusterTallyShader.Setup(
@@ -381,6 +386,7 @@ StatusCode SetupInner()
 
 struct GeneratedSources
 {
+	int ClusterCount;
 	std::string ClusterDist;
 	std::string ClusterData;
 };
@@ -402,6 +408,7 @@ void SetupNewShader()
 	}
 	ClusterCullingShaders.clear();
 	ClusterDepthShaders.clear();
+	ClusterCounts.clear();
 
 	for (GeneratedSources& Generated : NewClusters)
 	{
@@ -409,6 +416,10 @@ void SetupNewShader()
 		if (Result == StatusCode::FAIL)
 		{
 			break;
+		}
+		else
+		{
+			ClusterCounts.push_back(Generated.ClusterCount);
 		}
 	}
 
@@ -546,7 +557,7 @@ void RenderInner()
 				CullingShader.Activate();
 				TileHeap.Bind(GL_SHADER_STORAGE_BUFFER, 0);
 				TileHeapInfo.Bind(GL_SHADER_STORAGE_BUFFER, 1);
-				glDispatchCompute(GroupX, GroupY, 1);
+				glDispatchCompute(GroupX, GroupY, ClusterCounts[i]);
 				glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 			}
 			{
@@ -697,9 +708,9 @@ void LockShaders()
 }
 
 
-void PostShader(const char* ClusterDist, const char* ClusterData)
+void PostShader(int ClusterCount, const char* ClusterDist, const char* ClusterData)
 {
-	NewClusters.push_back({ std::string(ClusterDist), std::string(ClusterData) });
+	NewClusters.push_back({ ClusterCount, std::string(ClusterDist), std::string(ClusterData) });
 }
 
 
