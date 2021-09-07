@@ -33,8 +33,10 @@
          vec-max
          vec-len
          normalize
+         distance
          quat-rotate
-         rcp)
+         rcp
+         lerp)
 
 
 (define (vec size . params)
@@ -141,6 +143,13 @@
   (vec/ vec (dot vec vec)))
 
 
+(define (distance lhs rhs)
+  (if (and (number? lhs)
+           (number? rhs))
+      (abs (- lhs rhs))
+      (vec-len (vec- lhs rhs))))
+
+
 (define (quat-rotate point quat)
   (let* ([sign (vec2 1. -1.)]
          [tmp (vec4
@@ -158,3 +167,26 @@
   (if (number? vec)
       (/ 1.0 vec)
       (vec/ 1.0 vec)))
+
+
+(define (lerp lhs rhs alpha)
+  (cond
+    [(and
+      (number? lhs)
+      (number? rhs)
+      (number? alpha))
+     (let ([inv-alpha (- 1.0 alpha)])
+           (+ (* lhs inv-alpha) (* rhs alpha)))]
+    [(and
+      (list? lhs)
+      (list? rhs)
+      (list? alpha))
+     (for/list ([lhs lhs]
+                [rhs rhs]
+                [alpha alpha])
+       (lerp lhs rhs alpha))]
+    [else
+     (lerp
+      (if (list? lhs) lhs (vec4 lhs))
+      (if (list? rhs) rhs (vec4 rhs))
+      (if (list? alpha) alpha (vec4 alpha)))]))
