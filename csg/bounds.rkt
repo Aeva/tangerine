@@ -148,6 +148,71 @@
          (equal? lhs-max (vec-max lhs-max rhs-max)))))
 
 
+; Returns a list of lines for a given AABB's edges parallel to the given axis.
+(define (aabb-edge aabb axis)
+  (let* ([low (car aabb)]
+         [high (cadr aabb)]
+         [lx (car low)]
+         [ly (cadr low)]
+         [lz (caddr low)]
+         [hx (car high)]
+         [hy (cadr high)]
+         [hz (caddr high)])
+    (cond
+      [(eq? axis 0)
+       (list ; Edge lines parallel to the x-axis.
+        (vec3 0. ly lz)
+        (vec3 0. ly hz)
+        (vec3 0. hy lz)
+        (vec3 0. hy hz))]
+      [(eq? axis 1)
+       (list ; Edge lines parallel to the y-axis.
+        (vec3 lx 0. lz)
+        (vec3 lx 0. hz)
+        (vec3 hx 0. lz)
+        (vec3 hx 0. hz))]
+      [(eq? axis 2)
+       (list ; Edge lines parallel to the z-axis.
+        (vec3 lx ly 0.)
+        (vec3 lx hy 0.)
+        (vec3 hx ly 0.)
+        (vec3 hx hy 0.))])))
+
+
+; Return the minimum and and maximum coordinates of an AABB for a given axis.
+(define (limits aabb axis)
+  (list
+   (list-ref (car aabb) axis)
+   (list-ref (cadr aabb) axis)))
+
+
+; Returns a list of intersection points between two AABBs.
+(define (aabb-aabb lhs rhs)
+
+  (define (axis-mask axis)
+    (cond [(eq? axis 0) '(1. 0. 0.)]
+          [(eq? axis 1) '(0. 1. 0.)]
+          [(eq? axis 2) '(0. 0. 1.)]))
+
+  (define (inner caster occluder)
+    (append*
+     (for/list ([axis (in-range 3)])
+       (let ([mask (axis-mask axis)]
+             [edges (aabb-edge caster axis)])
+         (append*
+          (for/list ([limit (in-list (limits occluder axis))])
+            (let ([plane (vec* mask limit)])
+              (filter (λ (pt)
+                        (and (within? pt caster)
+                             (within? pt occluder)))
+                      (for/list ([line (in-list edges)])
+                        (vec+ plane line))))))))))
+  (remove-duplicates
+   (append
+    (inner lhs rhs)
+    (inner rhs lhs))))
+
+
 ; Split an AABB by the corners of the clipping AABB, and return the list
 ; of new AABBs which are not occluded by the clipping AABB.
 (define (aabb-clip aabb clip)
@@ -161,17 +226,16 @@
                  (for/list ([aabb (in-list bounds)])
                    (aabb-split aabb pivot)))])
           (shatter bounds next))))
-  ; First use the points in the solid AABB to split the clipping AABB,
-  (let* ([clip-parts (shatter (list clip) (corners aabb))]
-         [pivots (remove-duplicates (append* (map corners clip-parts)))]
-         ; Then use the points from the shattered clipping AABB to split the solid
-         ; AABB, and remove any of the resulting segments which are occluded by the
-         ; original clipping AABB.
-         [result (filter-not
-                  (λ (aabb)
-                    (occludes? clip aabb))
-                  (shatter (list aabb) pivots))])
-    ; And if the result is null, return an invalid AABB.
+
+  (define (keep? aabb)
+    (not (occludes? clip aabb)))
+
+  (let* ([pivots (remove-duplicates
+                  (append
+                   (corners clip)
+                   (aabb-aabb aabb clip)))]
+         [shards (shatter (list aabb) pivots)]
+         [result (filter keep? shards)])
     (if (null? result)
         (list
          (list (vec3 0.0)
