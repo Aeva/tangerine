@@ -34,6 +34,8 @@
          vec-len
          normalize
          distance
+         cross
+         quat*
          quat-rotate
          rcp
          lerp)
@@ -148,6 +150,24 @@
            (number? rhs))
       (abs (- lhs rhs))
       (vec-len (vec- lhs rhs))))
+
+
+(define (cross lhs rhs)
+  (let* ([sign (vec2 1. -1.)])
+    (vec3
+     (dot (vec* sign (swiz lhs 1 2)) (swiz rhs 2 1))
+     (dot (vec* sign (swiz lhs 2 0)) (swiz rhs 0 2))
+     (dot (vec* sign (swiz lhs 0 1)) (swiz rhs 1 0)))))
+
+
+(define (quat* lhs rhs)
+  (let ([sign-v (vec4 1 1 1 -1)]
+        [sign-w (vec4 -1 -1 -1 1)])
+    (vec4
+     (dot (swiz lhs 3 0 1 2) (vec* (swiz rhs 0 3 2 1) sign-v))
+     (dot (swiz lhs 3 1 2 0) (vec* (swiz rhs 1 3 0 2) sign-v))
+     (dot (swiz lhs 3 2 0 1) (vec* (swiz rhs 2 3 1 0) sign-v))
+     (dot lhs (vec* rhs sign-w)))))
 
 
 (define (quat-rotate point quat)

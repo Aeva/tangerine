@@ -19,6 +19,7 @@
 (require racket/format)
 (require "csg/csgst.rkt")
 (require "csg/bounds.rkt")
+(require "csg/coalesce.rkt")
 (require "csg/glsl.rkt")
 (require "csg/vec.rkt")
 
@@ -50,7 +51,7 @@
 (define (compile csgst)
   (let ([parts (segments csgst)])
     (for/list ([part (in-list (segments csgst))])
-      (let* ([subtree (car part)]
+      (let* ([subtree (coalesce (car part))]
              [bounds (cdr part)]
              [count (length bounds)])
         (cons
