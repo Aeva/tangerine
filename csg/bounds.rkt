@@ -302,8 +302,8 @@
                 [rhs-merged (aabb-union rhs-aabbs)]
                 [blend (rewrite-subtree
                         (aabb-inter
-                         (pad-aabb liminal lhs-merged)
-                         (pad-aabb liminal rhs-merged))
+                         (pad-aabb threshold lhs-merged)
+                         (pad-aabb threshold rhs-merged))
                         (blend union threshold lhs rhs))])
            (cons blend
                  (append*

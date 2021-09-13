@@ -94,6 +94,13 @@ float SmoothCutOp(float LHS, float RHS, float Threshold)
 }
 
 
+vec3 MatrixTransform(vec3 Point, mat4 Transform)
+{
+	vec4 Tmp = Transform * vec4(Point, 1.0);
+	return Tmp.xyz / Tmp.w;
+}
+
+
 vec3 QuaternionTransform(vec3 Point, vec4 Quat)
 {
 	vec2 Sign = vec2(1.0, -1.0);

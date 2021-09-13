@@ -16,15 +16,19 @@
 
 
 (require racket/list)
+(require racket/math)
 
 
 (provide swiz
          vec4
          vec3
          vec2
+         mat4
+         mat4-identity
          vec4?
          vec3?
          vec2?
+         mat4?
          vec+
          vec-
          vec*
@@ -35,6 +39,14 @@
          normalize
          distance
          cross
+         transpose-mat4
+         invert-mat4
+         translate-mat4
+         rotate-x-mat4
+         rotate-y-mat4
+         rotate-z-mat4
+         quat->mat4
+         mat*
          quat*
          quat-rotate
          rcp
@@ -64,6 +76,24 @@
   (apply vec (cons 2 params)))
 
 
+; Column-major 4x4 matrix.
+(define (mat4 ax bx cx dx
+              ay by cy dy
+              az bz cz dz
+              aw bw cw dw)
+  (list (vec4 ax ay az aw)
+        (vec4 bx by bz bw)
+        (vec4 cx cy cz cw)
+        (vec4 dx dy dz dw)))
+
+
+(define (mat4-identity)
+  (mat4 1. 0. 0. 0.
+        0. 1. 0. 0.
+        0. 0. 1. 0.
+        0. 0. 0. 1.))
+
+
 (define (vec4? thing)
   (and (list? thing)
        (eq? 4 (length thing))
@@ -86,6 +116,15 @@
        (eq? 2 (length thing))
        (number? (car thing))
        (number? (cadr thing))))
+
+
+(define (mat4? thing)
+  (and (list? thing)
+       (eq? 4 (length thing))
+       (vec4? (car thing))
+       (vec4? (cadr thing))
+       (vec4? (caddr thing))
+       (vec4? (cadddr thing))))
 
 
 (define (swiz vec . channels)
@@ -158,6 +197,161 @@
      (dot (vec* sign (swiz lhs 1 2)) (swiz rhs 2 1))
      (dot (vec* sign (swiz lhs 2 0)) (swiz rhs 0 2))
      (dot (vec* sign (swiz lhs 0 1)) (swiz rhs 1 0)))))
+
+
+(define (transpose-mat4 matrix)
+  (apply mat4 (append* matrix)))
+
+
+(define (invert-mat4 matrix)
+  (let-values ([(ax ay az aw
+                 bx by bz bw
+                 cx cy cz cw
+                 dx dy dz dw)
+                (apply values (flatten matrix))])
+    (let* ([b00 (- (* ax by) (* ay bx))]
+           [b01 (- (* ax bz) (* az bx))]
+           [b02 (- (* ax bw) (* aw bx))]
+           [b03 (- (* ay bz) (* az by))]
+           [b04 (- (* ay bw) (* aw by))]
+           [b05 (- (* az bw) (* aw bz))]
+           [b06 (- (* cx dy) (* cy dx))]
+           [b07 (- (* cx dz) (* cz dx))]
+           [b08 (- (* cx dw) (* cw dx))]
+           [b09 (- (* cy dz) (* cz dy))]
+           [b10 (- (* cy dw) (* cw dy))]
+           [b11 (- (* cz dw) (* cw dz))]
+           [P 1.]
+           [N -1.]
+           [signs (list P N P P N P)]
+           [lhs (list b00 b01 b02 b03 b04 b05)]
+           [rhs (list b11 b10 b09 b08 b07 b06)]
+           [det (/ 1.0 (dot (vec* signs lhs) rhs))])
+      (when (infinite? det)
+        (error "Uninvertable matrix: " matrix))
+      (let ([fill (λ (lhs rhs sign)
+                    (* (dot (vec* sign lhs) rhs) det))])
+        (list
+         (fill (list by bz bw)
+               (list b11 b10 b09)
+               (list P N P))
+         (fill (list az ay aw)
+               (list b10 b11 b09)
+               (list P N N))
+         (fill (list dy dz dw )
+               (list b05 b04 b03)
+               (list P N P))
+         (fill (list cz cy cw)
+               (list b04 b05 b03)
+               (list P N N))
+         (fill (list bz bx bw)
+               (list b08 b11 b07)
+               (list P N N))
+         (fill (list ax az aw )
+               (list b11 b08 b07)
+               (list P N P))
+         (fill (list dz dx dw)
+               (list b02 b05 b01)
+               (list P N N))
+         (fill (list cx cz cw)
+               (list b05 b02 b01)
+               (list P N P))
+         (fill (list bx by bw)
+               (list b10 b08 b06)
+               (list P N P))
+         (fill (list ay ax aw)
+               (list b08 b10 b06)
+               (list P N N))
+         (fill (list dx dy dw)
+               (list b04 b02 + b00)
+               (list P N P))
+         (fill (list dx dy dw)
+               (list b04 b02 b00)
+               (list P N P))
+         (fill (list cy cx cw)
+               (list b02 b04 b00)
+               (list P N N))
+         (fill (list by bx bz)
+               (list b07 b09 b06)
+               (list P N N))
+         (fill (list ax ay az)
+               (list b09 b07 b06)
+               (list P N P))
+         (fill (list dy dx dz)
+               (list b01 b03 b00)
+               (list P N N))
+         (fill (list cx cy cz)
+               (list b03 b01 b00)
+               (list P N P)))))))
+
+
+(define (translate-mat4 x y z)
+  (mat4 1. 0. 0. x
+        0. 1. 0. y
+        0. 0. 1. z
+        0. 0. 0. 1.))
+
+
+(define (rotate-x-mat4 degrees)
+  (let* ([radians (degrees->radians degrees)]
+         [cos-r (cos radians)]
+         [sin-r (sin radians)]
+         [sin-e (* -1 sin-r)])
+    (mat4 1.    0.    0.    0.
+          0.    cos-r sin-r 0.
+          0.    sin-e cos-r 0.
+          0.    0.    0.    1.)))
+
+
+(define (rotate-y-mat4 degrees)
+  (let* ([radians (degrees->radians degrees)]
+         [cos-r (cos radians)]
+         [sin-r (sin radians)]
+         [sin-e (* -1 sin-r)])
+    (mat4 cos-r 0.    sin-e 0.
+          0.    1.    0.    0.
+          sin-r 0.    cos-r 0.
+          0.    0.    0.    1.)))
+
+
+(define (rotate-z-mat4 degrees)
+  (let* ([radians (degrees->radians degrees)]
+         [cos-r (cos radians)]
+         [sin-r (sin radians)]
+         [sin-e (* -1 cos-r)])
+    (mat4 cos-r sin-e 0.    0.
+          sin-r cos-r 0.    0.
+          0.    0.    1.    0.
+          0.    0.    0.    1.)))
+
+
+(define (quat->mat4 quat)
+  (let-values ([(x y z w) (apply values quat)])
+    (let* ([x2 (* x 2)]
+           [y2 (* y 2)]
+           [z2 (* z 2)]
+           [xx (* x x2)]
+           [yx (* y x2)]
+           [yy (* y y2)]
+           [zx (* z x2)]
+           [zy (* z y2)]
+           [zz (* z z2)]
+           [wx (* w x2)]
+           [wy (* w y2)]
+           [wz (* w z2)])
+      (mat4 (- 1 yy zz) (- yx wz)   (+ zx wy)   0.
+            (+ yx wz)   (- 1 xx zz) (- zy wx)   0.
+            (- zx wy)   (+ zy wx)   (- 1 xx yy) 0.
+            0.          0.          0.          1.))))
+
+
+(define (mat* lhs rhs)
+  (let-values ([(la lb lc ld) (apply values lhs)]
+               [(ra rb rc rd) (apply values (transpose-mat4 rhs))])
+    (mat4 (dot la ra) (dot lb ra) (dot lc ra) (dot ld ra)
+          (dot la rb) (dot lb rb) (dot lc rb) (dot ld rb)
+          (dot la rc) (dot lb rc) (dot lc rc) (dot ld rc)
+          (dot la rd) (dot lb rd) (dot lc rd) (dot ld rd))))
 
 
 (define (quat* lhs rhs)

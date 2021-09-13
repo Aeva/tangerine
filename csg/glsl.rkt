@@ -15,7 +15,9 @@
 ; limitations under the License.
 
 (require racket/format)
+(require racket/list)
 (require racket/string)
+(require "vec.rkt")
 
 
 (provide eval-dist)
@@ -91,6 +93,12 @@
                      [(y) (* -1 y)]
                      [(z) (* -1 z)]
                      [(point) @~a{QuaternionTransform(@point, vec4(@x, @y, @z, @w))}])
+         (eval-dist child point))]
+
+      [(mat4)
+       (let*-values ([(matrix child) (splat args)]
+                     [(params) (string-join (map ~a (flatten (invert-mat4 matrix))) ", ")]
+                     [(point) @~a{MatrixTransform(@point, mat4(@params))}])
          (eval-dist child point))]
 
       [else (error "Unknown CSGST node:" csgst)])))

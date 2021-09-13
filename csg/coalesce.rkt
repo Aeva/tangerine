@@ -29,13 +29,8 @@
   (eq? (car csgst) 'quat))
 
 
-(define (peel csgst [transforms null])
-  (if (transform? csgst)
-      (let* ([pivot (- (length csgst) 1)]
-             [trans (take csgst pivot)]
-             [next (list-ref csgst pivot)])
-        (peel next (append transforms (list trans))))
-      (values transforms csgst)))
+(define (matrix? csgst)
+  (eq? (car csgst) 'mat4))
 
 
 (define (groups transforms [pending null] [mode #f])
@@ -71,21 +66,76 @@
             (quat* turn next)))))
 
 
-(define (recombine top . next)
+(define (peel-1 csgst)
+  (let ([pivot (- (length csgst) 1)])
+    (values (take csgst pivot)
+            (list-ref csgst pivot))))
+
+
+(define (peel-2 csgst)
+  (let ([pivot (- (length csgst) 2)])
+    (values (take csgst pivot)
+            (list-ref csgst pivot)
+            (list-ref csgst (+ 1 pivot)))))
+
+
+(define (translate->matrix partial)
+  (let-values ([(node x y z) (apply values partial)])
+    `(mat4 ,(translate-mat4 x y z))))
+
+
+(define (quat->matrix partial)
+  (let-values ([(node x y z w) (apply values partial)])
+    `(mat4 ,(quat->mat4 (list x y z w)))))
+
+
+(define (->matrix partial)
+  (cond [(matrix? partial)
+         (cadr partial)]
+        [(translation? partial)
+         (translate->matrix partial)]
+        [(rotation? partial)
+         (quat->matrix partial)]))
+
+
+(define (merge-transforms lhs rhs . next)
   (if (null? next)
-      top
-      (append top (list (apply recombine next)))))
+      (let* ([lhs (cadr (->matrix lhs))]
+             [rhs (cadr (->matrix rhs))])
+        `(mat4 ,(mat* lhs rhs)))
+      (merge-transforms
+       (apply merge-transforms (cons rhs next))
+       lhs)))
 
 
-(define (coalesce csgst)
-  (let-values ([(transforms subtree) (peel csgst)])
-    (if (null? transforms)
-        subtree
-        (let ([folds
-               (for/list ([group (in-list (groups transforms))])
-                 (if (translation? (car group))
-                     (fold-translations group)
-                     (fold-rotations group)))])
-          (if (eq? (length folds) 1)
-              (append (car folds) (list subtree))
-              (apply recombine (append folds (list subtree))))))))
+(define (recombine csgst transforms)
+  (define (inner top . next)
+    (if (null? next)
+        top
+        (append top (list (apply inner next)))))
+
+  (if (null? transforms)
+      csgst
+      (let ([folds
+             (for/list ([group (in-list (groups transforms))])
+               (if (translation? (car group))
+                   (fold-translations group)
+                   (fold-rotations group)))])
+        (if (eq? (length folds) 1)
+            (append (car folds) (list csgst))
+            ;(append (apply merge-transforms folds) (list csgst)))))) ; convert the transform stack to matrices
+            (apply inner (append folds (list csgst))))))) ; or don't
+
+
+(define (coalesce csgst [transforms null])
+  (cond [(transform? csgst)
+         (let-values ([(tran subtree) (peel-1 csgst)])
+           (if (null? transforms)
+               (coalesce subtree (list tran))
+               (coalesce subtree (append transforms (list tran)))))]
+        [(operator? csgst)
+         (let-values ([(operator lhs rhs) (peel-2 csgst)])
+           ;(append operator (list (coalesce lhs transforms) (coalesce rhs transforms))))] ; fold through operators up to brushes
+           (recombine (append operator (list (coalesce lhs) (coalesce rhs))) transforms))] ; fold up to operators, then fold operands
+        [else
+         (recombine csgst transforms)]))
