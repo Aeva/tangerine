@@ -97,7 +97,7 @@
 
       [(mat4)
        (let*-values ([(matrix child) (splat args)]
-                     [(params) (string-join (map ~a (flatten (invert-mat4 matrix))) ", ")]
+                     [(params) (string-join (map ~a (flatten matrix)) ", ")]
                      [(point) @~a{MatrixTransform(@point, mat4(@params))}])
          (eval-dist child point))]
 

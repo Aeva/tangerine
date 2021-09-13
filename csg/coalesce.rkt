@@ -81,50 +81,38 @@
 
 (define (translate->matrix partial)
   (let-values ([(node x y z) (apply values partial)])
-    `(mat4 ,(translate-mat4 x y z))))
+    (let ([inv-translation (vec* -1 (vec3 x y z))])
+      (apply translate-mat4 inv-translation))))
 
 
 (define (quat->matrix partial)
   (let-values ([(node x y z w) (apply values partial)])
-    `(mat4 ,(quat->mat4 (list x y z w)))))
+    (transpose-mat4 (quat->mat4 (list x y z w)))))
 
 
 (define (->matrix partial)
-  (cond [(matrix? partial)
-         (cadr partial)]
-        [(translation? partial)
+  (cond [(translation? partial)
          (translate->matrix partial)]
         [(rotation? partial)
          (quat->matrix partial)]))
 
 
-(define (merge-transforms lhs rhs . next)
-  (if (null? next)
-      (let* ([lhs (cadr (->matrix lhs))]
-             [rhs (cadr (->matrix rhs))])
-        `(mat4 ,(mat* lhs rhs)))
-      (merge-transforms
-       (apply merge-transforms (cons rhs next))
-       lhs)))
-
-
 (define (recombine csgst transforms)
-  (define (inner top . next)
-    (if (null? next)
-        top
-        (append top (list (apply inner next)))))
-
   (if (null? transforms)
       csgst
-      (let ([folds
-             (for/list ([group (in-list (groups transforms))])
-               (if (translation? (car group))
-                   (fold-translations group)
-                   (fold-rotations group)))])
-        (if (eq? (length folds) 1)
+      (let* ([folds
+              (for/list ([group (in-list (groups transforms))])
+                (if (translation? (car group))
+                    (fold-translations group)
+                    (fold-rotations group)))]
+             [matrix
+              (for/fold ([acc (mat4-identity)])
+                        ([matrix (in-list (map ->matrix folds))])
+                (mat* acc matrix))])
+        (if (and (eq? 1 (length folds))
+                 (translation? (car folds)))
             (append (car folds) (list csgst))
-            ;(append (apply merge-transforms folds) (list csgst)))))) ; convert the transform stack to matrices
-            (apply inner (append folds (list csgst))))))) ; or don't
+            (append (list 'mat4 matrix) (list csgst))))))
 
 
 (define (coalesce csgst [transforms null])
@@ -135,7 +123,7 @@
                (coalesce subtree (append transforms (list tran)))))]
         [(operator? csgst)
          (let-values ([(operator lhs rhs) (peel-2 csgst)])
-           ;(append operator (list (coalesce lhs transforms) (coalesce rhs transforms))))] ; fold through operators up to brushes
-           (recombine (append operator (list (coalesce lhs) (coalesce rhs))) transforms))] ; fold up to operators, then fold operands
+           (append operator (list (coalesce lhs transforms) (coalesce rhs transforms))))] ; fold through operators up to brushes
+           ;(recombine (append operator (list (coalesce lhs) (coalesce rhs))) transforms))] ; fold up to operators, then fold operands
         [else
          (recombine csgst transforms)]))

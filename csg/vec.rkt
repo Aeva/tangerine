@@ -40,7 +40,6 @@
          distance
          cross
          transpose-mat4
-         invert-mat4
          translate-mat4
          rotate-x-mat4
          rotate-y-mat4
@@ -201,88 +200,6 @@
 
 (define (transpose-mat4 matrix)
   (apply mat4 (append* matrix)))
-
-
-(define (invert-mat4 matrix)
-  (let-values ([(ax ay az aw
-                 bx by bz bw
-                 cx cy cz cw
-                 dx dy dz dw)
-                (apply values (flatten matrix))])
-    (let* ([b00 (- (* ax by) (* ay bx))]
-           [b01 (- (* ax bz) (* az bx))]
-           [b02 (- (* ax bw) (* aw bx))]
-           [b03 (- (* ay bz) (* az by))]
-           [b04 (- (* ay bw) (* aw by))]
-           [b05 (- (* az bw) (* aw bz))]
-           [b06 (- (* cx dy) (* cy dx))]
-           [b07 (- (* cx dz) (* cz dx))]
-           [b08 (- (* cx dw) (* cw dx))]
-           [b09 (- (* cy dz) (* cz dy))]
-           [b10 (- (* cy dw) (* cw dy))]
-           [b11 (- (* cz dw) (* cw dz))]
-           [P 1.]
-           [N -1.]
-           [signs (list P N P P N P)]
-           [lhs (list b00 b01 b02 b03 b04 b05)]
-           [rhs (list b11 b10 b09 b08 b07 b06)]
-           [det (/ 1.0 (dot (vec* signs lhs) rhs))])
-      (when (infinite? det)
-        (error "Uninvertable matrix: " matrix))
-      (let ([fill (λ (lhs rhs sign)
-                    (* (dot (vec* sign lhs) rhs) det))])
-        (list
-         (fill (list by bz bw)
-               (list b11 b10 b09)
-               (list P N P))
-         (fill (list az ay aw)
-               (list b10 b11 b09)
-               (list P N N))
-         (fill (list dy dz dw )
-               (list b05 b04 b03)
-               (list P N P))
-         (fill (list cz cy cw)
-               (list b04 b05 b03)
-               (list P N N))
-         (fill (list bz bx bw)
-               (list b08 b11 b07)
-               (list P N N))
-         (fill (list ax az aw )
-               (list b11 b08 b07)
-               (list P N P))
-         (fill (list dz dx dw)
-               (list b02 b05 b01)
-               (list P N N))
-         (fill (list cx cz cw)
-               (list b05 b02 b01)
-               (list P N P))
-         (fill (list bx by bw)
-               (list b10 b08 b06)
-               (list P N P))
-         (fill (list ay ax aw)
-               (list b08 b10 b06)
-               (list P N N))
-         (fill (list dx dy dw)
-               (list b04 b02 + b00)
-               (list P N P))
-         (fill (list dx dy dw)
-               (list b04 b02 b00)
-               (list P N P))
-         (fill (list cy cx cw)
-               (list b02 b04 b00)
-               (list P N N))
-         (fill (list by bx bz)
-               (list b07 b09 b06)
-               (list P N N))
-         (fill (list ax ay az)
-               (list b09 b07 b06)
-               (list P N P))
-         (fill (list dy dx dz)
-               (list b01 b03 b00)
-               (list P N N))
-         (fill (list cx cy cz)
-               (list b03 b01 b00)
-               (list P N P)))))))
 
 
 (define (translate-mat4 x y z)
