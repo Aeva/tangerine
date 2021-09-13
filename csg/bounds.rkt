@@ -391,6 +391,17 @@
                     [subtree (caddr aabb)])
                (list low high `(quat ,x ,y ,z ,w ,subtree))))))]
 
+      [(mat4)
+       (let*-values ([(matrix child) (splat args)]
+                     [(bounds) (tree-aabb child)])
+         (for/list ([aabb bounds])
+           (let* ([points (map (λ (pt) (matrix-rotate pt matrix))
+                               (corners aabb))]
+                  [low (apply vec-min points)]
+                  [high (apply vec-max points)]
+                  [subtree (caddr aabb)])
+             (list low high `(mat4 ,matrix ,subtree)))))]
+
       [else (error "Unknown CSGST node:" node)])))
 
 

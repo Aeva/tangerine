@@ -72,6 +72,7 @@
       move-x
       move-y
       move-z
+      mat4
       quat) #t]
     [else #f]))
 

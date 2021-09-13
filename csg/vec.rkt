@@ -47,6 +47,7 @@
          quat->mat4
          mat*
          quat*
+         matrix-rotate
          quat-rotate
          rcp
          lerp)
@@ -279,6 +280,12 @@
      (dot (swiz lhs 3 1 2 0) (vec* (swiz rhs 1 3 0 2) sign-v))
      (dot (swiz lhs 3 2 0 1) (vec* (swiz rhs 2 3 1 0) sign-v))
      (dot lhs (vec* rhs sign-w)))))
+
+
+(define (matrix-rotate point matrix)
+  (let* ([point (vec4 point 1.0)]
+         [point (list point point point point)]) ; °ω°
+    (take (car (mat* matrix point)) 3)))
 
 
 (define (quat-rotate point quat)
