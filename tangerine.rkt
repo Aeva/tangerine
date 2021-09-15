@@ -57,14 +57,15 @@
           (let-values ([(width height) (send canvas get-gl-client-size)])
             (Resize width height)))]))
 
-; Show the main window.
-(send frame show #t)
+; Add the menu bar.
+(define menu-bar (new menu-bar% [parent frame]))
 
-; Initialize OpenGL.
-(send (get-gl-context) call-as-current start-renderer)
+; File menu and items.
+(define file-menu (new menu%
+                       [label "&File"]
+                       [parent menu-bar]))
 
-; Send a new program.
-(define (load-model)
+(define (load-model . args)
   (let ([path (get-file
                "Open"
                frame
@@ -80,4 +81,43 @@
         (for ([cluster (in-list clusters)])
           (PostShader (car cluster) (cadr cluster) (cddr cluster)))
         (UnlockShaders)))))
+
+(define open-action (new menu-item%
+                         [label "Open"]
+                         [parent file-menu]
+                         [callback load-model]
+                         [shortcut #\o]))
+
+(new separator-menu-item% [parent file-menu])
+
+(define exit-action (new menu-item%
+                         [label "Exit"]
+                         [parent file-menu]
+                         [callback (λ (arg . args)
+                                     (send frame on-exit))]))
+
+; View menu and items.
+(define view-menu (new menu%
+                       [label "&View"]
+                       [parent menu-bar]))
+
+(define fullscreen-state #f)
+
+(define (toggle-fullscreen . args)
+  (set! fullscreen-state (not fullscreen-state))
+  (send frame fullscreen fullscreen-state))
+
+(define fullscreen-action (new menu-item%
+                               [label "Full Screen"]
+                               [parent view-menu]
+                               [callback toggle-fullscreen]
+                               [shortcut #\f]))
+
+; Show the main window.
+(send frame show #t)
+
+; Initialize OpenGL.
+(send (get-gl-context) call-as-current start-renderer)
+
+; Show the load model dialog.
 (load-model)
