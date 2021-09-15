@@ -14,7 +14,8 @@
 ; See the License for the specific language governing permissions and
 ; limitations under the License.
 
-(require ffi/unsafe
+(require racket/rerequire
+         ffi/unsafe
          ffi/unsafe/define)
 (require "renderer.rkt")
 ;(require "test-shape.rkt")
@@ -65,6 +66,19 @@
                        [label "&File"]
                        [parent menu-bar]))
 
+(define last-load #f)
+
+(define (load-model-inner path)
+  (when path
+    (set! last-load #f)
+    (dynamic-rerequire path)
+    (let ([clusters ((dynamic-require path 'emit-glsl))])
+      (LockShaders)
+      (for ([cluster (in-list clusters)])
+        (PostShader (car cluster) (cadr cluster) (cddr cluster)))
+      (UnlockShaders)
+      (set! last-load path))))
+
 (define (load-model . args)
   (let ([path (get-file
                "Open"
@@ -75,18 +89,22 @@
                null
                '(("Racket" "*.rkt")
                  ("Any" "*.*")))])
-    (when path
-      (let ([clusters ((dynamic-require path 'emit-glsl))])
-        (LockShaders)
-        (for ([cluster (in-list clusters)])
-          (PostShader (car cluster) (cadr cluster) (cddr cluster)))
-        (UnlockShaders)))))
+    (load-model-inner path)))
+
+(define (reload-model . args)
+  (load-model-inner last-load))
 
 (define open-action (new menu-item%
                          [label "Open"]
                          [parent file-menu]
                          [callback load-model]
                          [shortcut #\o]))
+
+(define reload-action (new menu-item%
+                           [label "Reload"]
+                           [parent file-menu]
+                           [callback reload-model]
+                           [shortcut #\r]))
 
 (new separator-menu-item% [parent file-menu])
 
