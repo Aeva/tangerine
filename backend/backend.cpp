@@ -705,6 +705,7 @@ void Resize(int NewWidth, int NewHeight)
 void LockShaders()
 {
 	NewShaderLock.lock();
+	NewClusters.clear();
 }
 
 
