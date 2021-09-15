@@ -17,7 +17,7 @@
 (require ffi/unsafe
          ffi/unsafe/define)
 (require "renderer.rkt")
-(require "test-shape.rkt")
+;(require "test-shape.rkt")
 
 (define-ffi-definer define-backend (ffi-lib "tangerine"))
 (define-backend Resize (_fun _int _int -> _void))
@@ -64,8 +64,20 @@
 (send (get-gl-context) call-as-current start-renderer)
 
 ; Send a new program.
-(let ([clusters (emit-glsl)])
-  (LockShaders)
-  (for ([cluster (in-list clusters)])
-    (PostShader (car cluster) (cadr cluster) (cddr cluster)))
-  (UnlockShaders))
+(define (load-model)
+  (let ([path (get-file
+               "Open"
+               frame
+               "models"
+               #f
+               "rkt"
+               null
+               '(("Racket" "*.rkt")
+                 ("Any" "*.*")))])
+    (when path
+      (let ([clusters ((dynamic-require path 'emit-glsl))])
+        (LockShaders)
+        (for ([cluster (in-list clusters)])
+          (PostShader (car cluster) (cadr cluster) (cddr cluster)))
+        (UnlockShaders)))))
+(load-model)
