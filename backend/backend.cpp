@@ -193,6 +193,7 @@ ShaderPipeline ClusterCoverageShader;
 #endif
 std::vector<ShaderPipeline> ClusterDepthShaders;
 ShaderPipeline PaintShader;
+ShaderPipeline NoiseShader;
 
 Buffer ViewInfo("ViewInfo Buffer");
 
@@ -371,6 +372,11 @@ StatusCode SetupInner()
 		"Outliner Shader"));
 #endif
 
+	RETURN_ON_FAIL(NoiseShader.Setup(
+		{ {GL_VERTEX_SHADER, ShaderSource("shaders/splat.vs.glsl", true)},
+		 {GL_FRAGMENT_SHADER, ShaderSource("shaders/noise.fs.glsl", true)} },
+		"Noise Shader"));
+
 	glDisable(GL_MULTISAMPLE);
 	glEnable(GL_CULL_FACE);
 	glEnable(GL_DEPTH_TEST);
@@ -393,6 +399,7 @@ struct GeneratedSources
 
 
 std::mutex NewShaderLock;
+std::atomic_bool ModelLoaded = false;
 std::atomic_bool NewShaderReady;
 std::vector<GeneratedSources> NewClusters;
 void SetupNewShader()
@@ -424,6 +431,7 @@ void SetupNewShader()
 	}
 
 	NewShaderReady.store(false);
+	ModelLoaded.store(true);
 	NewShaderLock.unlock();
 }
 
@@ -544,84 +552,97 @@ void RenderInner()
 		}
 	}
 
+	if (ModelLoaded.load())
 	{
-		glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Cluster Culling Pass");
-		// Each lane is a tile, so we have to tile the tiles...
-		const unsigned int GroupX = DIV_UP(TilesX, TILE_SIZE_X);
-		const unsigned int GroupY = DIV_UP(TilesY, TILE_SIZE_Y);
-		int i = 0;
-		for (ShaderPipeline& CullingShader : ClusterCullingShaders)
 		{
-			glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Subtree");
+			glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Cluster Culling Pass");
+			// Each lane is a tile, so we have to tile the tiles...
+			const unsigned int GroupX = DIV_UP(TilesX, TILE_SIZE_X);
+			const unsigned int GroupY = DIV_UP(TilesY, TILE_SIZE_Y);
+			int i = 0;
+			for (ShaderPipeline& CullingShader : ClusterCullingShaders)
 			{
-				CullingShader.Activate();
-				TileHeap.Bind(GL_SHADER_STORAGE_BUFFER, 0);
-				TileHeapInfo.Bind(GL_SHADER_STORAGE_BUFFER, 1);
-				glDispatchCompute(GroupX, GroupY, ClusterCounts[i]);
-				glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+				glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Subtree");
+				{
+					CullingShader.Activate();
+					TileHeap.Bind(GL_SHADER_STORAGE_BUFFER, 0);
+					TileHeapInfo.Bind(GL_SHADER_STORAGE_BUFFER, 1);
+					glDispatchCompute(GroupX, GroupY, ClusterCounts[i]);
+					glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+				}
+				{
+					ClusterTallyShader.Activate();
+					TileDrawArgs[i].Bind(GL_SHADER_STORAGE_BUFFER, 0);
+					TileHeapInfo.Bind(GL_SHADER_STORAGE_BUFFER, 1);
+					glDispatchCompute(1, 1, 1);
+					glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+				}
+				++i;
+				glPopDebugGroup();
 			}
-			{
-				ClusterTallyShader.Activate();
-				TileDrawArgs[i].Bind(GL_SHADER_STORAGE_BUFFER, 0);
-				TileHeapInfo.Bind(GL_SHADER_STORAGE_BUFFER, 1);
-				glDispatchCompute(1, 1, 1);
-				glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
-			}
-			++i;
+			glMemoryBarrier(GL_COMMAND_BARRIER_BIT);
 			glPopDebugGroup();
 		}
-		glMemoryBarrier(GL_COMMAND_BARRIER_BIT);
-		glPopDebugGroup();
-	}
 
 #if VISUALIZE_CLUSTER_COVERAGE
-	{
-		glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Visualize Cluster Coverage");
-		glDisable(GL_DEPTH_TEST);
-		glDepthMask(GL_FALSE);
-		glBindFramebuffer(GL_FRAMEBUFFER, FinalPass);
-		ClusterCoverageShader.Activate();
-		glClear(GL_COLOR_BUFFER_BIT);
-		TileDrawArgs.Bind(GL_DRAW_INDIRECT_BUFFER);
-		TileHeap.Bind(GL_SHADER_STORAGE_BUFFER, 0);
-		TileHeapInfo.Bind(GL_SHADER_STORAGE_BUFFER, 1);
-		glDrawArraysIndirect(GL_TRIANGLES, 0);
-		glPopDebugGroup();
-	}
-#else
-	{
-		glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Depth");
-		glBindFramebuffer(GL_FRAMEBUFFER, DepthPass);
-		glDepthMask(GL_TRUE);
-		glEnable(GL_DEPTH_TEST);
-		glClear(GL_DEPTH_BUFFER_BIT);
-		TileHeap.Bind(GL_SHADER_STORAGE_BUFFER, 0);
-		TileHeapInfo.Bind(GL_SHADER_STORAGE_BUFFER, 1);
-		int i = 0;
-		for (ShaderPipeline& DepthShader : ClusterDepthShaders)
 		{
-			DepthShader.Activate();
-			TileDrawArgs[i].Bind(GL_DRAW_INDIRECT_BUFFER);
-			TileDrawArgs[i].Bind(GL_SHADER_STORAGE_BUFFER, 3);
+			glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Visualize Cluster Coverage");
+			glDisable(GL_DEPTH_TEST);
+			glDepthMask(GL_FALSE);
+			glBindFramebuffer(GL_FRAMEBUFFER, FinalPass);
+			ClusterCoverageShader.Activate();
+			glClear(GL_COLOR_BUFFER_BIT);
+			TileDrawArgs.Bind(GL_DRAW_INDIRECT_BUFFER);
+			TileHeap.Bind(GL_SHADER_STORAGE_BUFFER, 0);
+			TileHeapInfo.Bind(GL_SHADER_STORAGE_BUFFER, 1);
 			glDrawArraysIndirect(GL_TRIANGLES, 0);
-			++i;
+			glPopDebugGroup();
 		}
-		glPopDebugGroup();
-	}
+#else
+		{
+			glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Depth");
+			glBindFramebuffer(GL_FRAMEBUFFER, DepthPass);
+			glDepthMask(GL_TRUE);
+			glEnable(GL_DEPTH_TEST);
+			glClear(GL_DEPTH_BUFFER_BIT);
+			TileHeap.Bind(GL_SHADER_STORAGE_BUFFER, 0);
+			TileHeapInfo.Bind(GL_SHADER_STORAGE_BUFFER, 1);
+			int i = 0;
+			for (ShaderPipeline& DepthShader : ClusterDepthShaders)
+			{
+				DepthShader.Activate();
+				TileDrawArgs[i].Bind(GL_DRAW_INDIRECT_BUFFER);
+				TileDrawArgs[i].Bind(GL_SHADER_STORAGE_BUFFER, 3);
+				glDrawArraysIndirect(GL_TRIANGLES, 0);
+				++i;
+			}
+			glPopDebugGroup();
+		}
 
+		{
+			glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Paint");
+			glDepthMask(GL_FALSE);
+			glDisable(GL_DEPTH_TEST);
+			glBindFramebuffer(GL_FRAMEBUFFER, FinalPass);
+			glBindTextureUnit(1, DepthBuffer);
+			glBindTextureUnit(2, PositionBuffer);
+			glBindTextureUnit(3, NormalBuffer);
+			PaintShader.Activate();
+			glDrawArrays(GL_TRIANGLES, 0, 3);
+			glPopDebugGroup();
+		}
+#endif
+	}
+	else
 	{
-		glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Paint");
+		glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Dead Channel");
 		glDepthMask(GL_FALSE);
 		glDisable(GL_DEPTH_TEST);
 		glBindFramebuffer(GL_FRAMEBUFFER, FinalPass);
-		glBindTextureUnit(1, DepthBuffer);
-		glBindTextureUnit(2, PositionBuffer);
-		glBindTextureUnit(3, NormalBuffer);
-		PaintShader.Activate();
+		NoiseShader.Activate();
 		glDrawArrays(GL_TRIANGLES, 0, 3);
 		glPopDebugGroup();
 	}
-#endif
 
 #if _WIN64
 	SwapBuffers(RacketDeviceContext);
@@ -706,6 +727,7 @@ void LockShaders()
 {
 	NewShaderLock.lock();
 	NewClusters.clear();
+	ModelLoaded.store(false);
 }
 
 

@@ -168,6 +168,7 @@
     <None Include="..\shaders\cluster_cull.cs.glsl" />
     <None Include="..\shaders\cluster_tally.cs.glsl" />
     <None Include="..\shaders\math.glsl" />
+    <None Include="..\shaders\noise.fs.glsl" />
     <None Include="..\shaders\outliner.fs.glsl" />
     <None Include="..\shaders\splat.vs.glsl" />
     <None Include="..\shaders\test.fs.glsl" />

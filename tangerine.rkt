@@ -136,6 +136,3 @@
 
 ; Initialize OpenGL.
 (send (get-gl-context) call-as-current start-renderer)
-
-; Show the load model dialog.
-(load-model)

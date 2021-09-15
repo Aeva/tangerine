@@ -88,5 +88,8 @@
     <None Include="..\shaders\tile_heap.glsl">
       <Filter>Shaders</Filter>
     </None>
+    <None Include="..\shaders\noise.fs.glsl">
+      <Filter>Shaders</Filter>
+    </None>
   </ItemGroup>
 </Project>
