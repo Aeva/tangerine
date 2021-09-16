@@ -1,4 +1,5 @@
 compiled
+distrib
 windows/.vs
 windows/x64
 windows/enc_temp_folder
@@ -7,3 +8,4 @@ windows/enc_temp_folder
 *.pdb
 *.exp
 *.so
+*.exe

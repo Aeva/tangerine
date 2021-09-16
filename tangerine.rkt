@@ -18,9 +18,8 @@
          ffi/unsafe
          ffi/unsafe/define)
 (require "renderer.rkt")
-;(require "test-shape.rkt")
 
-(define-ffi-definer define-backend (ffi-lib "tangerine"))
+(define-ffi-definer define-backend (ffi-lib backend-path))
 (define-backend Resize (_fun _int _int -> _void))
 (define-backend LockShaders (_fun -> _void))
 (define-backend PostShader (_fun _int _string/utf-8 _string/utf-8 -> _void))
@@ -106,7 +105,9 @@
                            [callback reload-model]
                            [shortcut #\r]))
 
-(new separator-menu-item% [parent file-menu])
+(define separator
+  (new separator-menu-item% [parent file-menu]))
+
 
 (define exit-action (new menu-item%
                          [label "Exit"]

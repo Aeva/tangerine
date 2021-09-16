@@ -16,8 +16,8 @@
 
 ; CSGST = Constructive Solid Geometry Syntax Tree
 
-(require racket/flonum)
 (require racket/math)
+(require math/flonum)
 
 
 (provide brush?
@@ -89,7 +89,7 @@
 
 
 (define (sphere diameter)
-  (let ([radius (/ (->fl diameter) 2.)])
+  (let ([radius (/ (fl diameter) 2.)])
     `(sphere ,radius)))
 
 
@@ -97,16 +97,16 @@
          diameter-x
          diameter-y
          diameter-z)
-  (let ([radius-x (/ (->fl diameter-x) 2.)]
-        [radius-y (/ (->fl diameter-y) 2.)]
-        [radius-z (/ (->fl diameter-z) 2.)])
+  (let ([radius-x (/ (fl diameter-x) 2.)]
+        [radius-y (/ (fl diameter-y) 2.)]
+        [radius-z (/ (fl diameter-z) 2.)])
     `(ellipsoid ,radius-x ,radius-y ,radius-z)))
 
 
 (define (box width depth height)
-  (let ([extent-x (/ (->fl width) 2.)]
-        [extent-y (/ (->fl depth) 2.)]
-        [extent-z (/ (->fl height) 2.)])
+  (let ([extent-x (/ (fl width) 2.)]
+        [extent-y (/ (fl depth) 2.)]
+        [extent-z (/ (fl height) 2.)])
     `(box ,extent-x ,extent-y ,extent-z)))
 
 
@@ -115,14 +115,14 @@
 
 
 (define (torus major-diameter minor-diameter)
-  (let* ([minor-radius (/ (->fl minor-diameter) 2.)]
-         [major-radius (- (/ (->fl major-diameter) 2.) minor-radius)])
+  (let* ([minor-radius (/ (fl minor-diameter) 2.)]
+         [major-radius (- (/ (fl major-diameter) 2.) minor-radius)])
     `(torus ,major-radius ,minor-radius)))
 
 
 (define (cylinder diameter height)
-  (let ([radius (/ (->fl diameter) 2.)]
-        [extent (/ (->fl height) 2.)])
+  (let ([radius (/ (fl diameter) 2.)]
+        [extent (/ (fl height) 2.)])
     `(cylinder ,radius ,extent)))
 
 
@@ -160,14 +160,14 @@
                [else (error "Invalid CSG operator:" operator)]))
   (define (inner lhs rhs . etc)
     (if (null? etc)
-        `(,op ,(->fl threshold) ,lhs ,rhs)
+        `(,op ,(fl threshold) ,lhs ,rhs)
         (apply inner (cons (inner lhs rhs) etc))))
   (apply inner (append (list lhs rhs) etc)))
 
 
 (define (move x y z child)
   (assert-csg child)
-  `(move ,(->fl x) ,(->fl y) ,(->fl z) ,child))
+  `(move ,(fl x) ,(fl y) ,(fl z) ,child))
 
 
 (define (move-x n child)
@@ -183,7 +183,7 @@
 
 
 (define (radians degrees)
-  (->fl (degrees->radians degrees)))
+  (fl (degrees->radians degrees)))
 
 
 (define (rotate-x degrees child)

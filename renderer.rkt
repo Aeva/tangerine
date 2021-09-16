@@ -14,16 +14,20 @@
 ; See the License for the specific language governing permissions and
 ; limitations under the License.
 
-(require ffi/unsafe
+(require racket/runtime-path
+         racket/place
+         ffi/unsafe
          ffi/unsafe/define)
-(require racket/place)
 
-(provide start-renderer
+(define-runtime-path backend-path "tangerine.dll")
+
+(provide backend-path
+         start-renderer
          halt-renderer)
 
 (define render-thread #f)
 
-(define-ffi-definer define-backend (ffi-lib "tangerine"))
+(define-ffi-definer define-backend (ffi-lib backend-path))
 
 (define-backend PlatformSupportsAsyncRenderer (_fun -> _bool))
 
