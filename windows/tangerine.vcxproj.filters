@@ -19,6 +19,9 @@
     <Filter Include="Tangerine">
       <UniqueIdentifier>{f21379a7-75c8-4ee2-9d44-48fa5042a452}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Third Party\Dear ImGui">
+      <UniqueIdentifier>{509de7cc-1d25-47d7-88fd-b57bbbca7ccd}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\third_party\glad\glad.c">
@@ -27,11 +30,32 @@
     <ClCompile Include="..\third_party\glad\glad_wgl.c">
       <Filter>Third Party\Glad</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\gl_boilerplate.cpp">
+    <ClCompile Include="..\third_party\imgui\backends\imgui_impl_opengl3.cpp">
+      <Filter>Third Party\Dear ImGui</Filter>
+    </ClCompile>
+    <ClCompile Include="..\third_party\imgui\backends\imgui_impl_sdl.cpp">
+      <Filter>Third Party\Dear ImGui</Filter>
+    </ClCompile>
+    <ClCompile Include="..\tangerine\gl_boilerplate.cpp">
       <Filter>Tangerine</Filter>
     </ClCompile>
-    <ClCompile Include="..\src\tangerine.cpp">
+    <ClCompile Include="..\tangerine\tangerine.cpp">
       <Filter>Tangerine</Filter>
+    </ClCompile>
+    <ClCompile Include="..\third_party\imgui\imgui.cpp">
+      <Filter>Third Party\Dear ImGui</Filter>
+    </ClCompile>
+    <ClCompile Include="..\third_party\imgui\imgui_demo.cpp">
+      <Filter>Third Party\Dear ImGui</Filter>
+    </ClCompile>
+    <ClCompile Include="..\third_party\imgui\imgui_draw.cpp">
+      <Filter>Third Party\Dear ImGui</Filter>
+    </ClCompile>
+    <ClCompile Include="..\third_party\imgui\imgui_tables.cpp">
+      <Filter>Third Party\Dear ImGui</Filter>
+    </ClCompile>
+    <ClCompile Include="..\third_party\imgui\imgui_widgets.cpp">
+      <Filter>Third Party\Dear ImGui</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -50,11 +74,38 @@
     <ClInclude Include="..\shaders\defines.h">
       <Filter>Shaders</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\errors.h">
+    <ClInclude Include="..\third_party\imgui\backends\imgui_impl_opengl3.h">
+      <Filter>Third Party\Dear ImGui</Filter>
+    </ClInclude>
+    <ClInclude Include="..\third_party\imgui\backends\imgui_impl_opengl3_loader.h">
+      <Filter>Third Party\Dear ImGui</Filter>
+    </ClInclude>
+    <ClInclude Include="..\third_party\imgui\backends\imgui_impl_sdl.h">
+      <Filter>Third Party\Dear ImGui</Filter>
+    </ClInclude>
+    <ClInclude Include="..\tangerine\errors.h">
       <Filter>Tangerine</Filter>
     </ClInclude>
-    <ClInclude Include="..\src\gl_boilerplate.h">
+    <ClInclude Include="..\tangerine\gl_boilerplate.h">
       <Filter>Tangerine</Filter>
+    </ClInclude>
+    <ClInclude Include="..\third_party\imgui\imconfig.h">
+      <Filter>Third Party\Dear ImGui</Filter>
+    </ClInclude>
+    <ClInclude Include="..\third_party\imgui\imgui.h">
+      <Filter>Third Party\Dear ImGui</Filter>
+    </ClInclude>
+    <ClInclude Include="..\third_party\imgui\imgui_internal.h">
+      <Filter>Third Party\Dear ImGui</Filter>
+    </ClInclude>
+    <ClInclude Include="..\third_party\imgui\imstb_rectpack.h">
+      <Filter>Third Party\Dear ImGui</Filter>
+    </ClInclude>
+    <ClInclude Include="..\third_party\imgui\imstb_textedit.h">
+      <Filter>Third Party\Dear ImGui</Filter>
+    </ClInclude>
+    <ClInclude Include="..\third_party\imgui\imstb_truetype.h">
+      <Filter>Third Party\Dear ImGui</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
