@@ -1,9 +1,6 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
-    <Filter Include="Backend">
-      <UniqueIdentifier>{f21379a7-75c8-4ee2-9d44-48fa5042a452}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Third Party">
       <UniqueIdentifier>{4235e133-18c8-46cc-8dff-06f7bed8c229}</UniqueIdentifier>
     </Filter>
@@ -16,19 +13,25 @@
     <Filter Include="Shaders">
       <UniqueIdentifier>{0f091ee7-754e-45f3-aa77-f3e8e764b329}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Racket Stuff">
+      <UniqueIdentifier>{c9f01ebf-d4c7-444a-80c2-70aacdbf5613}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Tangerine">
+      <UniqueIdentifier>{f21379a7-75c8-4ee2-9d44-48fa5042a452}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\third_party\glad\glad.c">
       <Filter>Third Party\Glad</Filter>
     </ClCompile>
-    <ClCompile Include="..\backend\backend.cpp">
-      <Filter>Backend</Filter>
-    </ClCompile>
-    <ClCompile Include="..\backend\gl_boilerplate.cpp">
-      <Filter>Backend</Filter>
-    </ClCompile>
     <ClCompile Include="..\third_party\glad\glad_wgl.c">
       <Filter>Third Party\Glad</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\gl_boilerplate.cpp">
+      <Filter>Tangerine</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\tangerine.cpp">
+      <Filter>Tangerine</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -38,15 +41,6 @@
     <ClInclude Include="..\third_party\glad\khrplatform.h">
       <Filter>Third Party\Glad</Filter>
     </ClInclude>
-    <ClInclude Include="..\backend\backend.h">
-      <Filter>Backend</Filter>
-    </ClInclude>
-    <ClInclude Include="..\backend\gl_boilerplate.h">
-      <Filter>Backend</Filter>
-    </ClInclude>
-    <ClInclude Include="..\backend\errors.h">
-      <Filter>Backend</Filter>
-    </ClInclude>
     <ClInclude Include="..\third_party\glm\glm.hpp">
       <Filter>Third Party\GLM</Filter>
     </ClInclude>
@@ -55,6 +49,12 @@
     </ClInclude>
     <ClInclude Include="..\shaders\defines.h">
       <Filter>Shaders</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\errors.h">
+      <Filter>Tangerine</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\gl_boilerplate.h">
+      <Filter>Tangerine</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -90,6 +90,12 @@
     </None>
     <None Include="..\shaders\noise.fs.glsl">
       <Filter>Shaders</Filter>
+    </None>
+    <None Include="..\regen.bat">
+      <Filter>Racket Stuff</Filter>
+    </None>
+    <None Include="..\third_party\racket\lib\libracketcs_d9hn5s.def">
+      <Filter>Racket Stuff</Filter>
     </None>
   </ItemGroup>
 </Project>
