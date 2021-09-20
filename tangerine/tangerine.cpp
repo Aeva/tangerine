@@ -17,6 +17,10 @@
 #include <SDL.h>
 #include <SDL_opengl.h>
 
+#include <imgui.h>
+#include <imgui_impl_sdl.h>
+#include <imgui_impl_opengl3.h>
+
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include <glm/vec3.hpp>
 #include <glm/vec4.hpp>
@@ -527,6 +531,56 @@ void UnlockShaders()
 #endif
 
 
+void ToggleFullScreen(SDL_Window* Window)
+{
+	static bool FullScreen = false;
+	FullScreen = !FullScreen;
+	SDL_SetWindowFullscreen(Window, FullScreen ? SDL_WINDOW_FULLSCREEN_DESKTOP : 0);
+}
+
+
+void RenderUI(SDL_Window* Window, bool& Live)
+{
+	ImGui_ImplOpenGL3_NewFrame();
+	ImGui_ImplSDL2_NewFrame();
+	ImGui::NewFrame();
+
+#if 0
+	static bool ShowDemoWindow = true;
+	ImGui::ShowDemoWindow(&ShowDemoWindow);
+#endif
+
+	if (ImGui::BeginMainMenuBar())
+	{
+		if (ImGui::BeginMenu("File"))
+		{
+			if (ImGui::MenuItem("Open", "Ctrl+O"))
+			{
+				std::cout << "TODO: open file\n";
+			}
+			if (ImGui::MenuItem("Reload", "Ctrl+R"))
+			{
+				std::cout << "TODO: reopen current file\n";
+			}
+			if (ImGui::MenuItem("Exit"))
+			{
+				Live = false;
+			}
+			ImGui::EndMenu();
+		}
+		if (ImGui::BeginMenu("View"))
+		{
+			if (ImGui::MenuItem("Full Screen", "Ctrl+F"))
+			{
+				ToggleFullScreen(Window);
+			}
+			ImGui::EndMenu();
+		}
+		ImGui::EndMainMenuBar();
+	}
+}
+
+
 int main(int argc, char* argv[])
 {
 	SDL_Window* Window = nullptr;
@@ -534,8 +588,12 @@ int main(int argc, char* argv[])
 	{
 		std::cout << "Setting up SDL2... ";
 		SDL_SetMainReady();
-		if (SDL_Init(SDL_INIT_VIDEO) == 0)
+		if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER ) == 0)
 		{
+			SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
+			SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, MINIMUM_VERSION_MAJOR);
+			SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, MINIMUM_VERSION_MINOR);
+			SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
 			Window = SDL_CreateWindow(
 				"Tangerine",
 				SDL_WINDOWPOS_CENTERED,
@@ -558,6 +616,8 @@ int main(int argc, char* argv[])
 			}
 			else
 			{
+				SDL_GL_MakeCurrent(Window, Context);
+				SDL_GL_SetSwapInterval(1);
 				std::cout << "Done!\n";
 			}
 		}
@@ -585,19 +645,50 @@ int main(int argc, char* argv[])
 		declare_modules();
 		std::cout << "Done!\n";
 	}
+	{
+		std::cout << "Setting up Dear ImGui... ";
+		IMGUI_CHECKVERSION();
+		ImGui::CreateContext();
+		ImGui::StyleColorsLight();
+		ImGui_ImplSDL2_InitForOpenGL(Window, Context);
+		ImGui_ImplOpenGL3_Init("#version 130");
+		std::cout << "Done!\n";
+	}
+	ImGuiIO io = ImGui::GetIO();
 	std::cout << "Using device: " << glGetString(GL_RENDERER) << " " << glGetString(GL_VERSION) << "\n";
 	if (SetupRenderer() == StatusCode::FAIL)
 	{
 		return 0;
 	}
+	bool Live = true;
 	{
-		while (!SDL_QuitRequested())
+		while (Live)
 		{
-			int ScreenWidth;
-			int ScreenHeight;
-			SDL_GetWindowSize(Window, &ScreenWidth, &ScreenHeight);
-			RenderFrame(ScreenWidth, ScreenHeight);
-			SDL_GL_SwapWindow(Window);
+			SDL_Event Event;
+			while (SDL_PollEvent(&Event))
+			{
+				ImGui_ImplSDL2_ProcessEvent(&Event);
+				if (Event.type == SDL_QUIT ||
+					(Event.type == SDL_WINDOWEVENT && Event.window.event == SDL_WINDOWEVENT_CLOSE && Event.window.windowID == SDL_GetWindowID(Window)))
+				{
+					Live = false;
+					break;
+				}
+			}
+			{
+				RenderUI(Window, Live);
+				ImGui::Render();
+			}
+			{
+				int ScreenWidth;
+				int ScreenHeight;
+				SDL_GetWindowSize(Window, &ScreenWidth, &ScreenHeight);
+				RenderFrame(ScreenWidth, ScreenHeight);
+			}
+			{
+				ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+				SDL_GL_SwapWindow(Window);
+			}
 		}
 	}
 	{
