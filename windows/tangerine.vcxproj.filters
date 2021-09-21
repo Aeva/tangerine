@@ -107,6 +107,7 @@
     <ClInclude Include="..\third_party\imgui\imstb_truetype.h">
       <Filter>Third Party\Dear ImGui</Filter>
     </ClInclude>
+    <ClInclude Include="resource.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="..\shaders\test.fs.glsl">
@@ -148,5 +149,11 @@
     <None Include="..\third_party\racket\lib\libracketcs_d9hn5s.def">
       <Filter>Racket Stuff</Filter>
     </None>
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="tangerine.rc" />
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="..\tangerine.ico" />
   </ItemGroup>
 </Project>

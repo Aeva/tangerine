@@ -194,6 +194,7 @@
     <ClInclude Include="..\third_party\imgui\imstb_rectpack.h" />
     <ClInclude Include="..\third_party\imgui\imstb_textedit.h" />
     <ClInclude Include="..\third_party\imgui\imstb_truetype.h" />
+    <ClInclude Include="resource.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="..\regen.bat" />
@@ -209,6 +210,12 @@
     <None Include="..\shaders\test.vs.glsl" />
     <None Include="..\shaders\tile_heap.glsl" />
     <None Include="..\third_party\racket\lib\libracketcs_d9hn5s.def" />
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="tangerine.rc" />
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="..\tangerine.ico" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
