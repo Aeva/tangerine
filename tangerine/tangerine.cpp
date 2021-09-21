@@ -36,6 +36,8 @@
 #include <racketcs.h>
 #include <generated.hpp>
 
+#include <nfd.h>
+
 #include "errors.h"
 #include "gl_boilerplate.h"
 #include "../shaders/defines.h"
@@ -539,6 +541,17 @@ void ToggleFullScreen(SDL_Window* Window)
 }
 
 
+void OpenModel()
+{
+	nfdchar_t* Path = NULL;
+	nfdresult_t Result = NFD_OpenDialog("rkt", "models", &Path);
+	if (Result == NFD_OKAY)
+	{
+		std::cout << "TODO: Load model " << Path << "\n";
+	}
+}
+
+
 void RenderUI(SDL_Window* Window, bool& Live)
 {
 	ImGui_ImplOpenGL3_NewFrame();
@@ -556,7 +569,7 @@ void RenderUI(SDL_Window* Window, bool& Live)
 		{
 			if (ImGui::MenuItem("Open", "Ctrl+O"))
 			{
-				std::cout << "TODO: open file\n";
+				OpenModel();
 			}
 			if (ImGui::MenuItem("Reload", "Ctrl+R"))
 			{
