@@ -80,14 +80,14 @@
     <LinkIncremental>true</LinkIncremental>
     <SourcePath>$(ProjectDir)..\backend;$(VC_SourcePath)</SourcePath>
     <OutDir>$(SolutionDir)..\</OutDir>
-    <CustomBuildBeforeTargets>PreBuildEvent</CustomBuildBeforeTargets>
+    <CustomBuildBeforeTargets>Link</CustomBuildBeforeTargets>
     <LibraryPath>$(SolutionDir)..\third_party\nfd\lib\x64;$(SolutionDir)..\third_party\sdl2\lib\x64;$(SolutionDir)..\third_party\racket\lib\x64;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <LinkIncremental>false</LinkIncremental>
     <SourcePath>$(ProjectDir)..\backend;$(VC_SourcePath)</SourcePath>
     <OutDir>$(SolutionDir)..\</OutDir>
-    <CustomBuildBeforeTargets>PreBuildEvent</CustomBuildBeforeTargets>
+    <CustomBuildBeforeTargets>Link</CustomBuildBeforeTargets>
     <LibraryPath>$(SolutionDir)..\third_party\nfd\lib\x64;$(SolutionDir)..\third_party\sdl2\lib\x64;$(SolutionDir)..\third_party\racket\lib\x64;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
@@ -136,7 +136,7 @@
     </CustomBuildStep>
     <CustomBuildStep>
       <Message>Generating Racket Boilerplate</Message>
-      <Outputs>generated.hpp;libracketcs_d9hn5s.lib;</Outputs>
+      <Outputs>libracketcs_d9hn5s.lib</Outputs>
     </CustomBuildStep>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -161,7 +161,7 @@
     </CustomBuildStep>
     <CustomBuildStep>
       <Message>Generating Racket Boilerplate</Message>
-      <Outputs>generated.hpp;libracketcs_d9hn5s.lib;</Outputs>
+      <Outputs>libracketcs_d9hn5s.lib</Outputs>
     </CustomBuildStep>
   </ItemDefinitionGroup>
   <ItemGroup>

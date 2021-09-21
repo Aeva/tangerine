@@ -1,8 +1,8 @@
 mkdir distrib
-xcopy csg distrib\csg /i
+xcopy racket distrib\racket /i
 xcopy models distrib\models /i
 xcopy shaders distrib\shaders /i
-copy csg.rkt distrib\csg.rkt
+copy tangerine.exe distrib\tangerine.exe
 copy LICENSE.txt distrib\LICENSE.txt
-raco exe ++lang "at-exp racket/base" ++lib "racket/list" ++lib "racket/string" ++lib "racket/format" ++lib "math/flonum" ++lib "racket/math" tangerine.rkt
-raco dist .\distrib\ tangerine.exe
+copy SDL2.dll distrib\SDL2.dll
+copy libracketcs_d9hn5s.dll distrib\libracketcs_d9hn5s.dll

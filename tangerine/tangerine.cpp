@@ -259,14 +259,11 @@ struct GeneratedSources
 };
 
 
-#if 0
-std::mutex NewShaderLock;
-std::atomic_bool ModelLoaded = false;
-std::atomic_bool NewShaderReady;
+bool ModelLoaded = false;
+bool NewShaderReady = false;
 std::vector<GeneratedSources> NewClusters;
 void SetupNewShader()
 {
-	NewShaderLock.lock();
 	for (ShaderPipeline& CullingShader : ClusterCullingShaders)
 	{
 		CullingShader.Reset();
@@ -292,21 +289,17 @@ void SetupNewShader()
 		}
 	}
 
-	NewShaderReady.store(false);
-	ModelLoaded.store(true);
-	NewShaderLock.unlock();
+	NewShaderReady = false;
+	ModelLoaded = true;
 }
-#endif
 
 
 void RenderFrame(int ScreenWidth, int ScreenHeight)
 {
-#if 0
-	if (NewShaderReady.load())
+	if (NewShaderReady)
 	{
 		SetupNewShader();
 	}
-#endif
 
 	{
 		static size_t LastDrawCount = 0;
@@ -413,8 +406,7 @@ void RenderFrame(int ScreenWidth, int ScreenHeight)
 		}
 	}
 
-#if 0
-	if (ModelLoaded.load())
+	if (ModelLoaded)
 	{
 		{
 			glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Cluster Culling Pass");
@@ -496,7 +488,6 @@ void RenderFrame(int ScreenWidth, int ScreenHeight)
 #endif
 	}
 	else
-#endif
 	{
 		glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Dead Channel");
 		glDepthMask(GL_FALSE);
@@ -509,29 +500,6 @@ void RenderFrame(int ScreenWidth, int ScreenHeight)
 }
 
 
-#if 0
-void LockShaders()
-{
-	NewShaderLock.lock();
-	NewClusters.clear();
-	ModelLoaded.store(false);
-}
-
-
-void PostShader(int ClusterCount, const char* ClusterDist, const char* ClusterData)
-{
-	NewClusters.push_back({ ClusterCount, std::string(ClusterDist), std::string(ClusterData) });
-}
-
-
-void UnlockShaders()
-{
-	NewShaderReady.store(true);
-	NewShaderLock.unlock();
-}
-#endif
-
-
 void ToggleFullScreen(SDL_Window* Window)
 {
 	static bool FullScreen = false;
@@ -540,28 +508,55 @@ void ToggleFullScreen(SDL_Window* Window)
 }
 
 
-void OpenModel()
+std::string ByteVectorToString(ptr ByteVector)
 {
-	nfdchar_t* Path = NULL;
-	nfdresult_t Result = NFD_OpenDialog("rkt", "models", &Path);
-	if (Result == NFD_OKAY)
+	const char* Data = (const char*)Sbytevector_data(ByteVector);
+	int Length = Sbytevector_length(ByteVector);
+	return std::string(Data, Length);
+}
+
+
+void LoadModel(nfdchar_t* Path)
+{
+	static nfdchar_t* LastPath = nullptr;
+	if (!Path)
+	{
+		// Reload
+		Path = LastPath;
+	}
+	if (Path)
 	{
 		ptr ModuleSymbol = Sstring_to_symbol("tangerine");
 		ptr ProcSymbol = Sstring_to_symbol("renderer-load-and-process-model");
 		ptr Proc = Scar(racket_dynamic_require(ModuleSymbol, ProcSymbol));
 		ptr Args = Scons(Sstring(Path), Snil);
 		ptr Clusters = Scar(racket_apply(Proc, Args));
+		NewClusters.clear();
 		while (!Snullp(Clusters))
 		{
 			ptr Cluster = Scar(Clusters);
 			Clusters = Scdr(Clusters);
-			int BoundsCount = Sinteger32_value(Scar(Cluster));
-			char* DistSrc = (char*)Sbytevector_data(Scar(Scdr(Cluster)));
-			char* BoundsSrc = (char*)Sbytevector_data(Scdr(Scdr(Cluster)));
-			std::cout << BoundsCount << "\n"
-				<< DistSrc << "\n"
-				<< BoundsSrc << "\n";
+			int ClusterCount = Sinteger32_value(Scar(Cluster));
+			std::string ClusterDist = ByteVectorToString(Scar(Scdr(Cluster)));
+			std::string ClusterData = ByteVectorToString(Scdr(Scdr(Cluster)));
+			NewClusters.push_back({ ClusterCount, ClusterDist, ClusterData });
 		}
+		if (NewClusters.size() > 0)
+		{
+			LastPath = Path;
+			NewShaderReady = true;
+		}
+	}
+}
+
+
+void OpenModel()
+{
+	nfdchar_t* Path = nullptr;
+	nfdresult_t Result = NFD_OpenDialog("rkt", "models", &Path);
+	if (Result == NFD_OKAY)
+	{
+		LoadModel(Path);
 	}
 }
 
@@ -587,7 +582,7 @@ void RenderUI(SDL_Window* Window, bool& Live)
 			}
 			if (ImGui::MenuItem("Reload", "Ctrl+R"))
 			{
-				std::cout << "TODO: reopen current file\n";
+				LoadModel(nullptr);
 			}
 			if (ImGui::MenuItem("Exit"))
 			{
@@ -625,7 +620,7 @@ int main(int argc, char* argv[])
 				"Tangerine",
 				SDL_WINDOWPOS_CENTERED,
 				SDL_WINDOWPOS_CENTERED,
-				800, 600,
+				512, 512,
 				SDL_WINDOW_RESIZABLE | SDL_WINDOW_OPENGL);
 		}
 		if (Window == nullptr)
