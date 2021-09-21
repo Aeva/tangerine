@@ -34,7 +34,6 @@
 
 #include <chezscheme.h>
 #include <racketcs.h>
-#include <generated.hpp>
 
 #include <nfd.h>
 
@@ -547,7 +546,22 @@ void OpenModel()
 	nfdresult_t Result = NFD_OpenDialog("rkt", "models", &Path);
 	if (Result == NFD_OKAY)
 	{
-		std::cout << "TODO: Load model " << Path << "\n";
+		ptr ModuleSymbol = Sstring_to_symbol("tangerine");
+		ptr ProcSymbol = Sstring_to_symbol("renderer-load-and-process-model");
+		ptr Proc = Scar(racket_dynamic_require(ModuleSymbol, ProcSymbol));
+		ptr Args = Scons(Sstring(Path), Snil);
+		ptr Clusters = Scar(racket_apply(Proc, Args));
+		while (!Snullp(Clusters))
+		{
+			ptr Cluster = Scar(Clusters);
+			Clusters = Scdr(Clusters);
+			int BoundsCount = Sinteger32_value(Scar(Cluster));
+			char* DistSrc = (char*)Sbytevector_data(Scar(Scdr(Cluster)));
+			char* BoundsSrc = (char*)Sbytevector_data(Scdr(Scdr(Cluster)));
+			std::cout << BoundsCount << "\n"
+				<< DistSrc << "\n"
+				<< BoundsSrc << "\n";
+		}
 	}
 }
 
@@ -655,7 +669,7 @@ int main(int argc, char* argv[])
 		BootArgs.boot3_path = "./racket/racket.boot";
 		BootArgs.exec_file = "tangerine.exe";
 		racket_boot(&BootArgs);
-		declare_modules();
+		racket_embedded_load_file("./racket/modules", 1);
 		std::cout << "Done!\n";
 	}
 	{

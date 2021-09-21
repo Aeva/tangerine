@@ -17,11 +17,12 @@
 (require racket/list)
 (require racket/string)
 (require racket/format)
-(require "csg/csgst.rkt")
-(require "csg/bounds.rkt")
-(require "csg/coalesce.rkt")
-(require "csg/glsl.rkt")
-(require "csg/vec.rkt")
+(require racket/rerequire)
+(require "csgst.rkt")
+(require "bounds.rkt")
+(require "coalesce.rkt")
+(require "glsl.rkt")
+(require "vec.rkt")
 
 (provide compile
          sphere
@@ -40,7 +41,8 @@
          move-z
          rotate-x
          rotate-y
-         rotate-z)
+         rotate-z
+         renderer-load-and-process-model)
 
 
 (define (glsl-vec3 vec)
@@ -57,26 +59,35 @@
         (cons
          (length bounds)
          (cons
-          (string-join
-           (list
-            "float ClusterDist(vec3 Point)"
-            "{"
-            (~a "\treturn " (eval-dist subtree) ";")
-            "}\n")
-           "\n")
-          (string-join
-           (flatten
+          (string->bytes/utf-8
+           (string-join
             (list
-             @~a{const uint ClusterCount = @count;}
-             "AABB ClusterData[ClusterCount] = \\"
+             "float ClusterDist(vec3 Point)"
              "{"
-             (string-join
-              (for/list ([bound (in-list bounds)])
-                (let* ([low (car bound)]
-                       [high (cdr bound)]
-                       [extent (vec* 0.5 (vec- high low))]
-                       [center (vec+ low extent)])
-                  {~a "\t" @~a{AABB(@(glsl-vec3 center), @(glsl-vec3 extent))}}
-                  )) ",\n")
-             "};\n"))
-           "\n")))))))
+             (~a "\treturn " (eval-dist subtree) ";")
+             "}\n")
+            "\n"))
+          (string->bytes/utf-8
+           (string-join
+            (flatten
+             (list
+              @~a{const uint ClusterCount = @count;}
+              "AABB ClusterData[ClusterCount] = \\"
+              "{"
+              (string-join
+               (for/list ([bound (in-list bounds)])
+                 (let* ([low (car bound)]
+                        [high (cdr bound)]
+                        [extent (vec* 0.5 (vec- high low))]
+                        [center (vec+ low extent)])
+                   {~a "\t" @~a{AABB(@(glsl-vec3 center), @(glsl-vec3 extent))}}
+                   )) ",\n")
+              "};\n"))
+            "\n"))))))))
+
+
+(define (renderer-load-and-process-model path-str)
+  (let ([path (string->path path-str)])
+    (dynamic-rerequire path)
+    (let ([emit-glsl (dynamic-require path 'emit-glsl)])
+      (emit-glsl))))

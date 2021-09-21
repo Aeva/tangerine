@@ -4,7 +4,7 @@ windows/.vs
 windows/x64
 windows/enc_temp_folder
 racket/lib
-third_party/racket/include/generated.hpp
+racket/modules
 third_party/racket/lib/x64
 tangerine.pdb
 tangerine.exe
