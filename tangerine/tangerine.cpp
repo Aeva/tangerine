@@ -526,6 +526,7 @@ void LoadModel(nfdchar_t* Path)
 	}
 	if (Path)
 	{
+		Sactivate_thread();
 		ptr ModuleSymbol = Sstring_to_symbol("tangerine");
 		ptr ProcSymbol = Sstring_to_symbol("renderer-load-and-process-model");
 		ptr Proc = Scar(racket_dynamic_require(ModuleSymbol, ProcSymbol));
@@ -541,6 +542,7 @@ void LoadModel(nfdchar_t* Path)
 			std::string ClusterData = ByteVectorToString(Scdr(Scdr(Cluster)));
 			NewClusters.push_back({ ClusterCount, ClusterDist, ClusterData });
 		}
+		Sdeactivate_thread();
 		if (NewClusters.size() > 0)
 		{
 			LastPath = Path;
