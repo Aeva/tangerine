@@ -519,6 +519,14 @@ extern "C" void TANGERINE_API NewClusterCallback(int ClusterCount, const char* C
 }
 
 
+std::vector<std::string> RacketErrors;
+extern "C" void TANGERINE_API RacketErrorCallback(const char* ErrorMessage)
+{
+	std::cout << ErrorMessage << "\n";
+	RacketErrors.push_back(std::string(ErrorMessage));
+}
+
+
 void LoadModel(nfdchar_t* Path)
 {
 	static nfdchar_t* LastPath = nullptr;
@@ -595,6 +603,24 @@ void RenderUI(SDL_Window* Window, bool& Live)
 			ImGui::EndMenu();
 		}
 		ImGui::EndMainMenuBar();
+	}
+
+	if (RacketErrors.size() > 0)
+	{
+		ImVec2 center = ImGui::GetMainViewport()->GetCenter();
+		ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+		ImGui::OpenPopup("Error");
+		if (ImGui::BeginPopupModal("Error", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
+		{
+			ImGui::Text(RacketErrors[RacketErrors.size() - 1].c_str());
+			ImGui::SetItemDefaultFocus();
+			if (ImGui::Button("OK", ImVec2(120, 0)))
+			{
+				ImGui::CloseCurrentPopup();
+				RacketErrors.pop_back();
+			}
+			ImGui::EndPopup();
+		}
 	}
 }
 

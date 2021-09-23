@@ -86,17 +86,18 @@
            "\n")))))))
 
 
-(define-ffi-definer define-backend (ffi-lib #f))
+(define-ffi-definer define-backend (ffi-lib #f) #:default-make-fail make-not-available)
 (define-backend NewClusterCallback (_fun _int _string/utf-8 _string/utf-8 -> _void))
-
+(define-backend RacketErrorCallback (_fun _string/utf-8 -> _void))
 
 (define (renderer-load-and-process-model path-str)
-  (let ([path (string->path path-str)])
-    (dynamic-rerequire path)
-    (let ([clusters ((dynamic-require path 'emit-glsl))])
-      (for ([cluster (in-list clusters)])
-        (let ([count (car cluster)]
-              [dist (cadr cluster)]
-              [data (cddr cluster)])
-          (NewClusterCallback count dist data)))))
+  (with-handlers ([exn:fail? (λ (err) (RacketErrorCallback (exn-message err)))])
+    (let ([path (string->path path-str)])
+      (dynamic-rerequire path)
+      (let ([clusters ((dynamic-require path 'emit-glsl))])
+        (for ([cluster (in-list clusters)])
+          (let ([count (car cluster)]
+                [dist (cadr cluster)]
+                [data (cddr cluster)])
+            (NewClusterCallback count dist data))))))
   (void))
