@@ -274,6 +274,11 @@ StatusCode CompileShader(GLenum ShaderType, const ShaderSource& Source, GLuint& 
 		std::string Error = GetInfoLog(ProgramID);
 		if (!Error.empty())
 		{
+			for (int i = 0; i < Count; ++i)
+			{
+				std::cout << Sources[i] << "\n";
+				std::cout << "################################################################\n";
+			}
 			std::cout << "Generated part:\n" << Sources[0] << "\n\n";
 			std::cout << "Shader string paths:\n";
 			for (int i = 0; i < Index.size(); ++i)

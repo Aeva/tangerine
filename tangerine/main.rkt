@@ -18,6 +18,8 @@
 (require racket/string)
 (require racket/format)
 (require racket/rerequire)
+(require ffi/unsafe)
+(require ffi/unsafe/define)
 (require "csgst.rkt")
 (require "bounds.rkt")
 (require "coalesce.rkt")
@@ -59,35 +61,42 @@
         (cons
          (length bounds)
          (cons
-          (string->bytes/utf-8
-           (string-join
+          (string-join
+           (list
+            "float ClusterDist(vec3 Point)"
+            "{"
+            (~a "\treturn " (eval-dist subtree) ";")
+            "}\n")
+           "\n")
+          (string-join
+           (flatten
             (list
-             "float ClusterDist(vec3 Point)"
+             @~a{const uint ClusterCount = @count;}
+             "AABB ClusterData[ClusterCount] = \\"
              "{"
-             (~a "\treturn " (eval-dist subtree) ";")
-             "}\n")
-            "\n"))
-          (string->bytes/utf-8
-           (string-join
-            (flatten
-             (list
-              @~a{const uint ClusterCount = @count;}
-              "AABB ClusterData[ClusterCount] = \\"
-              "{"
-              (string-join
-               (for/list ([bound (in-list bounds)])
-                 (let* ([low (car bound)]
-                        [high (cdr bound)]
-                        [extent (vec* 0.5 (vec- high low))]
-                        [center (vec+ low extent)])
-                   {~a "\t" @~a{AABB(@(glsl-vec3 center), @(glsl-vec3 extent))}}
-                   )) ",\n")
-              "};\n"))
-            "\n"))))))))
+             (string-join
+              (for/list ([bound (in-list bounds)])
+                (let* ([low (car bound)]
+                       [high (cdr bound)]
+                       [extent (vec* 0.5 (vec- high low))]
+                       [center (vec+ low extent)])
+                  {~a "\t" @~a{AABB(@(glsl-vec3 center), @(glsl-vec3 extent))}}
+                  )) ",\n")
+             "};\n"))
+           "\n")))))))
+
+
+(define-ffi-definer define-backend (ffi-lib #f))
+(define-backend NewClusterCallback (_fun _int _string/utf-8 _string/utf-8 -> _void))
 
 
 (define (renderer-load-and-process-model path-str)
   (let ([path (string->path path-str)])
     (dynamic-rerequire path)
-    (let ([emit-glsl (dynamic-require path 'emit-glsl)])
-      (emit-glsl))))
+    (let ([clusters ((dynamic-require path 'emit-glsl))])
+      (for ([cluster (in-list clusters)])
+        (let ([count (car cluster)]
+              [dist (cadr cluster)]
+              [data (cddr cluster)])
+          (NewClusterCallback count dist data)))))
+  (void))

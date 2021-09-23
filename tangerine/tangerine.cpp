@@ -41,6 +41,11 @@
 #include "gl_boilerplate.h"
 #include "../shaders/defines.h"
 
+#if _WIN64
+#define TANGERINE_API __declspec(dllexport)
+#elif defined(__GNUC__)
+#define TANGERINE_API __attribute__ ((visibility ("default")))
+#endif
 
 #define MINIMUM_VERSION_MAJOR 4
 #define MINIMUM_VERSION_MINOR 2
@@ -508,11 +513,9 @@ void ToggleFullScreen(SDL_Window* Window)
 }
 
 
-std::string ByteVectorToString(ptr ByteVector)
+extern "C" void TANGERINE_API NewClusterCallback(int ClusterCount, const char* ClusterDist, const char* ClusterData)
 {
-	const char* Data = (const char*)Sbytevector_data(ByteVector);
-	int Length = Sbytevector_length(ByteVector);
-	return std::string(Data, Length);
+	NewClusters.push_back({ ClusterCount, std::string(ClusterDist), std::string(ClusterData) });
 }
 
 
@@ -526,22 +529,13 @@ void LoadModel(nfdchar_t* Path)
 	}
 	if (Path)
 	{
+		NewClusters.clear();
 		Sactivate_thread();
 		ptr ModuleSymbol = Sstring_to_symbol("tangerine");
 		ptr ProcSymbol = Sstring_to_symbol("renderer-load-and-process-model");
 		ptr Proc = Scar(racket_dynamic_require(ModuleSymbol, ProcSymbol));
 		ptr Args = Scons(Sstring(Path), Snil);
-		ptr Clusters = Scar(racket_apply(Proc, Args));
-		NewClusters.clear();
-		while (!Snullp(Clusters))
-		{
-			ptr Cluster = Scar(Clusters);
-			Clusters = Scdr(Clusters);
-			int ClusterCount = Sinteger32_value(Scar(Cluster));
-			std::string ClusterDist = ByteVectorToString(Scar(Scdr(Cluster)));
-			std::string ClusterData = ByteVectorToString(Scdr(Scdr(Cluster)));
-			NewClusters.push_back({ ClusterCount, ClusterDist, ClusterData });
-		}
+		racket_apply(Proc, Args);
 		Sdeactivate_thread();
 		if (NewClusters.size() > 0)
 		{
