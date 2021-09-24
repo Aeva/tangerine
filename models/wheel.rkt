@@ -128,8 +128,7 @@
         [rhs (move-x -1.3
                      (rotate-z -10.
                                tree))])
-    (move-y -8.
-            (union lhs rhs))))
+    (union lhs rhs)))
 
 
 (define (emit-glsl)

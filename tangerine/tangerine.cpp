@@ -27,6 +27,7 @@
 #include <glm/mat4x4.hpp>
 #include <glm/ext/matrix_transform.hpp>
 #include <glm/ext/matrix_clip_space.hpp>
+#include <glm/gtx/quaternion.hpp>
 
 #include <iostream>
 #include <vector>
@@ -299,10 +300,15 @@ void SetupNewShader()
 }
 
 
+int MouseMotionX = 0;
+int MouseMotionY = 0;
+int MouseMotionZ = 0;
 void RenderFrame(int ScreenWidth, int ScreenHeight)
 {
+	static bool ResetCamera = true;
 	if (NewShaderReady)
 	{
+		ResetCamera = true;
 		SetupNewShader();
 	}
 
@@ -365,12 +371,40 @@ void RenderFrame(int ScreenWidth, int ScreenHeight)
 	}
 
 	{
-		//const glm::vec3 CameraOrigin = glm::vec3(-4.0, -14.0, 4.0);
-		const glm::vec3 CameraOrigin = glm::vec3(0.0, -14.0, 0.0);
-		const glm::vec3 CameraFocus = glm::vec3(0.0, 0.0, 0.0);
-		const glm::vec3 UpVector = glm::vec3(0.0, 0.0, 1.0);
-		const glm::mat4 WorldToView = glm::lookAt(CameraOrigin, CameraFocus, UpVector);
+		static float RotateX;
+		static float RotateZ;
+		static float Zoom;
+		if (ResetCamera)
+		{
+			ResetCamera = false;
+			RotateX = 0.0;
+			RotateZ = 0.0;
+			Zoom = 14.0;
+		}
+
+		RotateX = fmodf(RotateX - MouseMotionY, 360.0);
+		RotateZ = fmodf(RotateZ - MouseMotionX, 360.0);
+		Zoom = fmaxf(0.0, Zoom - MouseMotionZ);
+		const float ToRadians = M_PI / 180.0;
+
+		glm::mat4 Orientation = glm::identity<glm::mat4>();
+		Orientation = glm::rotate(Orientation, RotateZ * ToRadians, glm::vec3(0.0, 0.0, 1.0));
+		Orientation = glm::rotate(Orientation, RotateX * ToRadians, glm::vec3(1.0, 0.0, 0.0));
+
+		glm::vec4 Fnord = Orientation * glm::vec4(0.0, -Zoom, 0.0, 1.0);
+		glm::vec3 CameraOrigin = glm::vec3(Fnord.x, Fnord.y, Fnord.z) / Fnord.w;
+
+		Fnord = Orientation * glm::vec4(0.0, 0.0, 1.0, 1.0);
+		glm::vec3 UpDir = glm::vec3(Fnord.x, Fnord.y, Fnord.z) / Fnord.w;
+
+		glm::mat4 WorldToView = glm::lookAt(CameraOrigin, glm::vec3(0.0, 0.0, 0.0), UpDir);
 		const glm::mat4 ViewToWorld = glm::inverse(WorldToView);
+
+		{
+			glm::vec4 CameraLocal = ViewToWorld * glm::vec4(0.0, 0.0, 0.0, 1.0);
+			CameraLocal /= CameraLocal.w;
+			CameraOrigin = glm::vec3(CameraLocal.x, CameraLocal.y, CameraLocal.z);
+		}
 
 		const float AspectRatio = float(Width) / float(Height);
 		const glm::mat4 ViewToClip = glm::infinitePerspective(glm::radians(45.f), AspectRatio, 1.0f);
@@ -693,12 +727,13 @@ int main(int argc, char* argv[])
 		std::cout << "Setting up Dear ImGui... ";
 		IMGUI_CHECKVERSION();
 		ImGui::CreateContext();
+		ImGuiIO& io = ImGui::GetIO();
+		io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
 		ImGui::StyleColorsLight();
 		ImGui_ImplSDL2_InitForOpenGL(Window, Context);
 		ImGui_ImplOpenGL3_Init("#version 130");
 		std::cout << "Done!\n";
 	}
-	ImGuiIO io = ImGui::GetIO();
 	std::cout << "Using device: " << glGetString(GL_RENDERER) << " " << glGetString(GL_VERSION) << "\n";
 	if (SetupRenderer() == StatusCode::FAIL)
 	{
@@ -706,9 +741,13 @@ int main(int argc, char* argv[])
 	}
 	bool Live = true;
 	{
+		ImGuiIO& io = ImGui::GetIO();
 		while (Live)
 		{
 			SDL_Event Event;
+			MouseMotionX = 0;
+			MouseMotionY = 0;
+			MouseMotionZ = 0;
 			while (SDL_PollEvent(&Event))
 			{
 				ImGui_ImplSDL2_ProcessEvent(&Event);
@@ -717,6 +756,28 @@ int main(int argc, char* argv[])
 				{
 					Live = false;
 					break;
+				}
+				if (!io.WantCaptureMouse)
+				{
+					static bool Dragging = false;
+					switch (Event.type)
+					{
+					case SDL_MOUSEMOTION:
+						if (Dragging)
+						{
+							MouseMotionX = Event.motion.xrel;
+							MouseMotionY = Event.motion.yrel;
+						}
+						break;
+					case SDL_MOUSEBUTTONDOWN:
+					case SDL_MOUSEBUTTONUP:
+						Dragging = !Dragging;
+						SDL_SetRelativeMouseMode((SDL_bool)Dragging);
+						break;
+					case SDL_MOUSEWHEEL:
+						MouseMotionZ = Event.wheel.y;
+						break;
+					}
 				}
 			}
 			{
@@ -737,6 +798,9 @@ int main(int argc, char* argv[])
 	}
 	{
 		std::cout << "Shutting down...\n";
+		ImGui_ImplOpenGL3_Shutdown();
+		ImGui_ImplSDL2_Shutdown();
+		ImGui::DestroyContext();
 	}
 	return 0;
 }
