@@ -30,6 +30,7 @@
 #include <glm/gtx/quaternion.hpp>
 
 #include <iostream>
+#include <cstring>
 #include <vector>
 #include <chrono>
 
@@ -303,12 +304,11 @@ void SetupNewShader()
 int MouseMotionX = 0;
 int MouseMotionY = 0;
 int MouseMotionZ = 0;
+bool ResetCamera = true;
 void RenderFrame(int ScreenWidth, int ScreenHeight)
 {
-	static bool ResetCamera = true;
 	if (NewShaderReady)
 	{
-		ResetCamera = true;
 		SetupNewShader();
 	}
 
@@ -581,6 +581,10 @@ void LoadModel(nfdchar_t* Path)
 		Sdeactivate_thread();
 		if (NewClusters.size() > 0)
 		{
+			if (LastPath && strcmp(Path, LastPath) != 0)
+			{
+				ResetCamera = true;
+			}
 			LastPath = Path;
 			NewShaderReady = true;
 		}
@@ -630,6 +634,10 @@ void RenderUI(SDL_Window* Window, bool& Live)
 		}
 		if (ImGui::BeginMenu("View"))
 		{
+			if (ImGui::MenuItem("Recenter"))
+			{
+				ResetCamera = true;
+			}
 			if (ImGui::MenuItem("Full Screen", "Ctrl+F"))
 			{
 				ToggleFullScreen(Window);
@@ -770,12 +778,84 @@ int main(int argc, char* argv[])
 						}
 						break;
 					case SDL_MOUSEBUTTONDOWN:
+						Dragging = true;
+						SDL_SetRelativeMouseMode(SDL_TRUE);
+						break;
 					case SDL_MOUSEBUTTONUP:
-						Dragging = !Dragging;
-						SDL_SetRelativeMouseMode((SDL_bool)Dragging);
+						Dragging = false;
+						SDL_SetRelativeMouseMode(SDL_FALSE);
 						break;
 					case SDL_MOUSEWHEEL:
 						MouseMotionZ = Event.wheel.y;
+						break;
+					}
+				}
+				if (!io.WantCaptureKeyboard && Event.type == SDL_KEYDOWN)
+				{
+					const int SHIFT_FLAG = 1 << 9;
+					const int CTRL_FLAG = 1 << 10;
+					const int ALT_FLAG = 1 << 11;
+					const int OPEN_MODEL = CTRL_FLAG | SDLK_o;
+					const int RELOAD_MODEL = CTRL_FLAG | SDLK_r;
+					const int TOGGLE_FULLSCREEN = CTRL_FLAG | SDLK_f;
+					int Key = Event.key.keysym.sym;
+					int Mod = Event.key.keysym.mod;
+					if ((Mod & KMOD_SHIFT) != 0)
+					{
+						Key |= SHIFT_FLAG;
+					}
+					if ((Mod & KMOD_CTRL) != 0)
+					{
+						Key |= CTRL_FLAG;
+					}
+					if ((Mod & KMOD_ALT) != 0)
+					{
+						Key |= ALT_FLAG;
+					}
+					switch (Key)
+					{
+					case OPEN_MODEL:
+						OpenModel();
+						break;
+					case RELOAD_MODEL:
+						LoadModel(nullptr);
+						break;
+					case TOGGLE_FULLSCREEN:
+						ToggleFullScreen(Window);
+						break;
+					case SDLK_KP_MULTIPLY:
+						MouseMotionZ += 5;
+						break;
+					case SDLK_KP_DIVIDE:
+						MouseMotionZ -= 5;
+						break;
+					case SDLK_KP_1: // ⭩
+						MouseMotionX += 45;
+						MouseMotionY -= 45;
+						break;
+					case SDLK_KP_2: // ⭣
+						MouseMotionY -= 45;
+						break;
+					case SDLK_KP_3: // ⭨
+						MouseMotionX -= 45;
+						MouseMotionY -= 45;
+						break;
+					case SDLK_KP_4: // ⭠
+						MouseMotionX += 45;
+						break;
+					case SDLK_KP_6: // ⭢
+						MouseMotionX -= 45;
+						break;
+					case SDLK_KP_7: //⭦
+						MouseMotionX += 45;
+						MouseMotionY += 45;
+						break;
+					case SDLK_KP_8: // ⭡
+						MouseMotionY += 45;
+						break;
+					case SDLK_KP_9: // ⭧
+						MouseMotionX -= 45;
+						MouseMotionY += 45;
 						break;
 					}
 				}
