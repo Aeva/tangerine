@@ -39,6 +39,7 @@
          normalize
          distance
          cross
+         invert-mat4
          transpose-mat4
          translate-mat4
          rotate-x-mat4
@@ -47,7 +48,7 @@
          quat->mat4
          mat*
          quat*
-         matrix-rotate
+         apply-matrix
          quat-rotate
          rcp
          lerp)
@@ -199,6 +200,57 @@
      (dot (vec* sign (swiz lhs 0 1)) (swiz rhs 1 0)))))
 
 
+(define (mat4-ref matrix x y)
+  (list-ref (list-ref matrix x) y))
+
+
+(define (invert-mat4 matrix)
+  (let* ([cell (λ (x y) (mat4-ref matrix x y))]
+         [coef-00 (- (* (cell 2 2) (cell 3 3)) (* (cell 3 2) (cell 2 3)))]
+         [coef-02 (- (* (cell 1 2) (cell 3 3)) (* (cell 3 2) (cell 1 3)))]
+         [coef-03 (- (* (cell 1 2) (cell 2 3)) (* (cell 2 2) (cell 1 3)))]
+         [coef-04 (- (* (cell 2 1) (cell 3 3)) (* (cell 3 1) (cell 2 3)))]
+         [coef-06 (- (* (cell 1 1) (cell 3 3)) (* (cell 3 1) (cell 1 3)))]
+         [coef-07 (- (* (cell 1 1) (cell 2 3)) (* (cell 2 1) (cell 1 3)))]
+         [coef-08 (- (* (cell 2 1) (cell 3 2)) (* (cell 3 1) (cell 2 2)))]
+         [coef-10 (- (* (cell 1 1) (cell 3 2)) (* (cell 3 1) (cell 1 2)))]
+         [coef-11 (- (* (cell 1 1) (cell 2 2)) (* (cell 2 1) (cell 1 2)))]
+         [coef-12 (- (* (cell 2 0) (cell 3 3)) (* (cell 3 0) (cell 2 3)))]
+         [coef-14 (- (* (cell 1 0) (cell 3 3)) (* (cell 3 0) (cell 1 3)))]
+         [coef-15 (- (* (cell 1 0) (cell 2 3)) (* (cell 2 0) (cell 1 3)))]
+         [coef-16 (- (* (cell 2 0) (cell 3 2)) (* (cell 3 0) (cell 2 2)))]
+         [coef-18 (- (* (cell 1 0) (cell 3 2)) (* (cell 3 0) (cell 1 2)))]
+         [coef-19 (- (* (cell 1 0) (cell 2 2)) (* (cell 2 0) (cell 1 2)))]
+         [coef-20 (- (* (cell 2 0) (cell 3 1)) (* (cell 3 0) (cell 2 1)))]
+         [coef-22 (- (* (cell 1 0) (cell 3 1)) (* (cell 3 0) (cell 1 1)))]
+         [coef-23 (- (* (cell 1 0) (cell 2 1)) (* (cell 2 0) (cell 1 1)))]
+         [fac-0 (vec4 coef-00 coef-00 coef-02 coef-03)]
+         [fac-1 (vec4 coef-04 coef-04 coef-06 coef-07)]
+         [fac-2 (vec4 coef-08 coef-08 coef-10 coef-11)]
+         [fac-3 (vec4 coef-12 coef-12 coef-14 coef-15)]
+         [fac-4 (vec4 coef-16 coef-16 coef-18 coef-19)]
+         [fac-5 (vec4 coef-20 coef-20 coef-22 coef-23)]
+         [vec-0 (vec4 (cell 1 0) (vec3 (cell 0 0)))]
+         [vec-1 (vec4 (cell 1 1) (vec3 (cell 0 1)))]
+         [vec-2 (vec4 (cell 1 2) (vec3 (cell 0 2)))]
+         [vec-3 (vec4 (cell 1 3) (vec3 (cell 0 3)))]
+         [inv-0 (vec+ (vec- (vec* vec-1 fac-0) (vec* vec-2 fac-1)) (vec* vec-3 fac-2))]
+         [inv-1 (vec+ (vec- (vec* vec-0 fac-0) (vec* vec-2 fac-3)) (vec* vec-3 fac-4))]
+         [inv-2 (vec+ (vec- (vec* vec-0 fac-1) (vec* vec-1 fac-3)) (vec* vec-3 fac-5))]
+         [inv-3 (vec+ (vec- (vec* vec-0 fac-2) (vec* vec-1 fac-4)) (vec* vec-2 fac-5))]
+         [sign-a (vec4 1 -1 1 -1)]
+         [sign-b (vec4 -1 1 -1 1)]
+         [inverse (list (vec* inv-0 sign-a)
+                        (vec* inv-1 sign-b)
+                        (vec* inv-2 sign-a)
+                        (vec* inv-3 sign-b))]
+         [row-0 (car (transpose-mat4 inverse))]
+         [determinant (dot (car matrix) row-0)])
+    (for/list ([col (in-list inverse)])
+      (for/list ([n (in-list col)])
+        (/ n determinant)))))
+
+
 (define (transpose-mat4 matrix)
   (apply mat4 (append* matrix)))
 
@@ -282,10 +334,14 @@
      (dot lhs (vec* rhs sign-w)))))
 
 
-(define (matrix-rotate point matrix)
-  (let* ([point (vec4 point 1.0)]
-         [point (list point point point point)]) ; °ω°
-    (take (car (mat* matrix point)) 3)))
+(define (apply-matrix point matrix)
+  (let* ([matrix (invert-mat4 matrix)]
+         [point (vec4 point 1.0)]
+         [point (list point point point point)] ; °ω°
+         [point (car (mat* point matrix))]
+         [w (list-ref point 3)]
+         [xyz (map (λ (x) (/ x w)) (take point 3))])
+    xyz))
 
 
 (define (quat-rotate point quat)

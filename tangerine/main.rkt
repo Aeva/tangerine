@@ -53,9 +53,9 @@
 
 
 (define (compile csgst)
-  (let ([parts (segments csgst)])
+  (let ([parts (segments (coalesce csgst))])
     (for/list ([part (in-list parts)])
-      (let* ([subtree (coalesce (car part))]
+      (let* ([subtree (car part)]
              [bounds (cdr part)]
              [count (length bounds)])
         (cons

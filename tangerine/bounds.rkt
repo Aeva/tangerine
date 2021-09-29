@@ -395,7 +395,7 @@
        (let*-values ([(matrix child) (splat args)]
                      [(bounds) (tree-aabb child)])
          (for/list ([aabb bounds])
-           (let* ([points (map (λ (pt) (matrix-rotate pt matrix))
+           (let* ([points (map (λ (pt) (apply-matrix pt matrix))
                                (corners aabb))]
                   [low (apply vec-min points)]
                   [high (apply vec-max points)]
