@@ -45,9 +45,11 @@
 
 ; Test if a point is within an AABB's bounds, inclusive of the edges.
 (define (within? point aabb)
-  (and
-   (equal? point (vec-max point (car aabb)))
-   (equal? point (vec-min point (cadr aabb)))))
+  (for/and ([min-x (in-list (car aabb))]
+            [max-x (in-list (cadr aabb))]
+            [x (in-list point)])
+    (and (x . >= . min-x)
+         (x . <= . max-x))))
 
 
 ; Emit the low point, high point, and subtree of the AABB as values.
@@ -90,6 +92,14 @@
      (combiner lhs-tree rhs-tree))))
 
 
+; Returns true if the provided AABBs overlap one another.
+(define (overlaps? lhs rhs)
+  (let ([inter (aabb-inter lhs rhs)])
+    (for/and ([min-x (in-list (car inter))]
+              [max-x (in-list (cadr inter))])
+      (min-x . < . max-x))))
+
+
 ; Extract a list of subtrees from a list of AABBs.
 (define (extract-subtrees bounds)
   (remove-duplicates
@@ -115,15 +125,17 @@
          (or subtree (caddar group)))
         (car group)))
 
-  (let* ([subtrees (extract-subtrees bounds)]
-         [groups (for/list ([subtree (in-list subtrees)])
-                   (for/list ([aabb (in-list bounds)]
-                              #:when (equal? (caddr aabb) subtree))
-                     aabb))]
-         [merged (map merge-group groups)])
-    (if (eq? 1 (length merged))
-        (car merged)
-        (merge-group merged (apply combiner subtrees)))))
+  (if (null? bounds)
+      null
+      (let* ([subtrees (extract-subtrees bounds)]
+             [groups (for/list ([subtree (in-list subtrees)])
+                       (for/list ([aabb (in-list bounds)]
+                                  #:when (equal? (caddr aabb) subtree))
+                         aabb))]
+             [merged (map merge-group groups)])
+        (if (eq? 1 (length merged))
+            (car merged)
+            (merge-group merged (apply combiner subtrees))))))
 
 
 ; Split an AABB upon the given pivot point.  If the point is outside the AABB
@@ -252,6 +264,59 @@
    (caddr aabb)))
 
 
+; Sort a list of AABBs into intersection groups.
+(define (islands aabbs [isolated null] [overlapping null])
+  (if (null? aabbs)
+      (values isolated overlapping)
+      (let* ([aabb (car aabbs)]
+             [test (λ (other) (overlaps? aabb other))]
+             [eliminated (filter test (cdr aabbs))]
+             [remainder (filter-not test (cdr aabbs))])
+        (if (null? eliminated)
+            (islands remainder (cons aabb isolated) overlapping)
+            (islands remainder isolated (cons aabb (append eliminated overlapping)))))))
+
+
+; Takes two lists of AABBs and produces a third which is the shapes in
+; the second list subtracted from the first.
+(define (aabb-diff lhs-aabbs rhs-aabbs)
+
+  (define (inner lhs-aabbs rhs-fast rhs-slow)
+    (cond [(null? lhs-aabbs) null]
+
+          ; The "fast" set contains cut shapes that do not overlap with any other
+          ; cut shapes, and therefore can be treated as independent cuts.  The lhs
+          ; aabbs will be clipped by these and be recursed upon, whereas the
+          ; intersections will be returned as individual diffs directly.
+          [(not (null? rhs-fast))
+           (let* ([rhs (car rhs-fast)]
+                  [solids (append* (map (λ (lhs) (aabb-clip lhs rhs)) lhs-aabbs))]
+                  [cuts (map (λ (lhs) (rewrite-subtree
+                                       (aabb-inter lhs rhs)
+                                       (diff (caddr lhs) (caddr rhs))))
+                             lhs-aabbs)])
+             (append cuts
+                     (inner solids (cdr rhs-fast) rhs-slow)))]
+
+          ; The "slow" set contains cut shapes that overlap with at least one other
+          ; cut shape in the slow set.  Ideally these cuts should be further split
+          ; into unique minimal overlap areas, but for now they're just treated as
+          ; a single bound.
+          [(not (null? rhs-slow))
+           (let ([lhs (car lhs-aabbs)])
+             (append (aabb-clip lhs rhs-slow)
+                     (list (rewrite-subtree
+                            (aabb-inter lhs rhs-slow)
+                            (diff (caddr lhs) (caddr rhs-slow))))
+                     (inner (cdr lhs-aabbs) rhs-fast rhs-slow)))]
+
+          [else lhs-aabbs]))
+
+  (let-values ([(rhs-fast rhs-slow) (islands rhs-aabbs)])
+    (filter aabb-valid?
+            (inner lhs-aabbs rhs-fast (aabb-union rhs-slow)))))
+
+
 ; Convert a CSG syntax tree into list of AABBs of subtrees.
 (define (tree-aabb root)
   (let ([node (car root)]
@@ -311,19 +376,10 @@
                     (aabb-clip aabb blend))))))]
 
       [(diff)
-       (let-values ([(lhs rhs) (splat args)])
-         (let* ([lhs-aabbs (tree-aabb lhs)]
-                [rhs-aabbs (tree-aabb rhs)]
-                [lhs-merged (aabb-union lhs-aabbs)]
-                [rhs-merged (aabb-union rhs-aabbs)]
-                [diff-region (rewrite-subtree
-                              (aabb-inter lhs-merged rhs-merged)
-                              (diff lhs
-                                    rhs))])
-           (cons diff-region
-                 (append*
-                  (for/list ([aabb (in-list lhs-aabbs)])
-                    (aabb-clip aabb diff-region))))))]
+       (let*-values ([(lhs rhs) (splat args)]
+                     [(lhs-aabbs) (tree-aabb lhs)]
+                     [(rhs-aabbs) (tree-aabb rhs)])
+         (aabb-diff lhs-aabbs rhs-aabbs))]
 
       [(blend-diff)
        (let-values ([(threshold lhs rhs) (splat args)])
@@ -431,6 +487,9 @@
 ;(tree-aabb (diff (cube 2) (sphere 2.2)))
 ;(tree-aabb (diff (sphere 2.2) (cube 2)))
 ;(tree-aabb (diff (cube 2) (cube 2)))
+;(tree-aabb (diff (cube 2) (union (move-x 2 (cube 2))
+;                                 (move-x -2 (cube 2))
+;                                 (cube 1))))
 ;(tree-aabb (inter (move-x -1 (cube 2))
 ;                  (move-x 1 (cube 2))))
 ;(tree-aabb (inter (cube 2) (cube 2)))
