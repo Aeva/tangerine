@@ -264,10 +264,31 @@
    (caddr aabb)))
 
 
-; Sort a list of AABBs into intersection groups.
+; Takes a list of AABBs, and produces an equivalent list of non-overlapping
+; AABBs.  Overlapping AABBs will be split into intersections and non-overlapping
+; regions.
 (define (islands aabbs [isolated null] [overlapping null])
+
+  (define (split-overlaps aabb . remainder)
+    (if (null? remainder)
+        (list aabb)
+        (let* ([test (λ (other) (overlaps? aabb other))]
+               [matching (filter test remainder)]
+               [remainder (filter-not test remainder)])
+          (if (null? matching)
+              (cons aabb (apply split-overlaps remainder))
+              (let* ([other (car matching)]
+                     [lhs (aabb-clip aabb other)]
+                     [chs (aabb-inter aabb other union)]
+                     [rhs (aabb-clip other aabb)]
+                     [hands (cons chs (append lhs rhs))]
+                     [remainder (append hands (cdr matching) remainder)])
+                (apply split-overlaps remainder))))))
+
   (if (null? aabbs)
-      (values isolated overlapping)
+      (if (null? overlapping)
+          isolated
+          (append isolated (apply split-overlaps overlapping)))
       (let* ([aabb (car aabbs)]
              [test (λ (other) (overlaps? aabb other))]
              [eliminated (filter test (cdr aabbs))]
@@ -281,40 +302,27 @@
 ; the second list subtracted from the first.
 (define (aabb-diff lhs-aabbs rhs-aabbs)
 
-  (define (inner lhs-aabbs rhs-fast rhs-slow)
+  (define (inner lhs-aabbs rhs-aabbs)
     (cond [(null? lhs-aabbs) null]
 
           ; The "fast" set contains cut shapes that do not overlap with any other
           ; cut shapes, and therefore can be treated as independent cuts.  The lhs
           ; aabbs will be clipped by these and be recursed upon, whereas the
           ; intersections will be returned as individual diffs directly.
-          [(not (null? rhs-fast))
-           (let* ([rhs (car rhs-fast)]
+          [(not (null? rhs-aabbs))
+           (let* ([rhs (car rhs-aabbs)]
                   [solids (append* (map (λ (lhs) (aabb-clip lhs rhs)) lhs-aabbs))]
                   [cuts (map (λ (lhs) (rewrite-subtree
                                        (aabb-inter lhs rhs)
                                        (diff (caddr lhs) (caddr rhs))))
                              lhs-aabbs)])
              (append cuts
-                     (inner solids (cdr rhs-fast) rhs-slow)))]
-
-          ; The "slow" set contains cut shapes that overlap with at least one other
-          ; cut shape in the slow set.  Ideally these cuts should be further split
-          ; into unique minimal overlap areas, but for now they're just treated as
-          ; a single bound.
-          [(not (null? rhs-slow))
-           (let ([lhs (car lhs-aabbs)])
-             (append (aabb-clip lhs rhs-slow)
-                     (list (rewrite-subtree
-                            (aabb-inter lhs rhs-slow)
-                            (diff (caddr lhs) (caddr rhs-slow))))
-                     (inner (cdr lhs-aabbs) rhs-fast rhs-slow)))]
+                     (inner solids (cdr rhs-aabbs))))]
 
           [else lhs-aabbs]))
 
-  (let-values ([(rhs-fast rhs-slow) (islands rhs-aabbs)])
-    (filter aabb-valid?
-            (inner lhs-aabbs rhs-fast (aabb-union rhs-slow)))))
+  (filter aabb-valid?
+          (inner lhs-aabbs (islands rhs-aabbs))))
 
 
 ; Convert a CSG syntax tree into list of AABBs of subtrees.
