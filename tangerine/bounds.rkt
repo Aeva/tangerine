@@ -90,14 +90,6 @@
      (combiner lhs-tree rhs-tree))))
 
 
-; Returns true if the provided AABBs overlap one another.
-(define (overlaps? lhs rhs)
-  (let ([inter (aabb-inter lhs rhs)])
-    (for/and ([min-x (in-list (car inter))]
-              [max-x (in-list (cadr inter))])
-      (min-x . < . max-x))))
-
-
 ; Extract a list of subtrees from a list of AABBs.
 (define (extract-subtrees bounds)
   (remove-duplicates
@@ -262,67 +254,6 @@
    (caddr aabb)))
 
 
-; Takes a list of AABBs, and produces an equivalent list of non-overlapping
-; AABBs.  Overlapping AABBs will be split into intersections and non-overlapping
-; regions.
-(define (islands aabbs [isolated null] [overlapping null])
-
-  (define (split-overlaps aabb . remainder)
-    (if (null? remainder)
-        (list aabb)
-        (let* ([test (λ (other) (overlaps? aabb other))]
-               [matching (filter test remainder)]
-               [remainder (filter-not test remainder)])
-          (if (null? matching)
-              (cons aabb (apply split-overlaps remainder))
-              (let* ([other (car matching)]
-                     [lhs (aabb-clip aabb other)]
-                     [chs (aabb-inter aabb other union)]
-                     [rhs (aabb-clip other aabb)]
-                     [hands (cons chs (append lhs rhs))]
-                     [remainder (append hands (cdr matching) remainder)])
-                (apply split-overlaps remainder))))))
-
-  (if (null? aabbs)
-      (if (null? overlapping)
-          isolated
-          (append isolated (apply split-overlaps overlapping)))
-      (let* ([aabb (car aabbs)]
-             [test (λ (other) (overlaps? aabb other))]
-             [eliminated (filter test (cdr aabbs))]
-             [remainder (filter-not test (cdr aabbs))])
-        (if (null? eliminated)
-            (islands remainder (cons aabb isolated) overlapping)
-            (islands remainder isolated (cons aabb (append eliminated overlapping)))))))
-
-
-; Takes two lists of AABBs and produces a third which is the shapes in
-; the second list subtracted from the first.
-(define (aabb-diff lhs-aabbs rhs-aabbs)
-
-  (define (inner lhs-aabbs rhs-aabbs)
-    (cond [(null? lhs-aabbs) null]
-
-          ; The "fast" set contains cut shapes that do not overlap with any other
-          ; cut shapes, and therefore can be treated as independent cuts.  The lhs
-          ; aabbs will be clipped by these and be recursed upon, whereas the
-          ; intersections will be returned as individual diffs directly.
-          [(not (null? rhs-aabbs))
-           (let* ([rhs (car rhs-aabbs)]
-                  [solids (append* (map (λ (lhs) (aabb-clip lhs rhs)) lhs-aabbs))]
-                  [cuts (map (λ (lhs) (rewrite-subtree
-                                       (aabb-inter lhs rhs)
-                                       (diff (caddr lhs) (caddr rhs))))
-                             lhs-aabbs)])
-             (append cuts
-                     (inner solids (cdr rhs-aabbs))))]
-
-          [else lhs-aabbs]))
-
-  (filter aabb-valid?
-          (inner lhs-aabbs (islands rhs-aabbs))))
-
-
 ; Convert a CSG syntax tree into list of AABBs of subtrees.
 (define (tree-aabb root)
   (let ([node (car root)]
@@ -382,10 +313,19 @@
                     (aabb-clip aabb blend))))))]
 
       [(diff)
-       (let*-values ([(lhs rhs) (splat args)]
-                     [(lhs-aabbs) (tree-aabb lhs)]
-                     [(rhs-aabbs) (tree-aabb rhs)])
-         (aabb-diff lhs-aabbs rhs-aabbs))]
+       (let-values ([(lhs rhs) (splat args)])
+         (let* ([lhs-aabbs (tree-aabb lhs)]
+                [rhs-aabbs (tree-aabb rhs)]
+                [lhs-merged (aabb-union lhs-aabbs)]
+                [rhs-merged (aabb-union rhs-aabbs)]
+                [diff-region (rewrite-subtree
+                              (aabb-inter lhs-merged rhs-merged)
+                              (diff lhs
+                                    rhs))])
+           (cons diff-region
+                 (append*
+                  (for/list ([aabb (in-list lhs-aabbs)])
+                    (aabb-clip aabb diff-region))))))]
 
       [(blend-diff)
        (let-values ([(threshold lhs rhs) (splat args)])
