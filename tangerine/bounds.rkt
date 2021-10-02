@@ -45,11 +45,9 @@
 
 ; Test if a point is within an AABB's bounds, inclusive of the edges.
 (define (within? point aabb)
-  (for/and ([min-x (in-list (car aabb))]
-            [max-x (in-list (cadr aabb))]
-            [x (in-list point)])
-    (and (x . >= . min-x)
-         (x . <= . max-x))))
+  (and
+   (vec= point (vec-max point (car aabb)))
+   (vec= point (vec-min point (cadr aabb)))))
 
 
 ; Emit the low point, high point, and subtree of the AABB as values.

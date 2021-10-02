@@ -33,6 +33,7 @@
          vec-
          vec*
          vec/
+         vec=
          vec-min
          vec-max
          vec-len
@@ -165,6 +166,14 @@
 
 
 (define vec/ (vec-op /))
+
+
+(define (vec= lhs rhs)
+  (and
+   (= (length lhs) (length rhs))
+   (for/and ([a (in-list lhs)]
+             [b (in-list rhs)])
+     (= a b))))
 
 
 (define vec-min (vec-op min))
