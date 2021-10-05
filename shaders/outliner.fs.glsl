@@ -24,6 +24,8 @@ uniform ViewInfoBlock
 	mat4 ClipToView;
 	vec4 CameraOrigin;
 	vec4 ScreenSize;
+	vec4 ModelMin;
+	vec4 ModelMax;
 	float CurrentTime;
 };
 
@@ -121,6 +123,6 @@ void main()
 	}
 	else
 	{
-		OutColor = vec4(vec3(0.6), 1.0);
+		discard;
 	}
 }

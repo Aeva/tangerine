@@ -407,6 +407,15 @@
       [else (error "Unknown CSGST node:" node)])))
 
 
+(define (find-model-limits bounds)
+  (define global-min (caar bounds))
+  (define global-max (cadar bounds))
+  (for/list ([aabb (in-list (cdr bounds))])
+    (set! global-min (vec-min global-min (car aabb)))
+    (set! global-max (vec-max global-max (cadr aabb))))
+  (append global-min global-max))
+
+
 (define (segments csg-tree)
   (assert-csg csg-tree)
   (let* ([bounds
@@ -414,13 +423,14 @@
            (filter aabb-valid?
                    (tree-aabb csg-tree)))]
          [subtrees (extract-subtrees bounds)])
-    (for/list ([subtree (in-list subtrees)])
-      (cons subtree
-            (remove-duplicates
-             (for/list ([aabb (in-list bounds)]
-                        #:when (equal? (caddr aabb) subtree))
-               (cons (car aabb)
-                     (cadr aabb))))))))
+    (values (find-model-limits bounds)
+     (for/list ([subtree (in-list subtrees)])
+       (cons subtree
+             (remove-duplicates
+              (for/list ([aabb (in-list bounds)]
+                         #:when (equal? (caddr aabb) subtree))
+                (cons (car aabb)
+                        (cadr aabb)))))))))
 
 
 ; Tests

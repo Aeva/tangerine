@@ -47,13 +47,20 @@
          renderer-load-and-process-model)
 
 
+(define-ffi-definer define-backend (ffi-lib #f) #:default-make-fail make-not-available)
+(define-backend NewClusterCallback (_fun _int _string/utf-8 _string/utf-8 -> _void))
+(define-backend SetLimitsCallback (_fun _float _float _float _float _float _float -> _void))
+(define-backend RacketErrorCallback (_fun _string/utf-8 -> _void))
+
+
 (define (glsl-vec3 vec)
   (let-values ([(x y z) (apply values vec)])
     @~a{vec3(@x, @y, @z)}))
 
 
 (define (compile csgst)
-  (let ([parts (segments (coalesce csgst))])
+  (let-values ([(limits parts) (segments (coalesce csgst))])
+    (apply SetLimitsCallback limits)
     (for/list ([part (in-list parts)])
       (let* ([subtree (car part)]
              [bounds (cdr part)]
@@ -85,10 +92,6 @@
              "};\n"))
            "\n")))))))
 
-
-(define-ffi-definer define-backend (ffi-lib #f) #:default-make-fail make-not-available)
-(define-backend NewClusterCallback (_fun _int _string/utf-8 _string/utf-8 -> _void))
-(define-backend RacketErrorCallback (_fun _string/utf-8 -> _void))
 
 (define (renderer-load-and-process-model path-str)
   (with-handlers ([exn:fail? (λ (err) (RacketErrorCallback (exn-message err)))])

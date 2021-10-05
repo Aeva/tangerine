@@ -198,6 +198,7 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="..\regen.bat" />
+    <None Include="..\shaders\bg.fs.glsl" />
     <None Include="..\shaders\cluster_coverage.fs.glsl" />
     <None Include="..\shaders\cluster_coverage.vs.glsl" />
     <None Include="..\shaders\cluster_cull.cs.glsl" />

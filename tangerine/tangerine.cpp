@@ -62,6 +62,7 @@ ShaderPipeline ClusterCoverageShader;
 std::vector<ShaderPipeline> ClusterDepthShaders;
 ShaderPipeline PaintShader;
 ShaderPipeline NoiseShader;
+ShaderPipeline BgShader;
 
 Buffer ViewInfo("ViewInfo Buffer");
 
@@ -142,6 +143,8 @@ struct ViewInfoUpload
 	glm::mat4 ClipToView;
 	glm::vec4 CameraOrigin;
 	glm::vec4 ScreenSize;
+	glm::vec4 ModelMin;
+	glm::vec4 ModelMax;
 	float CurrentTime;
 	float Padding[3] = { 0 };
 };
@@ -238,6 +241,11 @@ StatusCode SetupRenderer()
 		{ {GL_VERTEX_SHADER, ShaderSource("shaders/splat.vs.glsl", true)},
 		 {GL_FRAGMENT_SHADER, ShaderSource("shaders/outliner.fs.glsl", true)} },
 		"Outliner Shader"));
+
+	RETURN_ON_FAIL(BgShader.Setup(
+		{ {GL_VERTEX_SHADER, ShaderSource("shaders/splat.vs.glsl", true)},
+			 {GL_FRAGMENT_SHADER, ShaderSource("shaders/bg.fs.glsl", true)} },
+		"Background Shader"));
 #endif
 
 	RETURN_ON_FAIL(NoiseShader.Setup(
@@ -305,6 +313,8 @@ int MouseMotionX = 0;
 int MouseMotionY = 0;
 int MouseMotionZ = 0;
 bool ResetCamera = true;
+glm::vec4 ModelMin = glm::vec4(0.0);
+glm::vec4 ModelMax = glm::vec4(0.0);
 void RenderFrame(int ScreenWidth, int ScreenHeight)
 {
 	if (NewShaderReady)
@@ -417,6 +427,8 @@ void RenderFrame(int ScreenWidth, int ScreenHeight)
 			ClipToView,
 			glm::vec4(CameraOrigin, 1.0f),
 			glm::vec4(Width, Height, 1.0f / Width, 1.0f / Height),
+			ModelMin,
+			ModelMax,
 			float(CurrentTime),
 		};
 		ViewInfo.Upload((void*)&BufferData, sizeof(BufferData));
@@ -511,12 +523,17 @@ void RenderFrame(int ScreenWidth, int ScreenHeight)
 			}
 			glPopDebugGroup();
 		}
-
 		{
-			glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Paint");
+			glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Background");
 			glDepthMask(GL_FALSE);
 			glDisable(GL_DEPTH_TEST);
 			glBindFramebuffer(GL_FRAMEBUFFER, FinalPass);
+			BgShader.Activate();
+			glDrawArrays(GL_TRIANGLES, 0, 3);
+			glPopDebugGroup();
+		}
+		{
+			glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Paint");
 			glBindTextureUnit(1, DepthBuffer);
 			glBindTextureUnit(2, PositionBuffer);
 			glBindTextureUnit(3, NormalBuffer);
@@ -550,6 +567,13 @@ void ToggleFullScreen(SDL_Window* Window)
 extern "C" void TANGERINE_API NewClusterCallback(int ClusterCount, const char* ClusterDist, const char* ClusterData)
 {
 	NewClusters.push_back({ ClusterCount, std::string(ClusterDist), std::string(ClusterData) });
+}
+
+
+extern "C" void TANGERINE_API SetLimitsCallback(float MinX, float MinY, float MinZ, float MaxX, float MaxY, float MaxZ)
+{
+	ModelMin = glm::vec4(MinX, MinY, MinZ, 1.0);
+	ModelMax = glm::vec4(MaxX, MaxY, MaxZ, 1.0);
 }
 
 

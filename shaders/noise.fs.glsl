@@ -24,6 +24,8 @@ uniform ViewInfoBlock
 	mat4 ClipToView;
 	vec4 CameraOrigin;
 	vec4 ScreenSize;
+	vec4 ModelMin;
+	vec4 ModelMax;
 	float CurrentTime;
 };
 

@@ -149,6 +149,9 @@
     <None Include="..\third_party\racket\lib\libracketcs_d9hn5s.def">
       <Filter>Racket Stuff</Filter>
     </None>
+    <None Include="..\shaders\bg.fs.glsl">
+      <Filter>Shaders</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="tangerine.rc" />
