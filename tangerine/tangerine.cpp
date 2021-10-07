@@ -312,6 +312,7 @@ void SetupNewShader()
 int MouseMotionX = 0;
 int MouseMotionY = 0;
 int MouseMotionZ = 0;
+int ShowBackground = 0;
 bool ResetCamera = true;
 glm::vec4 ModelMin = glm::vec4(0.0);
 glm::vec4 ModelMax = glm::vec4(0.0);
@@ -528,8 +529,17 @@ void RenderFrame(int ScreenWidth, int ScreenHeight)
 			glDepthMask(GL_FALSE);
 			glDisable(GL_DEPTH_TEST);
 			glBindFramebuffer(GL_FRAMEBUFFER, FinalPass);
-			BgShader.Activate();
-			glDrawArrays(GL_TRIANGLES, 0, 3);
+			switch (ShowBackground)
+			{
+			case 0:
+				BgShader.Activate();
+				glDrawArrays(GL_TRIANGLES, 0, 3);
+				break;
+			default:
+				ShowBackground = -1;
+				glClearColor(0.6, 0.6, 0.6, 1.0);
+				glClear(GL_COLOR_BUFFER_BIT);
+			}
 			glPopDebugGroup();
 		}
 		{
@@ -658,6 +668,18 @@ void RenderUI(SDL_Window* Window, bool& Live)
 		}
 		if (ImGui::BeginMenu("View"))
 		{
+			if (ImGui::BeginMenu("Background"))
+			{
+				if (ImGui::MenuItem("Solid Color", nullptr, ShowBackground == -1))
+				{
+					ShowBackground = -1;
+				}
+				if (ImGui::MenuItem("Test Grid", nullptr, ShowBackground == 0))
+				{
+					ShowBackground = 0;
+				}
+				ImGui::EndMenu();
+			}
 			if (ImGui::MenuItem("Recenter"))
 			{
 				ResetCamera = true;
