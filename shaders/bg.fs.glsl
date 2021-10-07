@@ -60,6 +60,30 @@ void DrawPlane(vec3 RayStart, vec3 RayDir, vec3 PlaneNormal, float PlaneOffset, 
 }
 
 
+float SdPlus(vec2 Position)
+{
+	Position = abs(fract(Position) - 0.5);
+	float Box1;
+	{
+		vec2 d = Position - vec2(0.03, 0.2);
+		Box1 = length(max(d,0.0)) + min(max(d.x,d.y),0.0);
+	}
+	float Box2;
+	{
+		vec2 d = Position - vec2(0.2, 0.03);
+		Box2 = length(max(d,0.0)) + min(max(d.x,d.y),0.0);
+	}
+	return min(Box1, Box2);
+}
+
+
+float SdMinus(vec2 Position)
+{
+	vec2 d = abs(fract(Position) - 0.5) - vec2(0.2, 0.03);
+	return length(max(d,0.0)) + min(max(d.x,d.y),0.0);
+}
+
+
 void main()
 {
 	vec2 NDC = gl_FragCoord.xy * ScreenSize.zw * 2.0 - 1.0;
@@ -122,6 +146,13 @@ void main()
 		bool WithinBoundsX = ModelMin.x <= BestIntersect.x && BestIntersect.x <= ModelMax.x;
 		bool WithinBoundsY = ModelMin.y <= BestIntersect.y && BestIntersect.y <= ModelMax.y;
 		bool WithinBoundsZ = ModelMin.z <= BestIntersect.z && BestIntersect.z <= ModelMax.z;
+		bool TileX = int(ceil(BestIntersect.x)) % 2 == 0;
+		bool TileY = int(ceil(BestIntersect.y)) % 2 == 0;
+		bool TileZ = int(ceil(BestIntersect.z)) % 2 == 0;
+		vec3 Gray = vec3(0.4) * Highlight;
+		vec3 Red = vec3(1.0, 0.25, 0.25) * Highlight;
+		vec3 Green = vec3(0.25, 1.0, 0.25) * Highlight;
+		vec3 Blue = vec3(0.25, 0.25, 1.0) * Highlight;
 
 		if (BestNormal.x != 0.0)
 		{
@@ -129,13 +160,25 @@ void main()
 			{
 				OutColor.rgb = vec3(0.0);
 			}
+			else if (abs(BestIntersect.y) < LineHalf || abs(BestIntersect.z) < LineHalf)
+			{
+				OutColor.rgb = Gray;
+			}
 			else if (LineDistY < LineHalf && LineDistY < LineDistZ)
 			{
-				OutColor.rgb = vec3(0.25, 1.0, 0.25) * Highlight;
+				OutColor.rgb = Green;
 			}
 			else if (LineDistZ < LineHalf && LineDistZ < LineDistY)
 			{
-				OutColor.rgb = vec3(0.25, 0.25, 1.0) * Highlight;
+				OutColor.rgb = Blue;
+			}
+			else if (TileY && !TileZ && ((BestIntersect.y > 0 && SdPlus(BestIntersect.yz) <= 0.0) || SdMinus(BestIntersect.yz) <= 0.0))
+			{
+				OutColor.rgb = Green;
+			}
+			else if (TileZ && !TileY && ((BestIntersect.z > 0 && SdPlus(BestIntersect.yz) <= 0.0) || SdMinus(BestIntersect.yz) <= 0.0))
+			{
+				OutColor.rgb = Blue;
 			}
 		}
 		else if (BestNormal.y != 0.0)
@@ -144,13 +187,25 @@ void main()
 			{
 				OutColor.rgb = vec3(0.0);
 			}
+			else if (abs(BestIntersect.x) < LineHalf || abs(BestIntersect.z) < LineHalf)
+			{
+				OutColor.rgb = Gray;
+			}
 			else if (LineDistX < LineHalf && LineDistX < LineDistZ)
 			{
-				OutColor.rgb = vec3(1.0, 0.25, 0.25) * Highlight;
+				OutColor.rgb = Red;
 			}
 			else if (LineDistZ < LineHalf && LineDistZ < LineDistX)
 			{
-				OutColor.rgb = vec3(0.25, 0.25, 1.0) * Highlight;
+				OutColor.rgb = Blue;
+			}
+			else if (TileX && !TileZ && ((BestIntersect.x > 0 && SdPlus(BestIntersect.xz) <= 0.0) || SdMinus(BestIntersect.xz) <= 0.0))
+			{
+				OutColor.rgb = Red;
+			}
+			else if (TileZ && !TileX && ((BestIntersect.z > 0 && SdPlus(BestIntersect.xz) <= 0.0) || SdMinus(BestIntersect.xz) <= 0.0))
+			{
+				OutColor.rgb = Blue;
 			}
 		}
 		else
@@ -159,13 +214,25 @@ void main()
 			{
 				OutColor.rgb = vec3(0.0);
 			}
+			else if (abs(BestIntersect.x) < LineHalf || abs(BestIntersect.y) < LineHalf)
+			{
+				OutColor.rgb = Gray;
+			}
 			else if (LineDistX < LineHalf && LineDistX < LineDistY)
 			{
-				OutColor.rgb = vec3(1.0, 0.25, 0.25) * Highlight;
+				OutColor.rgb = Red;
 			}
 			else if (LineDistY < LineHalf && LineDistY < LineDistX)
 			{
-				OutColor.rgb = vec3(0.25, 1.0, 0.25) * Highlight;
+				OutColor.rgb = Green;
+			}
+			else if (TileX && !TileY && ((BestIntersect.x > 0 && SdPlus(BestIntersect.xy) <= 0.0) || SdMinus(BestIntersect.xy) <= 0.0))
+			{
+				OutColor.rgb = Red;
+			}
+			else if (TileY && !TileX && ((BestIntersect.y > 0 && SdPlus(BestIntersect.xy) <= 0.0) || SdMinus(BestIntersect.xy) <= 0.0))
+			{
+				OutColor.rgb = Green;
 			}
 		}
 	}
