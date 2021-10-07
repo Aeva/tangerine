@@ -316,6 +316,7 @@ int ShowBackground = 0;
 bool ResetCamera = true;
 glm::vec4 ModelMin = glm::vec4(0.0);
 glm::vec4 ModelMax = glm::vec4(0.0);
+float FrameRate = 0.0;
 void RenderFrame(int ScreenWidth, int ScreenHeight)
 {
 	if (NewShaderReady)
@@ -364,6 +365,7 @@ void RenderFrame(int ScreenWidth, int ScreenHeight)
 			CurrentTime = EpochDelta.count();
 		}
 		LastTimePoint = CurrentTimePoint;
+		FrameRate = 1000.0 / DeltaTime;
 	}
 
 	static int FrameNumber = 0;
@@ -648,6 +650,8 @@ void RenderUI(SDL_Window* Window, bool& Live)
 	ImGui::ShowDemoWindow(&ShowDemoWindow);
 #endif
 
+	static bool ShowStatsOverlay = false;
+
 	if (ImGui::BeginMainMenuBar())
 	{
 		if (ImGui::BeginMenu("File"))
@@ -690,7 +694,43 @@ void RenderUI(SDL_Window* Window, bool& Live)
 			}
 			ImGui::EndMenu();
 		}
+		if (ImGui::BeginMenu("Window"))
+		{
+			if (ImGui::MenuItem("Performance Stats", nullptr, &ShowStatsOverlay))
+			{
+			}
+			ImGui::EndMenu();
+		}
 		ImGui::EndMainMenuBar();
+	}
+
+	if (ShowStatsOverlay)
+	{
+		ImGuiWindowFlags WindowFlags = \
+			ImGuiWindowFlags_NoMove |
+			ImGuiWindowFlags_NoDecoration |
+			ImGuiWindowFlags_AlwaysAutoResize |
+			ImGuiWindowFlags_NoSavedSettings |
+			ImGuiWindowFlags_NoFocusOnAppearing |
+			ImGuiWindowFlags_NoNavInputs |
+			ImGuiWindowFlags_NoNavFocus |
+			ImGuiWindowFlags_NoNav |
+			ImGuiWindowFlags_NoInputs;
+
+		const ImGuiViewport* Viewport = ImGui::GetMainViewport();
+		ImVec2 Position = Viewport->WorkPos;
+		Position.x += 5.0;
+		Position.y += 5.0;
+		ImVec2 Pivot;
+		Pivot.x = 0.0;
+		Pivot.y = 0.0;
+		ImGui::SetNextWindowPos(Position, ImGuiCond_Always, Pivot);
+
+		if (ImGui::Begin("Example: Simple overlay", &ShowStatsOverlay, WindowFlags))
+		{
+			ImGui::Text("FPS: %.1f\n", FrameRate);
+		}
+		ImGui::End();
 	}
 
 	if (RacketErrors.size() > 0)
