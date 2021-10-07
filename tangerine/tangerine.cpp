@@ -65,6 +65,7 @@ ShaderPipeline NoiseShader;
 ShaderPipeline BgShader;
 
 Buffer ViewInfo("ViewInfo Buffer");
+Buffer OutlinerOptions("ViewInfo Buffer");
 
 std::vector<Buffer> TileDrawArgs;
 Buffer TileHeapInfo("Tile Draw Heap Info");
@@ -73,6 +74,7 @@ GLuint DepthPass;
 GLuint DepthBuffer;
 GLuint PositionBuffer;
 GLuint NormalBuffer;
+GLuint IDBuffer;
 const GLuint FinalPass = 0;
 
 
@@ -124,13 +126,22 @@ void AllocateRenderTargets(int ScreenWidth, int ScreenHeight)
 		glTextureParameteri(NormalBuffer, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 		glObjectLabel(GL_TEXTURE, NormalBuffer, -1, "World Normal");
 
+		glCreateTextures(GL_TEXTURE_2D, 1, &IDBuffer);
+		glTextureStorage2D(IDBuffer, 1, GL_R32UI, ScreenWidth, ScreenHeight);
+		glTextureParameteri(IDBuffer, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+		glTextureParameteri(IDBuffer, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+		glTextureParameteri(IDBuffer, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+		glTextureParameteri(IDBuffer, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+		glObjectLabel(GL_TEXTURE, IDBuffer, -1, "Subtree ID");
+
 		glCreateFramebuffers(1, &DepthPass);
 		glObjectLabel(GL_FRAMEBUFFER, DepthPass, -1, "DepthPass");
 		glNamedFramebufferTexture(DepthPass, GL_DEPTH_ATTACHMENT, DepthBuffer, 0);
 		glNamedFramebufferTexture(DepthPass, GL_COLOR_ATTACHMENT0, PositionBuffer, 0);
 		glNamedFramebufferTexture(DepthPass, GL_COLOR_ATTACHMENT1, NormalBuffer, 0);
-		GLenum ColorAttachments[2] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1 };
-		glNamedFramebufferDrawBuffers(DepthPass, 2, ColorAttachments);
+		glNamedFramebufferTexture(DepthPass, GL_COLOR_ATTACHMENT2, IDBuffer, 0);
+		GLenum ColorAttachments[3] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1, GL_COLOR_ATTACHMENT2 };
+		glNamedFramebufferDrawBuffers(DepthPass, 3, ColorAttachments);
 	}
 }
 
@@ -175,6 +186,12 @@ struct TileHeapEntry
 };
 
 
+struct OutlinerOptionsUpload
+{
+	GLboolean HighlightSubtrees;
+};
+
+
 StatusCode CompileGeneratedShaders(std::string& ClusterDist, std::string& ClusterData)
 {
 	ShaderPipeline CullingShader;
@@ -213,6 +230,7 @@ StatusCode SetupRenderer()
 	glBindVertexArray(NullVAO);
 
 	std::string NullClusterDist = \
+		"const uint SubtreeIndex = 0;\n"
 		"float ClusterDist(vec3 Point)\n"
 		"{\n"
 		"	return 0.0;\n"
@@ -313,6 +331,7 @@ int MouseMotionX = 0;
 int MouseMotionY = 0;
 int MouseMotionZ = 0;
 int ShowBackground = 0;
+bool ShowSubtrees = false;
 bool ResetCamera = true;
 glm::vec4 ModelMin = glm::vec4(0.0);
 glm::vec4 ModelMax = glm::vec4(0.0);
@@ -365,7 +384,7 @@ void RenderFrame(int ScreenWidth, int ScreenHeight)
 			CurrentTime = EpochDelta.count();
 		}
 		LastTimePoint = CurrentTimePoint;
-		FrameRate = 1000.0 / DeltaTime;
+		FrameRate = float(1000.0 / DeltaTime);
 	}
 
 	static int FrameNumber = 0;
@@ -436,6 +455,13 @@ void RenderFrame(int ScreenWidth, int ScreenHeight)
 		};
 		ViewInfo.Upload((void*)&BufferData, sizeof(BufferData));
 		ViewInfo.Bind(GL_UNIFORM_BUFFER, 0);
+	}
+
+	{
+		OutlinerOptionsUpload BufferData = {
+			ShowSubtrees,
+		};
+		OutlinerOptions.Upload((void*)&BufferData, sizeof(BufferData));
 	}
 
 	const unsigned int TilesX = DIV_UP(Width, TILE_SIZE_X);
@@ -549,6 +575,8 @@ void RenderFrame(int ScreenWidth, int ScreenHeight)
 			glBindTextureUnit(1, DepthBuffer);
 			glBindTextureUnit(2, PositionBuffer);
 			glBindTextureUnit(3, NormalBuffer);
+			glBindTextureUnit(4, IDBuffer);
+			OutlinerOptions.Bind(GL_UNIFORM_BUFFER, 1);
 			PaintShader.Activate();
 			glDrawArrays(GL_TRIANGLES, 0, 3);
 			glPopDebugGroup();
@@ -683,6 +711,9 @@ void RenderUI(SDL_Window* Window, bool& Live)
 					ShowBackground = 0;
 				}
 				ImGui::EndMenu();
+			}
+			if (ImGui::MenuItem("Highlight Subtrees", nullptr, &ShowSubtrees))
+			{
 			}
 			if (ImGui::MenuItem("Recenter"))
 			{

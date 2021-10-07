@@ -42,6 +42,7 @@ layout(location = 1) out vec4 OutNormal;
 #else
 layout(location = 1) out vec3 OutNormal;
 #endif
+layout(location = 2) out uint OutSubtreeID;
 
 
 vec3 Gradient(vec3 Position)
@@ -114,6 +115,7 @@ void main()
 #if VISUALIZE_TRACING_ERROR
 		OutNormal.a = abs(clamp(Dist, -0.005, 0.005) / 0.005);
 #endif
+		OutSubtreeID = SubtreeIndex;
 
 		vec4 ViewPosition = WorldToView * vec4(Position, 1.0);
 		ViewPosition /= ViewPosition.w;

@@ -29,14 +29,21 @@ uniform ViewInfoBlock
 	float CurrentTime;
 };
 
+layout(std140, binding = 1)
+uniform OutlinerOptionsBlock
+{
+	bool HighlightSubtrees;
+};
+
 layout(binding = 1) uniform sampler2D DepthBuffer;
 layout(binding = 2) uniform sampler2D PositionBuffer;
 layout(binding = 3) uniform sampler2D NormalBuffer;
+layout(binding = 4) uniform usampler2D SubtreeBuffer;
 
 layout(location = 0) out vec4 OutColor;
 
 
-void SampleAt(vec2 Coord, out bool DepthMask, out vec3 Position, out vec3 Normal)
+void SampleAt(vec2 Coord, out bool DepthMask, out vec3 Position, out vec3 Normal, out uint SubtreeIndex)
 {
 	const vec2 UV = clamp(Coord * ScreenSize.zw, 0.0, 1.0);
 	DepthMask = texture(DepthBuffer, UV).r == 0.0 ? false : true;
@@ -44,7 +51,22 @@ void SampleAt(vec2 Coord, out bool DepthMask, out vec3 Position, out vec3 Normal
 	{
 		Position = texture(PositionBuffer, UV).rgb;
 		Normal = texture(NormalBuffer, UV).rgb;
+		SubtreeIndex = texture(SubtreeBuffer, UV).r;
 	}
+}
+
+
+void SampleAt(vec2 Coord, out bool DepthMask, out vec3 Position, out vec3 Normal)
+{
+	uint Ignore;
+	SampleAt(Coord, DepthMask, Position, Normal, Ignore);
+}
+
+
+vec3 HSV(float Hue, float Sat, float Value)
+{
+	vec4 K = vec4(1.0, 2.0/3.0, 1.0/3.0, 3.0);
+	return Value * mix(K.xxx, min(max(abs(fract(Hue + K.xyz) * 6.0 - K.w) - K.x, 0.0), 1.0), Sat);
 }
 
 
@@ -53,7 +75,8 @@ void main()
 	bool DepthMask;
 	vec3 CenterPosition;
 	vec3 CenterNormal;
-	SampleAt(gl_FragCoord.xy, DepthMask, CenterPosition, CenterNormal);
+	uint SubtreeIndex;
+	SampleAt(gl_FragCoord.xy, DepthMask, CenterPosition, CenterNormal, SubtreeIndex);
 	if (DepthMask)
 	{
 		vec3 Positions[8];
@@ -104,8 +127,15 @@ void main()
 				}
 			}
 			{
+				vec3 BaseColor = vec3(1.0);
+				if (HighlightSubtrees)
+				{
+					float PHI = 1.618033988749895;
+					float Hue = fract((float(SubtreeIndex) * PHI * 130.0) / 360.0);
+					BaseColor = HSV(Hue, 1.0, 1.0);
+				}
 				float Highlight = dot(CenterNormal, normalize(CameraOrigin.xyz - CenterPosition));
-				OutColor = vec4(vec3(Highlight), 1.0);
+				OutColor = vec4(BaseColor * vec3(Highlight), 1.0);
 			}
 			if (Angle > -0.707)
 			{

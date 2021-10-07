@@ -61,7 +61,8 @@
 (define (compile csgst)
   (let-values ([(limits parts) (segments (coalesce csgst))])
     (apply SetLimitsCallback limits)
-    (for/list ([part (in-list parts)])
+    (for/list ([part (in-list parts)]
+               [subtree-index (in-range (length parts))])
       (let* ([subtree (car part)]
              [bounds (cdr part)]
              [count (length bounds)])
@@ -70,6 +71,7 @@
          (cons
           (string-join
            (list
+            @~a{const uint SubtreeIndex = @subtree-index;}
             "float ClusterDist(vec3 Point)"
             "{"
             (~a "\treturn " (eval-dist subtree) ";")
