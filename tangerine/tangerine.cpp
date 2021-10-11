@@ -77,6 +77,11 @@ GLuint NormalBuffer;
 GLuint IDBuffer;
 const GLuint FinalPass = 0;
 
+GLuint CullingTimeQuery;
+GLuint DepthTimeQuery;
+GLuint GridBgTimeQuery;
+GLuint OutlinerTimeQuery;
+
 
 std::vector<int> ClusterCounts;
 
@@ -271,6 +276,11 @@ StatusCode SetupRenderer()
 		 {GL_FRAGMENT_SHADER, ShaderSource("shaders/noise.fs.glsl", true)} },
 		"Noise Shader"));
 
+	glGenQueries(1, &CullingTimeQuery);
+	glGenQueries(1, &DepthTimeQuery);
+	glGenQueries(1, &GridBgTimeQuery);
+	glGenQueries(1, &OutlinerTimeQuery);
+
 	glDisable(GL_MULTISAMPLE);
 	glEnable(GL_CULL_FACE);
 	glEnable(GL_DEPTH_TEST);
@@ -294,9 +304,12 @@ struct GeneratedSources
 
 bool ModelLoaded = false;
 bool NewShaderReady = false;
+double ShaderCompilerStallMs = 0.0;
 std::vector<GeneratedSources> NewClusters;
 void SetupNewShader()
 {
+	using Clock = std::chrono::high_resolution_clock;
+	Clock::time_point StartTimePoint = Clock::now();
 	for (ShaderPipeline& CullingShader : ClusterCullingShaders)
 	{
 		CullingShader.Reset();
@@ -321,6 +334,9 @@ void SetupNewShader()
 			ClusterCounts.push_back(Generated.ClusterCount);
 		}
 	}
+	Clock::time_point EndTimePoint = Clock::now();
+	std::chrono::duration<double, std::milli> Delta = EndTimePoint - StartTimePoint;
+	ShaderCompilerStallMs = Delta.count();
 
 	NewShaderReady = false;
 	ModelLoaded = true;
@@ -335,7 +351,8 @@ bool ShowSubtrees = false;
 bool ResetCamera = true;
 glm::vec4 ModelMin = glm::vec4(0.0);
 glm::vec4 ModelMax = glm::vec4(0.0);
-float FrameRate = 0.0;
+float PresentFrequency = 0.0;
+float PresentDeltaMs = 0.0;
 void RenderFrame(int ScreenWidth, int ScreenHeight)
 {
 	if (NewShaderReady)
@@ -368,7 +385,6 @@ void RenderFrame(int ScreenWidth, int ScreenHeight)
 		}
 	}
 
-	double DeltaTime;
 	double CurrentTime;
 	{
 		using Clock = std::chrono::high_resolution_clock;
@@ -377,14 +393,14 @@ void RenderFrame(int ScreenWidth, int ScreenHeight)
 		Clock::time_point CurrentTimePoint = Clock::now();
 		{
 			std::chrono::duration<double, std::milli> FrameDelta = CurrentTimePoint - LastTimePoint;
-			DeltaTime = FrameDelta.count();
+			PresentDeltaMs = FrameDelta.count();
 		}
 		{
 			std::chrono::duration<double, std::milli> EpochDelta = CurrentTimePoint - StartTimePoint;
 			CurrentTime = EpochDelta.count();
 		}
 		LastTimePoint = CurrentTimePoint;
-		FrameRate = float(1000.0 / DeltaTime);
+		PresentFrequency = float(1000.0 / PresentDeltaMs);
 	}
 
 	static int FrameNumber = 0;
@@ -490,6 +506,7 @@ void RenderFrame(int ScreenWidth, int ScreenHeight)
 	{
 		{
 			glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Cluster Culling Pass");
+			glBeginQuery(GL_TIME_ELAPSED, CullingTimeQuery);
 			// Each lane is a tile, so we have to tile the tiles...
 			const unsigned int GroupX = DIV_UP(TilesX, TILE_SIZE_X);
 			const unsigned int GroupY = DIV_UP(TilesY, TILE_SIZE_Y);
@@ -515,6 +532,7 @@ void RenderFrame(int ScreenWidth, int ScreenHeight)
 				glPopDebugGroup();
 			}
 			glMemoryBarrier(GL_COMMAND_BARRIER_BIT);
+			glEndQuery(GL_TIME_ELAPSED);
 			glPopDebugGroup();
 		}
 
@@ -535,6 +553,7 @@ void RenderFrame(int ScreenWidth, int ScreenHeight)
 #else
 		{
 			glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Depth");
+			glBeginQuery(GL_TIME_ELAPSED, DepthTimeQuery);
 			glBindFramebuffer(GL_FRAMEBUFFER, DepthPass);
 			glDepthMask(GL_TRUE);
 			glEnable(GL_DEPTH_TEST);
@@ -550,10 +569,12 @@ void RenderFrame(int ScreenWidth, int ScreenHeight)
 				glDrawArraysIndirect(GL_TRIANGLES, 0);
 				++i;
 			}
+			glEndQuery(GL_TIME_ELAPSED);
 			glPopDebugGroup();
 		}
 		{
 			glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Background");
+			glBeginQuery(GL_TIME_ELAPSED, GridBgTimeQuery);
 			glDepthMask(GL_FALSE);
 			glDisable(GL_DEPTH_TEST);
 			glBindFramebuffer(GL_FRAMEBUFFER, FinalPass);
@@ -568,10 +589,12 @@ void RenderFrame(int ScreenWidth, int ScreenHeight)
 				glClearColor(0.6, 0.6, 0.6, 1.0);
 				glClear(GL_COLOR_BUFFER_BIT);
 			}
+			glEndQuery(GL_TIME_ELAPSED);
 			glPopDebugGroup();
 		}
 		{
 			glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Paint");
+			glBeginQuery(GL_TIME_ELAPSED, OutlinerTimeQuery);
 			glBindTextureUnit(1, DepthBuffer);
 			glBindTextureUnit(2, PositionBuffer);
 			glBindTextureUnit(3, NormalBuffer);
@@ -579,6 +602,7 @@ void RenderFrame(int ScreenWidth, int ScreenHeight)
 			OutlinerOptions.Bind(GL_UNIFORM_BUFFER, 1);
 			PaintShader.Activate();
 			glDrawArrays(GL_TRIANGLES, 0, 3);
+			glEndQuery(GL_TIME_ELAPSED);
 			glPopDebugGroup();
 		}
 #endif
@@ -625,6 +649,7 @@ extern "C" void TANGERINE_API RacketErrorCallback(const char* ErrorMessage)
 }
 
 
+double ModelProcessingStallMs = 0.0;
 void LoadModel(nfdchar_t* Path)
 {
 	static nfdchar_t* LastPath = nullptr;
@@ -635,6 +660,8 @@ void LoadModel(nfdchar_t* Path)
 	}
 	if (Path)
 	{
+		using Clock = std::chrono::high_resolution_clock;
+		Clock::time_point StartTimePoint = Clock::now();
 		NewClusters.clear();
 		Sactivate_thread();
 		ptr ModuleSymbol = Sstring_to_symbol("tangerine");
@@ -652,6 +679,9 @@ void LoadModel(nfdchar_t* Path)
 			LastPath = Path;
 			NewShaderReady = true;
 		}
+		Clock::time_point EndTimePoint = Clock::now();
+		std::chrono::duration<double, std::milli> Delta = EndTimePoint - StartTimePoint;
+		ModelProcessingStallMs = Delta.count();
 	}
 }
 
@@ -667,6 +697,18 @@ void OpenModel()
 }
 
 
+void UpdateElapsedTime(GLuint Query, double& TimeMs)
+{
+	GLint TimeNs = 0;
+	glGetQueryObjectiv(Query, GL_QUERY_RESULT, &TimeNs);
+	TimeMs = double(TimeNs) / 1000000.0;
+}
+
+
+double CullingElapsedTimeMs = 0.0;
+double DepthElapsedTimeMs = 0.0;
+double GridBgElapsedTimeMs = 0.0;
+double OutlinerElapsedTimeMs = 0.0;
 void RenderUI(SDL_Window* Window, bool& Live)
 {
 	ImGui_ImplOpenGL3_NewFrame();
@@ -759,7 +801,28 @@ void RenderUI(SDL_Window* Window, bool& Live)
 
 		if (ImGui::Begin("Example: Simple overlay", &ShowStatsOverlay, WindowFlags))
 		{
-			ImGui::Text("FPS: %.1f\n", FrameRate);
+			ImGui::Text("Cadence\n");
+			ImGui::Text(" ~ %.0f hz\n", round(PresentFrequency));
+			ImGui::Text(" ~ %.1f ms\n", PresentDeltaMs);
+
+			ImGui::Separator();
+			ImGui::Text("GPU Timeline\n");
+			double TotalTimeMs = \
+				CullingElapsedTimeMs +
+				DepthElapsedTimeMs +
+				GridBgElapsedTimeMs +
+				OutlinerElapsedTimeMs;
+			ImGui::Text(" ~ Culling: %.2f ms\n", CullingElapsedTimeMs);
+			ImGui::Text(" ~   Depth: %.2f ms\n", DepthElapsedTimeMs);
+			ImGui::Text(" ~ Grid BG: %.2f ms\n", GridBgElapsedTimeMs);
+			ImGui::Text(" ~ Outline: %.2f ms\n", OutlinerElapsedTimeMs);
+			ImGui::Text(" ~   Total: %.2f ms\n", TotalTimeMs);
+
+			ImGui::Separator();
+			ImGui::Text("Model Loading\n");
+			ImGui::Text(" ~ Racket: %.1f ms\n", ModelProcessingStallMs);
+			ImGui::Text(" ~ OpenGL: %.1f ms\n", ShaderCompilerStallMs);
+			ImGui::Text(" ~  Total: %.1f ms\n", ModelProcessingStallMs + ShaderCompilerStallMs);
 		}
 		ImGui::End();
 	}
@@ -991,6 +1054,10 @@ int main(int argc, char* argv[])
 				ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 				SDL_GL_SwapWindow(Window);
 			}
+			UpdateElapsedTime(CullingTimeQuery, CullingElapsedTimeMs);
+			UpdateElapsedTime(DepthTimeQuery, DepthElapsedTimeMs);
+			UpdateElapsedTime(GridBgTimeQuery, GridBgElapsedTimeMs);
+			UpdateElapsedTime(OutlinerTimeQuery, OutlinerElapsedTimeMs);
 		}
 	}
 	{
