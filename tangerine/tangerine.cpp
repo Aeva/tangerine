@@ -847,8 +847,8 @@ void RenderUI(SDL_Window* Window, bool& Live)
 		if (ImGui::Begin("Example: Simple overlay", &ShowStatsOverlay, WindowFlags))
 		{
 			ImGui::Text("Cadence\n");
-			ImGui::Text(" ~ %.0f hz\n", round(PresentFrequency));
-			ImGui::Text(" ~ %.1f ms\n", PresentDeltaMs);
+			ImGui::Text(" %.0f hz\n", round(PresentFrequency));
+			ImGui::Text(" %.1f ms\n", PresentDeltaMs);
 
 			ImGui::Separator();
 			ImGui::Text("GPU Timeline\n");
@@ -857,17 +857,17 @@ void RenderUI(SDL_Window* Window, bool& Live)
 				DepthElapsedTimeMs +
 				GridBgElapsedTimeMs +
 				OutlinerElapsedTimeMs;
-			ImGui::Text(" ~ Culling: %.2f ms\n", CullingElapsedTimeMs);
-			ImGui::Text(" ~   Depth: %.2f ms\n", DepthElapsedTimeMs);
-			ImGui::Text(" ~ Grid BG: %.2f ms\n", GridBgElapsedTimeMs);
-			ImGui::Text(" ~ Outline: %.2f ms\n", OutlinerElapsedTimeMs);
-			ImGui::Text(" ~   Total: %.2f ms\n", TotalTimeMs);
+			ImGui::Text(" Culling: %.2f ms\n", CullingElapsedTimeMs);
+			ImGui::Text("   Depth: %.2f ms\n", DepthElapsedTimeMs);
+			ImGui::Text("   'Sky': %.2f ms\n", GridBgElapsedTimeMs);
+			ImGui::Text(" Outline: %.2f ms\n", OutlinerElapsedTimeMs);
+			ImGui::Text("   Total: %.2f ms\n", TotalTimeMs);
 
 			ImGui::Separator();
 			ImGui::Text("Model Loading\n");
-			ImGui::Text(" ~ Racket: %.1f ms\n", ModelProcessingStallMs);
-			ImGui::Text(" ~ OpenGL: %.1f ms\n", ShaderCompilerStallMs);
-			ImGui::Text(" ~  Total: %.1f ms\n", ModelProcessingStallMs + ShaderCompilerStallMs);
+			ImGui::Text(" Racket: %.1f ms\n", ModelProcessingStallMs);
+			ImGui::Text(" OpenGL: %.1f ms\n", ShaderCompilerStallMs);
+			ImGui::Text("  Total: %.1f ms\n", ModelProcessingStallMs + ShaderCompilerStallMs);
 		}
 		ImGui::End();
 	}
