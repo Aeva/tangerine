@@ -32,7 +32,12 @@ uniform ViewInfoBlock
 layout(std140, binding = 1)
 uniform OutlinerOptionsBlock
 {
-	bool HighlightSubtrees;
+	uint OutlinerFlags;
+};
+
+layout(std430, binding = 2) restrict readonly buffer DepthTimeBuffer
+{
+	float SubtreeHeatmap[];
 };
 
 layout(binding = 1) uniform sampler2D DepthBuffer;
@@ -128,11 +133,18 @@ void main()
 			}
 			{
 				vec3 BaseColor = vec3(1.0);
-				if (HighlightSubtrees)
+				if ((OutlinerFlags & 1) == 1)
 				{
 					float PHI = 1.618033988749895;
 					float Hue = fract((float(SubtreeIndex) * PHI * 130.0) / 360.0);
 					BaseColor = HSV(Hue, 1.0, 1.0);
+				}
+				else if ((OutlinerFlags & 2) == 2)
+				{
+					float Alpha = SubtreeHeatmap[SubtreeIndex];
+					vec3 Cold = vec3(1.0);
+					vec3 Hot = vec3(1.0, 0.0, 0.0);
+					BaseColor = mix(Cold, Hot, Alpha * Alpha);
 				}
 				float Highlight = dot(CenterNormal, normalize(CameraOrigin.xyz - CenterPosition));
 				OutColor = vec4(BaseColor * vec3(Highlight), 1.0);

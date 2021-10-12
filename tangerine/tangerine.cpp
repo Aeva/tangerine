@@ -65,11 +65,12 @@ ShaderPipeline NoiseShader;
 ShaderPipeline BgShader;
 
 Buffer ViewInfo("ViewInfo Buffer");
-Buffer OutlinerOptions("ViewInfo Buffer");
+Buffer OutlinerOptions("Outliner Options Buffer");
 
 std::vector<Buffer> TileDrawArgs;
 Buffer TileHeapInfo("Tile Draw Heap Info");
 Buffer TileHeap("Tile Draw Heap");
+Buffer DepthTimeBuffer("Subtree Heatmap Buffer");
 GLuint DepthPass;
 GLuint DepthBuffer;
 GLuint PositionBuffer;
@@ -81,6 +82,7 @@ GLuint CullingTimeQuery;
 GLuint DepthTimeQuery;
 GLuint GridBgTimeQuery;
 GLuint OutlinerTimeQuery;
+std::vector<GLuint> ClusterDepthQueries;
 
 
 std::vector<int> ClusterCounts;
@@ -193,7 +195,7 @@ struct TileHeapEntry
 
 struct OutlinerOptionsUpload
 {
-	GLboolean HighlightSubtrees;
+	GLuint OutlinerFlags;
 };
 
 
@@ -322,6 +324,8 @@ void SetupNewShader()
 	ClusterDepthShaders.clear();
 	ClusterCounts.clear();
 
+	glDeleteQueries(ClusterDepthQueries.size(), ClusterDepthQueries.data());
+
 	for (GeneratedSources& Generated : NewClusters)
 	{
 		StatusCode Result = CompileGeneratedShaders(Generated.ClusterDist, Generated.ClusterData);
@@ -334,9 +338,20 @@ void SetupNewShader()
 			ClusterCounts.push_back(Generated.ClusterCount);
 		}
 	}
+
 	Clock::time_point EndTimePoint = Clock::now();
 	std::chrono::duration<double, std::milli> Delta = EndTimePoint - StartTimePoint;
 	ShaderCompilerStallMs = Delta.count();
+
+	const int NewQueryCount = ClusterDepthShaders.size();
+	ClusterDepthQueries.resize(NewQueryCount, 0);
+	{
+		std::vector<float> Zeros(NewQueryCount, 0.0);
+		glGenQueries(NewQueryCount, ClusterDepthQueries.data());
+		{
+			DepthTimeBuffer.Upload(Zeros.data(), NewQueryCount * sizeof(float));
+		}
+	}
 
 	NewShaderReady = false;
 	ModelLoaded = true;
@@ -348,6 +363,7 @@ int MouseMotionY = 0;
 int MouseMotionZ = 0;
 int ShowBackground = 0;
 bool ShowSubtrees = false;
+bool ShowHeatmap = false;
 bool ResetCamera = true;
 glm::vec4 ModelMin = glm::vec4(0.0);
 glm::vec4 ModelMax = glm::vec4(0.0);
@@ -474,8 +490,17 @@ void RenderFrame(int ScreenWidth, int ScreenHeight)
 	}
 
 	{
+		GLuint OutlinerFlags = 0;
+		if (ShowSubtrees)
+		{
+			OutlinerFlags |= 1;
+		}
+		if (ShowHeatmap)
+		{
+			OutlinerFlags |= 1 << 1;
+		}
 		OutlinerOptionsUpload BufferData = {
-			ShowSubtrees,
+			OutlinerFlags
 		};
 		OutlinerOptions.Upload((void*)&BufferData, sizeof(BufferData));
 	}
@@ -560,16 +585,30 @@ void RenderFrame(int ScreenWidth, int ScreenHeight)
 			glClear(GL_DEPTH_BUFFER_BIT);
 			TileHeap.Bind(GL_SHADER_STORAGE_BUFFER, 0);
 			TileHeapInfo.Bind(GL_SHADER_STORAGE_BUFFER, 1);
-			int i = 0;
-			for (ShaderPipeline& DepthShader : ClusterDepthShaders)
+			if (ShowHeatmap)
 			{
+				glEndQuery(GL_TIME_ELAPSED);
+			}
+			for (int i=0; i < ClusterDepthShaders.size(); ++i)
+			{
+				ShaderPipeline DepthShader = ClusterDepthShaders[i];
+				if (ShowHeatmap)
+				{
+					glBeginQuery(GL_TIME_ELAPSED, ClusterDepthQueries[i]);
+				}
 				DepthShader.Activate();
 				TileDrawArgs[i].Bind(GL_DRAW_INDIRECT_BUFFER);
 				TileDrawArgs[i].Bind(GL_SHADER_STORAGE_BUFFER, 3);
 				glDrawArraysIndirect(GL_TRIANGLES, 0);
-				++i;
+				if (ShowHeatmap)
+				{
+					glEndQuery(GL_TIME_ELAPSED);
+				}
 			}
-			glEndQuery(GL_TIME_ELAPSED);
+			if (!ShowHeatmap)
+			{
+				glEndQuery(GL_TIME_ELAPSED);
+			}
 			glPopDebugGroup();
 		}
 		{
@@ -600,6 +639,7 @@ void RenderFrame(int ScreenWidth, int ScreenHeight)
 			glBindTextureUnit(3, NormalBuffer);
 			glBindTextureUnit(4, IDBuffer);
 			OutlinerOptions.Bind(GL_UNIFORM_BUFFER, 1);
+			DepthTimeBuffer.Bind(GL_SHADER_STORAGE_BUFFER, 2);
 			PaintShader.Activate();
 			glDrawArrays(GL_TRIANGLES, 0, 3);
 			glEndQuery(GL_TIME_ELAPSED);
@@ -756,6 +796,11 @@ void RenderUI(SDL_Window* Window, bool& Live)
 			}
 			if (ImGui::MenuItem("Highlight Subtrees", nullptr, &ShowSubtrees))
 			{
+				ShowHeatmap = false;
+			}
+			if (ImGui::MenuItem("Show Heatmap", nullptr, &ShowHeatmap))
+			{
+				ShowSubtrees = false;
 			}
 			if (ImGui::MenuItem("Recenter"))
 			{
@@ -1058,6 +1103,26 @@ int main(int argc, char* argv[])
 			UpdateElapsedTime(DepthTimeQuery, DepthElapsedTimeMs);
 			UpdateElapsedTime(GridBgTimeQuery, GridBgElapsedTimeMs);
 			UpdateElapsedTime(OutlinerTimeQuery, OutlinerElapsedTimeMs);
+			if (ShowHeatmap)
+			{
+				const int QueryCount = ClusterDepthQueries.size();
+				float Range = 0.0;
+				std::vector<float> Upload(QueryCount, 0.0);
+				for (int i = 0; i < QueryCount; ++i)
+				{
+					GLuint TimeQuery = ClusterDepthQueries[i];
+					double ElapsedTimeMs;
+					UpdateElapsedTime(TimeQuery, ElapsedTimeMs);
+					Upload[i] = ElapsedTimeMs;
+					DepthElapsedTimeMs += ElapsedTimeMs;
+					Range = fmax(Range, ElapsedTimeMs);
+				}
+				for (int i = 0; i < QueryCount; ++i)
+				{
+					Upload[i] /= Range;
+				}
+				DepthTimeBuffer.Upload(Upload.data(), QueryCount * sizeof(float));
+			}
 		}
 	}
 	{
