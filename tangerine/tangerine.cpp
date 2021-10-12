@@ -82,6 +82,7 @@ GLuint CullingTimeQuery;
 GLuint DepthTimeQuery;
 GLuint GridBgTimeQuery;
 GLuint OutlinerTimeQuery;
+GLuint UiTimeQuery;
 std::vector<GLuint> ClusterDepthQueries;
 
 
@@ -282,6 +283,7 @@ StatusCode SetupRenderer()
 	glGenQueries(1, &DepthTimeQuery);
 	glGenQueries(1, &GridBgTimeQuery);
 	glGenQueries(1, &OutlinerTimeQuery);
+	glGenQueries(1, &UiTimeQuery);
 
 	glDisable(GL_MULTISAMPLE);
 	glEnable(GL_CULL_FACE);
@@ -749,6 +751,7 @@ double CullingElapsedTimeMs = 0.0;
 double DepthElapsedTimeMs = 0.0;
 double GridBgElapsedTimeMs = 0.0;
 double OutlinerElapsedTimeMs = 0.0;
+double UiElapsedTimeMs = 0.0;
 void RenderUI(SDL_Window* Window, bool& Live)
 {
 	ImGui_ImplOpenGL3_NewFrame();
@@ -856,11 +859,13 @@ void RenderUI(SDL_Window* Window, bool& Live)
 				CullingElapsedTimeMs +
 				DepthElapsedTimeMs +
 				GridBgElapsedTimeMs +
-				OutlinerElapsedTimeMs;
+				OutlinerElapsedTimeMs +
+				UiElapsedTimeMs;
 			ImGui::Text(" Culling: %.2f ms\n", CullingElapsedTimeMs);
 			ImGui::Text("   Depth: %.2f ms\n", DepthElapsedTimeMs);
 			ImGui::Text("   'Sky': %.2f ms\n", GridBgElapsedTimeMs);
 			ImGui::Text(" Outline: %.2f ms\n", OutlinerElapsedTimeMs);
+			ImGui::Text("      UI: %.2f ms\n", UiElapsedTimeMs);
 			ImGui::Text("   Total: %.2f ms\n", TotalTimeMs);
 
 			ImGui::Separator();
@@ -1096,13 +1101,20 @@ int main(int argc, char* argv[])
 				RenderFrame(ScreenWidth, ScreenHeight);
 			}
 			{
-				ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+				{
+					glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Dear ImGui");
+					glBeginQuery(GL_TIME_ELAPSED, UiTimeQuery);
+					ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+					glEndQuery(GL_TIME_ELAPSED);
+					glPopDebugGroup();
+				}
 				SDL_GL_SwapWindow(Window);
 			}
 			UpdateElapsedTime(CullingTimeQuery, CullingElapsedTimeMs);
 			UpdateElapsedTime(DepthTimeQuery, DepthElapsedTimeMs);
 			UpdateElapsedTime(GridBgTimeQuery, GridBgElapsedTimeMs);
 			UpdateElapsedTime(OutlinerTimeQuery, OutlinerElapsedTimeMs);
+			UpdateElapsedTime(UiTimeQuery, UiElapsedTimeMs);
 			if (ShowHeatmap)
 			{
 				const int QueryCount = ClusterDepthQueries.size();
