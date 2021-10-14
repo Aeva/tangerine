@@ -156,10 +156,12 @@ LowLevelModel* PendingModel = nullptr;
 
 Buffer ViewInfo("ViewInfo Buffer");
 Buffer OutlinerOptions("Outliner Options Buffer");
+Buffer InstanceInfo("InstanceInfo Buffer");
 
 std::vector<Buffer> TileDrawArgs;
 Buffer TileHeapInfo("Tile Draw Heap Info");
 Buffer TileHeap("Tile Draw Heap");
+Buffer InstanceHeap("Instance Heap");
 Buffer DepthTimeBuffer("Subtree Heatmap Buffer");
 GLuint DepthPass;
 GLuint DepthBuffer;
@@ -256,6 +258,15 @@ struct ViewInfoUpload
 };
 
 
+struct InstanceInfoUpload
+{
+	GLuint InstanceOffset;
+	GLuint Padding1;
+	GLuint Padding2;
+	GLuint Padding3;
+};
+
+
 struct TileDrawArgsUpload
 {
 	GLuint PrimitiveCount;
@@ -278,6 +289,7 @@ struct TileHeapEntry
 {
 	GLuint TileID;
 	GLuint ClusterID;
+	GLuint InstanceID;
 };
 
 
@@ -567,8 +579,31 @@ void RenderFrame(int ScreenWidth, int ScreenHeight)
 	if (CurrentModel != nullptr)
 	{
 		{
+			std::vector<glm::mat4> InstanceData;
+			size_t TotalInstances = 1;
+			InstanceData.reserve(TotalInstances * 2);
+			{
+				// Place holder.  Ideally these would be cached on the instance objects and just fetched.
+				glm::mat4 LocalToWorld = glm::identity<glm::mat4>();
+				//LocalToWorld = glm::rotate(LocalToWorld, float(90.0 * (M_PI / 180.0)), glm::vec3(0.0, 0.0, 1.0));
+				glm::mat4 WorldToLocal = glm::inverse(LocalToWorld);
+				InstanceData.push_back(LocalToWorld);
+				InstanceData.push_back(WorldToLocal);
+			}
+			InstanceHeap.Upload((void*)InstanceData.data(), sizeof(glm::mat4) * 2 * TotalInstances);
+		}
+
+		{
+			size_t InstanceCount = 1;
+			InstanceInfoUpload BufferData = { 0, 0, 0, 0 };
+			InstanceInfo.Upload((void*)&BufferData, sizeof(BufferData));
+
 			glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Cluster Culling Pass");
 			glBeginQuery(GL_TIME_ELAPSED, CullingTimeQuery);
+
+			InstanceInfo.Bind(GL_UNIFORM_BUFFER, 1);
+			InstanceHeap.Bind(GL_SHADER_STORAGE_BUFFER, 2);
+
 			// Each lane is a tile, so we have to tile the tiles...
 			const unsigned int GroupX = DIV_UP(TilesX, TILE_SIZE_X);
 			const unsigned int GroupY = DIV_UP(TilesY, TILE_SIZE_Y);
@@ -580,7 +615,7 @@ void RenderFrame(int ScreenWidth, int ScreenHeight)
 					Subtree.CullingShader.Activate();
 					TileHeap.Bind(GL_SHADER_STORAGE_BUFFER, 0);
 					TileHeapInfo.Bind(GL_SHADER_STORAGE_BUFFER, 1);
-					glDispatchCompute(GroupX, GroupY, Subtree.SectionCount);
+					glDispatchCompute(GroupX, GroupY, Subtree.SectionCount * InstanceCount);
 					glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 				}
 				{

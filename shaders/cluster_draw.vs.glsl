@@ -45,6 +45,12 @@ layout(std140, binding = 1) restrict readonly buffer TileHeapInfo
 };
 
 
+layout(std430, binding = 2) restrict readonly buffer InstanceHeap
+{
+	mat4 InstanceTransforms[];
+};
+
+
 layout(std430, binding = 3) restrict readonly buffer TileDrawArgs
 {
 	uint PrimitiveCount;
@@ -64,8 +70,11 @@ out gl_PerVertex
 
 
 out flat AABB Bounds;
-out flat vec3 WorldMin;
-out flat vec3 WorldMax;
+out flat vec3 LocalMin;
+out flat vec3 LocalMax;
+out flat mat4 WorldToLocal;
+out flat mat4 LocalToWorld;
+out flat vec3 LocalCamera;
 
 
 vec2 Verts[4] = \
@@ -88,9 +97,18 @@ void main()
 {
 	TileHeapEntry Tile = Heap[gl_InstanceID + InstanceOffset];
 
+	LocalToWorld = InstanceTransforms[Tile.InstanceID * 2];
+	WorldToLocal = InstanceTransforms[Tile.InstanceID * 2 + 1];
+
 	Bounds = ClusterData[min(Tile.ClusterID, ClusterCount - 1)];
-	WorldMin = Bounds.Center - Bounds.Extent;
-	WorldMax = Bounds.Center + Bounds.Extent;
+	LocalMin = Bounds.Center - Bounds.Extent;
+	LocalMax = Bounds.Center + Bounds.Extent;
+
+	{
+		vec4 Tmp = WorldToLocal * vec4(CameraOrigin.xyz, 1.0);
+		Tmp /= Tmp.w;
+		LocalCamera = Tmp.xyz;
+	}
 
 	vec2 MinNDC;
 	vec2 MaxNDC;

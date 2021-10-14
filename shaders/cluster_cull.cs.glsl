@@ -31,6 +31,13 @@ uniform ViewInfoBlock
 };
 
 
+layout(std140, binding = 1)
+uniform InstanceInfoBlock
+{
+	uint InstanceOffset;
+};
+
+
 layout(std430, binding = 0) restrict writeonly buffer TileHeap
 {
 	TileHeapEntry Heap[];
@@ -42,6 +49,12 @@ layout(std140, binding = 1) buffer TileHeapInfo
 	uint HeapSize;
 	uint SegmentStart;
 	uint StackPtr;
+};
+
+
+layout(std430, binding = 2) restrict readonly buffer InstanceHeap
+{
+	mat4 InstanceTransforms[];
 };
 
 
@@ -58,10 +71,13 @@ void main()
 		vec4 TileClip = vec4(ScreenMin, ScreenMax) * ScreenSize.zwzw * 2.0 - 1.0;
 
 		{
-			const uint ClusterIndex = gl_GlobalInvocationID.z;
+			const uint ClusterIndex = gl_GlobalInvocationID.z % ClusterCount;
+			const uint InstanceID = (gl_GlobalInvocationID.z / ClusterCount) + InstanceOffset;
 			AABB Bounds = ClusterData[ClusterIndex];
-			if (ClipTest(ViewToClip * WorldToView, TileClip, Bounds))
+			mat4 LocalToWorld = InstanceTransforms[InstanceID * 2];
+			if (ClipTest(ViewToClip * WorldToView * LocalToWorld, TileClip, Bounds))
 			{
+#if 0
 				vec3 WorldMin = Bounds.Center - Bounds.Extent;
 				vec3 WorldMax = Bounds.Center + Bounds.Extent;
 
@@ -75,7 +91,6 @@ void main()
 				vec3 SearchMin = min(RayStart, WorldMin);
 				vec3 SearchMax = max(RayStart, WorldMax);
 
-#if 0
 				bool RayEscaped = false;
 				{
 					float Travel = 0;
@@ -109,6 +124,7 @@ void main()
 					TileHeapEntry Tile;
 					Tile.TileID = ((gl_GlobalInvocationID.y & 0xFFFF) << 16) | (gl_GlobalInvocationID.x & 0xFFFF);
 					Tile.ClusterID = ClusterIndex;
+					Tile.InstanceID = InstanceID;
 					Heap[Ptr] = Tile;
 				}
 			}

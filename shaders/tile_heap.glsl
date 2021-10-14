@@ -19,4 +19,5 @@ struct TileHeapEntry
 {
 	uint TileID;
 	uint ClusterID;
+	uint InstanceID;
 };

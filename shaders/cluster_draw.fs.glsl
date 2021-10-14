@@ -31,8 +31,11 @@ uniform ViewInfoBlock
 
 
 in flat AABB Bounds;
-in flat vec3 WorldMin;
-in flat vec3 WorldMax;
+in flat vec3 LocalMin;
+in flat vec3 LocalMax;
+in flat mat4 WorldToLocal;
+in flat mat4 LocalToWorld;
+in flat vec3 LocalCamera;
 
 
 layout(depth_less) out float gl_FragDepth;
@@ -70,10 +73,10 @@ void main()
 	vec4 Clip = vec4(NDC, -1.0, 1.0);
 	vec4 View = ClipToView * Clip;
 	View /= View.w;
-	vec4 World = ViewToWorld * View;
-	World /= World.w;
-	vec3 EyeRay = normalize(World.xyz - CameraOrigin.xyz);
-	vec3 RayStart = EyeRay * BoxBrush(CameraOrigin.xyz - Bounds.Center, Bounds.Extent) + CameraOrigin.xyz;
+	vec4 Local = WorldToLocal * ViewToWorld * View;
+	Local /= Local.w;
+	vec3 EyeRay = normalize(Local.xyz - LocalCamera);
+	vec3 RayStart = EyeRay * BoxBrush(LocalCamera - Bounds.Center, Bounds.Extent) + LocalCamera;
 
 	bool CanHit = RayHitAABB(RayStart, EyeRay, Bounds, RayStart);
 
@@ -87,7 +90,7 @@ void main()
 		for (int i = 0; i < 50; ++i)
 		{
 			Position = EyeRay * Travel + RayStart;
-			if (any(lessThan(Position, WorldMin)) || any(greaterThan(Position, WorldMax)))
+			if (any(lessThan(Position, LocalMin)) || any(greaterThan(Position, LocalMax)))
 			{
 				Hit = false;
 				break;
@@ -110,14 +113,17 @@ void main()
 
 	if (Hit)
 	{
-		OutPosition = Position;
-		OutNormal.xyz = normalize(Gradient(Position));
+		vec4 WorldPosition = LocalToWorld * vec4(Position, 1.0);
+		WorldPosition /= WorldPosition.w;
+
+		OutPosition = WorldPosition.xyz;
+		OutNormal.xyz = normalize(mat3(LocalToWorld) *Gradient(Position));
 #if VISUALIZE_TRACING_ERROR
 		OutNormal.a = abs(clamp(Dist, -0.005, 0.005) / 0.005);
 #endif
 		OutSubtreeID = SubtreeIndex;
 
-		vec4 ViewPosition = WorldToView * vec4(Position, 1.0);
+		vec4 ViewPosition = WorldToView * WorldPosition;
 		ViewPosition /= ViewPosition.w;
 		vec4 ClipPosition = ViewToClip * ViewPosition;
 		gl_FragDepth = 1.0 - (ClipPosition.z / ClipPosition.w);
