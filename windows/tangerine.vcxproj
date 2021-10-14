@@ -202,13 +202,13 @@
     <None Include="..\shaders\cluster_coverage.fs.glsl" />
     <None Include="..\shaders\cluster_coverage.vs.glsl" />
     <None Include="..\shaders\cluster_cull.cs.glsl" />
+    <None Include="..\shaders\cluster_draw.fs.glsl" />
+    <None Include="..\shaders\cluster_draw.vs.glsl" />
     <None Include="..\shaders\cluster_tally.cs.glsl" />
     <None Include="..\shaders\math.glsl" />
     <None Include="..\shaders\noise.fs.glsl" />
     <None Include="..\shaders\outliner.fs.glsl" />
     <None Include="..\shaders\splat.vs.glsl" />
-    <None Include="..\shaders\test.fs.glsl" />
-    <None Include="..\shaders\test.vs.glsl" />
     <None Include="..\shaders\tile_heap.glsl" />
     <None Include="..\third_party\racket\lib\libracketcs_d9hn5s.def" />
   </ItemGroup>

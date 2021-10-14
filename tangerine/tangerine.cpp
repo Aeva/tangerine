@@ -74,8 +74,8 @@ struct LowLevelSubtree
 		}
 
 		Result = DepthShader.Setup(
-			{ {GL_VERTEX_SHADER, GeneratedShader("shaders/math.glsl", DataSource + DistSource, "shaders/test.vs.glsl")},
-			  {GL_FRAGMENT_SHADER, GeneratedShader("shaders/math.glsl", DistSource, "shaders/test.fs.glsl")} },
+			{ {GL_VERTEX_SHADER, GeneratedShader("shaders/math.glsl", DataSource + DistSource, "shaders/cluster_draw.vs.glsl")},
+			  {GL_FRAGMENT_SHADER, GeneratedShader("shaders/math.glsl", DistSource, "shaders/cluster_draw.fs.glsl")} },
 			"Generated Shader");
 
 		if (Result == StatusCode::FAIL)

@@ -110,12 +110,6 @@
     <ClInclude Include="resource.h" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="..\shaders\test.fs.glsl">
-      <Filter>Shaders</Filter>
-    </None>
-    <None Include="..\shaders\test.vs.glsl">
-      <Filter>Shaders</Filter>
-    </None>
     <None Include="..\shaders\math.glsl">
       <Filter>Shaders</Filter>
     </None>
@@ -150,6 +144,12 @@
       <Filter>Racket Stuff</Filter>
     </None>
     <None Include="..\shaders\bg.fs.glsl">
+      <Filter>Shaders</Filter>
+    </None>
+    <None Include="..\shaders\cluster_draw.fs.glsl">
+      <Filter>Shaders</Filter>
+    </None>
+    <None Include="..\shaders\cluster_draw.vs.glsl">
       <Filter>Shaders</Filter>
     </None>
   </ItemGroup>
