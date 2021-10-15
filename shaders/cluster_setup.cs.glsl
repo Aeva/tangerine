@@ -37,15 +37,6 @@ uniform InstanceInfoBlock
 };
 
 
-/*
-layout(std430, binding = 0)
-restrict writeonly buffer ClusterDispatchArgs
-{
-
-};
-*/
-
-
 layout(std430, binding = 1) restrict writeonly buffer SubtreeClipRects
 {
 	ClipRect ClipRects[];
