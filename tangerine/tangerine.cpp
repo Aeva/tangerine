@@ -63,12 +63,23 @@ struct LowLevelSubtree
 	}
 	StatusCode Compile()
 	{
-		StatusCode Result = CullingShader.Setup(
-			{ {GL_COMPUTE_SHADER, GeneratedShader("shaders/math.glsl", DataSource + DistSource, "shaders/cluster_cull.cs.glsl")} },
+		StatusCode Result = SetupShader.Setup(
+			{ {GL_COMPUTE_SHADER, GeneratedShader("shaders/math.glsl", DataSource, "shaders/cluster_setup.cs.glsl")} },
+			"Cluster Culling Setup Shader");
+
+		if (Result == StatusCode::FAIL)
+		{
+			SetupShader.Reset();
+			return Result;
+		}
+
+		Result = CullingShader.Setup(
+			{ {GL_COMPUTE_SHADER, GeneratedShader("shaders/math.glsl", DataSource, "shaders/cluster_cull.cs.glsl")} },
 			"Cluster Culling Shader");
 
 		if (Result == StatusCode::FAIL)
 		{
+			SetupShader.Reset();
 			CullingShader.Reset();
 			return Result;
 		}
@@ -80,6 +91,7 @@ struct LowLevelSubtree
 
 		if (Result == StatusCode::FAIL)
 		{
+			SetupShader.Reset();
 			CullingShader.Reset();
 			DepthShader.Reset();
 			return Result;
@@ -89,14 +101,18 @@ struct LowLevelSubtree
 	}
 	void Reset()
 	{
+		SetupShader.Reset();
 		CullingShader.Reset();
 		DepthShader.Reset();
+		ClippingRectsBuffer.Release();
 	}
 	int SectionCount;
 	std::string DistSource;
 	std::string DataSource;
+	ShaderPipeline SetupShader;
 	ShaderPipeline CullingShader;
 	ShaderPipeline DepthShader;
+	Buffer ClippingRectsBuffer;
 };
 
 
@@ -510,7 +526,7 @@ void RenderFrame(int ScreenWidth, int ScreenHeight)
 		Fnord = Orientation * glm::vec4(0.0, 0.0, 1.0, 1.0);
 		glm::vec3 UpDir = glm::vec3(Fnord.x, Fnord.y, Fnord.z) / Fnord.w;
 
-		glm::mat4 WorldToView = glm::lookAt(CameraOrigin, glm::vec3(0.0, 0.0, 0.0), UpDir);
+		const glm::mat4 WorldToView = glm::lookAt(CameraOrigin, glm::vec3(0.0, 0.0, 0.0), UpDir);
 		const glm::mat4 ViewToWorld = glm::inverse(WorldToView);
 
 		{
@@ -578,19 +594,25 @@ void RenderFrame(int ScreenWidth, int ScreenHeight)
 
 	if (CurrentModel != nullptr)
 	{
+		size_t TotalInstances = 1;
 		{
 			std::vector<glm::mat4> InstanceData;
-			size_t TotalInstances = 1;
 			InstanceData.reserve(TotalInstances * 2);
+			for (size_t i = 0; i < TotalInstances; ++i)
 			{
 				// Place holder.  Ideally these would be cached on the instance objects and just fetched.
 				glm::mat4 LocalToWorld = glm::identity<glm::mat4>();
-				//LocalToWorld = glm::rotate(LocalToWorld, float(90.0 * (M_PI / 180.0)), glm::vec3(0.0, 0.0, 1.0));
+				LocalToWorld = glm::translate(LocalToWorld, glm::vec3(0.0, 2.0 * float(i), 0.0));
 				glm::mat4 WorldToLocal = glm::inverse(LocalToWorld);
 				InstanceData.push_back(LocalToWorld);
 				InstanceData.push_back(WorldToLocal);
 			}
 			InstanceHeap.Upload((void*)InstanceData.data(), sizeof(glm::mat4) * 2 * TotalInstances);
+
+			for (LowLevelSubtree& Subtree : CurrentModel->Subtrees)
+			{
+				Subtree.ClippingRectsBuffer.Reserve(sizeof(glm::vec4) * 2 * Subtree.SectionCount * TotalInstances);
+			}
 		}
 
 		{
@@ -598,11 +620,21 @@ void RenderFrame(int ScreenWidth, int ScreenHeight)
 			InstanceInfoUpload BufferData = { 0, 0, 0, 0 };
 			InstanceInfo.Upload((void*)&BufferData, sizeof(BufferData));
 
+			InstanceInfo.Bind(GL_UNIFORM_BUFFER, 1);
+			InstanceHeap.Bind(GL_SHADER_STORAGE_BUFFER, 2);
+
 			glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Cluster Culling Pass");
 			glBeginQuery(GL_TIME_ELAPSED, CullingTimeQuery);
 
-			InstanceInfo.Bind(GL_UNIFORM_BUFFER, 1);
-			InstanceHeap.Bind(GL_SHADER_STORAGE_BUFFER, 2);
+			glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Setup");
+			for (LowLevelSubtree& Subtree : CurrentModel->Subtrees)
+			{
+				Subtree.SetupShader.Activate();
+				Subtree.ClippingRectsBuffer.Bind(GL_SHADER_STORAGE_BUFFER, 1);
+				glDispatchCompute(Subtree.SectionCount * InstanceCount, 1, 1);
+			}
+			glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT | GL_COMMAND_BARRIER_BIT);
+			glPopDebugGroup();
 
 			// Each lane is a tile, so we have to tile the tiles...
 			const unsigned int GroupX = DIV_UP(TilesX, TILE_SIZE_X);
@@ -615,6 +647,7 @@ void RenderFrame(int ScreenWidth, int ScreenHeight)
 					Subtree.CullingShader.Activate();
 					TileHeap.Bind(GL_SHADER_STORAGE_BUFFER, 0);
 					TileHeapInfo.Bind(GL_SHADER_STORAGE_BUFFER, 1);
+					Subtree.ClippingRectsBuffer.Bind(GL_SHADER_STORAGE_BUFFER, 2);
 					glDispatchCompute(GroupX, GroupY, Subtree.SectionCount * InstanceCount);
 					glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 				}
@@ -657,6 +690,7 @@ void RenderFrame(int ScreenWidth, int ScreenHeight)
 			glClear(GL_DEPTH_BUFFER_BIT);
 			TileHeap.Bind(GL_SHADER_STORAGE_BUFFER, 0);
 			TileHeapInfo.Bind(GL_SHADER_STORAGE_BUFFER, 1);
+			InstanceHeap.Bind(GL_SHADER_STORAGE_BUFFER, 2);
 			if (ShowHeatmap)
 			{
 				glEndQuery(GL_TIME_ELAPSED);

@@ -52,9 +52,9 @@ layout(std140, binding = 1) buffer TileHeapInfo
 };
 
 
-layout(std430, binding = 2) restrict readonly buffer InstanceHeap
+layout(std430, binding = 2) restrict readonly buffer SubtreeClipRects
 {
-	mat4 InstanceTransforms[];
+	ClipRect ClipRects[];
 };
 
 
@@ -69,65 +69,15 @@ void main()
 	{
 		vec2 ScreenMax = min(ScreenMin + TileSize, ScreenSize.xy);
 		vec4 TileClip = vec4(ScreenMin, ScreenMax) * ScreenSize.zwzw * 2.0 - 1.0;
-
+		ClipRect Rect = ClipRects[gl_GlobalInvocationID.z];
+		if (ClipTest(TileClip, Rect))
 		{
-			const uint ClusterIndex = gl_GlobalInvocationID.z % ClusterCount;
-			const uint InstanceID = (gl_GlobalInvocationID.z / ClusterCount) + InstanceOffset;
-			AABB Bounds = ClusterData[ClusterIndex];
-			mat4 LocalToWorld = InstanceTransforms[InstanceID * 2];
-			if (ClipTest(ViewToClip * WorldToView * LocalToWorld, TileClip, Bounds))
-			{
-#if 0
-				vec3 WorldMin = Bounds.Center - Bounds.Extent;
-				vec3 WorldMax = Bounds.Center + Bounds.Extent;
-
-				vec4 Clip = vec4((TileClip.xy + TileClip.zw) * 0.5, -1.0, 1.0);
-				vec4 View = ClipToView * Clip;
-				View /= View.w;
-				vec4 World = ViewToWorld * View;
-				World /= World.w;
-				vec3 EyeRay = normalize(World.xyz - CameraOrigin.xyz);
-				vec3 RayStart = EyeRay * BoxBrush(CameraOrigin.xyz - Bounds.Center, Bounds.Extent) + CameraOrigin.xyz;
-				vec3 SearchMin = min(RayStart, WorldMin);
-				vec3 SearchMax = max(RayStart, WorldMax);
-
-				bool RayEscaped = false;
-				{
-					float Travel = 0;
-					for (int i = 0; i < 10; ++i)
-					{
-						vec3 Position = EyeRay * Travel + RayStart;
-						if (any(lessThan(Position, SearchMin)) || any(greaterThan(Position, SearchMax)))
-						{
-							RayEscaped = true;
-							break;
-						}
-						else
-						{
-							float Dist = ClusterDist(Position);
-							if (Dist <= 0.1)
-							{
-								RayEscaped = false;
-								break;
-							}
-							else
-							{
-								Travel += Dist;
-							}
-						}
-					}
-				}
-				if (!RayEscaped)
-#endif
-				{
-					uint Ptr = atomicAdd(StackPtr, 1);
-					TileHeapEntry Tile;
-					Tile.TileID = ((gl_GlobalInvocationID.y & 0xFFFF) << 16) | (gl_GlobalInvocationID.x & 0xFFFF);
-					Tile.ClusterID = ClusterIndex;
-					Tile.InstanceID = InstanceID;
-					Heap[Ptr] = Tile;
-				}
-			}
+			uint Ptr = atomicAdd(StackPtr, 1);
+			TileHeapEntry Tile;
+			Tile.TileID = ((gl_GlobalInvocationID.y & 0xFFFF) << 16) | (gl_GlobalInvocationID.x & 0xFFFF);
+			Tile.ClusterID = gl_GlobalInvocationID.z % ClusterCount;
+			Tile.InstanceID = (gl_GlobalInvocationID.z / ClusterCount) + InstanceOffset;
+			Heap[Ptr] = Tile;
 		}
 	}
 }

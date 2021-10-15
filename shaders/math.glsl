@@ -115,24 +115,24 @@ vec3 QuaternionTransform(vec3 Point, vec4 Quat)
 }
 
 
-bool ClipTest(mat4 WorldToClip, vec4 TileClip, AABB Bounds)
+void BoundingRect(mat4 ClipTransform, AABB Bounds, out vec3 ClipMin, out vec3 ClipMax)
 {
 	vec3 A = Bounds.Center - Bounds.Extent;
 	vec3 B = Bounds.Center + Bounds.Extent;
 
 	vec4 Tmp;
-#define TRANSFORM(World) \
-	Tmp = (WorldToClip * vec4(World, 1.0));\
+#define TRANSFORM(Point) \
+	Tmp = (ClipTransform * vec4(Point, 1.0));\
 	Tmp /= Tmp.w;
 
 	TRANSFORM(A);
-	vec3 BoundsClipMin = Tmp.xyz;
-	vec3 BoundsClipMax = BoundsClipMin;
+	ClipMin = Tmp.xyz;
+	ClipMax = ClipMin;
 
-#define CRANK(var) \
-	TRANSFORM(var); \
-	BoundsClipMin = min(BoundsClipMin, Tmp.xyz); \
-	BoundsClipMax = max(BoundsClipMax, Tmp.xyz);
+#define CRANK(Point) \
+	TRANSFORM(Point); \
+	ClipMin = min(ClipMin, Tmp.xyz); \
+	ClipMax = max(ClipMax, Tmp.xyz);
 
 	CRANK(B);
 	CRANK(vec3(B.x, A.yz));
@@ -143,11 +143,22 @@ bool ClipTest(mat4 WorldToClip, vec4 TileClip, AABB Bounds)
 	CRANK(vec3(B.xy, A.z));
 
 #undef CRANK
-#undef TO_CLIP
+#undef TRANSFORM
+}
 
-	return BoundsClipMin.z >= 0.0 && \
-		all(lessThanEqual(TileClip.xy, BoundsClipMax.xy)) && \
-		all(lessThanEqual(BoundsClipMin.xy, TileClip.zw));
+
+struct ClipRect
+{
+	vec3 ClipMin;
+	vec3 ClipMax;
+};
+
+
+bool ClipTest(vec4 TileClip, ClipRect Rect)
+{
+	return Rect.ClipMin.z >= 0.0 && \
+		all(lessThanEqual(TileClip.xy, Rect.ClipMax.xy)) && \
+		all(lessThanEqual(Rect.ClipMin.xy, TileClip.zw));
 }
 
 
