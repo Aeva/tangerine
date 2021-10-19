@@ -62,7 +62,7 @@ void main()
 		mat4 LocalToWorld = InstanceTransforms[InstanceID * 2];
 
 		ClipRect Rect;
-		BoundingRect(ViewToClip * WorldToView * LocalToWorld, Bounds, Rect.ClipMin, Rect.ClipMax);
+		BoundingRect(ViewToClip, WorldToView * LocalToWorld, Bounds, Rect.ClipMin, Rect.ClipMax);
 		ClipRects[gl_GlobalInvocationID.x] = Rect;
 	}
 }

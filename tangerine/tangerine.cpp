@@ -163,6 +163,7 @@ ShaderPipeline ClusterTallyShader;
 #if VISUALIZE_CLUSTER_COVERAGE
 ShaderPipeline ClusterCoverageShader;
 #endif
+ShaderPipeline DepthGatherShader;
 ShaderPipeline PaintShader;
 ShaderPipeline NoiseShader;
 ShaderPipeline BgShader;
@@ -181,6 +182,12 @@ Buffer InstanceHeap("Instance Heap");
 Buffer DepthTimeBuffer("Subtree Heatmap Buffer");
 GLuint DepthPass;
 GLuint DepthBuffer;
+#if USE_OCCLUSION_CULLING
+GLuint DepthRangeBuffer;
+#endif
+#if DEBUG_CLUSTER_DEPTH_RANGE
+GLuint ClusterRangeBuffer;
+#endif
 GLuint PositionBuffer;
 GLuint NormalBuffer;
 GLuint IDBuffer;
@@ -203,6 +210,12 @@ void AllocateRenderTargets(int ScreenWidth, int ScreenHeight)
 		glDeleteTextures(1, &DepthBuffer);
 		glDeleteTextures(1, &PositionBuffer);
 		glDeleteTextures(1, &NormalBuffer);
+#if USE_OCCLUSION_CULLING
+		glDeleteTextures(1, &DepthRangeBuffer);
+#endif
+#if DEBUG_CLUSTER_DEPTH_RANGE
+		glDeleteTextures(1, &ClusterRangeBuffer);
+#endif
 	}
 	else
 	{
@@ -255,6 +268,28 @@ void AllocateRenderTargets(int ScreenWidth, int ScreenHeight)
 		glNamedFramebufferTexture(DepthPass, GL_COLOR_ATTACHMENT2, IDBuffer, 0);
 		GLenum ColorAttachments[3] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1, GL_COLOR_ATTACHMENT2 };
 		glNamedFramebufferDrawBuffers(DepthPass, 3, ColorAttachments);
+	}
+
+	// Occlusion Culling
+	{
+#if USE_OCCLUSION_CULLING
+		glCreateTextures(GL_TEXTURE_2D, 1, &DepthRangeBuffer);
+		glTextureStorage2D(DepthRangeBuffer, 1, GL_R32F, DIV_UP(ScreenWidth, 8), DIV_UP(ScreenHeight, 8));
+		glTextureParameteri(DepthRangeBuffer, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+		glTextureParameteri(DepthRangeBuffer, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+		glTextureParameteri(DepthRangeBuffer, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+		glTextureParameteri(DepthRangeBuffer, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+		glObjectLabel(GL_TEXTURE, DepthRangeBuffer, -1, "Depth Range Buffer");
+#endif
+#if DEBUG_CLUSTER_DEPTH_RANGE
+		glCreateTextures(GL_TEXTURE_2D, 1, &ClusterRangeBuffer);
+		glTextureStorage2D(ClusterRangeBuffer, 1, GL_RGBA32F, DIV_UP(ScreenWidth, 8), DIV_UP(ScreenHeight, 8));
+		glTextureParameteri(ClusterRangeBuffer, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+		glTextureParameteri(ClusterRangeBuffer, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+		glTextureParameteri(ClusterRangeBuffer, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+		glTextureParameteri(ClusterRangeBuffer, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+		glObjectLabel(GL_TEXTURE, ClusterRangeBuffer, -1, "Cluster Depth Range Buffer");
+#endif
 	}
 }
 
@@ -329,24 +364,28 @@ StatusCode SetupRenderer()
 #if VISUALIZE_CLUSTER_COVERAGE
 	RETURN_ON_FAIL(ClusterCoverageShader.Setup(
 		{ {GL_VERTEX_SHADER, ShaderSource("shaders/cluster_coverage.vs.glsl", true)},
-		 {GL_FRAGMENT_SHADER, ShaderSource("shaders/cluster_coverage.fs.glsl", true)} },
+		  {GL_FRAGMENT_SHADER, ShaderSource("shaders/cluster_coverage.fs.glsl", true)} },
 		"Cluster Coverage Shader"));
 #else
 
 	RETURN_ON_FAIL(PaintShader.Setup(
 		{ {GL_VERTEX_SHADER, ShaderSource("shaders/splat.vs.glsl", true)},
-		 {GL_FRAGMENT_SHADER, ShaderSource("shaders/outliner.fs.glsl", true)} },
+		  {GL_FRAGMENT_SHADER, ShaderSource("shaders/outliner.fs.glsl", true)} },
 		"Outliner Shader"));
+
+	RETURN_ON_FAIL(DepthGatherShader.Setup(
+		{ {GL_COMPUTE_SHADER, ShaderSource("shaders/gather_depth.cs.glsl", true)} },
+		"Depth Gather Shader"));
 
 	RETURN_ON_FAIL(BgShader.Setup(
 		{ {GL_VERTEX_SHADER, ShaderSource("shaders/splat.vs.glsl", true)},
-			 {GL_FRAGMENT_SHADER, ShaderSource("shaders/bg.fs.glsl", true)} },
+		  {GL_FRAGMENT_SHADER, ShaderSource("shaders/bg.fs.glsl", true)} },
 		"Background Shader"));
 #endif
 
 	RETURN_ON_FAIL(NoiseShader.Setup(
 		{ {GL_VERTEX_SHADER, ShaderSource("shaders/splat.vs.glsl", true)},
-		 {GL_FRAGMENT_SHADER, ShaderSource("shaders/noise.fs.glsl", true)} },
+		  {GL_FRAGMENT_SHADER, ShaderSource("shaders/noise.fs.glsl", true)} },
 		"Noise Shader"));
 
 	glGenQueries(1, &CullingTimeQuery);
@@ -633,8 +672,12 @@ void RenderFrame(int ScreenWidth, int ScreenHeight)
 				Subtree.ClippingRectsBuffer.Bind(GL_SHADER_STORAGE_BUFFER, 1);
 				glDispatchCompute(Subtree.SectionCount * InstanceCount, 1, 1);
 			}
-			glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT | GL_COMMAND_BARRIER_BIT);
+			glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 			glPopDebugGroup();
+
+#if USE_OCCLUSION_CULLING
+			glBindTextureUnit(3, DepthRangeBuffer);
+#endif
 
 			// Each lane is a tile, so we have to tile the tiles...
 			const unsigned int GroupX = DIV_UP(TilesX, TILE_SIZE_X);
@@ -644,6 +687,10 @@ void RenderFrame(int ScreenWidth, int ScreenHeight)
 			{
 				glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Subtree");
 				{
+#if DEBUG_CLUSTER_DEPTH_RANGE
+					glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
+					glBindImageTexture(4, ClusterRangeBuffer, 0, false, 0, GL_WRITE_ONLY, GL_RGBA32F);
+#endif
 					Subtree.CullingShader.Activate();
 					TileHeap.Bind(GL_SHADER_STORAGE_BUFFER, 0);
 					TileHeapInfo.Bind(GL_SHADER_STORAGE_BUFFER, 1);
@@ -717,6 +764,18 @@ void RenderFrame(int ScreenWidth, int ScreenHeight)
 			}
 			glPopDebugGroup();
 		}
+#if USE_OCCLUSION_CULLING
+		{
+			glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Gather Depth");
+			glBindTextureUnit(3, DepthBuffer);
+			glBindImageTexture(4, DepthRangeBuffer, 0, false, 0, GL_WRITE_ONLY, GL_R32F);
+			DepthGatherShader.Activate();
+			const unsigned int GroupX = DIV_UP(Width, TILE_SIZE_X);
+			const unsigned int GroupY = DIV_UP(Height, TILE_SIZE_Y);
+			glDispatchCompute(GroupX, GroupY, 1);
+			glPopDebugGroup();
+		}
+#endif
 		{
 			glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Background");
 			glBeginQuery(GL_TIME_ELAPSED, GridBgTimeQuery);

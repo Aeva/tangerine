@@ -152,6 +152,12 @@
     <None Include="..\shaders\cluster_draw.vs.glsl">
       <Filter>Shaders</Filter>
     </None>
+    <None Include="..\shaders\cluster_setup.cs.glsl">
+      <Filter>Shaders</Filter>
+    </None>
+    <None Include="..\shaders\gather_depth.cs.glsl">
+      <Filter>Shaders</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="tangerine.rc" />

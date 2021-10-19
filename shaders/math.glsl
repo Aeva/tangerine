@@ -115,15 +115,18 @@ vec3 QuaternionTransform(vec3 Point, vec4 Quat)
 }
 
 
-void BoundingRect(mat4 ClipTransform, AABB Bounds, out vec3 ClipMin, out vec3 ClipMax)
+void BoundingRect(mat4 ViewToClip, mat4 LocalToView, AABB Bounds, out vec3 ClipMin, out vec3 ClipMax)
 {
 	vec3 A = Bounds.Center - Bounds.Extent;
 	vec3 B = Bounds.Center + Bounds.Extent;
 
 	vec4 Tmp;
 #define TRANSFORM(Point) \
-	Tmp = (ClipTransform * vec4(Point, 1.0));\
-	Tmp /= Tmp.w;
+	Tmp = (LocalToView * vec4(Point, 1.0));\
+	Tmp /= Tmp.w; \
+	Tmp = (ViewToClip * Tmp); \
+	Tmp.xyz /= Tmp.w; \
+	Tmp.z = 1.0 - Tmp.z;
 
 	TRANSFORM(A);
 	ClipMin = Tmp.xyz;
@@ -156,7 +159,7 @@ struct ClipRect
 
 bool ClipTest(vec4 TileClip, ClipRect Rect)
 {
-	return Rect.ClipMin.z >= 0.0 && \
+	return Rect.ClipMin.z <= 1.0 && \
 		all(lessThanEqual(TileClip.xy, Rect.ClipMax.xy)) && \
 		all(lessThanEqual(Rect.ClipMin.xy, TileClip.zw));
 }

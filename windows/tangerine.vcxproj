@@ -204,7 +204,9 @@
     <None Include="..\shaders\cluster_cull.cs.glsl" />
     <None Include="..\shaders\cluster_draw.fs.glsl" />
     <None Include="..\shaders\cluster_draw.vs.glsl" />
+    <None Include="..\shaders\cluster_setup.cs.glsl" />
     <None Include="..\shaders\cluster_tally.cs.glsl" />
+    <None Include="..\shaders\gather_depth.cs.glsl" />
     <None Include="..\shaders\math.glsl" />
     <None Include="..\shaders\noise.fs.glsl" />
     <None Include="..\shaders\outliner.fs.glsl" />

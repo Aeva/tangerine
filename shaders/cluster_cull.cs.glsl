@@ -58,6 +58,16 @@ layout(std430, binding = 2) restrict readonly buffer SubtreeClipRects
 };
 
 
+#if USE_OCCLUSION_CULLING
+layout(binding = 3) uniform sampler2D DepthRange;
+#endif
+
+
+#if DEBUG_CLUSTER_DEPTH_RANGE
+layout(binding = 4, rgba32f) uniform writeonly image2D ClusterDepthRange;
+#endif
+
+
 layout(local_size_x = TILE_SIZE_X, local_size_y = TILE_SIZE_Y, local_size_z = 1) in;
 void main()
 {
@@ -65,6 +75,9 @@ void main()
 	// The work group size of this dispatch is not significant.
 	vec2 TileSize = vec2(float(TILE_SIZE_X), float(TILE_SIZE_Y));
 	vec2 ScreenMin = gl_GlobalInvocationID.xy * TileSize;
+#if USE_OCCLUSION_CULLING
+	float TileDepth = texelFetch(DepthRange, ivec2(gl_GlobalInvocationID.xy), 0).r;
+#endif
 	if (all(lessThanEqual(ScreenMin, ScreenSize.xy)))
 	{
 		vec2 ScreenMax = min(ScreenMin + TileSize, ScreenSize.xy);
@@ -72,12 +85,22 @@ void main()
 		ClipRect Rect = ClipRects[gl_GlobalInvocationID.z];
 		if (ClipTest(TileClip, Rect))
 		{
-			uint Ptr = atomicAdd(StackPtr, 1);
-			TileHeapEntry Tile;
-			Tile.TileID = ((gl_GlobalInvocationID.y & 0xFFFF) << 16) | (gl_GlobalInvocationID.x & 0xFFFF);
-			Tile.ClusterID = gl_GlobalInvocationID.z % ClusterCount;
-			Tile.InstanceID = (gl_GlobalInvocationID.z / ClusterCount) + InstanceOffset;
-			Heap[Ptr] = Tile;
+#if DEBUG_CLUSTER_DEPTH_RANGE
+			{
+				imageStore(ClusterDepthRange, ivec2(gl_GlobalInvocationID.xy), vec4(Rect.ClipMin.z, TileDepth, Rect.ClipMax.z, 1.0));
+			}
+#endif
+#if USE_OCCLUSION_CULLING
+			if (Rect.ClipMax.z >= TileDepth)
+#endif
+			{
+				uint Ptr = atomicAdd(StackPtr, 1);
+				TileHeapEntry Tile;
+				Tile.TileID = ((gl_GlobalInvocationID.y & 0xFFFF) << 16) | (gl_GlobalInvocationID.x & 0xFFFF);
+				Tile.ClusterID = gl_GlobalInvocationID.z % ClusterCount;
+				Tile.InstanceID = (gl_GlobalInvocationID.z / ClusterCount) + InstanceOffset;
+				Heap[Ptr] = Tile;
+			}
 		}
 	}
 }
