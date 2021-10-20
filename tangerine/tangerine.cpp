@@ -893,6 +893,7 @@ void LoadModel(nfdchar_t* Path)
 		else
 		{
 			delete PendingModel;
+			PendingModel = nullptr;
 		}
 		Clock::time_point EndTimePoint = Clock::now();
 		std::chrono::duration<double, std::milli> Delta = EndTimePoint - StartTimePoint;
