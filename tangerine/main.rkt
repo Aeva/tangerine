@@ -48,7 +48,8 @@
 
 
 (define-ffi-definer define-backend (ffi-lib #f) #:default-make-fail make-not-available)
-(define-backend NewClusterCallback (_fun _int _string/utf-8 _string/utf-8 -> _void))
+(define-backend EmitShader (_fun _string/utf-8 _string/utf-8 -> _size))
+(define-backend EmitBounds (_fun _size _float _float _float _float _float _float -> _void))
 (define-backend SetLimitsCallback (_fun _float _float _float _float _float _float -> _void))
 (define-backend RacketErrorCallback (_fun _string/utf-8 -> _void))
 
@@ -66,33 +67,23 @@
       (let* ([subtree (car part)]
              [bounds (cdr part)]
              [count (length bounds)])
-        (cons
-         (length bounds)
-         (cons
-          (string-join
-           (list
-            @~a{const uint SubtreeIndex = @subtree-index;}
-            "float ClusterDist(vec3 Point)"
-            "{"
-            (~a "\treturn " (eval-dist subtree) ";")
-            "}\n")
-           "\n")
-          (string-join
-           (flatten
-            (list
-             @~a{const uint ClusterCount = @count;}
-             "AABB ClusterData[ClusterCount] = \\"
-             "{"
-             (string-join
-              (for/list ([bound (in-list bounds)])
-                (let* ([low (car bound)]
-                       [high (cdr bound)]
-                       [extent (vec* 0.5 (vec- high low))]
-                       [center (vec+ low extent)])
-                  {~a "\t" @~a{AABB(@(glsl-vec3 center), @(glsl-vec3 extent))}}
-                  )) ",\n")
-             "};\n"))
-           "\n")))))))
+        (append
+        (list
+         subtree
+         (string-join
+          (list
+           @~a{const uint SubtreeIndex = @subtree-index;}
+           "float ClusterDist(vec3 Point)"
+           "{"
+           (~a "\treturn " (eval-dist subtree) ";")
+           "}\n")
+          "\n"))
+         (for/list ([bound (in-list bounds)])
+           (let* ([low (car bound)]
+                  [high (cdr bound)]
+                  [extent (vec* 0.5 (vec- high low))]
+                  [center (vec+ low extent)])
+             (flatten (list extent center)))))))))
 
 
 (define (renderer-load-and-process-model path-str)
@@ -101,8 +92,10 @@
       (dynamic-rerequire path)
       (let ([clusters ((dynamic-require path 'emit-glsl))])
         (for ([cluster (in-list clusters)])
-          (let ([count (car cluster)]
-                [dist (cadr cluster)]
-                [data (cddr cluster)])
-            (NewClusterCallback count dist data))))))
+          (let* ([tree (~a (car cluster))]
+                 [dist (cadr cluster)]
+                 [aabbs (cddr cluster)]
+                 [index (EmitShader tree dist)])
+            (for ([aabb (in-list aabbs)])
+              (apply EmitBounds (cons index aabb))))))))
   (void))

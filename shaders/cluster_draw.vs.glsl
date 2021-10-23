@@ -1,4 +1,3 @@
-prepend: shaders/tile_heap.glsl
 --------------------------------------------------------------------------------
 
 // Copyright 2021 Aeva Palecek
@@ -31,33 +30,12 @@ uniform ViewInfoBlock
 };
 
 
-layout(std430, binding = 0) restrict readonly buffer TileHeap
+layout(std140, binding = 1)
+uniform InstanceDataBlock
 {
-	TileHeapEntry Heap[];
-};
-
-
-layout(std140, binding = 1) restrict readonly buffer TileHeapInfo
-{
-	uint HeapSize;
-	uint SegmentStart;
-	uint StackPtr;
-};
-
-
-layout(std430, binding = 2) restrict readonly buffer InstanceHeap
-{
-	mat4 InstanceTransforms[];
-};
-
-
-layout(std430, binding = 3) restrict readonly buffer TileDrawArgs
-{
-	uint PrimitiveCount;
-	uint InstanceCount;
-	uint First;
-	uint BaseInstance;
-	uint InstanceOffset; // Not a draw param.
+	mat4 WorldToLocal;
+	mat4 LocalToWorld;
+	AABB Bounds;
 };
 
 
@@ -69,62 +47,72 @@ out gl_PerVertex
 };
 
 
-out flat AABB Bounds;
+out vec3 LocalPosition;
 out flat vec3 LocalMin;
 out flat vec3 LocalMax;
-out flat mat4 WorldToLocal;
-out flat mat4 LocalToWorld;
 out flat vec3 LocalCamera;
 
 
-vec2 Verts[4] = \
+vec3 Verts[24] = \
 {
-	vec2(0.0, 0.0),
-	vec2(1.0, 0.0),
-	vec2(1.0, 1.0),
-	vec2(0.0, 1.0)
+	vec3(-1.0, -1.0, 1.0),
+	vec3(1.0, -1.0, 1.0),
+	vec3(1.0, 1.0, 1.0),
+	vec3(-1.0, 1.0, 1.0),
+	vec3(-1.0, -1.0, -1.0),
+	vec3(-1.0, 1.0, -1.0),
+	vec3(1.0, 1.0, -1.0),
+	vec3(1.0, -1.0, -1.0),
+	vec3(-1.0, 1.0, -1.0),
+	vec3(-1.0, 1.0, 1.0),
+	vec3(1.0, 1.0, 1.0),
+	vec3(1.0, 1.0, -1.0),
+	vec3(-1.0, -1.0, -1.0),
+	vec3(1.0, -1.0, -1.0),
+	vec3(1.0, -1.0, 1.0),
+	vec3(-1.0, -1.0, 1.0),
+	vec3(1.0, -1.0, -1.0),
+	vec3(1.0, 1.0, -1.0),
+	vec3(1.0, 1.0, 1.0),
+	vec3(1.0, -1.0, 1.0),
+	vec3(-1.0, -1.0, -1.0),
+	vec3(-1.0, -1.0, 1.0),
+	vec3(-1.0, 1.0, 1.0),
+	vec3(-1.0, 1.0, -1.0)
 };
 
 
-ivec3 Indices[2] = \
+ivec3 Indices[12] = \
 {
 	ivec3(0, 1, 2),
-	ivec3(0, 2, 3)
+	ivec3(0, 2, 3),
+	ivec3(4, 5, 6),
+	ivec3(4, 6, 7),
+	ivec3(8, 9, 10),
+	ivec3(8, 10, 11),
+	ivec3(12, 13, 14),
+	ivec3(12, 14, 15),
+	ivec3(16, 17, 18),
+	ivec3(16, 18, 19),
+	ivec3(20, 21, 22),
+	ivec3(20, 22, 23)
 };
 
 
 void main()
 {
-	TileHeapEntry Tile = Heap[gl_InstanceID + InstanceOffset];
-
-	LocalToWorld = InstanceTransforms[Tile.InstanceID * 2];
-	WorldToLocal = InstanceTransforms[Tile.InstanceID * 2 + 1];
-
-	Bounds = ClusterData[min(Tile.ClusterID, ClusterCount - 1)];
 	LocalMin = Bounds.Center - Bounds.Extent;
 	LocalMax = Bounds.Center + Bounds.Extent;
-
 	{
 		vec4 Tmp = WorldToLocal * vec4(CameraOrigin.xyz, 1.0);
 		Tmp /= Tmp.w;
 		LocalCamera = Tmp.xyz;
 	}
-
-	vec2 MinNDC;
-	vec2 MaxNDC;
-	{
-		vec2 TileCoords = vec2(float(Tile.TileID & 0xFFFF), float(Tile.TileID >> 16));
-		vec2 TileSize = vec2(float(TILE_SIZE_X), float(TILE_SIZE_Y));
-		vec2 ScreenMin = TileCoords * TileSize;
-		vec2 ScreenMax = min(ScreenMin + TileSize, ScreenSize.xy);
-		MinNDC = ScreenMin * ScreenSize.zw * 2.0 - 1.0;
-		MaxNDC = ScreenMax * ScreenSize.zw * 2.0 - 1.0;
-	}
 	{
 		const int Tri = gl_VertexID / 3;
 		const int Vert = gl_VertexID % 3;
 		int Index = Indices[Tri][Vert];
-		vec2 NDC = mix(MinNDC, MaxNDC, Verts[Index]);
-		gl_Position = vec4(NDC, 0.0, 1.0);
+		LocalPosition = Verts[Index] * Bounds.Extent + Bounds.Center;
+		gl_Position = ViewToClip * WorldToView * LocalToWorld * vec4(LocalPosition, 1.0);
 	}
 }

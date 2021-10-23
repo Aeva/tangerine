@@ -199,13 +199,8 @@
   <ItemGroup>
     <None Include="..\regen.bat" />
     <None Include="..\shaders\bg.fs.glsl" />
-    <None Include="..\shaders\cluster_coverage.fs.glsl" />
-    <None Include="..\shaders\cluster_coverage.vs.glsl" />
-    <None Include="..\shaders\cluster_cull.cs.glsl" />
     <None Include="..\shaders\cluster_draw.fs.glsl" />
     <None Include="..\shaders\cluster_draw.vs.glsl" />
-    <None Include="..\shaders\cluster_setup.cs.glsl" />
-    <None Include="..\shaders\cluster_tally.cs.glsl" />
     <None Include="..\shaders\gather_depth.cs.glsl" />
     <None Include="..\shaders\math.glsl" />
     <None Include="..\shaders\noise.fs.glsl" />

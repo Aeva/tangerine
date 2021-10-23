@@ -30,11 +30,18 @@ uniform ViewInfoBlock
 };
 
 
-in flat AABB Bounds;
+layout(std140, binding = 1)
+uniform InstanceDataBlock
+{
+	mat4 WorldToLocal;
+	mat4 LocalToWorld;
+	AABB Bounds;
+};
+
+
+in vec3 LocalPosition;
 in flat vec3 LocalMin;
 in flat vec3 LocalMax;
-in flat mat4 WorldToLocal;
-in flat mat4 LocalToWorld;
 in flat vec3 LocalCamera;
 
 
@@ -69,13 +76,7 @@ struct Coverage
 
 void main()
 {
-	vec2 NDC = gl_FragCoord.xy * ScreenSize.zw * 2.0 - 1.0;
-	vec4 Clip = vec4(NDC, -1.0, 1.0);
-	vec4 View = ClipToView * Clip;
-	View /= View.w;
-	vec4 Local = WorldToLocal * ViewToWorld * View;
-	Local /= Local.w;
-	vec3 EyeRay = normalize(Local.xyz - LocalCamera);
+	vec3 EyeRay = normalize(LocalPosition - LocalCamera);
 	vec3 RayStart = EyeRay * BoxBrush(LocalCamera - Bounds.Center, Bounds.Extent) + LocalCamera;
 
 	bool CanHit = RayHitAABB(RayStart, EyeRay, Bounds, RayStart);
@@ -117,7 +118,7 @@ void main()
 		WorldPosition /= WorldPosition.w;
 
 		OutPosition = WorldPosition.xyz;
-		OutNormal.xyz = normalize(mat3(LocalToWorld) *Gradient(Position));
+		OutNormal.xyz = normalize(mat3(LocalToWorld) * Gradient(Position));
 #if VISUALIZE_TRACING_ERROR
 		OutNormal.a = abs(clamp(Dist, -0.005, 0.005) / 0.005);
 #endif

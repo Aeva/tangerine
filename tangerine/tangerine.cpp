@@ -31,6 +31,7 @@
 
 #include <iostream>
 #include <cstring>
+#include <map>
 #include <vector>
 #include <chrono>
 
@@ -53,152 +54,142 @@
 #define MINIMUM_VERSION_MINOR 2
 
 
+struct DrawingRegion
+{
+	glm::vec4 Extent;
+	glm::vec4 Center;
+};
+
+
+struct InstanceDataUpload
+{
+	glm::mat4 LocalToWorld;
+	glm::mat4 WorldToLocal;
+	glm::vec4 Extent;
+	glm::vec4 Center;
+};
+
+
 struct LowLevelSubtree
 {
-	LowLevelSubtree(int InSectionCount, std::string InDistSource, std::string InDataSource)
+	LowLevelSubtree(std::string InDebugName, std::string InDistSource)
 	{
-		SectionCount = InSectionCount;
+		DebugName = InDebugName;
 		DistSource = InDistSource;
-		DataSource = InDataSource;
+		IsValid = false;
 	}
 	StatusCode Compile()
 	{
-		StatusCode Result = SetupShader.Setup(
-			{ {GL_COMPUTE_SHADER, GeneratedShader("shaders/math.glsl", DataSource, "shaders/cluster_setup.cs.glsl")} },
-			"Cluster Culling Setup Shader");
-
-		if (Result == StatusCode::FAIL)
-		{
-			SetupShader.Reset();
-			return Result;
-		}
-
-		Result = CullingShader.Setup(
-			{ {GL_COMPUTE_SHADER, GeneratedShader("shaders/math.glsl", DataSource, "shaders/cluster_cull.cs.glsl")} },
-			"Cluster Culling Shader");
-
-		if (Result == StatusCode::FAIL)
-		{
-			SetupShader.Reset();
-			CullingShader.Reset();
-			return Result;
-		}
-
-		Result = DepthShader.Setup(
-			{ {GL_VERTEX_SHADER, GeneratedShader("shaders/math.glsl", DataSource + DistSource, "shaders/cluster_draw.vs.glsl")},
+		StatusCode Result = DepthShader.Setup(
+			{ {GL_VERTEX_SHADER, GeneratedShader("shaders/math.glsl", DistSource, "shaders/cluster_draw.vs.glsl")},
 			  {GL_FRAGMENT_SHADER, GeneratedShader("shaders/math.glsl", DistSource, "shaders/cluster_draw.fs.glsl")} },
-			"Generated Shader");
+			DebugName.c_str());
 
 		if (Result == StatusCode::FAIL)
 		{
-			SetupShader.Reset();
-			CullingShader.Reset();
 			DepthShader.Reset();
 			return Result;
 		}
 
+		InstanceParams.reserve(Instances.size());
+		for (int i = 0; i < Instances.size(); ++i)
+		{
+			InstanceParams.emplace_back("Instance Parameters");
+			InstanceDataUpload BufferData = {
+				glm::identity<glm::mat4>(),
+				glm::identity<glm::mat4>(),
+				Instances[i].Center,
+				Instances[i].Extent
+			};
+			InstanceParams[i].Upload((void*)&BufferData, sizeof(BufferData));
+		}
+		glGenQueries(1, &DepthQuery);
+		IsValid = true;
 		return StatusCode::PASS;
 	}
 	void Reset()
 	{
-		SetupShader.Reset();
-		CullingShader.Reset();
 		DepthShader.Reset();
-		ClippingRectsBuffer.Release();
-	}
-	int SectionCount;
-	std::string DistSource;
-	std::string DataSource;
-	ShaderPipeline SetupShader;
-	ShaderPipeline CullingShader;
-	ShaderPipeline DepthShader;
-	Buffer ClippingRectsBuffer;
-};
-
-
-struct LowLevelModel
-{
-	void NewSubtree(int SectionCount, std::string DistSource, std::string DataSource)
-	{
-		Subtrees.emplace_back(SectionCount, DistSource, DataSource);
-	}
-	StatusCode Compile()
-	{
-		StatusCode Result = StatusCode::FAIL;
-		for (LowLevelSubtree& Subtree : Subtrees)
+		if (IsValid)
 		{
-			Result = Subtree.Compile();
-			if (Result == StatusCode::FAIL)
+			IsValid = false;
+			for (Buffer& Instance : InstanceParams)
 			{
-				break;
+				Instance.Release();
 			}
+			glDeleteQueries(1, &DepthQuery);
 		}
-		if (Result == StatusCode::FAIL)
-		{
-			Reset();
-		}
-		else
-		{
-		}
-		return Result;
 	}
-	void Reset()
-	{
-		for (LowLevelSubtree& Subtree : Subtrees)
-		{
-			Subtree.Reset();
-		}
-		Subtrees.clear();
-	}
-	~LowLevelModel()
+	~LowLevelSubtree()
 	{
 		Reset();
 	}
-	std::vector<LowLevelSubtree> Subtrees;
+	bool IsValid;
+	std::string DebugName;
+	std::string DistSource;
+	ShaderPipeline DepthShader;
+	std::vector<DrawingRegion> Instances;
+	std::vector<Buffer> InstanceParams;
+	GLuint DepthQuery;
 };
 
 
+std::map<std::string, size_t> SubtreeMap;
+std::vector<LowLevelSubtree> Subtrees;
+std::vector<size_t> PendingSubtrees;
+
+
+extern "C" size_t TANGERINE_API EmitShader(const char* ShaderTree, const char* ShaderSource)
+{
+	std::string Tree = std::string(ShaderTree);
+	std::string Source = std::string(ShaderSource);
+	auto Found = SubtreeMap.find(Tree);
+	if (Found == SubtreeMap.end())
+	{
+		Subtrees.emplace_back(Tree, Source);
+		size_t Index = Subtrees.size() - 1;
+		SubtreeMap[Tree] = Index;
+		PendingSubtrees.push_back(Index);
+		return Index;
+	}
+	else
+	{
+		return Found->second;
+	}
+}
+
+
+extern "C" void TANGERINE_API EmitBounds(size_t Index, float ExtentX, float ExtentY, float ExtentZ, float CenterX, float CenterY, float CenterZ)
+{
+	DrawingRegion Instance;
+	Instance.Extent = glm::vec4(ExtentX, ExtentY, ExtentZ, 0.0);
+	Instance.Center = glm::vec4(CenterX, CenterY, CenterZ, 0.0);
+	Subtrees[Index].Instances.push_back(Instance);
+}
+
+
 GLuint NullVAO;
-ShaderPipeline ClusterTallyShader;
-#if VISUALIZE_CLUSTER_COVERAGE
-ShaderPipeline ClusterCoverageShader;
-#endif
-ShaderPipeline DepthGatherShader;
 ShaderPipeline PaintShader;
 ShaderPipeline NoiseShader;
 ShaderPipeline BgShader;
-
-LowLevelModel* CurrentModel = nullptr;
-LowLevelModel* PendingModel = nullptr;
 
 Buffer ViewInfo("ViewInfo Buffer");
 Buffer OutlinerOptions("Outliner Options Buffer");
 Buffer InstanceInfo("InstanceInfo Buffer");
 
-std::vector<Buffer> TileDrawArgs;
-Buffer TileHeapInfo("Tile Draw Heap Info");
-Buffer TileHeap("Tile Draw Heap");
-Buffer InstanceHeap("Instance Heap");
 Buffer DepthTimeBuffer("Subtree Heatmap Buffer");
 GLuint DepthPass;
 GLuint DepthBuffer;
-#if USE_OCCLUSION_CULLING
-GLuint DepthRangeBuffer;
-#endif
-#if DEBUG_CLUSTER_DEPTH_RANGE
-GLuint ClusterRangeBuffer;
-#endif
+
 GLuint PositionBuffer;
 GLuint NormalBuffer;
 GLuint IDBuffer;
 const GLuint FinalPass = 0;
 
-GLuint CullingTimeQuery;
 GLuint DepthTimeQuery;
 GLuint GridBgTimeQuery;
 GLuint OutlinerTimeQuery;
 GLuint UiTimeQuery;
-std::vector<GLuint> ClusterDepthQueries;
 
 
 void AllocateRenderTargets(int ScreenWidth, int ScreenHeight)
@@ -210,12 +201,6 @@ void AllocateRenderTargets(int ScreenWidth, int ScreenHeight)
 		glDeleteTextures(1, &DepthBuffer);
 		glDeleteTextures(1, &PositionBuffer);
 		glDeleteTextures(1, &NormalBuffer);
-#if USE_OCCLUSION_CULLING
-		glDeleteTextures(1, &DepthRangeBuffer);
-#endif
-#if DEBUG_CLUSTER_DEPTH_RANGE
-		glDeleteTextures(1, &ClusterRangeBuffer);
-#endif
 	}
 	else
 	{
@@ -269,28 +254,6 @@ void AllocateRenderTargets(int ScreenWidth, int ScreenHeight)
 		GLenum ColorAttachments[3] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1, GL_COLOR_ATTACHMENT2 };
 		glNamedFramebufferDrawBuffers(DepthPass, 3, ColorAttachments);
 	}
-
-	// Occlusion Culling
-	{
-#if USE_OCCLUSION_CULLING
-		glCreateTextures(GL_TEXTURE_2D, 1, &DepthRangeBuffer);
-		glTextureStorage2D(DepthRangeBuffer, 1, GL_R32F, DIV_UP(ScreenWidth, 8), DIV_UP(ScreenHeight, 8));
-		glTextureParameteri(DepthRangeBuffer, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-		glTextureParameteri(DepthRangeBuffer, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-		glTextureParameteri(DepthRangeBuffer, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-		glTextureParameteri(DepthRangeBuffer, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-		glObjectLabel(GL_TEXTURE, DepthRangeBuffer, -1, "Depth Range Buffer");
-#endif
-#if DEBUG_CLUSTER_DEPTH_RANGE
-		glCreateTextures(GL_TEXTURE_2D, 1, &ClusterRangeBuffer);
-		glTextureStorage2D(ClusterRangeBuffer, 1, GL_RGBA32F, DIV_UP(ScreenWidth, 8), DIV_UP(ScreenHeight, 8));
-		glTextureParameteri(ClusterRangeBuffer, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-		glTextureParameteri(ClusterRangeBuffer, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-		glTextureParameteri(ClusterRangeBuffer, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-		glTextureParameteri(ClusterRangeBuffer, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-		glObjectLabel(GL_TEXTURE, ClusterRangeBuffer, -1, "Cluster Depth Range Buffer");
-#endif
-	}
 }
 
 
@@ -309,41 +272,6 @@ struct ViewInfoUpload
 };
 
 
-struct InstanceInfoUpload
-{
-	GLuint InstanceOffset;
-	GLuint Padding1;
-	GLuint Padding2;
-	GLuint Padding3;
-};
-
-
-struct TileDrawArgsUpload
-{
-	GLuint PrimitiveCount;
-	GLuint InstanceCount;
-	GLuint First;
-	GLuint BaseIntstance;
-	GLuint InstanceOffset; // Not a draw param.
-};
-
-
-struct TileHeapInfoUpload
-{
-	GLuint HeapSize;
-	GLuint SegmentStart;
-	GLuint StackPtr;
-};
-
-
-struct TileHeapEntry
-{
-	GLuint TileID;
-	GLuint ClusterID;
-	GLuint InstanceID;
-};
-
-
 struct OutlinerOptionsUpload
 {
 	GLuint OutlinerFlags;
@@ -357,10 +285,6 @@ StatusCode SetupRenderer()
 	glGenVertexArrays(1, &NullVAO);
 	glBindVertexArray(NullVAO);
 
-	RETURN_ON_FAIL(ClusterTallyShader.Setup(
-		{ {GL_COMPUTE_SHADER, ShaderSource("shaders/cluster_tally.cs.glsl", true)} },
-		"Cluster Tally Shader"));
-
 #if VISUALIZE_CLUSTER_COVERAGE
 	RETURN_ON_FAIL(ClusterCoverageShader.Setup(
 		{ {GL_VERTEX_SHADER, ShaderSource("shaders/cluster_coverage.vs.glsl", true)},
@@ -373,10 +297,6 @@ StatusCode SetupRenderer()
 		  {GL_FRAGMENT_SHADER, ShaderSource("shaders/outliner.fs.glsl", true)} },
 		"Outliner Shader"));
 
-	RETURN_ON_FAIL(DepthGatherShader.Setup(
-		{ {GL_COMPUTE_SHADER, ShaderSource("shaders/gather_depth.cs.glsl", true)} },
-		"Depth Gather Shader"));
-
 	RETURN_ON_FAIL(BgShader.Setup(
 		{ {GL_VERTEX_SHADER, ShaderSource("shaders/splat.vs.glsl", true)},
 		  {GL_FRAGMENT_SHADER, ShaderSource("shaders/bg.fs.glsl", true)} },
@@ -388,13 +308,11 @@ StatusCode SetupRenderer()
 		  {GL_FRAGMENT_SHADER, ShaderSource("shaders/noise.fs.glsl", true)} },
 		"Noise Shader"));
 
-	glGenQueries(1, &CullingTimeQuery);
 	glGenQueries(1, &DepthTimeQuery);
 	glGenQueries(1, &GridBgTimeQuery);
 	glGenQueries(1, &OutlinerTimeQuery);
 	glGenQueries(1, &UiTimeQuery);
 
-	glDisable(GL_MULTISAMPLE);
 	glEnable(GL_CULL_FACE);
 	glEnable(GL_DEPTH_TEST);
 	glClipControl(GL_LOWER_LEFT, GL_ZERO_TO_ONE);
@@ -408,49 +326,29 @@ StatusCode SetupRenderer()
 
 
 double ShaderCompilerStallMs = 0.0;
-void SetupNewModel()
+std::vector<LowLevelSubtree*> Drawables;
+void CompileNewShaders()
 {
+	Drawables.clear();
+	Drawables.reserve(PendingSubtrees.size());
+
 	using Clock = std::chrono::high_resolution_clock;
 	Clock::time_point StartTimePoint = Clock::now();
 
-	StatusCode Result = PendingModel->Compile();
-	bool RegenerateQueries = false;
-	if (Result == StatusCode::PASS && PendingModel->Subtrees.size() > 0)
+	for (size_t SubtreeIndex : PendingSubtrees)
 	{
-		if (CurrentModel != nullptr)
+		LowLevelSubtree& Subtree = Subtrees[SubtreeIndex];
+		StatusCode Result = Subtree.Compile();
+		if (Result == StatusCode::PASS && Subtree.Instances.size() > 0)
 		{
-			delete CurrentModel;
+			Drawables.push_back(&Subtree);
 		}
-		CurrentModel = PendingModel;
-		PendingModel = nullptr;
-		RegenerateQueries = true;
 	}
-	else
-	{
-		delete PendingModel;
-	}
+	PendingSubtrees.clear();
 
 	Clock::time_point EndTimePoint = Clock::now();
 	std::chrono::duration<double, std::milli> Delta = EndTimePoint - StartTimePoint;
 	ShaderCompilerStallMs = Delta.count();
-
-	if (RegenerateQueries)
-	{
-		const size_t OldQueryCount = ClusterDepthQueries.size();
-		if (OldQueryCount > 0)
-		{
-			glDeleteQueries(OldQueryCount, ClusterDepthQueries.data());
-		}
-		const size_t NewQueryCount = CurrentModel->Subtrees.size();
-		ClusterDepthQueries.resize(NewQueryCount, 0);
-		{
-			std::vector<float> Zeros(NewQueryCount, 0.0);
-			glGenQueries(NewQueryCount, ClusterDepthQueries.data());
-			{
-				DepthTimeBuffer.Upload(Zeros.data(), NewQueryCount * sizeof(float));
-			}
-		}
-	}
 }
 
 
@@ -467,42 +365,9 @@ float PresentFrequency = 0.0;
 float PresentDeltaMs = 0.0;
 void RenderFrame(int ScreenWidth, int ScreenHeight)
 {
-	if (PendingModel != nullptr)
+	if (PendingSubtrees.size() > 0)
 	{
-		SetupNewModel();
-	}
-
-	{
-		static size_t LastDrawCount = 0;
-		size_t DrawCount;
-		if (CurrentModel != nullptr)
-		{
-			DrawCount = CurrentModel->Subtrees.size();
-		}
-		else
-		{
-			DrawCount = 0;
-		}
-		if (LastDrawCount != DrawCount)
-		{
-			LastDrawCount = DrawCount;
-
-			for (Buffer& OldBuffer : TileDrawArgs)
-			{
-				OldBuffer.Release();
-			}
-
-			TileDrawArgs.resize(DrawCount);
-
-			for (int i = 0; i < DrawCount; ++i)
-			{
-				TileDrawArgs[i] = Buffer("Indirect Tile Drawing Arguments");
-				{
-					TileDrawArgsUpload BufferData = { 0, 0, 0, 0 };
-					TileDrawArgs[i].Upload((void*)&BufferData, sizeof(BufferData));
-				}
-			}
-		}
+		CompileNewShaders();
 	}
 
 	double CurrentTime;
@@ -513,11 +378,11 @@ void RenderFrame(int ScreenWidth, int ScreenHeight)
 		Clock::time_point CurrentTimePoint = Clock::now();
 		{
 			std::chrono::duration<double, std::milli> FrameDelta = CurrentTimePoint - LastTimePoint;
-			PresentDeltaMs = FrameDelta.count();
+			PresentDeltaMs = float(FrameDelta.count());
 		}
 		{
 			std::chrono::duration<double, std::milli> EpochDelta = CurrentTimePoint - StartTimePoint;
-			CurrentTime = EpochDelta.count();
+			CurrentTime = float(EpochDelta.count());
 		}
 		LastTimePoint = CurrentTimePoint;
 		PresentFrequency = float(1000.0 / PresentDeltaMs);
@@ -553,7 +418,7 @@ void RenderFrame(int ScreenWidth, int ScreenHeight)
 		RotateX = fmodf(RotateX - MouseMotionY, 360.0);
 		RotateZ = fmodf(RotateZ - MouseMotionX, 360.0);
 		Zoom = fmaxf(0.0, Zoom - MouseMotionZ);
-		const float ToRadians = M_PI / 180.0;
+		const float ToRadians = float(M_PI / 180.0);
 
 		glm::mat4 Orientation = glm::identity<glm::mat4>();
 		Orientation = glm::rotate(Orientation, RotateZ * ToRadians, glm::vec3(0.0, 0.0, 1.0));
@@ -609,125 +474,8 @@ void RenderFrame(int ScreenWidth, int ScreenHeight)
 		OutlinerOptions.Upload((void*)&BufferData, sizeof(BufferData));
 	}
 
-	const unsigned int TilesX = DIV_UP(Width, TILE_SIZE_X);
-	const unsigned int TilesY = DIV_UP(Height, TILE_SIZE_Y);
+	if (Drawables.size() > 0)
 	{
-		static unsigned int HeapSize = 0;
-		const unsigned int TileCount = TilesX * TilesY * 20;
-
-		TileHeapInfoUpload BufferData = {
-			TileCount,
-			0,
-			0
-		};
-		TileHeapInfo.Upload((void*)&BufferData, sizeof(BufferData));
-		glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
-
-		if (TileCount != HeapSize)
-		{
-			std::cout << "Tile heap size: " << TileCount << "\n";
-			HeapSize = TileCount;
-			TileHeap.Reserve(sizeof(TileHeapEntry) * HeapSize);
-		}
-	}
-
-	if (CurrentModel != nullptr)
-	{
-		size_t TotalInstances = 1;
-		{
-			std::vector<glm::mat4> InstanceData;
-			InstanceData.reserve(TotalInstances * 2);
-			for (size_t i = 0; i < TotalInstances; ++i)
-			{
-				// Place holder.  Ideally these would be cached on the instance objects and just fetched.
-				glm::mat4 LocalToWorld = glm::identity<glm::mat4>();
-				LocalToWorld = glm::translate(LocalToWorld, glm::vec3(0.0, 2.0 * float(i), 0.0));
-				glm::mat4 WorldToLocal = glm::inverse(LocalToWorld);
-				InstanceData.push_back(LocalToWorld);
-				InstanceData.push_back(WorldToLocal);
-			}
-			InstanceHeap.Upload((void*)InstanceData.data(), sizeof(glm::mat4) * 2 * TotalInstances);
-
-			for (LowLevelSubtree& Subtree : CurrentModel->Subtrees)
-			{
-				Subtree.ClippingRectsBuffer.Reserve(sizeof(glm::vec4) * 2 * Subtree.SectionCount * TotalInstances);
-			}
-		}
-
-		{
-			size_t InstanceCount = 1;
-			InstanceInfoUpload BufferData = { 0, 0, 0, 0 };
-			InstanceInfo.Upload((void*)&BufferData, sizeof(BufferData));
-
-			InstanceInfo.Bind(GL_UNIFORM_BUFFER, 1);
-			InstanceHeap.Bind(GL_SHADER_STORAGE_BUFFER, 2);
-
-			glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Cluster Culling Pass");
-			glBeginQuery(GL_TIME_ELAPSED, CullingTimeQuery);
-
-			glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Setup");
-			for (LowLevelSubtree& Subtree : CurrentModel->Subtrees)
-			{
-				Subtree.SetupShader.Activate();
-				Subtree.ClippingRectsBuffer.Bind(GL_SHADER_STORAGE_BUFFER, 1);
-				glDispatchCompute(Subtree.SectionCount * InstanceCount, 1, 1);
-			}
-			glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
-			glPopDebugGroup();
-
-#if USE_OCCLUSION_CULLING
-			glBindTextureUnit(3, DepthRangeBuffer);
-#endif
-
-			// Each lane is a tile, so we have to tile the tiles...
-			const unsigned int GroupX = DIV_UP(TilesX, TILE_SIZE_X);
-			const unsigned int GroupY = DIV_UP(TilesY, TILE_SIZE_Y);
-			int i = 0;
-			for (LowLevelSubtree& Subtree : CurrentModel->Subtrees)
-			{
-				glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Subtree");
-				{
-#if DEBUG_CLUSTER_DEPTH_RANGE
-					glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
-					glBindImageTexture(4, ClusterRangeBuffer, 0, false, 0, GL_WRITE_ONLY, GL_RGBA32F);
-#endif
-					Subtree.CullingShader.Activate();
-					TileHeap.Bind(GL_SHADER_STORAGE_BUFFER, 0);
-					TileHeapInfo.Bind(GL_SHADER_STORAGE_BUFFER, 1);
-					Subtree.ClippingRectsBuffer.Bind(GL_SHADER_STORAGE_BUFFER, 2);
-					glDispatchCompute(GroupX, GroupY, Subtree.SectionCount * InstanceCount);
-					glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
-				}
-				{
-					ClusterTallyShader.Activate();
-					TileDrawArgs[i].Bind(GL_SHADER_STORAGE_BUFFER, 0);
-					TileHeapInfo.Bind(GL_SHADER_STORAGE_BUFFER, 1);
-					glDispatchCompute(1, 1, 1);
-					glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
-				}
-				++i;
-				glPopDebugGroup();
-			}
-			glMemoryBarrier(GL_COMMAND_BARRIER_BIT);
-			glEndQuery(GL_TIME_ELAPSED);
-			glPopDebugGroup();
-		}
-
-#if VISUALIZE_CLUSTER_COVERAGE
-		{
-			glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Visualize Cluster Coverage");
-			glDisable(GL_DEPTH_TEST);
-			glDepthMask(GL_FALSE);
-			glBindFramebuffer(GL_FRAMEBUFFER, FinalPass);
-			ClusterCoverageShader.Activate();
-			glClear(GL_COLOR_BUFFER_BIT);
-			TileDrawArgs.Bind(GL_DRAW_INDIRECT_BUFFER);
-			TileHeap.Bind(GL_SHADER_STORAGE_BUFFER, 0);
-			TileHeapInfo.Bind(GL_SHADER_STORAGE_BUFFER, 1);
-			glDrawArraysIndirect(GL_TRIANGLES, 0);
-			glPopDebugGroup();
-		}
-#else
 		{
 			glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Depth");
 			glBeginQuery(GL_TIME_ELAPSED, DepthTimeQuery);
@@ -735,28 +483,29 @@ void RenderFrame(int ScreenWidth, int ScreenHeight)
 			glDepthMask(GL_TRUE);
 			glEnable(GL_DEPTH_TEST);
 			glClear(GL_DEPTH_BUFFER_BIT);
-			TileHeap.Bind(GL_SHADER_STORAGE_BUFFER, 0);
-			TileHeapInfo.Bind(GL_SHADER_STORAGE_BUFFER, 1);
-			InstanceHeap.Bind(GL_SHADER_STORAGE_BUFFER, 2);
 			if (ShowHeatmap)
 			{
 				glEndQuery(GL_TIME_ELAPSED);
 			}
-			for (int i=0; i < CurrentModel->Subtrees.size(); ++i)
+			for (LowLevelSubtree* Subtree : Drawables)
 			{
-				ShaderPipeline& DepthShader = CurrentModel->Subtrees[i].DepthShader;
+				GLsizei DebugNameLen = Subtree->DebugName.size() < 100 ? -1 : 100;
+				glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, DebugNameLen, Subtree->DebugName.c_str());
 				if (ShowHeatmap)
 				{
-					glBeginQuery(GL_TIME_ELAPSED, ClusterDepthQueries[i]);
+					glBeginQuery(GL_TIME_ELAPSED, Subtree->DepthQuery);
 				}
-				DepthShader.Activate();
-				TileDrawArgs[i].Bind(GL_DRAW_INDIRECT_BUFFER);
-				TileDrawArgs[i].Bind(GL_SHADER_STORAGE_BUFFER, 3);
-				glDrawArraysIndirect(GL_TRIANGLES, 0);
+				Subtree->DepthShader.Activate();
+				for (Buffer& InstanceData : Subtree->InstanceParams)
+				{
+					InstanceData.Bind(GL_UNIFORM_BUFFER, 1);
+					glDrawArrays(GL_TRIANGLES, 0, 36);
+				}
 				if (ShowHeatmap)
 				{
 					glEndQuery(GL_TIME_ELAPSED);
 				}
+				glPopDebugGroup();
 			}
 			if (!ShowHeatmap)
 			{
@@ -764,18 +513,6 @@ void RenderFrame(int ScreenWidth, int ScreenHeight)
 			}
 			glPopDebugGroup();
 		}
-#if USE_OCCLUSION_CULLING
-		{
-			glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Gather Depth");
-			glBindTextureUnit(3, DepthBuffer);
-			glBindImageTexture(4, DepthRangeBuffer, 0, false, 0, GL_WRITE_ONLY, GL_R32F);
-			DepthGatherShader.Activate();
-			const unsigned int GroupX = DIV_UP(Width, TILE_SIZE_X);
-			const unsigned int GroupY = DIV_UP(Height, TILE_SIZE_Y);
-			glDispatchCompute(GroupX, GroupY, 1);
-			glPopDebugGroup();
-		}
-#endif
 		{
 			glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Background");
 			glBeginQuery(GL_TIME_ELAPSED, GridBgTimeQuery);
@@ -790,7 +527,7 @@ void RenderFrame(int ScreenWidth, int ScreenHeight)
 				break;
 			default:
 				ShowBackground = -1;
-				glClearColor(0.6, 0.6, 0.6, 1.0);
+				glClearColor(0.6f, 0.6f, 0.6f, 1.0f);
 				glClear(GL_COLOR_BUFFER_BIT);
 			}
 			glEndQuery(GL_TIME_ELAPSED);
@@ -810,7 +547,6 @@ void RenderFrame(int ScreenWidth, int ScreenHeight)
 			glEndQuery(GL_TIME_ELAPSED);
 			glPopDebugGroup();
 		}
-#endif
 	}
 	else
 	{
@@ -830,15 +566,6 @@ void ToggleFullScreen(SDL_Window* Window)
 	static bool FullScreen = false;
 	FullScreen = !FullScreen;
 	SDL_SetWindowFullscreen(Window, FullScreen ? SDL_WINDOW_FULLSCREEN_DESKTOP : 0);
-}
-
-
-extern "C" void TANGERINE_API NewClusterCallback(int ClusterCount, const char* ClusterDist, const char* ClusterData)
-{
-	if (PendingModel != nullptr)
-	{
-		PendingModel->NewSubtree(ClusterCount, std::string(ClusterDist), std::string(ClusterData));
-	}
 }
 
 
@@ -870,11 +597,6 @@ void LoadModel(nfdchar_t* Path)
 	{
 		using Clock = std::chrono::high_resolution_clock;
 		Clock::time_point StartTimePoint = Clock::now();
-		if (PendingModel != nullptr)
-		{
-			delete PendingModel;
-		}
-		PendingModel = new LowLevelModel();
 		Sactivate_thread();
 		ptr ModuleSymbol = Sstring_to_symbol("tangerine");
 		ptr ProcSymbol = Sstring_to_symbol("renderer-load-and-process-model");
@@ -882,19 +604,6 @@ void LoadModel(nfdchar_t* Path)
 		ptr Args = Scons(Sstring(Path), Snil);
 		racket_apply(Proc, Args);
 		Sdeactivate_thread();
-		if (PendingModel->Subtrees.size() > 0)
-		{
-			if (LastPath && strcmp(Path, LastPath) != 0)
-			{
-				ResetCamera = true;
-			}
-			LastPath = Path;
-		}
-		else
-		{
-			delete PendingModel;
-			PendingModel = nullptr;
-		}
 		Clock::time_point EndTimePoint = Clock::now();
 		std::chrono::duration<double, std::milli> Delta = EndTimePoint - StartTimePoint;
 		ModelProcessingStallMs = Delta.count();
@@ -921,7 +630,6 @@ void UpdateElapsedTime(GLuint Query, double& TimeMs)
 }
 
 
-double CullingElapsedTimeMs = 0.0;
 double DepthElapsedTimeMs = 0.0;
 double GridBgElapsedTimeMs = 0.0;
 double OutlinerElapsedTimeMs = 0.0;
@@ -1030,12 +738,10 @@ void RenderUI(SDL_Window* Window, bool& Live)
 			ImGui::Separator();
 			ImGui::Text("GPU Timeline\n");
 			double TotalTimeMs = \
-				CullingElapsedTimeMs +
 				DepthElapsedTimeMs +
 				GridBgElapsedTimeMs +
 				OutlinerElapsedTimeMs +
 				UiElapsedTimeMs;
-			ImGui::Text(" Culling: %.2f ms\n", CullingElapsedTimeMs);
 			ImGui::Text("   Depth: %.2f ms\n", DepthElapsedTimeMs);
 			ImGui::Text("   'Sky': %.2f ms\n", GridBgElapsedTimeMs);
 			ImGui::Text(" Outline: %.2f ms\n", OutlinerElapsedTimeMs);
@@ -1284,24 +990,23 @@ int main(int argc, char* argv[])
 				}
 				SDL_GL_SwapWindow(Window);
 			}
-			UpdateElapsedTime(CullingTimeQuery, CullingElapsedTimeMs);
 			UpdateElapsedTime(DepthTimeQuery, DepthElapsedTimeMs);
 			UpdateElapsedTime(GridBgTimeQuery, GridBgElapsedTimeMs);
 			UpdateElapsedTime(OutlinerTimeQuery, OutlinerElapsedTimeMs);
 			UpdateElapsedTime(UiTimeQuery, UiElapsedTimeMs);
 			if (ShowHeatmap)
 			{
-				const int QueryCount = ClusterDepthQueries.size();
+				const size_t QueryCount = Drawables.size();
 				float Range = 0.0;
 				std::vector<float> Upload(QueryCount, 0.0);
 				for (int i = 0; i < QueryCount; ++i)
 				{
-					GLuint TimeQuery = ClusterDepthQueries[i];
+					GLuint TimeQuery = Drawables[i]->DepthQuery;
 					double ElapsedTimeMs;
 					UpdateElapsedTime(TimeQuery, ElapsedTimeMs);
-					Upload[i] = ElapsedTimeMs;
+					Upload[i] = float(ElapsedTimeMs);
 					DepthElapsedTimeMs += ElapsedTimeMs;
-					Range = fmax(Range, ElapsedTimeMs);
+					Range = fmax(Range, float(ElapsedTimeMs));
 				}
 				for (int i = 0; i < QueryCount; ++i)
 				{
@@ -1313,14 +1018,7 @@ int main(int argc, char* argv[])
 	}
 	{
 		std::cout << "Shutting down...\n";
-		if (PendingModel != nullptr)
-		{
-			delete PendingModel;
-		}
-		if (CurrentModel != nullptr)
-		{
-			delete CurrentModel;
-		}
+		Subtrees.clear();
 		ImGui_ImplOpenGL3_Shutdown();
 		ImGui_ImplSDL2_Shutdown();
 		ImGui::DestroyContext();
