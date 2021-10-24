@@ -56,17 +56,10 @@
 
 struct DrawingRegion
 {
-	glm::vec4 Extent;
-	glm::vec4 Center;
-};
-
-
-struct InstanceDataUpload
-{
 	glm::mat4 LocalToWorld;
 	glm::mat4 WorldToLocal;
-	glm::vec4 Extent;
 	glm::vec4 Center;
+	glm::vec4 Extent;
 };
 
 
@@ -95,13 +88,7 @@ struct LowLevelSubtree
 		for (int i = 0; i < Instances.size(); ++i)
 		{
 			InstanceParams.emplace_back("Instance Parameters");
-			InstanceDataUpload BufferData = {
-				glm::identity<glm::mat4>(),
-				glm::identity<glm::mat4>(),
-				Instances[i].Center,
-				Instances[i].Extent
-			};
-			InstanceParams[i].Upload((void*)&BufferData, sizeof(BufferData));
+			InstanceParams[i].Upload((void*)&Instances[i], sizeof(Instances[i]));
 		}
 		glGenQueries(1, &DepthQuery);
 		IsValid = true;
@@ -159,11 +146,16 @@ extern "C" size_t TANGERINE_API EmitShader(const char* ShaderTree, const char* S
 }
 
 
-extern "C" void TANGERINE_API EmitBounds(size_t Index, float ExtentX, float ExtentY, float ExtentZ, float CenterX, float CenterY, float CenterZ)
+extern "C" void TANGERINE_API EmitBounds(size_t Index, float Extent[3], float Center[3], float Matrix[16])
 {
 	DrawingRegion Instance;
-	Instance.Extent = glm::vec4(ExtentX, ExtentY, ExtentZ, 0.0);
-	Instance.Center = glm::vec4(CenterX, CenterY, CenterZ, 0.0);
+	Instance.Extent = glm::vec4(Extent[0], Extent[1], Extent[2], 0.0);
+	Instance.Center = glm::vec4(Center[0], Center[1], Center[2], 0.0);
+	for (int i = 0; i < 4; ++i)
+	{
+		Instance.LocalToWorld[i] = glm::vec4(Matrix[i * 4 + 0], Matrix[i * 4 + 1], Matrix[i * 4 + 2], Matrix[i * 4 + 3]);
+	}
+	Instance.WorldToLocal = glm::inverse(Instance.LocalToWorld);
 	Subtrees[Index].Instances.push_back(Instance);
 }
 

@@ -49,7 +49,7 @@
 
 (define-ffi-definer define-backend (ffi-lib #f) #:default-make-fail make-not-available)
 (define-backend EmitShader (_fun _string/utf-8 _string/utf-8 -> _size))
-(define-backend EmitBounds (_fun _size _float _float _float _float _float _float -> _void))
+(define-backend EmitBounds (_fun _size (_list i _float) (_list i _float) (_list i _float) -> _void))
 (define-backend SetLimitsCallback (_fun _float _float _float _float _float _float -> _void))
 (define-backend RacketErrorCallback (_fun _string/utf-8 -> _void))
 
@@ -83,7 +83,7 @@
                   [high (cdr bound)]
                   [extent (vec* 0.5 (vec- high low))]
                   [center (vec+ low extent)])
-             (flatten (list extent center)))))))))
+             (cons extent center))))))))
 
 
 (define (renderer-load-and-process-model path-str)
@@ -95,7 +95,8 @@
           (let* ([tree (~a (car cluster))]
                  [dist (cadr cluster)]
                  [aabbs (cddr cluster)]
-                 [index (EmitShader tree dist)])
+                 [index (EmitShader tree dist)]
+                 [matrix (flatten (mat4-identity))])
             (for ([aabb (in-list aabbs)])
-              (apply EmitBounds (cons index aabb))))))))
+              (EmitBounds index (car aabb) (cdr aabb) matrix)))))))
   (void))
