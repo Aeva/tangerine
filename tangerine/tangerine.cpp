@@ -22,6 +22,7 @@
 #include <imgui_impl_opengl3.h>
 
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
+#define GLM_FORCE_SWIZZLE
 #include <glm/vec3.hpp>
 #include <glm/vec4.hpp>
 #include <glm/mat4x4.hpp>
@@ -423,6 +424,7 @@ glm::vec4 ModelMin = glm::vec4(0.0);
 glm::vec4 ModelMax = glm::vec4(0.0);
 float PresentFrequency = 0.0;
 float PresentDeltaMs = 0.0;
+glm::vec3 CameraFocus = glm::vec3(0.0, 0.0, 0.0);
 void RenderFrame(int ScreenWidth, int ScreenHeight)
 {
 	if (PendingShaders.size() > 0)
@@ -473,6 +475,7 @@ void RenderFrame(int ScreenWidth, int ScreenHeight)
 			RotateX = 0.0;
 			RotateZ = 0.0;
 			Zoom = 14.0;
+			CameraFocus = (ModelMax.xyz - ModelMin.xyz) * glm::vec3(0.5) + ModelMin.xyz;
 		}
 
 		RotateX = fmodf(RotateX - MouseMotionY, 360.0);
@@ -490,7 +493,7 @@ void RenderFrame(int ScreenWidth, int ScreenHeight)
 		Fnord = Orientation * glm::vec4(0.0, 0.0, 1.0, 1.0);
 		glm::vec3 UpDir = glm::vec3(Fnord.x, Fnord.y, Fnord.z) / Fnord.w;
 
-		const glm::mat4 WorldToView = glm::lookAt(CameraOrigin, glm::vec3(0.0, 0.0, 0.0), UpDir);
+		const glm::mat4 WorldToView = glm::lookAt(CameraFocus + CameraOrigin, CameraFocus, UpDir);
 		const glm::mat4 ViewToWorld = glm::inverse(WorldToView);
 
 		{
@@ -722,6 +725,7 @@ void RenderUI(SDL_Window* Window, bool& Live)
 	ImGui::ShowDemoWindow(&ShowDemoWindow);
 #endif
 
+	static bool ShowFocusOverlay = false;
 	static bool ShowStatsOverlay = false;
 
 	if (ImGui::BeginMainMenuBar())
@@ -731,6 +735,7 @@ void RenderUI(SDL_Window* Window, bool& Live)
 			if (ImGui::MenuItem("Open", "Ctrl+O"))
 			{
 				OpenModel();
+				ResetCamera = true;
 			}
 			if (ImGui::MenuItem("Reload", "Ctrl+R"))
 			{
@@ -776,12 +781,41 @@ void RenderUI(SDL_Window* Window, bool& Live)
 		}
 		if (ImGui::BeginMenu("Window"))
 		{
+			if (ImGui::MenuItem("Camera Parameters", nullptr, &ShowFocusOverlay))
+			{
+			}
 			if (ImGui::MenuItem("Performance Stats", nullptr, &ShowStatsOverlay))
 			{
 			}
 			ImGui::EndMenu();
 		}
 		ImGui::EndMainMenuBar();
+	}
+
+	if (ShowFocusOverlay)
+	{
+		ImGuiWindowFlags WindowFlags = \
+			ImGuiWindowFlags_AlwaysAutoResize |
+			ImGuiWindowFlags_NoSavedSettings |
+			ImGuiWindowFlags_NoFocusOnAppearing;
+
+		if (ImGui::Begin("Camera Parameters", &ShowFocusOverlay, WindowFlags))
+		{
+			ImGui::Text("Focal Point:\n");
+
+			ImGui::Text("X");
+			ImGui::SameLine();
+			ImGui::InputFloat("##FocusX", &CameraFocus.x, 1.0f);
+
+			ImGui::Text("Y");
+			ImGui::SameLine();
+			ImGui::InputFloat("##FocusY", &CameraFocus.y, 1.0f);
+
+			ImGui::Text("Z");
+			ImGui::SameLine();
+			ImGui::InputFloat("##FocusZ", &CameraFocus.z, 1.0f);
+		}
+		ImGui::End();
 	}
 
 	if (ShowStatsOverlay)
@@ -806,7 +840,7 @@ void RenderUI(SDL_Window* Window, bool& Live)
 		Pivot.y = 0.0;
 		ImGui::SetNextWindowPos(Position, ImGuiCond_Always, Pivot);
 
-		if (ImGui::Begin("Example: Simple overlay", &ShowStatsOverlay, WindowFlags))
+		if (ImGui::Begin("Performance Stats", &ShowStatsOverlay, WindowFlags))
 		{
 			ImGui::Text("Cadence\n");
 			ImGui::Text(" %.0f hz\n", round(PresentFrequency));
