@@ -686,6 +686,7 @@ void LoadModel(nfdchar_t* Path)
 		std::chrono::duration<double, std::milli> Delta = EndTimePoint - StartTimePoint;
 		ModelProcessingStallMs = Delta.count();
 
+		LastPath = Path;
 		PendingSubtree = nullptr;
 	}
 }
@@ -1067,7 +1068,7 @@ int main(int argc, char* argv[])
 					case SDLK_KP_6: // ⭢
 						MouseMotionX -= 45;
 						break;
-					case SDLK_KP_7: //⭦
+					case SDLK_KP_7: // ⭦
 						MouseMotionX += 45;
 						MouseMotionY += 45;
 						break;
