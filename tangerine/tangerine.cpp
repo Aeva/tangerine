@@ -595,6 +595,13 @@ void LoadModel(nfdchar_t* Path)
 	}
 	if (Path)
 	{
+		for (LowLevelSubtree& Subtree : Subtrees)
+		{
+			Subtree.Reset();
+		}
+		Subtrees.clear();
+		SubtreeMap.clear();
+		Drawables.clear();
 		using Clock = std::chrono::high_resolution_clock;
 		Clock::time_point StartTimePoint = Clock::now();
 		Sactivate_thread();
