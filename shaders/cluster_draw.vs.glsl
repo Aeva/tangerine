@@ -1,3 +1,5 @@
+prepend: shaders/defines.h
+prepend: shaders/math.glsl
 --------------------------------------------------------------------------------
 
 // Copyright 2021 Aeva Palecek
@@ -30,7 +32,10 @@ uniform ViewInfoBlock
 };
 
 
-layout(std140, binding = 1)
+// NOTE: Uniform binding 1 is reserved for generated parameters.
+
+
+layout(std140, binding = 2)
 uniform InstanceDataBlock
 {
 	mat4 WorldToLocal;

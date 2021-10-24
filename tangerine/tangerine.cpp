@@ -54,7 +54,7 @@
 #define MINIMUM_VERSION_MINOR 2
 
 
-struct DrawingRegion
+struct SectionUpload
 {
 	glm::mat4 LocalToWorld;
 	glm::mat4 WorldToLocal;
@@ -63,9 +63,73 @@ struct DrawingRegion
 };
 
 
-struct LowLevelSubtree
+struct SubtreeSection
 {
-	LowLevelSubtree(std::string InDebugName, std::string InDistSource)
+	SubtreeSection(glm::mat4 LocalToWorld, glm::vec4 Center, glm::vec4 Extent)
+	{
+		SectionData.LocalToWorld = LocalToWorld;
+		SectionData.WorldToLocal = glm::inverse(LocalToWorld);
+		SectionData.Center = Center;
+		SectionData.Extent = Extent;
+
+		SectionBuffer.DebugName = "Subtree Section Buffer";
+		SectionBuffer.Upload((void*)&SectionData, sizeof(SectionUpload));
+	}
+	void Release()
+	{
+		SectionBuffer.Release();
+	}
+	SectionUpload SectionData;
+	Buffer SectionBuffer;
+};
+
+
+struct ModelSubtree
+{
+	ModelSubtree(size_t ParamCount, float* InParams)
+	{
+		size_t Padding = DIV_UP(ParamCount, 4) * 4 - ParamCount;
+		size_t UploadSize = ParamCount + Padding;
+		Params.reserve(UploadSize);
+		for (int i = 0; i < ParamCount; ++i)
+		{
+			Params.push_back(InParams[i]);
+		}
+		for (int i = 0; i < Padding; ++i)
+		{
+			Params.push_back(0.0);
+		}
+
+		ParamsBuffer.DebugName = "Subtree Parameter Buffer";
+		ParamsBuffer.Upload((void*)Params.data(), UploadSize * sizeof(float));
+	}
+	void Release()
+	{
+		for (SubtreeSection& Section : Sections)
+		{
+			Section.Release();
+		}
+		Sections.clear();
+	}
+	std::vector<float> Params;
+	std::vector<SubtreeSection> Sections;
+	Buffer ParamsBuffer;
+};
+
+
+struct SubtreeShader
+{
+	SubtreeShader(SubtreeShader&& Old)
+		: DebugName(Old.DebugName)
+		, DistSource(Old.DistSource)
+		, IsValid(Old.IsValid)
+	{
+		Old.IsValid = false;
+		std::swap(DepthShader, Old.DepthShader);
+		std::swap(DepthQuery, Old.DepthQuery);
+		std::swap(Instances, Old.Instances);
+	}
+	SubtreeShader(std::string InDebugName, std::string InDistSource)
 	{
 		DebugName = InDebugName;
 		DistSource = InDistSource;
@@ -74,7 +138,7 @@ struct LowLevelSubtree
 	StatusCode Compile()
 	{
 		StatusCode Result = DepthShader.Setup(
-			{ {GL_VERTEX_SHADER, GeneratedShader("shaders/math.glsl", DistSource, "shaders/cluster_draw.vs.glsl")},
+			{ {GL_VERTEX_SHADER, ShaderSource("shaders/cluster_draw.vs.glsl", true)},
 			  {GL_FRAGMENT_SHADER, GeneratedShader("shaders/math.glsl", DistSource, "shaders/cluster_draw.fs.glsl")} },
 			DebugName.c_str());
 
@@ -84,46 +148,41 @@ struct LowLevelSubtree
 			return Result;
 		}
 
-		InstanceParams.reserve(Instances.size());
-		for (int i = 0; i < Instances.size(); ++i)
-		{
-			InstanceParams.emplace_back("Instance Parameters");
-			InstanceParams[i].Upload((void*)&Instances[i], sizeof(Instances[i]));
-		}
 		glGenQueries(1, &DepthQuery);
 		IsValid = true;
 		return StatusCode::PASS;
 	}
 	void Reset()
 	{
+		for (ModelSubtree& Subtree : Instances)
+		{
+			Subtree.Release();
+		}
+		Instances.clear();
+	}
+	void Release()
+	{
+		Reset();
 		DepthShader.Reset();
 		if (IsValid)
 		{
 			IsValid = false;
-			for (Buffer& Instance : InstanceParams)
-			{
-				Instance.Release();
-			}
 			glDeleteQueries(1, &DepthQuery);
 		}
-	}
-	~LowLevelSubtree()
-	{
-		Reset();
 	}
 	bool IsValid;
 	std::string DebugName;
 	std::string DistSource;
 	ShaderPipeline DepthShader;
-	std::vector<DrawingRegion> Instances;
-	std::vector<Buffer> InstanceParams;
 	GLuint DepthQuery;
+
+	std::vector<ModelSubtree> Instances;
 };
 
 
 std::map<std::string, size_t> SubtreeMap;
-std::vector<LowLevelSubtree> Subtrees;
-std::vector<size_t> PendingSubtrees;
+std::vector<SubtreeShader> SubtreeShaders;
+std::vector<size_t> PendingShaders;
 
 
 extern "C" size_t TANGERINE_API EmitShader(const char* ShaderTree, const char* ShaderSource)
@@ -133,10 +192,10 @@ extern "C" size_t TANGERINE_API EmitShader(const char* ShaderTree, const char* S
 	auto Found = SubtreeMap.find(Tree);
 	if (Found == SubtreeMap.end())
 	{
-		Subtrees.emplace_back(Tree, Source);
-		size_t Index = Subtrees.size() - 1;
+		size_t Index = SubtreeShaders.size();
+		SubtreeShaders.emplace_back(Tree, Source);
 		SubtreeMap[Tree] = Index;
-		PendingSubtrees.push_back(Index);
+		PendingShaders.push_back(Index);
 		return Index;
 	}
 	else
@@ -146,17 +205,26 @@ extern "C" size_t TANGERINE_API EmitShader(const char* ShaderTree, const char* S
 }
 
 
-extern "C" void TANGERINE_API EmitBounds(size_t Index, float Extent[3], float Center[3], float Matrix[16])
+ModelSubtree* PendingSubtree = nullptr;
+
+
+extern "C" void TANGERINE_API EmitSubtree(size_t ShaderIndex, size_t ParamCount, float* Params)
 {
-	DrawingRegion Instance;
-	Instance.Extent = glm::vec4(Extent[0], Extent[1], Extent[2], 0.0);
-	Instance.Center = glm::vec4(Center[0], Center[1], Center[2], 0.0);
+	SubtreeShaders[ShaderIndex].Instances.emplace_back(ParamCount, Params);
+	PendingSubtree = &(SubtreeShaders[ShaderIndex].Instances.back());
+}
+
+
+extern "C" void TANGERINE_API EmitSection(float InExtent[3], float InCenter[3], float Matrix[16])
+{
+	glm::mat4 LocalToWorld;
 	for (int i = 0; i < 4; ++i)
 	{
-		Instance.LocalToWorld[i] = glm::vec4(Matrix[i * 4 + 0], Matrix[i * 4 + 1], Matrix[i * 4 + 2], Matrix[i * 4 + 3]);
+		LocalToWorld[i] = glm::vec4(Matrix[i * 4 + 0], Matrix[i * 4 + 1], Matrix[i * 4 + 2], Matrix[i * 4 + 3]);
 	}
-	Instance.WorldToLocal = glm::inverse(Instance.LocalToWorld);
-	Subtrees[Index].Instances.push_back(Instance);
+	glm::vec4 Center = glm::vec4(InCenter[0], InCenter[1], InCenter[2], 0.0);
+	glm::vec4 Extent = glm::vec4(InExtent[0], InExtent[1], InExtent[2], 0.0);
+	PendingSubtree->Sections.emplace_back(LocalToWorld, Center, Extent);
 }
 
 
@@ -318,25 +386,25 @@ StatusCode SetupRenderer()
 
 
 double ShaderCompilerStallMs = 0.0;
-std::vector<LowLevelSubtree*> Drawables;
+std::vector<SubtreeShader*> Drawables;
 void CompileNewShaders()
 {
 	Drawables.clear();
-	Drawables.reserve(PendingSubtrees.size());
+	Drawables.reserve(PendingShaders.size());
 
 	using Clock = std::chrono::high_resolution_clock;
 	Clock::time_point StartTimePoint = Clock::now();
 
-	for (size_t SubtreeIndex : PendingSubtrees)
+	for (size_t SubtreeIndex : PendingShaders)
 	{
-		LowLevelSubtree& Subtree = Subtrees[SubtreeIndex];
-		StatusCode Result = Subtree.Compile();
-		if (Result == StatusCode::PASS && Subtree.Instances.size() > 0)
+		SubtreeShader& Shader = SubtreeShaders[SubtreeIndex];
+		StatusCode Result = Shader.Compile();
+		if (Result == StatusCode::PASS && Shader.Instances.size() > 0)
 		{
-			Drawables.push_back(&Subtree);
+			Drawables.push_back(&Shader);
 		}
 	}
-	PendingSubtrees.clear();
+	PendingShaders.clear();
 
 	Clock::time_point EndTimePoint = Clock::now();
 	std::chrono::duration<double, std::milli> Delta = EndTimePoint - StartTimePoint;
@@ -357,7 +425,7 @@ float PresentFrequency = 0.0;
 float PresentDeltaMs = 0.0;
 void RenderFrame(int ScreenWidth, int ScreenHeight)
 {
-	if (PendingSubtrees.size() > 0)
+	if (PendingShaders.size() > 0)
 	{
 		CompileNewShaders();
 	}
@@ -479,19 +547,23 @@ void RenderFrame(int ScreenWidth, int ScreenHeight)
 			{
 				glEndQuery(GL_TIME_ELAPSED);
 			}
-			for (LowLevelSubtree* Subtree : Drawables)
+			for (SubtreeShader* Shader : Drawables)
 			{
-				GLsizei DebugNameLen = Subtree->DebugName.size() < 100 ? -1 : 100;
-				glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, DebugNameLen, Subtree->DebugName.c_str());
+				GLsizei DebugNameLen = Shader->DebugName.size() < 100 ? -1 : 100;
+				glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, DebugNameLen, Shader->DebugName.c_str());
 				if (ShowHeatmap)
 				{
-					glBeginQuery(GL_TIME_ELAPSED, Subtree->DepthQuery);
+					glBeginQuery(GL_TIME_ELAPSED, Shader->DepthQuery);
 				}
-				Subtree->DepthShader.Activate();
-				for (Buffer& InstanceData : Subtree->InstanceParams)
+				Shader->DepthShader.Activate();
+				for (ModelSubtree& Subtree : Shader->Instances)
 				{
-					InstanceData.Bind(GL_UNIFORM_BUFFER, 1);
-					glDrawArrays(GL_TRIANGLES, 0, 36);
+					Subtree.ParamsBuffer.Bind(GL_UNIFORM_BUFFER, 1);
+					for (SubtreeSection& Section : Subtree.Sections)
+					{
+						Section.SectionBuffer.Bind(GL_UNIFORM_BUFFER, 2);
+						glDrawArrays(GL_TRIANGLES, 0, 36);
+					}
 				}
 				if (ShowHeatmap)
 				{
@@ -587,15 +659,18 @@ void LoadModel(nfdchar_t* Path)
 	}
 	if (Path)
 	{
-		for (LowLevelSubtree& Subtree : Subtrees)
+		for (SubtreeShader& Shader : SubtreeShaders)
 		{
-			Subtree.Reset();
+			Shader.Release();
 		}
-		Subtrees.clear();
+		SubtreeShaders.clear();
 		SubtreeMap.clear();
+		PendingShaders.clear();
 		Drawables.clear();
+
 		using Clock = std::chrono::high_resolution_clock;
 		Clock::time_point StartTimePoint = Clock::now();
+
 		Sactivate_thread();
 		ptr ModuleSymbol = Sstring_to_symbol("tangerine");
 		ptr ProcSymbol = Sstring_to_symbol("renderer-load-and-process-model");
@@ -603,9 +678,12 @@ void LoadModel(nfdchar_t* Path)
 		ptr Args = Scons(Sstring(Path), Snil);
 		racket_apply(Proc, Args);
 		Sdeactivate_thread();
+
 		Clock::time_point EndTimePoint = Clock::now();
 		std::chrono::duration<double, std::milli> Delta = EndTimePoint - StartTimePoint;
 		ModelProcessingStallMs = Delta.count();
+
+		PendingSubtree = nullptr;
 	}
 }
 
@@ -1017,7 +1095,10 @@ int main(int argc, char* argv[])
 	}
 	{
 		std::cout << "Shutting down...\n";
-		Subtrees.clear();
+		for (SubtreeShader& Shader : SubtreeShaders)
+		{
+			Shader.Release();
+		}
 		ImGui_ImplOpenGL3_Shutdown();
 		ImGui_ImplSDL2_Shutdown();
 		ImGui::DestroyContext();

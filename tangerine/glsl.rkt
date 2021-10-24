@@ -27,29 +27,42 @@
   (apply values args))
 
 
+(define (param offset)
+  @~a{PARAM@offset})
+
+
+(define (params n offset)
+  (for/list ([i (in-range n)])
+     (param (+ i offset))))
+
+
+(define (params-str n offset)
+  (string-join (params n offset) ", "))
+
+
 (define (eval-dist csgst [point "Point"])
-  (let ([node (car csgst)]
-        [args (cdr csgst)])
+  (let* ([node (car csgst)]
+         [args (cdr csgst)])
     (case node
 
       [(sphere)
-       (let-values ([(radius) (splat args)])
+       (let ([radius (param (car args))])
          @~a{SphereBrush(@point, @radius)})]
 
       [(ellipsoid)
-       (let-values ([(radius-x radius-y radius-z) (splat args)])
-         @~a{EllipsoidBrush(@point, vec3(@radius-x, @radius-y, @radius-z))})]
+       (let ([radius (params-str 3 (car args))])
+         @~a{EllipsoidBrush(@point, vec3(@radius))})]
 
       [(box)
-       (let-values ([(extent-x extent-y extent-z) (splat args)])
-         @~a{BoxBrush(@point, vec3(@extent-x, @extent-y, @extent-z))})]
+       (let ([extent (params-str 3 (car args))])
+         @~a{BoxBrush(@point, vec3(@extent))})]
 
       [(torus)
-       (let-values ([(major-radius minor-radius) (splat args)])
+       (let-values ([(major-radius minor-radius) (splat (params 2 (car args)))])
          @~a{TorusBrush(@point, @major-radius, @minor-radius)})]
 
       [(cylinder)
-       (let-values ([(radius extent) (splat args)])
+       (let-values ([(radius extent) (splat (params 2 (car args)))])
          @~a{CylinderBrush(@point, @radius, @extent)})]
 
       [(union)
@@ -83,22 +96,15 @@
          @~a{SmoothIntersectionOp(@lhs, @rhs, @threshold)})]
 
       [(move)
-       (let*-values ([(x y z child) (splat args)]
-                     [(point) @~a{(@point - vec3(@x, @y, @z))}])
-         (eval-dist child point))]
-
-      [(quat)
-       (let*-values ([(x y z w child) (splat args)]
-                     [(x) (* -1 x)]
-                     [(y) (* -1 y)]
-                     [(z) (* -1 z)]
-                     [(point) @~a{QuaternionTransform(@point, vec4(@x, @y, @z, @w))}])
+       (let* ([vec (params-str 3 (car args))]
+              [child (cadr args)]
+              [point @~a{(@point - vec3(@vec))}])
          (eval-dist child point))]
 
       [(mat4)
-       (let*-values ([(matrix child) (splat args)]
-                     [(params) (string-join (map ~a (flatten matrix)) ", ")]
-                     [(point) @~a{MatrixTransform(@point, mat4(@params))}])
+       (let* ([matrix (params-str 16 (car args))]
+              [child (cadr args)]
+              [point @~a{MatrixTransform(@point, mat4(@matrix))}])
          (eval-dist child point))]
 
       [else (error "Unknown CSGST node:" csgst)])))

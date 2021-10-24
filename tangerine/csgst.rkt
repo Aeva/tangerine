@@ -21,6 +21,8 @@
 
 
 (provide brush?
+         blend-operator?
+         binary-operator?
          operator?
          transform?
          csg?
@@ -52,6 +54,22 @@
       cube
       torus
       cylinder) #t]
+    [else #f]))
+
+
+(define (binary-operator? expr)
+  (case (car expr)
+    [(union
+      diff
+      inter) #t]
+    [else #f]))
+
+
+(define (blend-operator? expr)
+  (case (car expr)
+    [(blend-union
+      blend-diff
+      blend-inter) #t]
     [else #f]))
 
 

@@ -67,6 +67,8 @@ struct Buffer
 	GLuint BufferID;
 	const char* DebugName;
 	size_t LastSize;
+	Buffer(Buffer&& OldBuffer);
+	Buffer(const Buffer& CopySource) = delete;
 	Buffer(const char* InDebugName = nullptr);
 	~Buffer();
 	void Release();

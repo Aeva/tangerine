@@ -258,7 +258,7 @@ StatusCode CompileShader(GLenum ShaderType, const ShaderSource& Source, GLuint& 
 
 	RouteSource(BreadCrumbs, Index, Sources, Source);
 
-	const int Count = Sources.size();
+	const GLsizei Count = (GLsizei)Sources.size();
 	std::vector<const char*> Strings;
 	Strings.reserve(Count);
 	for (int i = 0; i < Count; ++i)
@@ -344,6 +344,16 @@ void ShaderPipeline::Reset()
 	}
 	Stages.clear();
 	BindingPoints.clear();
+}
+
+
+Buffer::Buffer(Buffer&& OldBuffer)
+	: BufferID(OldBuffer.BufferID)
+	, LastSize(OldBuffer.LastSize)
+	, DebugName(OldBuffer.DebugName)
+{
+	OldBuffer.BufferID = 0;
+	OldBuffer.LastSize = 0;
 }
 
 
