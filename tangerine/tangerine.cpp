@@ -660,6 +660,10 @@ void LoadModel(nfdchar_t* Path)
 		// Reload
 		Path = LastPath;
 	}
+	else
+	{
+		ResetCamera = true;
+	}
 	if (Path)
 	{
 		for (SubtreeShader& Shader : SubtreeShaders)
@@ -736,7 +740,6 @@ void RenderUI(SDL_Window* Window, bool& Live)
 			if (ImGui::MenuItem("Open", "Ctrl+O"))
 			{
 				OpenModel();
-				ResetCamera = true;
 			}
 			if (ImGui::MenuItem("Reload", "Ctrl+R"))
 			{
