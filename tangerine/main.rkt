@@ -138,11 +138,10 @@
           (string-join
            (flatten
             (list
-             "layout(std140, binding = 1)"
-             "uniform SubtreeParameterBlock"
+             "layout(std430, binding = 0)"
+             "restrict readonly buffer SubtreeParameterBlock"
              "{"
-             (for/list ([i (in-range (length params))])
-               (~a "\tfloat PARAM" i ";"))
+             "\tfloat PARAMS[];"
              "};\n"
              @~a{const uint SubtreeIndex = @subtree-index;}
              "float ClusterDist(vec3 Point)"

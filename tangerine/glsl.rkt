@@ -28,7 +28,7 @@
 
 
 (define (param offset)
-  @~a{PARAM@offset})
+  @~a{PARAMS[@offset]})
 
 
 (define (params n offset)

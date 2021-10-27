@@ -430,6 +430,7 @@ void RenderFrame(int ScreenWidth, int ScreenHeight)
 	if (PendingShaders.size() > 0)
 	{
 		CompileNewShaders();
+		glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 	}
 
 	double CurrentTime;
@@ -561,7 +562,7 @@ void RenderFrame(int ScreenWidth, int ScreenHeight)
 				Shader->DepthShader.Activate();
 				for (ModelSubtree& Subtree : Shader->Instances)
 				{
-					Subtree.ParamsBuffer.Bind(GL_UNIFORM_BUFFER, 1);
+					Subtree.ParamsBuffer.Bind(GL_SHADER_STORAGE_BUFFER, 0);
 					for (SubtreeSection& Section : Subtree.Sections)
 					{
 						Section.SectionBuffer.Bind(GL_UNIFORM_BUFFER, 2);

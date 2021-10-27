@@ -32,7 +32,7 @@ uniform ViewInfoBlock
 };
 
 
-// NOTE: Uniform binding 1 is reserved for generated parameters.
+// NOTE: SSBO binding 0 is reserved for generated parameters.
 
 
 layout(std140, binding = 2)
