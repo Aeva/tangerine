@@ -317,15 +317,14 @@
          (let* ([lhs-aabbs (tree-aabb lhs)]
                 [rhs-aabbs (tree-aabb rhs)]
                 [lhs-merged (aabb-union lhs-aabbs)]
-                [rhs-merged (aabb-union rhs-aabbs)]
-                [diff-region (rewrite-subtree
-                              (aabb-inter lhs-merged rhs-merged)
-                              (diff lhs
-                                    rhs))])
-           (cons diff-region
-                 (append*
-                  (for/list ([aabb (in-list lhs-aabbs)])
-                    (aabb-clip aabb diff-region))))))]
+                [rhs-merged (aabb-union rhs-aabbs)])
+           (append*
+            (for/list ([aabb (in-list lhs-aabbs)])
+              (let ([diff-region (rewrite-subtree
+                                  (aabb-inter aabb rhs-merged)
+                                  (diff (caddr aabb) rhs))])
+                (cons diff-region
+                      (aabb-clip aabb diff-region)))))))]
 
       [(blend-diff)
        (let-values ([(threshold lhs rhs) (splat args)])
