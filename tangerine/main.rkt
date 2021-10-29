@@ -14,6 +14,7 @@
 ; See the License for the specific language governing permissions and
 ; limitations under the License.
 
+(require racket/exn)
 (require racket/list)
 (require racket/string)
 (require racket/format)
@@ -164,7 +165,7 @@
 
 
 (define (renderer-load-and-process-model path-str)
-  (with-handlers ([exn:fail? (λ (err) (RacketErrorCallback (exn-message err)))])
+  (with-handlers ([exn:fail? (λ (err) (RacketErrorCallback (exn->string err)))])
     (let ([path (string->path path-str)])
       (dynamic-rerequire path)
       (let ([clusters ((dynamic-require path 'emit-glsl))])

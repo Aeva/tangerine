@@ -16,6 +16,7 @@
 #include <glad/glad.h>
 #include <SDL.h>
 #include <SDL_opengl.h>
+#include <SDL_clipboard.h>
 
 #include <imgui.h>
 #include <imgui_impl_sdl.h>
@@ -875,18 +876,45 @@ void RenderUI(SDL_Window* Window, bool& Live)
 
 	if (RacketErrors.size() > 0)
 	{
-		ImVec2 center = ImGui::GetMainViewport()->GetCenter();
-		ImGui::SetNextWindowPos(center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
-		ImGui::OpenPopup("Error");
-		if (ImGui::BeginPopupModal("Error", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
+		std::string RacketError = RacketErrors[RacketErrors.size() - 1];
 		{
-			ImGui::Text(RacketErrors[RacketErrors.size() - 1].c_str());
-			ImGui::SetItemDefaultFocus();
+			ImVec2 TextSize = ImGui::CalcTextSize(RacketError.c_str(), nullptr);
+			TextSize.x += 40.0;
+			TextSize.y += 100.0;
+			ImVec2 MaxSize = ImGui::GetMainViewport()->WorkSize;
+			ImVec2 MinSize(
+				TextSize.x < MaxSize.x ? TextSize.x : MaxSize.x,
+				TextSize.y < MaxSize.y ? TextSize.y : MaxSize.y);
+			ImGui::SetNextWindowSizeConstraints(MinSize, MaxSize);
+		}
+		{
+			ImVec2 Center = ImGui::GetMainViewport()->GetCenter();
+			ImGui::SetNextWindowPos(Center, ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+		}
+		ImGui::OpenPopup("Error");
+		if (ImGui::BeginPopupModal("Error", nullptr, ImGuiWindowFlags_NoSavedSettings))
+		{
+			{
+				ImVec2 Size = ImGui::GetContentRegionAvail();
+				Size.y -= 24.0f;
+				if (ImGui::BeginChild("ErrorText", Size, false, ImGuiWindowFlags_HorizontalScrollbar))
+				{
+					ImGui::TextUnformatted(RacketError.c_str(), nullptr);
+				}
+				ImGui::EndChild();
+			}
+
 			if (ImGui::Button("OK", ImVec2(120, 0)))
 			{
 				ImGui::CloseCurrentPopup();
 				RacketErrors.pop_back();
 			}
+			ImGui::SameLine();
+			if (ImGui::Button("Copy Error", ImVec2(120, 0)))
+			{
+				SDL_SetClipboardText(RacketError.c_str());
+			}
+
 			ImGui::EndPopup();
 		}
 	}
@@ -991,9 +1019,9 @@ int main(int argc, char* argv[])
 					Live = false;
 					break;
 				}
+				static bool Dragging = false;
 				if (!io.WantCaptureMouse)
 				{
-					static bool Dragging = false;
 					switch (Event.type)
 					{
 					case SDL_MOUSEMOTION:
@@ -1015,6 +1043,11 @@ int main(int argc, char* argv[])
 						MouseMotionZ = Event.wheel.y;
 						break;
 					}
+				}
+				else if (Dragging && RacketErrors.size() > 0)
+				{
+					Dragging = false;
+					SDL_SetRelativeMouseMode(SDL_FALSE);
 				}
 				if (!io.WantCaptureKeyboard && Event.type == SDL_KEYDOWN)
 				{
