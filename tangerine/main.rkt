@@ -49,7 +49,7 @@
 
 
 (define-ffi-definer define-backend (ffi-lib #f) #:default-make-fail make-not-available)
-(define-backend EmitShader (_fun _string/utf-8 _string/utf-8 -> _size))
+(define-backend EmitShader (_fun _string/utf-8 _string/utf-8 _string/utf-8 -> _size))
 (define-backend EmitSubtree (_fun _size [_size = (length params)] [params : (_list i _float)] -> _void))
 (define-backend EmitSection (_fun (_list i _float) (_list i _float) (_list i _float) -> _void))
 (define-backend SetLimitsCallback (_fun _float _float _float _float _float _float -> _void))
@@ -123,6 +123,38 @@
       (list subtree params bounds))))
 
 
+; Used by pretty-print below for operators.
+(define (pretty-print-op head operands)
+  (define tmp (~a "⎛" head))
+  (let* ([treext (string-join operands "\n")]
+         [lines (string-split treext "\n")])
+    (for ([i (in-naturals 1)]
+          [line lines])
+      (let* ([last? (eq? i (length lines))]
+             [sep (if last? "⎝" "⎜")])
+        (set! tmp (string-append tmp "\n" sep "  " line)))))
+  tmp)
+
+
+; Pretty print the CSG tree for debugging.
+(define (pretty-print csgst)
+  (let ([node (car csgst)])
+    (cond [(or
+            (eq? node 'union)
+            (eq? node 'inter)
+            (eq? node 'diff))
+           (pretty-print-op node (map pretty-print (cdr csgst)))]
+          [(or
+            (eq? node 'blend-union)
+            (eq? node 'blend-inter)
+            (eq? node 'blend-diff))
+           (let ([threshold (cadr csgst)]
+                 [subtrees (cddr csgst)])
+             (pretty-print-op (~a node " " threshold)
+                              (map pretty-print subtrees)))]
+          [else (~a csgst)])))
+
+
 (define (compile csgst)
   (let*-values ([(limits parts) (segments (coalesce csgst))]
                 [(parts) (drawables parts)])
@@ -171,10 +203,11 @@
       (let ([clusters ((dynamic-require path 'emit-glsl))])
         (for ([cluster (in-list clusters)])
           (let* ([tree (~a (car cluster))]
+                 [pretty (pretty-print (car cluster))]
                  [params (cadr cluster)]
                  [dist (caddr cluster)]
                  [aabbs (cdddr cluster)]
-                 [index (EmitShader tree dist)]
+                 [index (EmitShader tree pretty dist)]
                  [matrix (flatten (mat4-identity))])
             (EmitSubtree index params)
             (for ([aabb (in-list aabbs)])

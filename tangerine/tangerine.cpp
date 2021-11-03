@@ -123,6 +123,7 @@ struct SubtreeShader
 {
 	SubtreeShader(SubtreeShader&& Old)
 		: DebugName(Old.DebugName)
+		, PrettyTree(Old.PrettyTree)
 		, DistSource(Old.DistSource)
 		, IsValid(Old.IsValid)
 	{
@@ -131,9 +132,10 @@ struct SubtreeShader
 		std::swap(DepthQuery, Old.DepthQuery);
 		std::swap(Instances, Old.Instances);
 	}
-	SubtreeShader(std::string InDebugName, std::string InDistSource)
+	SubtreeShader(std::string InDebugName, std::string InPrettyTree, std::string InDistSource)
 	{
 		DebugName = InDebugName;
+		PrettyTree = InPrettyTree;
 		DistSource = InDistSource;
 		IsValid = false;
 	}
@@ -174,6 +176,7 @@ struct SubtreeShader
 	}
 	bool IsValid;
 	std::string DebugName;
+	std::string PrettyTree;
 	std::string DistSource;
 	ShaderPipeline DepthShader;
 	GLuint DepthQuery;
@@ -187,15 +190,16 @@ std::vector<SubtreeShader> SubtreeShaders;
 std::vector<size_t> PendingShaders;
 
 
-extern "C" size_t TANGERINE_API EmitShader(const char* ShaderTree, const char* ShaderSource)
+extern "C" size_t TANGERINE_API EmitShader(const char* ShaderTree, const char* PrettyTree, const char* ShaderSource)
 {
 	std::string Tree = std::string(ShaderTree);
+	std::string Pretty = std::string(PrettyTree);
 	std::string Source = std::string(ShaderSource);
 	auto Found = SubtreeMap.find(Tree);
 	if (Found == SubtreeMap.end())
 	{
 		size_t Index = SubtreeShaders.size();
-		SubtreeShaders.emplace_back(Tree, Source);
+		SubtreeShaders.emplace_back(Tree, Pretty, Source);
 		SubtreeMap[Tree] = Index;
 		PendingShaders.push_back(Index);
 		return Index;
@@ -734,6 +738,7 @@ void RenderUI(SDL_Window* Window, bool& Live)
 
 	static bool ShowFocusOverlay = false;
 	static bool ShowStatsOverlay = false;
+	static bool ShowPrettyTrees = false;
 
 	if (ImGui::BeginMainMenuBar())
 	{
@@ -791,6 +796,9 @@ void RenderUI(SDL_Window* Window, bool& Live)
 			{
 			}
 			if (ImGui::MenuItem("Performance Stats", nullptr, &ShowStatsOverlay))
+			{
+			}
+			if (ImGui::MenuItem("CSG Subtrees", nullptr, &ShowPrettyTrees))
 			{
 			}
 			ImGui::EndMenu();
@@ -870,6 +878,32 @@ void RenderUI(SDL_Window* Window, bool& Live)
 			ImGui::Text(" Racket: %.1f ms\n", ModelProcessingStallMs);
 			ImGui::Text(" OpenGL: %.1f ms\n", ShaderCompilerStallMs);
 			ImGui::Text("  Total: %.1f ms\n", ModelProcessingStallMs + ShaderCompilerStallMs);
+		}
+		ImGui::End();
+	}
+
+	if (ShowPrettyTrees && SubtreeShaders.size() > 0)
+	{
+		ImGuiWindowFlags WindowFlags = \
+			ImGuiWindowFlags_HorizontalScrollbar |
+			ImGuiWindowFlags_NoSavedSettings |
+			ImGuiWindowFlags_NoFocusOnAppearing;
+
+		if (ImGui::Begin("CSG Subtrees", &ShowPrettyTrees, WindowFlags))
+		{
+			bool First = true;
+			for (SubtreeShader& Subtree : SubtreeShaders)
+			{
+				if (First)
+				{
+					First = false;
+				}
+				else
+				{
+					ImGui::Separator();
+				}
+				ImGui::TextUnformatted(Subtree.PrettyTree.c_str(), nullptr);
+			}
 		}
 		ImGui::End();
 	}
@@ -994,6 +1028,16 @@ int main(int argc, char* argv[])
 		ImGui::StyleColorsLight();
 		ImGui_ImplSDL2_InitForOpenGL(Window, Context);
 		ImGui_ImplOpenGL3_Init("#version 130");
+		{
+			io.Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\segoeui.ttf", 16.0);
+			static ImWchar Ranges[] = { 0x1, 0x1FFFF, 0 };
+			static ImFontConfig Config;
+			Config.OversampleH = 1;
+			Config.OversampleV = 1;
+			Config.MergeMode = true;
+			Config.FontBuilderFlags = 0;
+			io.Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\seguisym.ttf", 16.0, &Config, Ranges);
+		}
 		std::cout << "Done!\n";
 	}
 	std::cout << "Using device: " << glGetString(GL_RENDERER) << " " << glGetString(GL_VERSION) << "\n";
