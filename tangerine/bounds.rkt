@@ -25,10 +25,6 @@
 (provide segments)
 
 
-(define (splat args)
-  (apply values args))
-
-
 ; Is it an AABB?
 (define (aabb? thing)
   (and
@@ -258,152 +254,126 @@
 (define (tree-aabb root)
   (let ([node (car root)]
         [args (cdr root)])
-    (case node
+    (if (brush? root)
+        (list (append (brush-bounds node args) (list root)))
+        (case node
 
-      [(sphere)
-       (let* ([high (apply vec3 args)]
-              [low (vec* -1. high)])
-         (list (list low high root)))]
+          [(union)
+           (let-values ([(lhs rhs) (splat args)])
+             (if (equal? lhs rhs)
+                 (tree-aabb lhs)
+                 (append (tree-aabb lhs)
+                         (tree-aabb rhs))))]
 
-      [(ellipsoid)
-       (let* ([high (apply vec3 args)]
-              [low (vec* -1. high)])
-         (list (list low high root)))]
-
-      [(box)
-       (let* ([high (apply vec3 args)]
-              [low (vec* -1. high)])
-         (list (list low high root)))]
-
-      [(torus)
-       (let-values ([(major-radius minor-radius) (splat args)])
-         (let* ([radius (+ major-radius minor-radius)]
-                [high (vec3 radius radius minor-radius)]
-                [low (vec* -1 high)])
-           (list (list low high root))))]
-
-      [(cylinder)
-       (let-values ([(radius extent) (splat args)])
-         (let* ([high (vec3 radius radius extent)]
-                [low (vec* -1 high)])
-           (list (list low high root))))]
-
-      [(union)
-       (let-values ([(lhs rhs) (splat args)])
-         (if (equal? lhs rhs)
-             (tree-aabb lhs)
-             (append (tree-aabb lhs)
-                     (tree-aabb rhs))))]
-
-      [(blend-union)
-       (let-values ([(threshold lhs rhs) (splat args)])
-         (let* ([liminal (* threshold threshold 0.25 (rcp threshold))]
-                [lhs-aabbs (tree-aabb lhs)]
-                [rhs-aabbs (tree-aabb rhs)]
-                [lhs-merged (aabb-union lhs-aabbs)]
-                [rhs-merged (aabb-union rhs-aabbs)]
-                [blend (rewrite-subtree
-                        (aabb-inter
-                         (pad-aabb threshold lhs-merged)
-                         (pad-aabb threshold rhs-merged))
-                        (blend union threshold lhs rhs))])
-           (cons blend
-                 (append*
-                  (for/list ([aabb (in-list (append lhs-aabbs rhs-aabbs))])
-                    (aabb-clip aabb blend))))))]
-
-      [(diff)
-       (let-values ([(lhs rhs) (splat args)])
-         (let* ([lhs-aabbs (tree-aabb lhs)]
-                [rhs-aabbs (tree-aabb rhs)]
-                [lhs-merged (aabb-union lhs-aabbs)]
-                [rhs-merged (aabb-union rhs-aabbs)])
-           (append*
-            (for/list ([aabb (in-list lhs-aabbs)])
-              (let ([diff-region (rewrite-subtree
-                                  (aabb-inter aabb rhs-merged)
-                                  (diff (caddr aabb) rhs))])
-                (cons diff-region
-                      (aabb-clip aabb diff-region)))))))]
-
-      [(blend-diff)
-       (let-values ([(threshold lhs rhs) (splat args)])
-         (let* ([liminal (* threshold threshold 0.25 (rcp threshold))]
-                [lhs-aabbs (tree-aabb lhs)]
-                [rhs-aabbs (tree-aabb rhs)]
-                [lhs-merged (aabb-union lhs-aabbs)]
-                [rhs-merged (aabb-union rhs-aabbs)]
-                [diff-region (rewrite-subtree
-                              (aabb-inter
-                               (pad-aabb liminal lhs-merged)
-                               (pad-aabb liminal rhs-merged))
-                              (blend diff threshold lhs rhs))])
-           (cons diff-region
-                 (append*
-                  (for/list ([aabb (in-list lhs-aabbs)])
-                    (aabb-clip aabb diff-region))))))]
-
-      [(inter)
-       (let-values ([(lhs rhs) (splat args)])
-         (if (equal? lhs rhs)
-             (tree-aabb lhs)
-             (let* ([lhs-aabbs (tree-aabb lhs)]
+          [(blend-union)
+           (let-values ([(threshold lhs rhs) (splat args)])
+             (let* ([liminal (* threshold threshold 0.25 (rcp threshold))]
+                    [lhs-aabbs (tree-aabb lhs)]
                     [rhs-aabbs (tree-aabb rhs)]
                     [lhs-merged (aabb-union lhs-aabbs)]
                     [rhs-merged (aabb-union rhs-aabbs)]
-                    [inter-region (rewrite-subtree
-                                   (aabb-inter lhs-merged rhs-merged)
-                                   (inter lhs
-                                          rhs))])
-               (list inter-region))))]
+                    [blend (rewrite-subtree
+                            (aabb-inter
+                             (pad-aabb threshold lhs-merged)
+                             (pad-aabb threshold rhs-merged))
+                            (blend union threshold lhs rhs))])
+               (cons blend
+                     (append*
+                      (for/list ([aabb (in-list (append lhs-aabbs rhs-aabbs))])
+                        (aabb-clip aabb blend))))))]
 
-      [(blend-inter)
-       (let-values ([(threshold lhs rhs) (splat args)])
-         (if (equal? lhs rhs)
-             (tree-aabb lhs)
+          [(diff)
+           (let-values ([(lhs rhs) (splat args)])
              (let* ([lhs-aabbs (tree-aabb lhs)]
                     [rhs-aabbs (tree-aabb rhs)]
                     [lhs-merged (aabb-union lhs-aabbs)]
+                    [rhs-merged (aabb-union rhs-aabbs)])
+               (append*
+                (for/list ([aabb (in-list lhs-aabbs)])
+                  (let ([diff-region (rewrite-subtree
+                                      (aabb-inter aabb rhs-merged)
+                                      (diff (caddr aabb) rhs))])
+                    (cons diff-region
+                          (aabb-clip aabb diff-region)))))))]
+
+          [(blend-diff)
+           (let-values ([(threshold lhs rhs) (splat args)])
+             (let* ([liminal (* threshold threshold 0.25 (rcp threshold))]
+                    [lhs-aabbs (tree-aabb lhs)]
+                    [rhs-aabbs (tree-aabb rhs)]
+                    [lhs-merged (aabb-union lhs-aabbs)]
                     [rhs-merged (aabb-union rhs-aabbs)]
-                    [inter-region (rewrite-subtree
-                                   (aabb-inter lhs-merged rhs-merged)
-                                   (blend inter threshold lhs rhs))])
-               (list inter-region))))]
+                    [diff-region (rewrite-subtree
+                                  (aabb-inter
+                                   (pad-aabb liminal lhs-merged)
+                                   (pad-aabb liminal rhs-merged))
+                                  (blend diff threshold lhs rhs))])
+               (cons diff-region
+                     (append*
+                      (for/list ([aabb (in-list lhs-aabbs)])
+                        (aabb-clip aabb diff-region))))))]
 
-      [(move)
-       (let-values ([(x y z child) (splat args)])
-         (let ([delta (vec3 x y z)]
-               [bounds (tree-aabb child)])
-           (for/list ([aabb bounds])
-             (let ([low (vec+ (car aabb) delta)]
-                   [high (vec+ (cadr aabb) delta)]
-                   [subtree (caddr aabb)])
-               (list low high (move x y z subtree))))))]
+          [(inter)
+           (let-values ([(lhs rhs) (splat args)])
+             (if (equal? lhs rhs)
+                 (tree-aabb lhs)
+                 (let* ([lhs-aabbs (tree-aabb lhs)]
+                        [rhs-aabbs (tree-aabb rhs)]
+                        [lhs-merged (aabb-union lhs-aabbs)]
+                        [rhs-merged (aabb-union rhs-aabbs)]
+                        [inter-region (rewrite-subtree
+                                       (aabb-inter lhs-merged rhs-merged)
+                                       (inter lhs
+                                              rhs))])
+                   (list inter-region))))]
 
-      [(quat)
-       (let-values ([(x y z w child) (splat args)])
-         (let* ([quat (vec4 x y z w)]
-                [bounds (tree-aabb child)])
-           (for/list ([aabb bounds])
-             (let* ([points (map (λ (pt) (quat-rotate pt quat))
-                                 (corners aabb))]
-                    [low (apply vec-min points)]
-                    [high (apply vec-max points)]
-                    [subtree (caddr aabb)])
-               (list low high `(quat ,x ,y ,z ,w ,subtree))))))]
+          [(blend-inter)
+           (let-values ([(threshold lhs rhs) (splat args)])
+             (if (equal? lhs rhs)
+                 (tree-aabb lhs)
+                 (let* ([lhs-aabbs (tree-aabb lhs)]
+                        [rhs-aabbs (tree-aabb rhs)]
+                        [lhs-merged (aabb-union lhs-aabbs)]
+                        [rhs-merged (aabb-union rhs-aabbs)]
+                        [inter-region (rewrite-subtree
+                                       (aabb-inter lhs-merged rhs-merged)
+                                       (blend inter threshold lhs rhs))])
+                   (list inter-region))))]
 
-      [(mat4)
-       (let*-values ([(matrix child) (splat args)]
-                     [(bounds) (tree-aabb child)])
-         (for/list ([aabb bounds])
-           (let* ([points (map (λ (pt) (apply-matrix pt matrix))
-                               (corners aabb))]
-                  [low (apply vec-min points)]
-                  [high (apply vec-max points)]
-                  [subtree (caddr aabb)])
-             (list low high `(mat4 ,matrix ,subtree)))))]
+          [(move)
+           (let-values ([(x y z child) (splat args)])
+             (let ([delta (vec3 x y z)]
+                   [bounds (tree-aabb child)])
+               (for/list ([aabb bounds])
+                 (let ([low (vec+ (car aabb) delta)]
+                       [high (vec+ (cadr aabb) delta)]
+                       [subtree (caddr aabb)])
+                   (list low high (move x y z subtree))))))]
 
-      [else (error "Unknown CSGST node:" node)])))
+          [(quat)
+           (let-values ([(x y z w child) (splat args)])
+             (let* ([quat (vec4 x y z w)]
+                    [bounds (tree-aabb child)])
+               (for/list ([aabb bounds])
+                 (let* ([points (map (λ (pt) (quat-rotate pt quat))
+                                     (corners aabb))]
+                        [low (apply vec-min points)]
+                        [high (apply vec-max points)]
+                        [subtree (caddr aabb)])
+                   (list low high `(quat ,x ,y ,z ,w ,subtree))))))]
+
+          [(mat4)
+           (let*-values ([(matrix child) (splat args)]
+                         [(bounds) (tree-aabb child)])
+             (for/list ([aabb bounds])
+               (let* ([points (map (λ (pt) (apply-matrix pt matrix))
+                                   (corners aabb))]
+                      [low (apply vec-min points)]
+                      [high (apply vec-max points)]
+                      [subtree (caddr aabb)])
+                 (list low high `(mat4 ,matrix ,subtree)))))]
+
+          [else (error "Unknown CSGST node:" node)]))))
 
 
 (define (find-model-limits bounds)

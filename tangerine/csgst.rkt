@@ -18,6 +18,7 @@
 
 (require racket/math)
 (require math/flonum)
+(require "vec.rkt")
 
 
 (provide brush?
@@ -27,6 +28,9 @@
          transform?
          csg?
          assert-csg
+         splat
+         brush-bounds
+         align
          sphere
          ellipsoid
          box
@@ -104,6 +108,59 @@
 (define (assert-csg expr)
   (unless (csg? expr) (error "Expected CSG expression:" expr))
   (void))
+
+
+(define (splat args)
+  (apply values args))
+
+
+; Returns a brush's AABB
+(define (brush-bounds brush args)
+  (case brush
+    [(sphere)
+     (let* ([high (apply vec3 args)]
+            [low (vec* -1. high)])
+       (list low high))]
+
+    [(ellipsoid)
+     (let* ([high (apply vec3 args)]
+            [low (vec* -1. high)])
+       (list low high))]
+
+    [(box)
+     (let* ([high (apply vec3 args)]
+            [low (vec* -1. high)])
+       (list low high))]
+
+    [(torus)
+     (let-values ([(major-radius minor-radius) (splat args)])
+       (let* ([radius (+ major-radius minor-radius)]
+              [high (vec3 radius radius minor-radius)]
+              [low (vec* -1 high)])
+         (list low high)))]
+
+    [(cylinder)
+     (let-values ([(radius extent) (splat args)])
+       (let* ([high (vec3 radius radius extent)]
+              [low (vec* -1 high)])
+         (list low high)))]))
+
+
+; Override a brush's origin.
+(define (align x y z brush)
+  (unless (brush? brush) (error "Expected CSG brush:" brush))
+  (if (and (= x 0)
+           (= y 0)
+           (= z 0))
+      brush
+      (let*
+          ([aabb (brush-bounds (car brush) (cdr brush))]
+           [low (car aabb)]
+           [high (cadr aabb)]
+           [alpha (vec+ (vec* (vec3 x y z) .5) .5)]
+           [anchor (lerp high low alpha)])
+        (let-values ([(x y z) (splat anchor)])
+          `(move ,x ,y ,z, brush)))))
 
 
 (define (sphere diameter)

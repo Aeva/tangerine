@@ -28,6 +28,7 @@
 (require "vec.rkt")
 
 (provide compile
+         align
          sphere
          ellipsoid
          box
