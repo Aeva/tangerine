@@ -24,7 +24,8 @@
 (define brick-width (* 61/8 inch))
 (define brick-height (* 29/8 inch))
 (define brick-depth (* 17/8 inch))
-(define raise (* 8/3 inch))
+(define mortar (* 3/8 inch))
+(define raise (+ brick-depth mortar))
 
 
 (define brick-h
@@ -91,16 +92,40 @@
       csgst))
 
 
+(define (mortar-h width height dir)
+  (let ([width (* (+ brick-width mortar) (+ width (if (even? width) 1.5 1)))]
+        [height (- brick-height mortar)]
+        [depth (* raise height)])
+    (move (* dir (- (/ width 2) (/ brick-height 2) (/ mortar 2)))
+          0
+          (- (/ depth 2) (/ brick-depth 2))
+          (box (abs (- width (* mortar 2))) height depth))))
+
+
+(define (mortar-v width height dir)
+  (let ([width (* (+ brick-width mortar) (+ width (if (even? width) 1.5 1)))]
+        [height (- brick-height mortar)]
+        [depth (* raise height)])
+    (move 0
+          (* dir (- (/ width 2) (/ brick-height 2) (/ mortar 2)))
+          (- (/ depth 2) (/ brick-depth 2))
+          (box height (- width (* mortar 2)) depth))))
+
+
 ; Generate a run of bricks along the x axis.
 (define (repeat-h offset width height [even? #t])
-  (realign offset move-x
-           (repeat move-x stack-h offset width height even?)))
+  (union
+   (realign offset move-x
+            (repeat move-x stack-h offset width height even?))
+            (mortar-h width height (sign offset))))
 
 
 ; Generate a run of bricks along the y axis.
 (define (repeat-v offset width height [even? #t])
-  (realign offset move-y
-           (repeat move-y stack-v offset width height even?)))
+  (union
+   (realign offset move-y
+            (repeat move-y stack-v offset width height even?))
+            (mortar-v width height (sign offset))))
 
 
 ; Returns 1 if n is positive, and -1 if n is negative.
@@ -153,34 +178,59 @@
   (if ((length masonry) . > . 1) (apply union masonry) masonry))
 
 
+;(define (emit-glsl)
+;  (compile
+;    (brick-walk
+;     30
+;     (vec2 0 0)
+;     (vec2 1 0)
+;     (vec2 1 1)
+;     (vec2 3 1))))
+
 (define (emit-glsl)
   (compile
-   (brick-walk
-    30
-    (vec2 0 0)
-    (vec2 2 0)
-    (vec2 2 2)
-    (vec2 -2 2)
-    (vec2 -2 -2)
-    (vec2 4 -2)
-    (vec2 4 4)
-    (vec2 -4 4)
-    (vec2 -4 -4)
-    (vec2 6 -4)
-    (vec2 6 6)
-    (vec2 -6 6)
-    (vec2 -6 -6)
-    (vec2 6 -6)
-    (vec2 6 -5)
-    (vec2 -5 -5)
-    (vec2 -5 5)
-    (vec2 5 5)
-    (vec2 5 -3)
-    (vec2 -3 -3)
-    (vec2 -3 3)
-    (vec2 3 3)
-    (vec2 3 -1)
-    (vec2 -1 -1)
-    (vec2 -1 1)
-    (vec2 0 1)
-    (vec2 0 0))))
+   (diff
+    (brick-walk
+     30
+     (vec2 0 0)
+     (vec2 2 0)
+     (vec2 2 2)
+     (vec2 -2 2)
+     (vec2 -2 -2)
+     (vec2 4 -2)
+     (vec2 4 4)
+     (vec2 -4 4)
+     (vec2 -4 -4)
+     (vec2 6 -4)
+     (vec2 6 6)
+     (vec2 -6 6)
+     (vec2 -6 -6)
+     (vec2 6 -6)
+     (vec2 6 -5)
+     (vec2 -5 -5)
+     (vec2 -5 5)
+     (vec2 5 5)
+     (vec2 5 -3)
+     (vec2 -3 -3)
+     (vec2 -3 3)
+     (vec2 3 3)
+     (vec2 3 -1)
+     (vec2 -1 -1)
+     (vec2 -1 1)
+     (vec2 0 1)
+     (vec2 0 0))
+    (move-z 4 (rotate-x 90 (cylinder 5 30))))))
+
+
+;(define (emit-glsl)
+;  (compile
+;   (diff
+;    (brick-walk
+;     30
+;     (vec2 -1 -1)
+;     (vec2 -1 1)
+;     (vec2 1 1)
+;     (vec2 1 -1)
+;     (vec2 -1 -1))
+;    (move-z 3.25
+;            (sphere 3)))))
