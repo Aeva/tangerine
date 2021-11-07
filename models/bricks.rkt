@@ -17,6 +17,7 @@
 
 (require tangerine)
 (require tangerine/vec)
+(require racket/list)
 (provide emit-glsl)
 
 (define inch 1/12)
@@ -34,6 +35,10 @@
 
 (define brick-v
   (align 0 0 -1 (box brick-height brick-width brick-depth)))
+
+
+(define brick-c
+  (align 0 0 -1 (box brick-height brick-height brick-depth)))
 
 
 (define horizontal-even
@@ -73,6 +78,19 @@
 ; Build a stack of bricks aligned to the y axis.
 (define (stack-v count [even? #t])
   (stack count vertical-even vertical-odd even?))
+
+
+; Build a partial stack of half-bicks for corners.
+(define (stack-c count [even? #t])
+  (define (inner count)
+    (if (<= count 2)
+        brick-c
+        (union brick-c
+               (move-z (* raise 2) (inner (- count 2))))))
+  (let ([stack (inner (* (floor (/ count 2)) 2))])
+    (if even?
+        (move-z raise stack)
+        stack)))
 
 
 ; Generic form of repeat-h and repeat-v.  Not intended to be called directly.
@@ -176,6 +194,16 @@
                  masonry))
           (set! t (+ t (abs dy)))
           (set! cursor (vec+ cursor (vec2 0 dy)))))))
+  (let ([final (if (null? etc)
+                   stop
+                   (last etc))])
+    (when (not (vec= start final))
+      (set! masonry
+            (cons
+             (move* start (stack-c height))
+             (cons
+              (move* final (stack-c height (even? (- t 1))))
+              masonry)))))
 
   (if ((length masonry) . > . 1) (apply union masonry) masonry))
 
