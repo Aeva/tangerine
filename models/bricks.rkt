@@ -29,11 +29,11 @@
 
 
 (define brick-h
-  (box brick-width brick-height brick-depth))
+  (align 0 0 -1 (box brick-width brick-height brick-depth)))
 
 
 (define brick-v
-  (box brick-height brick-width brick-depth))
+  (align 0 0 -1 (box brick-height brick-width brick-depth)))
 
 
 (define horizontal-even
@@ -92,40 +92,16 @@
       csgst))
 
 
-(define (mortar-h width height dir)
-  (let ([width (* (+ brick-width mortar) (+ width (if (even? width) 1.5 1)))]
-        [height (- brick-height mortar)]
-        [depth (* raise height)])
-    (move (* dir (- (/ width 2) (/ brick-height 2) (/ mortar 2)))
-          0
-          (- (/ depth 2) (/ brick-depth 2))
-          (box (abs (- width (* mortar 2))) height depth))))
-
-
-(define (mortar-v width height dir)
-  (let ([width (* (+ brick-width mortar) (+ width (if (even? width) 1.5 1)))]
-        [height (- brick-height mortar)]
-        [depth (* raise height)])
-    (move 0
-          (* dir (- (/ width 2) (/ brick-height 2) (/ mortar 2)))
-          (- (/ depth 2) (/ brick-depth 2))
-          (box height (- width (* mortar 2)) depth))))
-
-
 ; Generate a run of bricks along the x axis.
 (define (repeat-h offset width height [even? #t])
-  (union
-   (realign offset move-x
-            (repeat move-x stack-h offset width height even?))
-            (mortar-h width height (sign offset))))
+  (realign offset move-x
+           (repeat move-x stack-h offset width height even?)))
 
 
 ; Generate a run of bricks along the y axis.
 (define (repeat-v offset width height [even? #t])
-  (union
-   (realign offset move-y
-            (repeat move-y stack-v offset width height even?))
-            (mortar-v width height (sign offset))))
+  (realign offset move-y
+           (repeat move-y stack-v offset width height even?)))
 
 
 ; Returns 1 if n is positive, and -1 if n is negative.
@@ -160,33 +136,51 @@
            [y2 (cadr end)]
            [dx (round (- x2 x1))]
            [dy (round (- y2 y1))])
+
+      ; Horizontal run.
       (when (0 . < . (abs dx))
-        (set! masonry
-              (cons
-               (move* cursor (repeat-h (sign dx) (abs dx) height (even? t)))
-               masonry))
-        (set! t (+ t (abs dx)))
-        (set! cursor (vec+ cursor (vec2 dx 0))))
+        (let* ([run (abs dx)]
+               [dir (sign dx)]
+               [m-width (+ run (- (* brick-height) mortar))]
+               [m-adjust (* (+ (* brick-height .5) (* mortar -.5)) dir -1)]
+               [m-height (- brick-height mortar)]
+               [m-depth (- (* raise height) (* mortar 1.5))])
+          (set! masonry
+                (cons
+                 (move* cursor
+                        (union
+                         (repeat-h dir run height (even? t))
+                         (move-x m-adjust
+                                 (align (* -1 dir) 0 -1
+                                        (box m-width m-height m-depth)))))
+                 masonry))
+          (set! t (+ t run))
+          (set! cursor (vec+ cursor (vec2 dx 0)))))
+
+      ; Vertical run.
       (when (0 . < . (abs dy))
-        (set! masonry
-              (cons
-               (move* cursor (repeat-v (sign dy) (abs dy) height (even? t)))
-               masonry))
-        (set! t (+ t (abs dy)))
-        (set! cursor (vec+ cursor (vec2 0 dy))))))
+        (let* ([run (abs dy)]
+               [dir (sign dy)]
+               [m-height (+ run (- (* brick-height) mortar))]
+               [m-adjust (* (+ (* brick-height .5) (* mortar -.5)) dir -1)]
+               [m-width (- brick-height mortar)]
+               [m-depth (- (* raise height) (* mortar 1.5))])
+          (set! masonry
+                (cons
+                 (move* cursor
+                        (union
+                         (repeat-v (sign dy) (abs dy) height (even? t))
+                         (move-y m-adjust
+                                 (align 0 (* -1 dir) -1
+                                        (box m-width m-height m-depth)))))
+                 masonry))
+          (set! t (+ t (abs dy)))
+          (set! cursor (vec+ cursor (vec2 0 dy)))))))
 
   (if ((length masonry) . > . 1) (apply union masonry) masonry))
 
 
-;(define (emit-glsl)
-;  (compile
-;    (brick-walk
-;     30
-;     (vec2 0 0)
-;     (vec2 1 0)
-;     (vec2 1 1)
-;     (vec2 3 1))))
-
+; Spiral thing with a tube cut out of it.
 (define (emit-glsl)
   (compile
    (diff
@@ -220,17 +214,3 @@
      (vec2 0 1)
      (vec2 0 0))
     (move-z 4 (rotate-x 90 (cylinder 5 30))))))
-
-
-;(define (emit-glsl)
-;  (compile
-;   (diff
-;    (brick-walk
-;     30
-;     (vec2 -1 -1)
-;     (vec2 -1 1)
-;     (vec2 1 1)
-;     (vec2 1 -1)
-;     (vec2 -1 -1))
-;    (move-z 3.25
-;            (sphere 3)))))
