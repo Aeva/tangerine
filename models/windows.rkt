@@ -15,6 +15,8 @@
 ; limitations under the License.
 
 (require tangerine)
+(require tangerine/vec)
+(require "bricks.rkt")
 (provide emit-glsl)
 
 
@@ -25,7 +27,7 @@
 
 
 (define (window-negative x)
-  (move-x x (box 2. 1. 4.)))
+  (move x 0. 5. (box 2. 1. 4.)))
 
 
 (define (window-positive x alpha)
@@ -38,7 +40,7 @@
              (box 1.8 .5 1.8))
             (box 0.05125 0.05125 2.))
            (box 2.0 0.05125 0.05125))))
-  (move-x x
+  (move x 0. 5.
           (union
            (union
             (union
@@ -54,9 +56,13 @@
             (box 2. 1. 4.)))))
 
 
-(define (wall width . params)
+(define (wall . params)
   (define tree
-    (box width 0.5 10.0))
+    (brick-walk
+     48
+     (vec2 -5 0)
+     (vec2 -4 0)
+     (vec2 5 0)))
   (for ([param params])
     (let* ([param-x (car param)]
            [shape (window-negative param-x)])
@@ -73,38 +79,9 @@
   tree)
 
 
-(define (hole-punch tree)
-  (for ([n (in-range 6)])
-    (let* ([x (+ (random -5 5) (random))]
-           [z (+ (random -5 5) (random))]
-           [r1 (+ (random 2 4) (random))]
-           [r2 (- r1 0.2)]
-           [r3 (* r2 0.1)]
-           [e (+ 0.01 (* (random) 0.5))])
-      (set! tree
-            (union
-             (diff tree
-                   (move x 0 z
-                         (sphere r1)))
-             (move x 0 z
-                   (diff
-                    (inter
-                     (sphere r2)
-                     (box r2 e r2))
-                    (inter
-                     (move-z r3
-                             (sphere r2))
-                     (move-z (* -1. r3)
-                             (sphere r2)))))))))
-  tree)
-
-
-(define normal-wall (wall 10.0
-                          '(-3.0 0.0)
+(define normal-wall (wall '(-3.0 0.0)
                           '(0.0 0.3)
                           '(3.0 0.8)))
-
-(define odd-wall (hole-punch normal-wall))
 
 
 (define (emit-glsl)

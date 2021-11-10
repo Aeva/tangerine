@@ -18,7 +18,7 @@
 (require tangerine)
 (require tangerine/vec)
 (require racket/list)
-(provide emit-glsl)
+(provide brick-walk)
 
 (define inch 1/12)
 
@@ -206,39 +206,3 @@
               masonry)))))
 
   (if ((length masonry) . > . 1) (apply union masonry) masonry))
-
-
-; Spiral thing with a tube cut out of it.
-(define (emit-glsl)
-  (compile
-   (diff
-    (brick-walk
-     30
-     (vec2 0 0)
-     (vec2 2 0)
-     (vec2 2 2)
-     (vec2 -2 2)
-     (vec2 -2 -2)
-     (vec2 4 -2)
-     (vec2 4 4)
-     (vec2 -4 4)
-     (vec2 -4 -4)
-     (vec2 6 -4)
-     (vec2 6 6)
-     (vec2 -6 6)
-     (vec2 -6 -6)
-     (vec2 6 -6)
-     (vec2 6 -5)
-     (vec2 -5 -5)
-     (vec2 -5 5)
-     (vec2 5 5)
-     (vec2 5 -3)
-     (vec2 -3 -3)
-     (vec2 -3 3)
-     (vec2 3 3)
-     (vec2 3 -1)
-     (vec2 -1 -1)
-     (vec2 -1 1)
-     (vec2 0 1)
-     (vec2 0 0))
-    (move-z 4 (rotate-x 90 (cylinder 5 30))))))
