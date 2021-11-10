@@ -61,7 +61,6 @@
     (brick-walk
      48
      (vec2 -5 0)
-     (vec2 -4 0)
      (vec2 5 0)))
   (for ([param params])
     (let* ([param-x (car param)]
