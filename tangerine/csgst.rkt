@@ -17,6 +17,7 @@
 ; CSGST = Constructive Solid Geometry Syntax Tree
 
 (require racket/math)
+(require racket/list)
 (require math/flonum)
 (require "vec.rkt")
 
@@ -26,11 +27,14 @@
          binary-operator?
          operator?
          transform?
+         paint?
          csg?
          assert-csg
          splat
          brush-bounds
          align
+         paint
+         paint-over
          sphere
          ellipsoid
          box
@@ -50,6 +54,7 @@
          rotate-z)
 
 
+; Returns #t if the expression is a CSG brush shape.
 (define (brush? expr)
   (case (car expr)
     [(sphere
@@ -61,6 +66,7 @@
     [else #f]))
 
 
+; Returns #t if the expression is a simple CSG operator, like diff.
 (define (binary-operator? expr)
   (case (car expr)
     [(union
@@ -69,6 +75,7 @@
     [else #f]))
 
 
+; Returns #t if the expression is a CSG blend operator.
 (define (blend-operator? expr)
   (case (car expr)
     [(blend-union
@@ -77,6 +84,7 @@
     [else #f]))
 
 
+; Returns #t if the expression is a CSG operator.
 (define (operator? expr)
   (case (car expr)
     [(union
@@ -88,6 +96,7 @@
     [else #f]))
 
 
+; Returns #t if the expression is a CSG transform.
 (define (transform? expr)
   (case (car expr)
     [(move
@@ -99,17 +108,26 @@
     [else #f]))
 
 
+; Returns #t if the expression is a CSG material annotation.
+(define (paint? expr)
+  (eq? (car expr) 'paint))
+
+
+; Returns #t if the expression is a CSG expression.
 (define (csg? expr)
-  (or (brush? expr)
+  (or (paint? expr)
+      (brush? expr)
       (operator? expr)
       (transform? expr)))
 
 
+; Raise an error if the provided expresion is not a valid CSG expression.
 (define (assert-csg expr)
   (unless (csg? expr) (error "Expected CSG expression:" expr))
   (void))
 
 
+; Decompose a list into values.
 (define (splat args)
   (apply values args))
 
@@ -163,11 +181,58 @@
           `(move ,x ,y ,z, brush)))))
 
 
+; Provides the common functionality to paint and paint-over.
+(define (paint-inner material mode csgst)
+  (cond [(brush? csgst)
+         `(paint ,material ,csgst)]
+
+        [(paint? csgst)
+         (if mode
+             `(paint ,material ,(cddr csgst))
+             csgst)]
+
+        [(binary-operator? csgst)
+         (cons (car csgst)
+               (for/list ([subtree (in-list (cdr csgst))])
+                 (paint-inner material mode subtree)))]
+
+        [(blend-operator? csgst)
+         (let ([instruction (car csgst)]
+               [threshold (cadr csgst)]
+               [operands (cddr csgst)])
+           (cons instruction
+                 (cons threshold
+                       (for/list ([subtree (in-list operands)])
+                         (paint-inner material mode subtree)))))]
+
+        [(transform? csgst)
+         (let* ([pivot (- (length csgst) 1)]
+                [transform (take csgst pivot)]
+                [subtree (last csgst)])
+           (append transform (list (paint-inner material mode subtree))))]
+
+        [else (error "unreachable")]))
+
+
+; Paint all brushes in the subtree with a material annotation.  This
+; will only modify brushes that do not already have an annotation.
+(define (paint material csgst)
+  (paint-inner material #f csgst))
+
+
+; Paint all brushes in the subtree with a material annotation.
+; This will override all annotations further down the tree.
+(define (paint-over material csgst)
+  (paint-inner material #t csgst))
+
+
+; Spherice brush shape.
 (define (sphere diameter)
   (let ([radius (/ (fl diameter) 2.)])
     `(sphere ,radius)))
 
 
+; Ellipsoid brush shape.
 (define (ellipsoid
          diameter-x
          diameter-y
@@ -178,6 +243,7 @@
     `(ellipsoid ,radius-x ,radius-y ,radius-z)))
 
 
+; Box brush shape.
 (define (box width depth height)
   (let ([extent-x (/ (fl width) 2.)]
         [extent-y (/ (fl depth) 2.)]
@@ -185,22 +251,26 @@
     `(box ,extent-x ,extent-y ,extent-z)))
 
 
+; Cube brush shape.
 (define (cube size)
   (box size size size))
 
 
+; Torus brush shape.
 (define (torus major-diameter minor-diameter)
   (let* ([minor-radius (/ (fl minor-diameter) 2.)]
          [major-radius (- (/ (fl major-diameter) 2.) minor-radius)])
     `(torus ,major-radius ,minor-radius)))
 
 
+; Cylinder brush shape.
 (define (cylinder diameter height)
   (let ([radius (/ (fl diameter) 2.)]
         [extent (/ (fl height) 2.)])
     `(cylinder ,radius ,extent)))
 
 
+; Union CSG operator.
 (define (union lhs rhs . etc)
   (assert-csg lhs)
   (assert-csg rhs)
@@ -209,6 +279,7 @@
       (apply union (cons (union lhs rhs) etc))))
 
 
+; Subtraction CSG operator.
 (define (diff lhs rhs . etc)
   (assert-csg lhs)
   (assert-csg rhs)
@@ -217,6 +288,7 @@
       (apply diff (cons (diff lhs rhs) etc))))
 
 
+; Intersection CSG operator.
 (define (inter lhs rhs . etc)
   (assert-csg lhs)
   (assert-csg rhs)
@@ -225,6 +297,7 @@
       (apply inter (cons (inter lhs rhs) etc))))
 
 
+; Blending CSG operator.
 (define (blend operator threshold lhs rhs . etc)
   (assert-csg lhs)
   (assert-csg rhs)
@@ -240,27 +313,33 @@
   (apply inner (append (list lhs rhs) etc)))
 
 
+; Translation transform.
 (define (move x y z child)
   (assert-csg child)
   `(move ,(fl x) ,(fl y) ,(fl z) ,child))
 
 
+; Translation transform.
 (define (move-x n child)
   (move n 0. 0. child))
 
 
+; Translation transform.
 (define (move-y n child)
   (move 0. n 0. child))
 
 
+; Translation transform.
 (define (move-z n child)
   (move 0. 0. n child))
 
 
+; Convert from degrees to radians.
 (define (radians degrees)
   (fl (degrees->radians degrees)))
 
 
+; Rotation transform.
 (define (rotate-x degrees child)
   (assert-csg child)
   (let* ([x 0.]
@@ -278,6 +357,7 @@
       ,child)))
 
 
+; Rotation transform.
 (define (rotate-y degrees child)
   (assert-csg child)
   (let* ([x 0.]
@@ -295,6 +375,7 @@
        ,child)))
 
 
+; Rotation transform.
 (define (rotate-z degrees child)
   (assert-csg child)
   (let* ([x 0.]
