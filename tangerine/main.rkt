@@ -29,6 +29,8 @@
 
 (provide compile
          align
+         paint
+         paint-over
          sphere
          ellipsoid
          box
@@ -100,8 +102,15 @@
 
         [(brush? subtree)
          (let* ([offset (length params)]
-                [params (append params (cdr subtree))]
-                [subtree (list (car subtree) offset)])
+                [params (append params (cdr subtree))] ; Append all of the brush parameters to the end of the params list.
+                [subtree (list (car subtree) offset)]) ; The subtree is now just the brush function and the offset into the params list.
+           (values subtree params))]
+
+        [(paint? subtree)
+         (let*-values ([(op material subtree) (splat subtree)]
+                       [(subtree params) (genericize subtree params)]
+                       [(subtree) `(paint ,material ,subtree)])
+           ; The material probably should go on the params block as well, but for now just pass through.
            (values subtree params))]
 
         [(operator? subtree)

@@ -121,9 +121,15 @@
            (if (null? transforms)
                (coalesce subtree (list tran))
                (coalesce subtree (append transforms (list tran)))))]
+
         [(operator? csgst)
          (let-values ([(operator lhs rhs) (peel-2 csgst)])
            (append operator (list (coalesce lhs transforms) (coalesce rhs transforms))))] ; fold through operators up to brushes
            ;(recombine (append operator (list (coalesce lhs) (coalesce rhs))) transforms))] ; fold up to operators, then fold operands
+
+        [(paint? csgst)
+         (let-values ([(annotation subtree) (peel-1 csgst)])
+           (append annotation (list (coalesce subtree transforms))))] ; fold through annotations
+
         [else
          (recombine csgst transforms)]))

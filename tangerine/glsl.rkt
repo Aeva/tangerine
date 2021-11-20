@@ -107,4 +107,9 @@
               [point @~a{MatrixTransform(@point, mat4(@matrix))}])
          (eval-dist child point))]
 
+      [(paint)
+       (let* ([material (car args)]
+              [child (eval-dist (cadr args) point)])
+         @~a{Material(/*@material,*/ @child)})]
+
       [else (error "Unknown CSGST node:" csgst)])))

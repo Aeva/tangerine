@@ -373,6 +373,15 @@
                       [subtree (caddr aabb)])
                  (list low high `(mat4 ,matrix ,subtree)))))]
 
+          [(paint)
+           (let* ([material (car args)]
+                  [subtree (cadr args)]
+                  [bounds (tree-aabb subtree)])
+             (for/list ([aabb bounds])
+               (let ([low (car aabb)]
+                     [high (cadr aabb)])
+                 (list low high `(paint ,material ,subtree)))))]
+
           [else (error "Unknown CSGST node:" node)]))))
 
 
@@ -408,6 +417,7 @@
 ;(tree-aabb (rotate-z 45 (cube 2)))
 ;(tree-aabb (union (cube 2) (cube 2)))
 ;(tree-aabb (union (cube 1) (cube 2)))
+;(tree-aabb (union (cube 1) (paint 'fnord (cube 2))))
 ;(tree-aabb (union (cube 2) (move 1 1 1 (cube 2))))
 ;(tree-aabb (diff (cube 2) (sphere 2.2)))
 ;(tree-aabb (diff (sphere 2.2) (cube 2)))
