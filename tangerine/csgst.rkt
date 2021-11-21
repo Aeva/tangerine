@@ -217,12 +217,16 @@
 ; Paint all brushes in the subtree with a material annotation.  This
 ; will only modify brushes that do not already have an annotation.
 (define (paint material csgst)
+  (unless (or (exact? material) (material . < . 0))
+    (error "Expected positive integer"))
   (paint-inner material #f csgst))
 
 
 ; Paint all brushes in the subtree with a material annotation.
 ; This will override all annotations further down the tree.
 (define (paint-over material csgst)
+  (unless (or (exact? material) (material . < . 0))
+    (error "Expected positive integer"))
   (paint-inner material #t csgst))
 
 

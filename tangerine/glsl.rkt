@@ -110,6 +110,6 @@
       [(paint)
        (let* ([material (car args)]
               [child (eval-dist (cadr args) point)])
-         @~a{Material(/*@material,*/ @child)})]
+         @~a{MaterialDist(@material, @child)})]
 
       [else (error "Unknown CSGST node:" csgst)])))

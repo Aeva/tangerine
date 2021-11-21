@@ -187,9 +187,9 @@
              "\tfloat PARAMS[];"
              "};\n"
              @~a{const uint SubtreeIndex = @subtree-index;}
-             "float ClusterDist(vec3 Point)"
+             "MaterialDist ClusterDist(vec3 Point)"
              "{"
-             (~a "\treturn " (eval-dist subtree) ";")
+             (~a "\treturn TreeRoot(" (eval-dist subtree) ");")
              "}\n"))
            "\n"))
          (for/list ([bound (in-list bounds)])

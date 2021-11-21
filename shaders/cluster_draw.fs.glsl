@@ -61,11 +61,11 @@ layout(location = 2) out uint OutSubtreeID;
 vec3 Gradient(vec3 Position)
 {
 	float AlmostZero = 0.0001;
-	float Dist = ClusterDist(Position);
+	float Dist = ClusterDist(Position).Dist;
 	return vec3(
-		ClusterDist(vec3(Position.x + AlmostZero, Position.y, Position.z)) - Dist,
-		ClusterDist(vec3(Position.x, Position.y + AlmostZero, Position.z)) - Dist,
-		ClusterDist(vec3(Position.x, Position.y, Position.z + AlmostZero)) - Dist);
+		ClusterDist(vec3(Position.x + AlmostZero, Position.y, Position.z)).Dist - Dist,
+		ClusterDist(vec3(Position.x, Position.y + AlmostZero, Position.z)).Dist - Dist,
+		ClusterDist(vec3(Position.x, Position.y, Position.z + AlmostZero)).Dist - Dist);
 }
 
 
@@ -101,7 +101,7 @@ void main()
 			}
 			else
 			{
-				Dist = ClusterDist(Position);
+				Dist = ClusterDist(Position).Dist;
 				if (Dist <= 0.001)
 				{
 					Hit = true;

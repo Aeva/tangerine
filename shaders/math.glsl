@@ -55,6 +55,13 @@ float CylinderBrush(vec3 Point, float Radius, float Extent)
 }
 
 
+struct MaterialDist
+{
+	uint Material;
+	float Dist;
+};
+
+
 float UnionOp(float LHS, float RHS)
 {
 	return min(LHS, RHS);
@@ -71,6 +78,32 @@ float CutOp(float LHS, float RHS)
 {
 	return max(LHS, -RHS);
 }
+
+
+#define BINARY_OP_VARIANTS(Function) \
+MaterialDist Function##(MaterialDist LHS, MaterialDist RHS) \
+{ \
+	float Dist = Function##(LHS.Dist, RHS.Dist); \
+	uint Material = (Dist == LHS.Dist) ? LHS.Material : RHS.Material; \
+	return MaterialDist(Material, Dist); \
+} \
+\
+\
+MaterialDist Function##(float LHS, MaterialDist RHS) \
+{ \
+	MaterialDist NewLHS = MaterialDist(0, LHS); \
+	return Function##(NewLHS, RHS); \
+} \
+\
+\
+MaterialDist Function##(MaterialDist LHS, float RHS) \
+{ \
+	MaterialDist NewRHS = MaterialDist(0, RHS); \
+	return Function##(LHS, NewRHS); \
+}
+BINARY_OP_VARIANTS(UnionOp)
+BINARY_OP_VARIANTS(IntersectionOp)
+BINARY_OP_VARIANTS(CutOp)
 
 
 float SmoothUnionOp(float LHS, float RHS, float Threshold)
@@ -91,6 +124,44 @@ float SmoothCutOp(float LHS, float RHS, float Threshold)
 {
 	float H = max(Threshold - abs(LHS + RHS), 0.0);
 	return max(LHS, -RHS) + H * H * 0.25 / Threshold;
+}
+
+
+#define BLEND_OP_VARIANTS(Function, LHS, RHS, Threshold) \
+MaterialDist Function##(MaterialDist LHS, MaterialDist RHS, float Threshold) \
+{ \
+	float Dist = Function(LHS.Dist, RHS.Dist, Threshold); \
+	uint Material = (abs(LHS.Dist - Dist) <= abs(RHS.Dist - Dist)) ? LHS.Material : RHS.Material; \
+	return MaterialDist(Material, Dist); \
+} \
+\
+\
+MaterialDist Function##(float LHS, MaterialDist RHS, float Threshold) \
+{ \
+	MaterialDist NewLHS = MaterialDist(0, LHS); \
+	return Function##(NewLHS, RHS, Threshold); \
+} \
+\
+\
+MaterialDist Function##(MaterialDist LHS, float RHS, float Threshold) \
+{ \
+	MaterialDist NewRHS = MaterialDist(0, RHS); \
+	return Function##(LHS, NewRHS, Threshold); \
+}
+BLEND_OP_VARIANTS(SmoothUnionOp, LHS, RHS, Threshold)
+BLEND_OP_VARIANTS(SmoothIntersectionOp, LHS, RHS, Threshold)
+BLEND_OP_VARIANTS(SmoothCutOp, LHS, RHS, Threshold)
+
+
+MaterialDist TreeRoot(MaterialDist Dist)
+{
+	return Dist;
+}
+
+
+MaterialDist TreeRoot(float Dist)
+{
+	return MaterialDist(0, Dist);
 }
 
 
