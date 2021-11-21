@@ -80,15 +80,7 @@ float CutOp(float LHS, float RHS)
 }
 
 
-#define BINARY_OP_VARIANTS(Function) \
-MaterialDist Function##(MaterialDist LHS, MaterialDist RHS) \
-{ \
-	float Dist = Function##(LHS.Dist, RHS.Dist); \
-	uint Material = (Dist == LHS.Dist) ? LHS.Material : RHS.Material; \
-	return MaterialDist(Material, Dist); \
-} \
-\
-\
+#define BINARY_OP_ROUTES(Function) \
 MaterialDist Function##(float LHS, MaterialDist RHS) \
 { \
 	MaterialDist NewLHS = MaterialDist(0, LHS); \
@@ -101,9 +93,27 @@ MaterialDist Function##(MaterialDist LHS, float RHS) \
 	MaterialDist NewRHS = MaterialDist(0, RHS); \
 	return Function##(LHS, NewRHS); \
 }
+
+
+#define BINARY_OP_VARIANTS(Function) \
+MaterialDist Function##(MaterialDist LHS, MaterialDist RHS) \
+{ \
+	float Dist = Function##(LHS.Dist, RHS.Dist); \
+	uint Material = (Dist == LHS.Dist) ? LHS.Material : RHS.Material; \
+	return MaterialDist(Material, Dist); \
+} \
+BINARY_OP_ROUTES(Function)
+
+
 BINARY_OP_VARIANTS(UnionOp)
 BINARY_OP_VARIANTS(IntersectionOp)
-BINARY_OP_VARIANTS(CutOp)
+
+
+MaterialDist CutOp(MaterialDist LHS, MaterialDist RHS)
+{
+	return MaterialDist(LHS.Material, max(LHS.Dist, -RHS.Dist));
+}
+BINARY_OP_ROUTES(CutOp)
 
 
 float SmoothUnionOp(float LHS, float RHS, float Threshold)
@@ -127,15 +137,7 @@ float SmoothCutOp(float LHS, float RHS, float Threshold)
 }
 
 
-#define BLEND_OP_VARIANTS(Function, LHS, RHS, Threshold) \
-MaterialDist Function##(MaterialDist LHS, MaterialDist RHS, float Threshold) \
-{ \
-	float Dist = Function(LHS.Dist, RHS.Dist, Threshold); \
-	uint Material = (abs(LHS.Dist - Dist) <= abs(RHS.Dist - Dist)) ? LHS.Material : RHS.Material; \
-	return MaterialDist(Material, Dist); \
-} \
-\
-\
+#define BLEND_OP_ROUTES(Function) \
 MaterialDist Function##(float LHS, MaterialDist RHS, float Threshold) \
 { \
 	MaterialDist NewLHS = MaterialDist(0, LHS); \
@@ -148,9 +150,29 @@ MaterialDist Function##(MaterialDist LHS, float RHS, float Threshold) \
 	MaterialDist NewRHS = MaterialDist(0, RHS); \
 	return Function##(LHS, NewRHS, Threshold); \
 }
-BLEND_OP_VARIANTS(SmoothUnionOp, LHS, RHS, Threshold)
-BLEND_OP_VARIANTS(SmoothIntersectionOp, LHS, RHS, Threshold)
-BLEND_OP_VARIANTS(SmoothCutOp, LHS, RHS, Threshold)
+
+
+#define BLEND_OP_VARIANTS(Function) \
+MaterialDist Function##(MaterialDist LHS, MaterialDist RHS, float Threshold) \
+{ \
+	float Dist = Function(LHS.Dist, RHS.Dist, Threshold); \
+	uint Material = (abs(LHS.Dist - Dist) <= abs(RHS.Dist - Dist)) ? LHS.Material : RHS.Material; \
+	return MaterialDist(Material, Dist); \
+} \
+BLEND_OP_ROUTES(Function)
+
+
+BLEND_OP_VARIANTS(SmoothUnionOp)
+BLEND_OP_VARIANTS(SmoothIntersectionOp)
+
+
+MaterialDist SmoothCutOp(MaterialDist LHS, MaterialDist RHS, float Threshold)
+{
+	float H = max(Threshold - abs(LHS.Dist + RHS.Dist), 0.0);
+	float Dist = max(LHS.Dist, -RHS.Dist) + H * H * 0.25 / Threshold;
+	return MaterialDist(LHS.Material, Dist);
+}
+BLEND_OP_ROUTES(SmoothCutOp)
 
 
 MaterialDist TreeRoot(MaterialDist Dist)

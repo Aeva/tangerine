@@ -29,7 +29,7 @@ uniform ViewInfoBlock
 	float CurrentTime;
 };
 
-layout(std140, binding = 1)
+layout(std140, binding = 2)
 uniform OutlinerOptionsBlock
 {
 	uint OutlinerFlags;
@@ -82,7 +82,6 @@ void main()
 	vec3 CenterNormal;
 	uint SubtreeIndex;
 	SampleAt(gl_FragCoord.xy, DepthMask, CenterPosition, CenterNormal, SubtreeIndex);
-	if (DepthMask)
 	{
 		vec3 Positions[8];
 		vec3 Normals[8];
@@ -162,9 +161,5 @@ void main()
 				}
 			}
 		}
-	}
-	else
-	{
-		discard;
 	}
 }

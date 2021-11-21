@@ -56,6 +56,7 @@ layout(location = 1) out vec4 OutNormal;
 layout(location = 1) out vec3 OutNormal;
 #endif
 layout(location = 2) out uint OutSubtreeID;
+layout(location = 3) out uint OutMaterial;
 
 
 vec3 Gradient(vec3 Position)
@@ -87,7 +88,7 @@ void main()
 	bool Hit = false;
 	float Travel = 0.0;
 	vec3 Position;
-	float Dist = 0.0;
+	MaterialDist Dist = MaterialDist(0, 0.0);
 
 	if (CanHit)
 	{
@@ -101,15 +102,15 @@ void main()
 			}
 			else
 			{
-				Dist = ClusterDist(Position).Dist;
-				if (Dist <= 0.001)
+				Dist = ClusterDist(Position);
+				if (Dist.Dist <= 0.001)
 				{
 					Hit = true;
 					break;
 				}
 				else
 				{
-						Travel += Dist;
+						Travel += Dist.Dist;
 				}
 			}
 		}
@@ -123,9 +124,10 @@ void main()
 		OutPosition = WorldPosition.xyz;
 		OutNormal.xyz = normalize(mat3(LocalToWorld) * Gradient(Position));
 #if VISUALIZE_TRACING_ERROR
-		OutNormal.a = abs(clamp(Dist, -0.005, 0.005) / 0.005);
+		OutNormal.a = abs(clamp(Dist.Dist, -0.005, 0.005) / 0.005);
 #endif
 		OutSubtreeID = SubtreeIndex;
+		OutMaterial = Dist.Material;
 
 		vec4 ViewPosition = WorldToView * WorldPosition;
 		ViewPosition /= ViewPosition.w;

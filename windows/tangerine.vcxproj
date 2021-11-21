@@ -197,14 +197,23 @@
     <ClInclude Include="resource.h" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="..\materials\black.glsl" />
+    <None Include="..\materials\blue.glsl" />
+    <None Include="..\materials\gray.glsl" />
+    <None Include="..\materials\green.glsl" />
+    <None Include="..\materials\red.glsl" />
+    <None Include="..\materials\white.glsl" />
     <None Include="..\regen.bat" />
     <None Include="..\shaders\bg.fs.glsl" />
     <None Include="..\shaders\cluster_draw.fs.glsl" />
     <None Include="..\shaders\cluster_draw.vs.glsl" />
     <None Include="..\shaders\gather_depth.cs.glsl" />
+    <None Include="..\shaders\masked.vs.glsl" />
     <None Include="..\shaders\math.glsl" />
     <None Include="..\shaders\noise.fs.glsl" />
     <None Include="..\shaders\outliner.fs.glsl" />
+    <None Include="..\shaders\resolve.fs.glsl" />
+    <None Include="..\shaders\resolve_stencil.fs.glsl" />
     <None Include="..\shaders\splat.vs.glsl" />
     <None Include="..\shaders\tile_heap.glsl" />
     <None Include="..\third_party\racket\lib\libracketcs_d9hn5s.def" />

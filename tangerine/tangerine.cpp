@@ -190,6 +190,9 @@ std::vector<SubtreeShader> SubtreeShaders;
 std::vector<size_t> PendingShaders;
 
 
+ShaderPipeline TestMaterials[6];
+
+
 extern "C" size_t TANGERINE_API EmitShader(const char* ShaderTree, const char* PrettyTree, const char* ShaderSource)
 {
 	std::string Tree = std::string(ShaderTree);
@@ -236,21 +239,28 @@ extern "C" void TANGERINE_API EmitSection(float InExtent[3], float InCenter[3], 
 
 GLuint NullVAO;
 ShaderPipeline PaintShader;
+ShaderPipeline MaterialResolveShader;
 ShaderPipeline NoiseShader;
 ShaderPipeline BgShader;
+ShaderPipeline ResolveOutputShader;
 
 Buffer ViewInfo("ViewInfo Buffer");
+Buffer MaterialInfo("MaterialInfo Buffer");
 Buffer OutlinerOptions("Outliner Options Buffer");
-Buffer InstanceInfo("InstanceInfo Buffer");
 
 Buffer DepthTimeBuffer("Subtree Heatmap Buffer");
 GLuint DepthPass;
-GLuint DepthBuffer;
+GLuint MaterialResolvePass;
+GLuint ColorPass;
+const GLuint FinalPass = 0;
 
+GLuint DepthBuffer;
 GLuint PositionBuffer;
 GLuint NormalBuffer;
-GLuint IDBuffer;
-const GLuint FinalPass = 0;
+GLuint SubtreeBuffer;
+GLuint MaterialBuffer;
+GLuint MaterialStencilBuffer;
+GLuint ColorBuffer;
 
 GLuint DepthTimeQuery;
 GLuint GridBgTimeQuery;
@@ -264,9 +274,15 @@ void AllocateRenderTargets(int ScreenWidth, int ScreenHeight)
 	if (Initialized)
 	{
 		glDeleteFramebuffers(1, &DepthPass);
+		glDeleteFramebuffers(1, &MaterialResolvePass);
+		glDeleteFramebuffers(1, &ColorPass);
 		glDeleteTextures(1, &DepthBuffer);
 		glDeleteTextures(1, &PositionBuffer);
 		glDeleteTextures(1, &NormalBuffer);
+		glDeleteTextures(1, &SubtreeBuffer);
+		glDeleteTextures(1, &MaterialBuffer);
+		glDeleteTextures(1, &MaterialStencilBuffer);
+		glDeleteTextures(1, &ColorBuffer);
 	}
 	else
 	{
@@ -303,22 +319,65 @@ void AllocateRenderTargets(int ScreenWidth, int ScreenHeight)
 		glTextureParameteri(NormalBuffer, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 		glObjectLabel(GL_TEXTURE, NormalBuffer, -1, "World Normal");
 
-		glCreateTextures(GL_TEXTURE_2D, 1, &IDBuffer);
-		glTextureStorage2D(IDBuffer, 1, GL_R32UI, ScreenWidth, ScreenHeight);
-		glTextureParameteri(IDBuffer, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-		glTextureParameteri(IDBuffer, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-		glTextureParameteri(IDBuffer, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-		glTextureParameteri(IDBuffer, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-		glObjectLabel(GL_TEXTURE, IDBuffer, -1, "Subtree ID");
+		glCreateTextures(GL_TEXTURE_2D, 1, &SubtreeBuffer);
+		glTextureStorage2D(SubtreeBuffer, 1, GL_R32UI, ScreenWidth, ScreenHeight);
+		glTextureParameteri(SubtreeBuffer, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+		glTextureParameteri(SubtreeBuffer, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+		glTextureParameteri(SubtreeBuffer, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+		glTextureParameteri(SubtreeBuffer, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+		glObjectLabel(GL_TEXTURE, SubtreeBuffer, -1, "Subtree ID");
+
+		glCreateTextures(GL_TEXTURE_2D, 1, &MaterialBuffer);
+		glTextureStorage2D(MaterialBuffer, 1, GL_R32UI, ScreenWidth, ScreenHeight);
+		glTextureParameteri(MaterialBuffer, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+		glTextureParameteri(MaterialBuffer, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+		glTextureParameteri(MaterialBuffer, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+		glTextureParameteri(MaterialBuffer, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+		glObjectLabel(GL_TEXTURE, MaterialBuffer, -1, "Material ID");
 
 		glCreateFramebuffers(1, &DepthPass);
-		glObjectLabel(GL_FRAMEBUFFER, DepthPass, -1, "DepthPass");
+		glObjectLabel(GL_FRAMEBUFFER, DepthPass, -1, "Depth Pass");
 		glNamedFramebufferTexture(DepthPass, GL_DEPTH_ATTACHMENT, DepthBuffer, 0);
 		glNamedFramebufferTexture(DepthPass, GL_COLOR_ATTACHMENT0, PositionBuffer, 0);
 		glNamedFramebufferTexture(DepthPass, GL_COLOR_ATTACHMENT1, NormalBuffer, 0);
-		glNamedFramebufferTexture(DepthPass, GL_COLOR_ATTACHMENT2, IDBuffer, 0);
-		GLenum ColorAttachments[3] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1, GL_COLOR_ATTACHMENT2 };
-		glNamedFramebufferDrawBuffers(DepthPass, 3, ColorAttachments);
+		glNamedFramebufferTexture(DepthPass, GL_COLOR_ATTACHMENT2, SubtreeBuffer, 0);
+		glNamedFramebufferTexture(DepthPass, GL_COLOR_ATTACHMENT3, MaterialBuffer, 0);
+		GLenum ColorAttachments[4] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1, GL_COLOR_ATTACHMENT2, GL_COLOR_ATTACHMENT3 };
+		glNamedFramebufferDrawBuffers(DepthPass, 4, ColorAttachments);
+	}
+
+	// Resolve material to depth pass.
+	{
+		glCreateTextures(GL_TEXTURE_2D, 1, &MaterialStencilBuffer);
+		glTextureStorage2D(MaterialStencilBuffer, 1, GL_DEPTH_COMPONENT32F, ScreenWidth, ScreenHeight);
+		glTextureParameteri(MaterialStencilBuffer, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+		glTextureParameteri(MaterialStencilBuffer, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+		glTextureParameteri(MaterialStencilBuffer, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+		glTextureParameteri(MaterialStencilBuffer, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+		glObjectLabel(GL_TEXTURE, MaterialStencilBuffer, -1, "Material Stencil");
+
+		glCreateFramebuffers(1, &MaterialResolvePass);
+		glObjectLabel(GL_FRAMEBUFFER, MaterialResolvePass, -1, "Material Resolve Pass");
+		glNamedFramebufferTexture(MaterialResolvePass, GL_DEPTH_ATTACHMENT, MaterialStencilBuffer, 0);
+		glNamedFramebufferDrawBuffers(MaterialResolvePass, 0, nullptr);
+	}
+
+	// Color passes.
+	{
+		glCreateTextures(GL_TEXTURE_2D, 1, &ColorBuffer);
+		glTextureStorage2D(ColorBuffer, 1, GL_RGB8, ScreenWidth, ScreenHeight);
+		glTextureParameteri(ColorBuffer, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+		glTextureParameteri(ColorBuffer, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+		glTextureParameteri(ColorBuffer, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+		glTextureParameteri(ColorBuffer, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+		glObjectLabel(GL_TEXTURE, ColorBuffer, -1, "Color Buffer");
+
+		glCreateFramebuffers(1, &ColorPass);
+		glObjectLabel(GL_FRAMEBUFFER, ColorPass, -1, "Material Painting Pass");
+		glNamedFramebufferTexture(ColorPass, GL_DEPTH_ATTACHMENT, MaterialStencilBuffer, 0);
+		glNamedFramebufferTexture(ColorPass, GL_COLOR_ATTACHMENT0, ColorBuffer, 0);
+		GLenum ColorAttachments[1] = { GL_COLOR_ATTACHMENT0 };
+		glNamedFramebufferDrawBuffers(ColorPass, 1, ColorAttachments);
 	}
 }
 
@@ -338,9 +397,29 @@ struct ViewInfoUpload
 };
 
 
+void UploadMaterialInfo(unsigned int MaterialMask)
+{
+	GLfloat MaskFloat = 0.0;
+	if (MaterialMask < UINT_MAX)
+	{
+		MaskFloat = 1.0 / (GLfloat(MaterialMask) + 1.0);
+	}
+	GLfloat BufferData[4] = {
+		MaskFloat,
+		0,
+		0,
+		0
+	};
+	MaterialInfo.Upload((void*)&BufferData, sizeof(GLuint) * 4);
+}
+
+
 struct OutlinerOptionsUpload
 {
 	GLuint OutlinerFlags;
+	GLuint Unused1;
+	GLuint Unused2;
+	GLuint Unused3;
 };
 
 
@@ -358,16 +437,56 @@ StatusCode SetupRenderer()
 		"Cluster Coverage Shader"));
 #else
 
-	RETURN_ON_FAIL(PaintShader.Setup(
+	RETURN_ON_FAIL(MaterialResolveShader.Setup(
 		{ {GL_VERTEX_SHADER, ShaderSource("shaders/splat.vs.glsl", true)},
+		  {GL_FRAGMENT_SHADER, ShaderSource("shaders/resolve_stencil.fs.glsl", true)} },
+		"Material Resolve Shader"));
+
+	RETURN_ON_FAIL(PaintShader.Setup(
+		{ {GL_VERTEX_SHADER, ShaderSource("shaders/masked.vs.glsl", true)},
 		  {GL_FRAGMENT_SHADER, ShaderSource("shaders/outliner.fs.glsl", true)} },
 		"Outliner Shader"));
 
 	RETURN_ON_FAIL(BgShader.Setup(
-		{ {GL_VERTEX_SHADER, ShaderSource("shaders/splat.vs.glsl", true)},
+		{ {GL_VERTEX_SHADER, ShaderSource("shaders/masked.vs.glsl", true)},
 		  {GL_FRAGMENT_SHADER, ShaderSource("shaders/bg.fs.glsl", true)} },
 		"Background Shader"));
 #endif
+
+	RETURN_ON_FAIL(TestMaterials[0].Setup(
+		{ {GL_VERTEX_SHADER, ShaderSource("shaders/masked.vs.glsl", true)},
+		  {GL_FRAGMENT_SHADER, ShaderSource("materials/black.glsl", true)} },
+		"Black Test Material Shader"));
+
+	RETURN_ON_FAIL(TestMaterials[1].Setup(
+		{ {GL_VERTEX_SHADER, ShaderSource("shaders/masked.vs.glsl", true)},
+		  {GL_FRAGMENT_SHADER, ShaderSource("materials/gray.glsl", true)} },
+		"Gray Test Material Shader"));
+
+	RETURN_ON_FAIL(TestMaterials[2].Setup(
+		{ {GL_VERTEX_SHADER, ShaderSource("shaders/masked.vs.glsl", true)},
+		  {GL_FRAGMENT_SHADER, ShaderSource("materials/white.glsl", true)} },
+		"White Test Material Shader"));
+
+	RETURN_ON_FAIL(TestMaterials[3].Setup(
+		{ {GL_VERTEX_SHADER, ShaderSource("shaders/masked.vs.glsl", true)},
+		  {GL_FRAGMENT_SHADER, ShaderSource("materials/red.glsl", true)} },
+		"Red Test Material Shader"));
+
+	RETURN_ON_FAIL(TestMaterials[4].Setup(
+		{ {GL_VERTEX_SHADER, ShaderSource("shaders/masked.vs.glsl", true)},
+		  {GL_FRAGMENT_SHADER, ShaderSource("materials/green.glsl", true)} },
+		"Green Test Material Shader"));
+
+	RETURN_ON_FAIL(TestMaterials[5].Setup(
+		{ {GL_VERTEX_SHADER, ShaderSource("shaders/masked.vs.glsl", true)},
+		  {GL_FRAGMENT_SHADER, ShaderSource("materials/blue.glsl", true)} },
+		"Blue Test Material Shader"));
+
+	RETURN_ON_FAIL(ResolveOutputShader.Setup(
+		{ {GL_VERTEX_SHADER, ShaderSource("shaders/splat.vs.glsl", true)},
+		  {GL_FRAGMENT_SHADER, ShaderSource("shaders/resolve.fs.glsl", true)} },
+		"Resolve BackBuffer Shader"));
 
 	RETURN_ON_FAIL(NoiseShader.Setup(
 		{ {GL_VERTEX_SHADER, ShaderSource("shaders/splat.vs.glsl", true)},
@@ -383,7 +502,6 @@ StatusCode SetupRenderer()
 	glEnable(GL_DEPTH_TEST);
 	glClipControl(GL_LOWER_LEFT, GL_ZERO_TO_ONE);
 	glDepthRange(1.0, 0.0);
-	glDepthFunc(GL_GREATER);
 	glClearColor(0.0, 0.0, 0.0, 1.0);
 	glClearDepth(0.0);
 
@@ -538,7 +656,10 @@ void RenderFrame(int ScreenWidth, int ScreenHeight)
 			OutlinerFlags |= 1 << 1;
 		}
 		OutlinerOptionsUpload BufferData = {
-			OutlinerFlags
+			OutlinerFlags,
+			0,
+			0,
+			0
 		};
 		OutlinerOptions.Upload((void*)&BufferData, sizeof(BufferData));
 	}
@@ -551,6 +672,7 @@ void RenderFrame(int ScreenWidth, int ScreenHeight)
 			glBindFramebuffer(GL_FRAMEBUFFER, DepthPass);
 			glDepthMask(GL_TRUE);
 			glEnable(GL_DEPTH_TEST);
+			glDepthFunc(GL_GREATER);
 			glClear(GL_DEPTH_BUFFER_BIT);
 			if (ShowHeatmap)
 			{
@@ -587,11 +709,24 @@ void RenderFrame(int ScreenWidth, int ScreenHeight)
 			glPopDebugGroup();
 		}
 		{
+			glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Resolve Material Stencil");
+			glBindFramebuffer(GL_FRAMEBUFFER, MaterialResolvePass);
+			glDepthMask(GL_TRUE);
+			glDepthFunc(GL_ALWAYS);
+			glBindTextureUnit(1, DepthBuffer);
+			glBindTextureUnit(2, MaterialBuffer);
+			MaterialResolveShader.Activate();
+			glDrawArrays(GL_TRIANGLES, 0, 3);
+			glPopDebugGroup();
+		}
+		{
 			glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Background");
+			UploadMaterialInfo(-1);
+			MaterialInfo.Bind(GL_UNIFORM_BUFFER, 1);
+			glBindFramebuffer(GL_FRAMEBUFFER, ColorPass);
 			glBeginQuery(GL_TIME_ELAPSED, GridBgTimeQuery);
 			glDepthMask(GL_FALSE);
-			glDisable(GL_DEPTH_TEST);
-			glBindFramebuffer(GL_FRAMEBUFFER, FinalPass);
+			glDepthFunc(GL_EQUAL);
 			switch (ShowBackground)
 			{
 			case 0:
@@ -607,17 +742,37 @@ void RenderFrame(int ScreenWidth, int ScreenHeight)
 			glPopDebugGroup();
 		}
 		{
-			glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Paint");
+			glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Default Material");
+			UploadMaterialInfo(0);
 			glBeginQuery(GL_TIME_ELAPSED, OutlinerTimeQuery);
 			glBindTextureUnit(1, DepthBuffer);
 			glBindTextureUnit(2, PositionBuffer);
 			glBindTextureUnit(3, NormalBuffer);
-			glBindTextureUnit(4, IDBuffer);
-			OutlinerOptions.Bind(GL_UNIFORM_BUFFER, 1);
+			glBindTextureUnit(4, SubtreeBuffer);
+			MaterialInfo.Bind(GL_UNIFORM_BUFFER, 1);
+			OutlinerOptions.Bind(GL_UNIFORM_BUFFER, 2);
 			DepthTimeBuffer.Bind(GL_SHADER_STORAGE_BUFFER, 2);
 			PaintShader.Activate();
 			glDrawArrays(GL_TRIANGLES, 0, 3);
 			glEndQuery(GL_TIME_ELAPSED);
+			glPopDebugGroup();
+		}
+		for (int TestMaterial = 0; TestMaterial < 6; ++TestMaterial)
+		{
+			glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Test Material");
+			UploadMaterialInfo(TestMaterial + 1);
+			MaterialInfo.Bind(GL_UNIFORM_BUFFER, 1);
+			TestMaterials[TestMaterial].Activate();
+			glDrawArrays(GL_TRIANGLES, 0, 3);
+			glPopDebugGroup();
+		}
+		{
+			glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Resolve Output");
+			glDisable(GL_DEPTH_TEST);
+			glBindFramebuffer(GL_FRAMEBUFFER, FinalPass);
+			glBindTextureUnit(1, ColorBuffer);
+			ResolveOutputShader.Activate();
+			glDrawArrays(GL_TRIANGLES, 0, 3);
 			glPopDebugGroup();
 		}
 	}

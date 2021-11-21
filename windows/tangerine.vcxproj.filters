@@ -22,6 +22,9 @@
     <Filter Include="Third Party\Dear ImGui">
       <UniqueIdentifier>{509de7cc-1d25-47d7-88fd-b57bbbca7ccd}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Materials">
+      <UniqueIdentifier>{29dbd6df-6b50-4218-b066-0c8744efd090}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\third_party\glad\glad.c">
@@ -142,6 +145,33 @@
     </None>
     <None Include="..\shaders\gather_depth.cs.glsl">
       <Filter>Shaders</Filter>
+    </None>
+    <None Include="..\shaders\resolve_stencil.fs.glsl">
+      <Filter>Shaders</Filter>
+    </None>
+    <None Include="..\shaders\resolve.fs.glsl">
+      <Filter>Shaders</Filter>
+    </None>
+    <None Include="..\shaders\masked.vs.glsl">
+      <Filter>Shaders</Filter>
+    </None>
+    <None Include="..\materials\red.glsl">
+      <Filter>Materials</Filter>
+    </None>
+    <None Include="..\materials\black.glsl">
+      <Filter>Materials</Filter>
+    </None>
+    <None Include="..\materials\blue.glsl">
+      <Filter>Materials</Filter>
+    </None>
+    <None Include="..\materials\green.glsl">
+      <Filter>Materials</Filter>
+    </None>
+    <None Include="..\materials\white.glsl">
+      <Filter>Materials</Filter>
+    </None>
+    <None Include="..\materials\gray.glsl">
+      <Filter>Materials</Filter>
     </None>
   </ItemGroup>
   <ItemGroup>
