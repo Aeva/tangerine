@@ -4,7 +4,7 @@ Don't worry about it.
 
 ## Building on Windows
 
- 1. Install Racket CS 8.2 or possibly newer, and ensure that `raco` is in your system path variable.
+ 1. Install Racket CS 8.3, and ensure that `raco` is in your system path variable.
 
  2. Install Visual Studio 2019 or newer with at least the C++ stuff.
 
