@@ -1127,7 +1127,7 @@ int main(int argc, char* argv[])
 				"Tangerine",
 				SDL_WINDOWPOS_CENTERED,
 				SDL_WINDOWPOS_CENTERED,
-				512, 512,
+				900, 900,
 				SDL_WINDOW_RESIZABLE | SDL_WINDOW_OPENGL);
 		}
 		if (Window == nullptr)
