@@ -55,7 +55,8 @@
 (define-backend EmitShader (_fun _string/utf-8 _string/utf-8 _string/utf-8 -> _size))
 (define-backend EmitSubtree (_fun _size [_size = (length params)] [params : (_list i _float)] -> _void))
 (define-backend EmitSection (_fun (_list i _float) (_list i _float) (_list i _float) -> _void))
-(define-backend SetLimitsCallback (_fun _float _float _float _float _float _float -> _void))
+(define-backend SetLimitsCallback (_fun _float _float _float _float _float _float -> _void)
+  #:make-fail (lambda (missing-no) (lambda () (lambda (min-x min-y min-z max-x max-y max-z) (void)))))
 (define-backend RacketErrorCallback (_fun _string/utf-8 -> _void))
 
 
