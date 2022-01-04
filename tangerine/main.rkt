@@ -26,6 +26,7 @@
 (require "coalesce.rkt")
 (require "glsl.rkt")
 (require "vec.rkt")
+(require "eval.rkt")
 
 (provide compile
          align
@@ -167,8 +168,12 @@
 
 
 (define (compile csgst)
-  (let*-values ([(limits parts) (segments (coalesce csgst))]
+  (let*-values ([(coalesced-tree) (coalesce csgst)]
+                [(limits parts) (segments coalesced-tree)]
                 [(parts) (drawables parts)])
+    (let ([handle (sdf-build coalesced-tree)])
+      (when (sdf-handle-is-valid? handle)
+        (SetTreeEvaluator (cdr handle))))
     (apply SetLimitsCallback limits)
     (for/list ([part (in-list parts)]
                [subtree-index (in-range (length parts))])

@@ -224,6 +224,26 @@ extern "C" void TANGERINE_API EmitSection(float InExtent[3], float InCenter[3], 
 }
 
 
+SDFNode* TreeEvaluator = nullptr;
+
+
+void ClearTreeEvaluator()
+{
+	if (TreeEvaluator != nullptr)
+	{
+		delete TreeEvaluator;
+		TreeEvaluator = nullptr;
+	}
+}
+
+
+extern "C" TANGERINE_API void SetTreeEvaluator(void* InTreeEvaluator)
+{
+	ClearTreeEvaluator();
+	TreeEvaluator = (SDFNode*)InTreeEvaluator;
+}
+
+
 GLuint NullVAO;
 ShaderPipeline PaintShader;
 ShaderPipeline MaterialResolveShader;
@@ -822,6 +842,7 @@ void LoadModel(nfdchar_t* Path)
 		SubtreeMap.clear();
 		PendingShaders.clear();
 		Drawables.clear();
+		ClearTreeEvaluator();
 
 		using Clock = std::chrono::high_resolution_clock;
 		Clock::time_point StartTimePoint = Clock::now();

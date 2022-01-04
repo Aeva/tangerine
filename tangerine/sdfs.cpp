@@ -53,21 +53,21 @@ namespace SDF
 // functions, to be constructed indirectly from Racket.
 struct BrushNode : public SDFNode
 {
-	using Mixin = std::function<float(vec3)>;
+	using EvalMixin = std::function<float(vec3)>;
+	using TransformMixin = std::function<vec3(vec3)>;
 
-	Mixin BrushFn;
-	mat4* Transform;
+	EvalMixin BrushFn;
+	TransformMixin* Transform;
 
-	BrushNode(Mixin& InBrushFn, mat4* InTransform)
+	BrushNode(EvalMixin& InBrushFn, void* InTransform)
 		: BrushFn(InBrushFn)
-		, Transform(InTransform)
+		, Transform((TransformMixin*)InTransform)
 	{
 	}
 
 	virtual float Eval(vec3 Point)
 	{
-		vec4 Tmp = (*Transform) * vec4(Point, 1.0);
-		return BrushFn(Tmp.xyz / Tmp.www);
+		return BrushFn((*Transform)(Point));
 	}
 
 	virtual ~BrushNode()
@@ -79,13 +79,13 @@ struct BrushNode : public SDFNode
 
 struct SetNode : public SDFNode
 {
-	using Mixin = std::function<float(float, float)>;
+	using EvalMixin = std::function<float(float, float)>;
 
-	Mixin SetFn;
+	EvalMixin SetFn;
 	SDFNode* LHS;
 	SDFNode* RHS;
 
-	SetNode(Mixin& InSetFn, SDFNode* InLHS, SDFNode* InRHS)
+	SetNode(EvalMixin& InSetFn, SDFNode* InLHS, SDFNode* InRHS)
 		: SetFn(InSetFn)
 		, LHS(InLHS)
 		, RHS(InRHS)
@@ -113,6 +113,13 @@ struct SetNode : public SDFNode
 // distance field would be prohibetively slow to perform from racket.
 
 
+// Evaluate a SDF tree.
+extern "C" TANGERINE_API float EvalTree(void* Handle, float X, float Y, float Z)
+{
+	return ((SDFNode*)Handle)->Eval(vec3(X, Y, Z));
+}
+
+
 // Delete a CSG operator tree that was constructed with the functions below.
 extern "C" TANGERINE_API void DiscardTree(void* Handle)
 {
@@ -120,87 +127,113 @@ extern "C" TANGERINE_API void DiscardTree(void* Handle)
 }
 
 
-// Creates a transform node to be owned by a brush now.
-extern "C" TANGERINE_API void* MakeTransform(
+// The following functions provide transform constructors to be used by brush nodes.
+extern "C" TANGERINE_API void* MakeIdentity()
+{
+	return new BrushNode::TransformMixin(
+		[](vec3 Point) -> vec3
+		{
+			return Point;
+		});
+}
+
+extern "C" TANGERINE_API void* MakeTranslation(float X, float Y, float Z)
+{
+	vec3 Offset(X, Y, Z);
+	return new BrushNode::TransformMixin(
+		[=](vec3 Point) -> vec3
+		{
+			return Point - Offset;
+		});
+}
+
+extern "C" TANGERINE_API void* MakeMatrixTransform(
 	float X1, float Y1, float Z1, float W1,
 	float X2, float Y2, float Z2, float W2,
 	float X3, float Y3, float Z3, float W3,
 	float X4, float Y4, float Z4, float W4)
 {
-	return new mat4(
+	mat4 Matrix(
 		X1, Y1, Z1, W1,
 		X2, Y2, Z2, W2,
 		X3, Y3, Z3, W3,
 		X4, Y4, Z4, W4);
+
+	return new BrushNode::TransformMixin(
+		[=](vec3 Point) -> vec3
+		{
+			vec4 Tmp = Matrix * vec4(Point, 1.0);
+			return Tmp.xyz / Tmp.www;
+		});
 }
 
 
 // The following functions construct Brush nodes.
 extern "C" TANGERINE_API void* MakeSphereBrush(void* Transform, float Radius)
 {
-	BrushNode::Mixin Eval = std::bind(SDF::SphereBrush, _1, Radius);
-	return new BrushNode(Eval, (mat4*)Transform);
+	BrushNode::EvalMixin Eval = std::bind(SDF::SphereBrush, _1, Radius);
+	return new BrushNode(Eval, Transform);
 }
 
 extern "C" TANGERINE_API void* MakeEllipsoidBrush(void* Transform, float RadipodeX, float RadipodeY, float RadipodeZ)
 {
-	BrushNode::Mixin Eval = std::bind(SDF::EllipsoidBrush, _1, vec3(RadipodeX, RadipodeY, RadipodeZ));
-	return new BrushNode(Eval, (mat4*)Transform);
+	BrushNode::EvalMixin Eval = std::bind(SDF::EllipsoidBrush, _1, vec3(RadipodeX, RadipodeY, RadipodeZ));
+	return new BrushNode(Eval, Transform);
 }
 
 extern "C" TANGERINE_API void* MakeBoxBrush(void* Transform, float ExtentX, float ExtentY, float ExtentZ)
 {
-	BrushNode::Mixin Eval = std::bind(SDF::BoxBrush, _1, vec3(ExtentX, ExtentY, ExtentZ));
-	return new BrushNode(Eval, (mat4*)Transform);
+	BrushNode::EvalMixin Eval = std::bind(SDF::BoxBrush, _1, vec3(ExtentX, ExtentY, ExtentZ));
+	return new BrushNode(Eval, Transform);
 }
 
 extern "C" TANGERINE_API void* MakeTorusBrush(void* Transform, float MajorRadius, float MinorRadius)
 {
-	BrushNode::Mixin Eval = std::bind(SDF::TorusBrush, _1, MajorRadius, MinorRadius);
-	return new BrushNode(Eval, (mat4*)Transform);
+	BrushNode::EvalMixin Eval = std::bind(SDF::TorusBrush, _1, MajorRadius, MinorRadius);
+	return new BrushNode(Eval, Transform);
 }
 
 extern "C" TANGERINE_API void* MakeCylinderBrush(void* Transform, float Radius, float Extent)
 {
-	BrushNode::Mixin Eval = std::bind(SDF::CylinderBrush, _1, Radius, Extent);
-	return new BrushNode(Eval, (mat4*)Transform);
+	BrushNode::EvalMixin Eval = std::bind(SDF::CylinderBrush, _1, Radius, Extent);
+	return new BrushNode(Eval, Transform);
 }
 
 
 // The following functions construct CSG set operator nodes.
 extern "C" TANGERINE_API void* MakeUnionOp(void* LHS, void* RHS)
 {
-	SetNode::Mixin Eval = std::bind(SDF::UnionOp, _1, _2);
+	SetNode::EvalMixin Eval = std::bind(SDF::UnionOp, _1, _2);
 	return new SetNode(Eval, (SetNode*)LHS, (SetNode*)RHS);
 }
 
 extern "C" TANGERINE_API void* MakeDiffOp(void* LHS, void* RHS)
 {
-	SetNode::Mixin Eval = std::bind(SDF::CutOp, _1, _2);
+	SetNode::EvalMixin Eval = std::bind(SDF::CutOp, _1, _2);
 	return new SetNode(Eval, (SetNode*)LHS, (SetNode*)RHS);
 }
 
 extern "C" TANGERINE_API void* MakeInterOp(void* LHS, void* RHS)
 {
-	SetNode::Mixin Eval = std::bind(SDF::IntersectionOp, _1, _2);
+	SetNode::EvalMixin Eval = std::bind(SDF::IntersectionOp, _1, _2);
 	return new SetNode(Eval, (SetNode*)LHS, (SetNode*)RHS);
 }
 
 extern "C" TANGERINE_API void* MakeBlendUnionOp(float Threshold, void* LHS, void* RHS)
 {
-	SetNode::Mixin Eval = std::bind(SDF::SmoothUnionOp, _1, _2, Threshold);
+	SetNode::EvalMixin Eval = std::bind(SDF::SmoothUnionOp, _1, _2, Threshold);
 	return new SetNode(Eval, (SetNode*)LHS, (SetNode*)RHS);
 }
 
 extern "C" TANGERINE_API void* MakeBlendDiffOp(float Threshold, void* LHS, void* RHS)
 {
-	SetNode::Mixin Eval = std::bind(SDF::SmoothCutOp, _1, _2, Threshold);
+	SetNode::EvalMixin Eval = std::bind(SDF::SmoothCutOp, _1, _2, Threshold);
 	return new SetNode(Eval, (SetNode*)LHS, (SetNode*)RHS);
 }
 
 extern "C" TANGERINE_API void* MakeBlendInterOp(float Threshold, void* LHS, void* RHS)
 {
-	SetNode::Mixin Eval = std::bind(SDF::SmoothIntersectionOp, _1, _2, Threshold);
+	SetNode::EvalMixin Eval = std::bind(SDF::SmoothIntersectionOp, _1, _2, Threshold);
 	return new SetNode(Eval, (SetNode*)LHS, (SetNode*)RHS);
 }
 
@@ -208,7 +241,7 @@ extern "C" TANGERINE_API void* MakeBlendInterOp(float Threshold, void* LHS, void
 // This constructs a simple CSG tree as Racket would for debugging.
 void TestTreeEval()
 {
-	void* SphereTransform = MakeTransform(
+	void* SphereTransform = MakeMatrixTransform(
 		1.0, 0.0, 0.0, 0.0,
 		0.0, 1.0, 0.0, 0.0,
 		0.0, 0.0, 1.0, 0.0,
@@ -216,7 +249,7 @@ void TestTreeEval()
 
 	void* Sphere = MakeSphereBrush(SphereTransform, 1.0);
 
-	void* BoxTransform = MakeTransform(
+	void* BoxTransform = MakeMatrixTransform(
 		1.0, 0.0, 0.0, 0.0,
 		0.0, 1.0, 0.0, 0.0,
 		0.0, 0.0, 1.0, 0.0,
