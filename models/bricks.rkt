@@ -30,15 +30,15 @@
 
 
 (define brick-h
-  (align 0 0 -1 (box brick-width brick-height brick-depth)))
+  (paint 4 (align 0 0 -1 (box brick-width brick-height brick-depth))))
 
 
 (define brick-v
-  (align 0 0 -1 (box brick-height brick-width brick-depth)))
+  (paint 4 (align 0 0 -1 (box brick-height brick-width brick-depth))))
 
 
 (define brick-c
-  (align 0 0 -1 (box brick-height brick-height brick-depth)))
+  (paint 4 (align 0 0 -1 (box brick-height brick-height brick-depth))))
 
 
 (define horizontal-even
@@ -169,8 +169,9 @@
                         (union
                          (repeat-h dir run height (even? t))
                          (move-x m-adjust
-                                 (align (* -1 dir) 0 -1
-                                        (box m-width m-height m-depth)))))
+                                 (paint 3
+                                        (align (* -1 dir) 0 -1
+                                               (box m-width m-height m-depth))))))
                  masonry))
           (set! t (+ t run))
           (set! cursor (vec+ cursor (vec2 dx 0)))))
@@ -189,8 +190,9 @@
                         (union
                          (repeat-v (sign dy) (abs dy) height (even? t))
                          (move-y m-adjust
-                                 (align 0 (* -1 dir) -1
-                                        (box m-width m-height m-depth)))))
+                                 (paint 3
+                                        (align 0 (* -1 dir) -1
+                                               (box m-width m-height m-depth))))))
                  masonry))
           (set! t (+ t (abs dy)))
           (set! cursor (vec+ cursor (vec2 0 dy)))))))

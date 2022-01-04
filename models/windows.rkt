@@ -27,7 +27,7 @@
 
 
 (define (window-negative x)
-  (move x 0. 5. (box 2. 1. 4.)))
+  (move x 0. 5. (box 2.1 1.1 4.1)))
 
 
 (define (window-positive x alpha)
@@ -84,4 +84,4 @@
 
 
 (define (emit-glsl)
-  (compile normal-wall))
+  (compile (paint 2 normal-wall)))
