@@ -22,14 +22,7 @@
 #include <imgui_impl_sdl.h>
 #include <imgui_impl_opengl3.h>
 
-#define GLM_FORCE_DEPTH_ZERO_TO_ONE
-#define GLM_FORCE_SWIZZLE
-#include <glm/vec3.hpp>
-#include <glm/vec4.hpp>
-#include <glm/mat4x4.hpp>
-#include <glm/ext/matrix_transform.hpp>
-#include <glm/ext/matrix_clip_space.hpp>
-#include <glm/gtx/quaternion.hpp>
+#include "sdfs.h"
 
 #include <iostream>
 #include <cstring>
@@ -45,12 +38,6 @@
 #include "errors.h"
 #include "gl_boilerplate.h"
 #include "../shaders/defines.h"
-
-#if _WIN64
-#define TANGERINE_API __declspec(dllexport)
-#elif defined(__GNUC__)
-#define TANGERINE_API __attribute__ ((visibility ("default")))
-#endif
 
 #define MINIMUM_VERSION_MAJOR 4
 #define MINIMUM_VERSION_MINOR 2

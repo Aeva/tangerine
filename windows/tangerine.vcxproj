@@ -166,6 +166,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="..\tangerine\gl_boilerplate.cpp" />
+    <ClCompile Include="..\tangerine\sdfs.cpp" />
     <ClCompile Include="..\tangerine\tangerine.cpp" />
     <ClCompile Include="..\third_party\glad\glad.c" />
     <ClCompile Include="..\third_party\glad\glad_wgl.c" />
@@ -181,6 +182,7 @@
     <ClInclude Include="..\shaders\defines.h" />
     <ClInclude Include="..\tangerine\errors.h" />
     <ClInclude Include="..\tangerine\gl_boilerplate.h" />
+    <ClInclude Include="..\tangerine\sdfs.h" />
     <ClInclude Include="..\third_party\glad\glad.h" />
     <ClInclude Include="..\third_party\glad\glad_wgl.h" />
     <ClInclude Include="..\third_party\glad\khrplatform.h" />

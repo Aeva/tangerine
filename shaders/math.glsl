@@ -1,5 +1,5 @@
 
-// Copyright 2021 Aeva Palecek
+// Copyright 2022 Aeva Palecek
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,13 +14,6 @@
 // limitations under the License.
 
 
-struct AABB
-{
-	vec3 Center;
-	vec3 Extent;
-};
-
-
 float SphereBrush(vec3 Point, float Radius)
 {
 	return length(Point) - Radius;
@@ -29,8 +22,8 @@ float SphereBrush(vec3 Point, float Radius)
 
 float EllipsoidBrush(vec3 Point, vec3 Radipodes)
 {
-	float K0 = length(Point / Radipodes);
-	float K1 = length(Point / (Radipodes * Radipodes));
+	float K0 = length(vec3(Point / Radipodes));
+	float K1 = length(vec3(Point / (Radipodes * Radipodes)));
 	return K0 * (K0 - 1.0) / K1;
 }
 
@@ -44,22 +37,15 @@ float BoxBrush(vec3 Point, vec3 Extent)
 
 float TorusBrush(vec3 Point, float MajorRadius, float MinorRadius)
 {
-	return length(vec2(length(Point.xy) - MajorRadius, Point.z)) - MinorRadius;
+	return length(vec2(length(vec2(Point.xy)) - MajorRadius, Point.z)) - MinorRadius;
 }
 
 
 float CylinderBrush(vec3 Point, float Radius, float Extent)
 {
-	vec2 D = abs(vec2(length(Point.xy), Point.z)) - vec2(Radius, Extent);
+	vec2 D = abs(vec2(length(vec2(Point.xy)), Point.z)) - vec2(Radius, Extent);
 	return min(max(D.x, D.y), 0.0) + length(max(D, 0.0));
 }
-
-
-struct MaterialDist
-{
-	uint Material;
-	float Dist;
-};
 
 
 float UnionOp(float LHS, float RHS)
@@ -78,6 +64,36 @@ float CutOp(float LHS, float RHS)
 {
 	return max(LHS, -RHS);
 }
+
+
+float SmoothUnionOp(float LHS, float RHS, float Threshold)
+{
+	float H = max(Threshold - abs(LHS - RHS), 0.0);
+	return min(LHS, RHS) - H * H * 0.25 / Threshold;
+}
+
+
+float SmoothIntersectionOp(float LHS, float RHS, float Threshold)
+{
+	float H = max(Threshold - abs(LHS - RHS), 0.0);
+	return max(LHS, RHS) + H * H * 0.25 / Threshold;
+}
+
+
+float SmoothCutOp(float LHS, float RHS, float Threshold)
+{
+	float H = max(Threshold - abs(LHS + RHS), 0.0);
+	return max(LHS, -RHS) + H * H * 0.25 / Threshold;
+}
+
+
+#ifndef SDF_MATH_ONLY
+
+struct MaterialDist
+{
+	uint Material;
+	float Dist;
+};
 
 
 #define BINARY_OP_ROUTES(Function) \
@@ -114,27 +130,6 @@ MaterialDist CutOp(MaterialDist LHS, MaterialDist RHS)
 	return MaterialDist(LHS.Material, max(LHS.Dist, -RHS.Dist));
 }
 BINARY_OP_ROUTES(CutOp)
-
-
-float SmoothUnionOp(float LHS, float RHS, float Threshold)
-{
-	float H = max(Threshold - abs(LHS - RHS), 0.0);
-	return min(LHS, RHS) - H * H * 0.25 / Threshold;
-}
-
-
-float SmoothIntersectionOp(float LHS, float RHS, float Threshold)
-{
-	float H = max(Threshold - abs(LHS - RHS), 0.0);
-	return max(LHS, RHS) + H * H * 0.25 / Threshold;
-}
-
-
-float SmoothCutOp(float LHS, float RHS, float Threshold)
-{
-	float H = max(Threshold - abs(LHS + RHS), 0.0);
-	return max(LHS, -RHS) + H * H * 0.25 / Threshold;
-}
 
 
 #define BLEND_OP_ROUTES(Function) \
@@ -206,6 +201,13 @@ vec3 QuaternionTransform(vec3 Point, vec4 Quat)
 		dot(Sign.xxyy * Quat.zwxy, Tmp),
 		dot(Sign.yxxy * Quat.yxwz, Tmp));
 }
+
+
+struct AABB
+{
+	vec3 Center;
+	vec3 Extent;
+};
 
 
 void BoundingRect(mat4 ViewToClip, mat4 LocalToView, AABB Bounds, out vec3 ClipMin, out vec3 ClipMax)
@@ -282,3 +284,5 @@ bool RayHitAABB(vec3 RayStart, vec3 RayDir, AABB Bounds, out vec3 Enter)
 	Enter = clamp(RayDir * TravelNear + RayStart, Bounds.Center - Bounds.Extent, Bounds.Center + Bounds.Extent);
 	return TravelNear < TravelFar && TravelFar > 0.0;
 }
+
+#endif // ifndef SDF_MATH_ONLY

@@ -60,6 +60,9 @@
     <ClCompile Include="..\third_party\imgui\imgui_widgets.cpp">
       <Filter>Third Party\Dear ImGui</Filter>
     </ClCompile>
+    <ClCompile Include="..\tangerine\sdfs.cpp">
+      <Filter>Tangerine</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\third_party\glad\glad.h">
@@ -111,6 +114,9 @@
       <Filter>Third Party\Dear ImGui</Filter>
     </ClInclude>
     <ClInclude Include="resource.h" />
+    <ClInclude Include="..\tangerine\sdfs.h">
+      <Filter>Tangerine</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="..\shaders\math.glsl">
