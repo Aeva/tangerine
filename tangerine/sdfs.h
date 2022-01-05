@@ -35,8 +35,11 @@
 struct SDFNode
 {
 	virtual float Eval(glm::vec3 Point) = 0;
+
+	glm::vec3 Gradient(glm::vec3 Point);
+
 	virtual ~SDFNode() {};
 };
 
 
-void TestTreeEval();
+void MeshExport(SDFNode* Evaluator, glm::vec3 ModelMin, glm::vec3 ModelMax, glm::vec3 Step = glm::vec3(0.1));

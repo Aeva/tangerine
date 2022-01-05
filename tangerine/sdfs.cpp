@@ -14,7 +14,14 @@
 // limitations under the License.
 
 #include <functional>
+#include <fstream>
+#include <vector>
+#include <map>
 #include <cmath>
+#include <cstdint>
+#include <atomic>
+#include <mutex>
+#include <thread>
 #include "sdfs.h"
 
 
@@ -46,6 +53,17 @@ namespace SDF
 {
 #define SDF_MATH_ONLY
 #include "../shaders/math.glsl"
+}
+
+
+vec3 SDFNode::Gradient(vec3 Point)
+{
+	float AlmostZero = 0.0001;
+	float Dist = Eval(Point);
+	return normalize(vec3(
+		Eval(vec3(Point.x + AlmostZero, Point.y, Point.z)) - Dist,
+		Eval(vec3(Point.x, Point.y + AlmostZero, Point.z)) - Dist,
+		Eval(vec3(Point.x, Point.y, Point.z + AlmostZero)) - Dist));
 }
 
 
@@ -238,28 +256,221 @@ extern "C" TANGERINE_API void* MakeBlendInterOp(float Threshold, void* LHS, void
 }
 
 
-// This constructs a simple CSG tree as Racket would for debugging.
-void TestTreeEval()
+struct  Vec3Less
 {
-	void* SphereTransform = MakeMatrixTransform(
-		1.0, 0.0, 0.0, 0.0,
-		0.0, 1.0, 0.0, 0.0,
-		0.0, 0.0, 1.0, 0.0,
-		0.0, 0.0, 0.0, 1.0);
+	bool operator() (const vec3& LHS, const vec3& RHS) const
+	{
+		return LHS.x < RHS.x || (LHS.x == RHS.x && LHS.y < RHS.y) || (LHS.x == RHS.x && LHS.y == RHS.y && LHS.z < RHS.z);
+	}
+};
 
-	void* Sphere = MakeSphereBrush(SphereTransform, 1.0);
 
-	void* BoxTransform = MakeMatrixTransform(
-		1.0, 0.0, 0.0, 0.0,
-		0.0, 1.0, 0.0, 0.0,
-		0.0, 0.0, 1.0, 0.0,
-		0.0, 0.0, 0.0, 1.0);
+void Pool(const std::function<void()>& Thunk)
+{
+	static const int ThreadCount = max(std::thread::hardware_concurrency(), 2);
+	std::vector<std::thread> Threads;
+	Threads.reserve(ThreadCount);
+	for (int i = 0; i < ThreadCount; ++i)
+	{
+		Threads.push_back(std::thread(Thunk));
+	}
+	for (auto& Thread : Threads)
+	{
+		Thread.join();
+	}
+}
 
-	void* Box = MakeBoxBrush(BoxTransform, 1.0, 1.0, 1.0);
 
-	void* Union = MakeUnionOp(Sphere, Box);
+void MeshExport(SDFNode* Evaluator, vec3 ModelMin, vec3 ModelMax, vec3 Step)
+{
+	const vec3 Half = Step / vec3(2.0);
+	const float Diagonal = length(Step);
 
-	float Dist = ((SDFNode*)Union)->Eval(vec3(0.0));
+	std::vector<vec3> Vertices;
+	std::map<vec3, int, Vec3Less> VertMemo;
+	std::mutex VerticesCS;
 
-	DiscardTree(Union);
+	auto NewVert = [&](vec3 Vertex) -> int
+	{
+		VerticesCS.lock();
+		auto Found = VertMemo.find(Vertex);
+		if (Found != VertMemo.end())
+		{
+			VerticesCS.unlock();
+			return Found->second;
+		}
+		else
+		{
+			int Next = Vertices.size();
+			VertMemo[Vertex] = Next;
+			Vertices.push_back(Vertex);
+			VerticesCS.unlock();
+			return Next;
+		}
+	};
+
+	std::vector<ivec4> Quads;
+	std::mutex QuadsCS;
+
+	{
+		const vec3 Start = ModelMin;
+		const vec3 Stop = ModelMax + Step;
+		const ivec3 Iterations = ivec3(ceil((Stop - Start) / Step));
+		const int Slice = Iterations.x * Iterations.y;
+		const int TotalCells = Iterations.x * Iterations.y * Iterations.z;
+
+		std::atomic_int32_t NextCell(0);
+		Pool([&]() \
+		{
+			while (true)
+			{
+				int i = NextCell.fetch_add(1);
+				if (i < TotalCells)
+				{
+					float Z = float(i / Slice) * Step.z + Start.z;
+					float Y = float((i % Slice) / Iterations.x) * Step.y + Start.y;
+					float X = float(i % Iterations.x) * Step.x + Start.x;
+
+					vec3 Cursor = vec3(X, Y, Z) + Half;
+					float Dist = Evaluator->Eval(Cursor);
+					float DistX = Evaluator->Eval(Cursor - vec3(Step.x, 0.0, 0.0));
+					float DistY = Evaluator->Eval(Cursor - vec3(0.0, Step.y, 0.0));
+					float DistZ = Evaluator->Eval(Cursor - vec3(0.0, 0.0, Step.z));
+
+					if (sign(Dist) != sign(DistX))
+					{
+						ivec4 Quad(
+							NewVert(Half * vec3(-1.0, -1.0, -1.0) + Cursor),
+							NewVert(Half * vec3(-1.0, 1.0, -1.0) + Cursor),
+							NewVert(Half * vec3(-1.0, 1.0, 1.0) + Cursor),
+							NewVert(Half * vec3(-1.0, -1.0, 1.0) + Cursor));
+						if (sign(Dist) > sign(DistX))
+						{
+							Quad = Quad.wzyx;
+						}
+						QuadsCS.lock();
+						Quads.push_back(Quad);
+						QuadsCS.unlock();
+					}
+
+					if (sign(Dist) != sign(DistY))
+					{
+						ivec4 Quad(
+							NewVert(Half * vec3(-1.0, -1.0, -1.0) + Cursor),
+							NewVert(Half * vec3(1.0, -1.0, -1.0) + Cursor),
+							NewVert(Half * vec3(1.0, -1.0, 1.0) + Cursor),
+							NewVert(Half * vec3(-1.0, -1.0, 1.0) + Cursor));
+						if (sign(Dist) > sign(DistY))
+						{
+							Quad = Quad.wzyx;
+						}
+						QuadsCS.lock();
+						Quads.push_back(Quad);
+						QuadsCS.unlock();
+					}
+
+					if (sign(Dist) != sign(DistZ))
+					{
+						ivec4 Quad(
+							NewVert(Half * vec3(-1.0, -1.0, -1.0) + Cursor),
+							NewVert(Half * vec3(1.0, -1.0, -1.0) + Cursor),
+							NewVert(Half * vec3(1.0, 1.0, -1.0) + Cursor),
+							NewVert(Half * vec3(-1.0, 1.0, -1.0) + Cursor));
+						if (sign(Dist) > sign(DistZ))
+						{
+							Quad = Quad.wzyx;
+						}
+						QuadsCS.lock();
+						Quads.push_back(Quad);
+						QuadsCS.unlock();
+					}
+				}
+				else
+				{
+					break;
+				}
+			}
+		});
+	}
+
+	{
+		std::atomic_int32_t NextVertex(0);
+		Pool([&]() \
+		{
+			while (true)
+			{
+				int i = NextVertex.fetch_add(1);
+				if (i < Vertices.size())
+				{
+					vec3& Vertex = Vertices[i];
+					vec3 Cursor = Vertex;
+					for (int i = 0; i < 5; ++i)
+					{
+						vec3 RayDir = Evaluator->Gradient(Cursor);
+						float Dist = Evaluator->Eval(Cursor) * -1.0;
+						Cursor += RayDir * Dist;
+					}
+					if (distance(Vertex, Cursor) <= Diagonal)
+					{
+						Vertex = Cursor;
+					}
+				}
+				else
+				{
+					break;
+				}
+			}
+		});
+	}
+
+	{
+		std::ofstream OutFile;
+		OutFile.open("test.stl", std::ios::out | std::ios::binary);
+
+		// Write 80 bytes for the header.
+		for (int i = 0; i < 80; ++i)
+		{
+			OutFile << '\0';
+		}
+
+		uint32_t Triangles = Quads.size() * 2;
+		OutFile.write(reinterpret_cast<char*>(&Triangles), 4);
+
+		for (ivec4& Quad : Quads)
+		{
+			{
+				vec3 Center = (Vertices[Quad.x] + Vertices[Quad.y] + Vertices[Quad.z]) / vec3(3.0);
+				vec3 Normal = Evaluator->Gradient(Center);
+				OutFile.write(reinterpret_cast<char*>(&Normal), 12);
+
+				OutFile.write(reinterpret_cast<char*>(&Vertices[Quad.x]), 12);
+				OutFile.write(reinterpret_cast<char*>(&Vertices[Quad.y]), 12);
+				OutFile.write(reinterpret_cast<char*>(&Vertices[Quad.z]), 12);
+
+				uint16_t Attributes = 0;
+				OutFile.write(reinterpret_cast<char*>(&Attributes), 2);
+			}
+			{
+				vec3 Center = (Vertices[Quad.x] + Vertices[Quad.z] + Vertices[Quad.w]) / vec3(3.0);
+				vec3 Normal = Evaluator->Gradient(Center);
+				OutFile.write(reinterpret_cast<char*>(&Normal), 12);
+
+				OutFile.write(reinterpret_cast<char*>(&Vertices[Quad.x]), 12);
+				OutFile.write(reinterpret_cast<char*>(&Vertices[Quad.z]), 12);
+				OutFile.write(reinterpret_cast<char*>(&Vertices[Quad.w]), 12);
+
+				uint16_t Attributes = 0;
+				OutFile.write(reinterpret_cast<char*>(&Attributes), 2);
+			}
+		}
+
+		// Align to 4 bytes for good luck.
+		size_t Written = 84 + 100 * Quads.size();
+		for (int i = 0; i < Written % 4; ++i)
+		{
+			OutFile << '\0';
+		}
+
+		OutFile.close();
+	}
 }
