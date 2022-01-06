@@ -281,7 +281,8 @@ void Pool(const std::function<void()>& Thunk)
 }
 
 
-void MeshExport(SDFNode* Evaluator, vec3 ModelMin, vec3 ModelMax, vec3 Step)
+std::atomic_int32_t ExportState(0);
+void MeshExportThread(SDFNode* Evaluator, vec3 ModelMin, vec3 ModelMax, vec3 Step)
 {
 	const vec3 Half = Step / vec3(2.0);
 	const float Diagonal = length(Step);
@@ -393,6 +394,8 @@ void MeshExport(SDFNode* Evaluator, vec3 ModelMin, vec3 ModelMax, vec3 Step)
 		});
 	}
 
+	ExportState.store(2);
+
 	{
 		std::atomic_int32_t NextVertex(0);
 		Pool([&]() \
@@ -422,6 +425,8 @@ void MeshExport(SDFNode* Evaluator, vec3 ModelMin, vec3 ModelMax, vec3 Step)
 			}
 		});
 	}
+
+	ExportState.store(3);
 
 	{
 		std::ofstream OutFile;
@@ -472,5 +477,18 @@ void MeshExport(SDFNode* Evaluator, vec3 ModelMin, vec3 ModelMax, vec3 Step)
 		}
 
 		OutFile.close();
+	}
+
+	ExportState.store(0);
+}
+
+
+void MeshExport(SDFNode* Evaluator, vec3 ModelMin, vec3 ModelMax, vec3 Step)
+{
+	if (ExportState.load() == 0)
+	{
+		ExportState.store(1);
+		std::thread ExportThread(MeshExportThread, Evaluator, ModelMin, ModelMax, Step);
+		ExportThread.detach();
 	}
 }

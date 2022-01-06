@@ -902,6 +902,7 @@ void RenderUI(SDL_Window* Window, bool& Live)
 	static bool ShowFocusOverlay = false;
 	static bool ShowStatsOverlay = false;
 	static bool ShowPrettyTrees = false;
+	static bool ShowExportProgress = false;
 
 	if (ImGui::BeginMainMenuBar())
 	{
@@ -914,6 +915,11 @@ void RenderUI(SDL_Window* Window, bool& Live)
 			if (ImGui::MenuItem("Reload", "Ctrl+R"))
 			{
 				LoadModel(nullptr);
+			}
+			if (ImGui::MenuItem("Export", nullptr, false, TreeEvaluator != nullptr))
+			{
+				MeshExport(TreeEvaluator, ModelMin.xyz, ModelMax.xyz);
+				ShowExportProgress = true;
 			}
 			if (ImGui::MenuItem("Exit"))
 			{
@@ -1069,6 +1075,11 @@ void RenderUI(SDL_Window* Window, bool& Live)
 			}
 		}
 		ImGui::End();
+	}
+
+	if (ShowExportProgress)
+	{
+		//
 	}
 
 	if (RacketErrors.size() > 0)
