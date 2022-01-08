@@ -22,6 +22,8 @@
 #include <atomic>
 #include <mutex>
 #include <thread>
+#include <string>
+#include <nfd.h>
 #include "sdfs.h"
 
 
@@ -289,7 +291,7 @@ std::atomic_int VertexCount;
 std::atomic_int RefinementProgress;
 std::atomic_int QuadCount;
 std::atomic_int WriteProgress;
-void MeshExportThread(SDFNode* Evaluator, vec3 ModelMin, vec3 ModelMax, vec3 Step)
+void MeshExportThread(SDFNode* Evaluator, vec3 ModelMin, vec3 ModelMax, vec3 Step, std::string Path)
 {
 	const vec3 Half = Step / vec3(2.0);
 	const float Diagonal = length(Step);
@@ -438,7 +440,7 @@ void MeshExportThread(SDFNode* Evaluator, vec3 ModelMin, vec3 ModelMax, vec3 Ste
 
 	{
 		std::ofstream OutFile;
-		OutFile.open("test.stl", std::ios::out | std::ios::binary);
+		OutFile.open(Path, std::ios::out | std::ios::binary);
 
 		// Write 80 bytes for the header.
 		for (int i = 0; i < 80; ++i)
@@ -511,16 +513,23 @@ void MeshExport(SDFNode* Evaluator, vec3 ModelMin, vec3 ModelMax, vec3 Step)
 {
 	if (ExportState.load() == 0)
 	{
-		ExportActive.store(true);
-		ExportState.store(0);
-		GenerationProgress.store(0);
-		RefinementProgress.store(0);
-		WriteProgress.store(0);
-		ExportState.store(1);
-		std::thread ExportThread(MeshExportThread, Evaluator, ModelMin, ModelMax, Step);
-		ExportThread.detach();
+		nfdchar_t* Path = nullptr;
+		nfdresult_t Result = NFD_SaveDialog("stl", "model.stl", &Path);
+		if (Result == NFD_OKAY)
+		{
+			ExportActive.store(true);
+			ExportState.store(0);
+			GenerationProgress.store(0);
+			RefinementProgress.store(0);
+			WriteProgress.store(0);
+			ExportState.store(1);
+
+			std::thread ExportThread(MeshExportThread, Evaluator, ModelMin, ModelMax, Step, std::string(Path));
+			ExportThread.detach();
+		}
 	}
 }
+
 
 void CancelExport(bool Halt)
 {
