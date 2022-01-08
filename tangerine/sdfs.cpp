@@ -416,6 +416,8 @@ void MeshExportThread(SDFNode* Evaluator, vec3 ModelMin, vec3 ModelMax, vec3 Ste
 				if (i < Vertices.size())
 				{
 					vec3& Vertex = Vertices[i];
+					vec3 Low = Vertex - vec3(Half);
+					vec3 High = Vertex + vec3(Half);
 					vec3 Cursor = Vertex;
 					for (int i = 0; i < 5; ++i)
 					{
@@ -423,10 +425,7 @@ void MeshExportThread(SDFNode* Evaluator, vec3 ModelMin, vec3 ModelMax, vec3 Ste
 						float Dist = Evaluator->Eval(Cursor) * -1.0;
 						Cursor += RayDir * Dist;
 					}
-					if (distance(Vertex, Cursor) <= Diagonal)
-					{
-						Vertex = Cursor;
-					}
+					Vertex = clamp(Cursor, Low, High);
 				}
 				else
 				{
