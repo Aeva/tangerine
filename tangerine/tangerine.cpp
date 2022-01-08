@@ -1079,7 +1079,30 @@ void RenderUI(SDL_Window* Window, bool& Live)
 
 	if (ShowExportProgress)
 	{
-		//
+		ExportProgress Progress = GetExportProgress();
+		if (Progress.Stage == 0)
+		{
+			ShowExportProgress = false;
+		}
+		ImVec2 MaxSize = ImGui::GetMainViewport()->WorkSize;
+		ImGui::SetNextWindowSizeConstraints(ImVec2(200, 150), MaxSize);
+		ImGui::OpenPopup("Export");
+		if (ImGui::BeginPopupModal("Export", nullptr, ImGuiWindowFlags_NoSavedSettings))
+		{
+			ImGui::ProgressBar(Progress.Generation, ImVec2(-FLT_MIN, 0), "Mesh Generation");
+			ImGui::ProgressBar(Progress.Refinement, ImVec2(-FLT_MIN, 0), "Mesh Refinement");
+			ImGui::ProgressBar(Progress.Write, ImVec2(-FLT_MIN, 0), "Saving");
+			if (ImGui::Button("Good Enough"))
+			{
+				CancelExport(false);
+			}
+			ImGui::SameLine();
+			if (ImGui::Button("Halt"))
+			{
+				CancelExport(true);
+			}
+			ImGui::EndPopup();
+		}
 	}
 
 	if (RacketErrors.size() > 0)

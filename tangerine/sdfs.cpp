@@ -281,7 +281,14 @@ void Pool(const std::function<void()>& Thunk)
 }
 
 
-std::atomic_int32_t ExportState(0);
+std::atomic_bool ExportActive;
+std::atomic_int ExportState(0);
+std::atomic_int VoxelCount;
+std::atomic_int GenerationProgress;
+std::atomic_int VertexCount;
+std::atomic_int RefinementProgress;
+std::atomic_int QuadCount;
+std::atomic_int WriteProgress;
 void MeshExportThread(SDFNode* Evaluator, vec3 ModelMin, vec3 ModelMax, vec3 Step)
 {
 	const vec3 Half = Step / vec3(2.0);
@@ -319,13 +326,13 @@ void MeshExportThread(SDFNode* Evaluator, vec3 ModelMin, vec3 ModelMax, vec3 Ste
 		const ivec3 Iterations = ivec3(ceil((Stop - Start) / Step));
 		const int Slice = Iterations.x * Iterations.y;
 		const int TotalCells = Iterations.x * Iterations.y * Iterations.z;
+		VoxelCount.store(TotalCells);
 
-		std::atomic_int32_t NextCell(0);
 		Pool([&]() \
 		{
-			while (true)
+			while (ExportState.load() == 1 && ExportActive.load())
 			{
-				int i = NextCell.fetch_add(1);
+				int i = GenerationProgress.fetch_add(1);
 				if (i < TotalCells)
 				{
 					float Z = float(i / Slice) * Step.z + Start.z;
@@ -395,14 +402,15 @@ void MeshExportThread(SDFNode* Evaluator, vec3 ModelMin, vec3 ModelMax, vec3 Ste
 	}
 
 	ExportState.store(2);
+	VertexCount.store(Vertices.size());
+	QuadCount.store(Quads.size());
 
 	{
-		std::atomic_int32_t NextVertex(0);
 		Pool([&]() \
 		{
-			while (true)
+			while (ExportState.load() == 2 && ExportActive.load())
 			{
-				int i = NextVertex.fetch_add(1);
+				int i = RefinementProgress.fetch_add(1);
 				if (i < Vertices.size())
 				{
 					vec3& Vertex = Vertices[i];
@@ -443,6 +451,11 @@ void MeshExportThread(SDFNode* Evaluator, vec3 ModelMin, vec3 ModelMax, vec3 Ste
 
 		for (ivec4& Quad : Quads)
 		{
+			if (ExportState.load() != 3 || !ExportActive.load())
+			{
+				break;
+			}
+			WriteProgress.fetch_add(1);
 			{
 				vec3 Center = (Vertices[Quad.x] + Vertices[Quad.y] + Vertices[Quad.z]) / vec3(3.0);
 				vec3 Normal = Evaluator->Gradient(Center);
@@ -483,12 +496,40 @@ void MeshExportThread(SDFNode* Evaluator, vec3 ModelMin, vec3 ModelMax, vec3 Ste
 }
 
 
+ExportProgress GetExportProgress()
+{
+	ExportProgress Progress;
+	Progress.Stage = ExportState.load();
+	Progress.Generation = float(GenerationProgress.load() - 1) / float(VoxelCount.load());
+	Progress.Refinement = float(RefinementProgress.load() - 1) / float(VertexCount.load());
+	Progress.Write = float(WriteProgress.load() - 1) / float(QuadCount.load());
+	return Progress;
+}
+
+
 void MeshExport(SDFNode* Evaluator, vec3 ModelMin, vec3 ModelMax, vec3 Step)
 {
 	if (ExportState.load() == 0)
 	{
+		ExportActive.store(true);
+		ExportState.store(0);
+		GenerationProgress.store(0);
+		RefinementProgress.store(0);
+		WriteProgress.store(0);
 		ExportState.store(1);
 		std::thread ExportThread(MeshExportThread, Evaluator, ModelMin, ModelMax, Step);
 		ExportThread.detach();
+	}
+}
+
+void CancelExport(bool Halt)
+{
+	if (Halt)
+	{
+		ExportActive.store(false);
+	}
+	else
+	{
+		ExportState.fetch_add(1);
 	}
 }

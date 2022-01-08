@@ -43,3 +43,15 @@ struct SDFNode
 
 
 void MeshExport(SDFNode* Evaluator, glm::vec3 ModelMin, glm::vec3 ModelMax, glm::vec3 Step = glm::vec3(0.01));
+void CancelExport(bool Halt);
+
+
+struct ExportProgress
+{
+	int Stage;
+	float Generation;
+	float Refinement;
+	float Write;
+};
+
+ExportProgress GetExportProgress();
