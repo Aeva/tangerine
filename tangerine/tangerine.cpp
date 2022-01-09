@@ -902,7 +902,16 @@ void RenderUI(SDL_Window* Window, bool& Live)
 	static bool ShowFocusOverlay = false;
 	static bool ShowStatsOverlay = false;
 	static bool ShowPrettyTrees = false;
-	static bool ShowExportProgress = false;
+
+	static bool ShowExportOptions = false;
+	static float ExportStepSize;
+	static float ExportSplitStep[3];
+	static bool ExportSkipRefine;
+	static int ExportRefinementSteps;
+
+	const bool DefaultExportSkipRefine = false;
+	const float DefaultExportStepSize = 0.01;
+	const int DefaultExportRefinementSteps = 5;
 
 	if (ImGui::BeginMainMenuBar())
 	{
@@ -918,8 +927,15 @@ void RenderUI(SDL_Window* Window, bool& Live)
 			}
 			if (ImGui::MenuItem("Export", nullptr, false, TreeEvaluator != nullptr))
 			{
-				MeshExport(TreeEvaluator, ModelMin.xyz, ModelMax.xyz);
-				ShowExportProgress = true;
+				ShowExportOptions = true;
+
+				ExportStepSize = DefaultExportStepSize;
+				for (int i = 0; i < 3; ++i)
+				{
+					ExportSplitStep[i] = ExportStepSize;
+				}
+				ExportSkipRefine = DefaultExportSkipRefine;
+				ExportRefinementSteps = DefaultExportRefinementSteps;
 			}
 			if (ImGui::MenuItem("Exit"))
 			{
@@ -1077,31 +1093,84 @@ void RenderUI(SDL_Window* Window, bool& Live)
 		ImGui::End();
 	}
 
-	if (ShowExportProgress)
 	{
 		ExportProgress Progress = GetExportProgress();
-		if (Progress.Stage == 0)
+		if (Progress.Stage != 0)
 		{
-			ShowExportProgress = false;
+			ImVec2 MaxSize = ImGui::GetMainViewport()->WorkSize;
+			ImGui::SetNextWindowSizeConstraints(ImVec2(200, 150), MaxSize);
+			ImGui::OpenPopup("Export Progress");
+			if (ImGui::BeginPopupModal("Export Progress", nullptr, ImGuiWindowFlags_NoSavedSettings))
+			{
+				ImGui::ProgressBar(Progress.Generation, ImVec2(-FLT_MIN, 0), "Mesh Generation");
+				ImGui::ProgressBar(Progress.Refinement, ImVec2(-FLT_MIN, 0), "Mesh Refinement");
+				ImGui::ProgressBar(Progress.Write, ImVec2(-FLT_MIN, 0), "Saving");
+				if (ImGui::Button("Good Enough"))
+				{
+					CancelExport(false);
+				}
+				ImGui::SameLine();
+				if (ImGui::Button("Halt"))
+				{
+					CancelExport(true);
+				}
+				ImGui::EndPopup();
+			}
 		}
-		ImVec2 MaxSize = ImGui::GetMainViewport()->WorkSize;
-		ImGui::SetNextWindowSizeConstraints(ImVec2(200, 150), MaxSize);
-		ImGui::OpenPopup("Export");
-		if (ImGui::BeginPopupModal("Export", nullptr, ImGuiWindowFlags_NoSavedSettings))
+		else if (ShowExportOptions)
 		{
-			ImGui::ProgressBar(Progress.Generation, ImVec2(-FLT_MIN, 0), "Mesh Generation");
-			ImGui::ProgressBar(Progress.Refinement, ImVec2(-FLT_MIN, 0), "Mesh Refinement");
-			ImGui::ProgressBar(Progress.Write, ImVec2(-FLT_MIN, 0), "Saving");
-			if (ImGui::Button("Good Enough"))
+			static bool AdvancedOptions = false;
+			ImVec2 MaxSize = ImGui::GetMainViewport()->WorkSize;
+			ImGui::SetNextWindowSizeConstraints(ImVec2(250, 150), MaxSize);
+			ImGui::OpenPopup("Export Options");
+			if (ImGui::BeginPopupModal("Export Options", nullptr, ImGuiWindowFlags_NoSavedSettings))
 			{
-				CancelExport(false);
+				if (AdvancedOptions)
+				{
+					ImGui::InputFloat3("Voxel Size", ExportSplitStep);
+					ImGui::Checkbox("Skip Refinement", &ExportSkipRefine);
+					if (!ExportSkipRefine)
+					{
+						ImGui::InputInt("Refinement Steps", &ExportRefinementSteps);
+					}
+				}
+				else
+				{
+					ImGui::InputFloat("Voxel Size", &ExportStepSize);
+				}
+				if (ImGui::Button("Start"))
+				{
+					if (AdvancedOptions)
+					{
+						glm::vec3 VoxelSize = glm::vec3(
+							ExportSplitStep[0],
+							ExportSplitStep[1],
+							ExportSplitStep[2]);
+						int RefinementSteps = ExportSkipRefine ? 0 : ExportRefinementSteps;
+						MeshExport(TreeEvaluator, ModelMin.xyz, ModelMax.xyz, VoxelSize, RefinementSteps);
+					}
+					else
+					{
+						glm::vec3 VoxelSize = glm::vec3(ExportStepSize);
+						MeshExport(TreeEvaluator, ModelMin.xyz, ModelMax.xyz, VoxelSize, DefaultExportRefinementSteps);
+					}
+					ShowExportOptions = false;
+				}
+				ImGui::SameLine();
+				if (ImGui::Button("Cancel"))
+				{
+					ShowExportOptions = false;
+				}
+				ImGui::SameLine();
+				if (ImGui::Checkbox("Advanced Options", &AdvancedOptions) && AdvancedOptions)
+				{
+					for (int i = 0; i < 3; ++i)
+					{
+						ExportSplitStep[i] = ExportStepSize;
+					}
+				}
+				ImGui::EndPopup();
 			}
-			ImGui::SameLine();
-			if (ImGui::Button("Halt"))
-			{
-				CancelExport(true);
-			}
-			ImGui::EndPopup();
 		}
 	}
 

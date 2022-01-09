@@ -291,10 +291,10 @@ std::atomic_int VertexCount;
 std::atomic_int RefinementProgress;
 std::atomic_int QuadCount;
 std::atomic_int WriteProgress;
-void MeshExportThread(SDFNode* Evaluator, vec3 ModelMin, vec3 ModelMax, vec3 Step, std::string Path)
+void MeshExportThread(SDFNode* Evaluator, vec3 ModelMin, vec3 ModelMax, vec3 Step, int RefineIterations, std::string Path)
 {
 	const vec3 Half = Step / vec3(2.0);
-	const float Diagonal = length(Step);
+	const float Diagonal = length(Half);
 
 	std::vector<vec3> Vertices;
 	std::map<vec3, int, Vec3Less> VertMemo;
@@ -351,10 +351,10 @@ void MeshExportThread(SDFNode* Evaluator, vec3 ModelMin, vec3 ModelMax, vec3 Ste
 					{
 						ivec4 Quad(
 							NewVert(Half * vec3(-1.0, -1.0, -1.0) + Cursor),
-							NewVert(Half * vec3(-1.0, 1.0, -1.0) + Cursor),
-							NewVert(Half * vec3(-1.0, 1.0, 1.0) + Cursor),
-							NewVert(Half * vec3(-1.0, -1.0, 1.0) + Cursor));
-						if (sign(Dist) > sign(DistX))
+							NewVert(Half * vec3(-1.0,  1.0, -1.0) + Cursor),
+							NewVert(Half * vec3(-1.0,  1.0,  1.0) + Cursor),
+							NewVert(Half * vec3(-1.0, -1.0,  1.0) + Cursor));
+						if (sign(Dist) < sign(DistX))
 						{
 							Quad = Quad.wzyx;
 						}
@@ -366,11 +366,11 @@ void MeshExportThread(SDFNode* Evaluator, vec3 ModelMin, vec3 ModelMax, vec3 Ste
 					if (sign(Dist) != sign(DistY))
 					{
 						ivec4 Quad(
-							NewVert(Half * vec3(-1.0, -1.0, -1.0) + Cursor),
-							NewVert(Half * vec3(1.0, -1.0, -1.0) + Cursor),
-							NewVert(Half * vec3(1.0, -1.0, 1.0) + Cursor),
-							NewVert(Half * vec3(-1.0, -1.0, 1.0) + Cursor));
-						if (sign(Dist) > sign(DistY))
+							NewVert(Half * vec3(-1.0, -1.0, 1.0) + Cursor),
+							NewVert(Half * vec3( 1.0, -1.0, 1.0) + Cursor),
+							NewVert(Half * vec3( 1.0, -1.0, -1.0) + Cursor),
+							NewVert(Half * vec3(-1.0, -1.0, -1.0) + Cursor));
+						if (sign(Dist) < sign(DistY))
 						{
 							Quad = Quad.wzyx;
 						}
@@ -383,10 +383,10 @@ void MeshExportThread(SDFNode* Evaluator, vec3 ModelMin, vec3 ModelMax, vec3 Ste
 					{
 						ivec4 Quad(
 							NewVert(Half * vec3(-1.0, -1.0, -1.0) + Cursor),
-							NewVert(Half * vec3(1.0, -1.0, -1.0) + Cursor),
-							NewVert(Half * vec3(1.0, 1.0, -1.0) + Cursor),
-							NewVert(Half * vec3(-1.0, 1.0, -1.0) + Cursor));
-						if (sign(Dist) > sign(DistZ))
+							NewVert(Half * vec3( 1.0, -1.0, -1.0) + Cursor),
+							NewVert(Half * vec3( 1.0,  1.0, -1.0) + Cursor),
+							NewVert(Half * vec3(-1.0,  1.0, -1.0) + Cursor));
+						if (sign(Dist) < sign(DistZ))
 						{
 							Quad = Quad.wzyx;
 						}
@@ -407,6 +407,7 @@ void MeshExportThread(SDFNode* Evaluator, vec3 ModelMin, vec3 ModelMax, vec3 Ste
 	VertexCount.store(Vertices.size());
 	QuadCount.store(Quads.size());
 
+	if (RefineIterations > 0)
 	{
 		Pool([&]() \
 		{
@@ -419,13 +420,20 @@ void MeshExportThread(SDFNode* Evaluator, vec3 ModelMin, vec3 ModelMax, vec3 Ste
 					vec3 Low = Vertex - vec3(Half);
 					vec3 High = Vertex + vec3(Half);
 					vec3 Cursor = Vertex;
-					for (int i = 0; i < 5; ++i)
+					for (int r = 0; r < RefineIterations; ++r)
 					{
 						vec3 RayDir = Evaluator->Gradient(Cursor);
 						float Dist = Evaluator->Eval(Cursor) * -1.0;
 						Cursor += RayDir * Dist;
 					}
-					Vertex = clamp(Cursor, Low, High);
+					Cursor = clamp(Cursor, Low, High);
+					if (distance(Cursor, Vertex) <= Diagonal)
+					{
+						// TODO: despite the above clamp, some times the Cursor will end up on 0,0,0 when it would be
+						// well outside a half voxel distance.  This branch should at least prevent that, but there is
+						// probably a problem with the Gradient function that is causing this.
+						Vertex = Cursor;
+					}
 				}
 				else
 				{
@@ -508,7 +516,7 @@ ExportProgress GetExportProgress()
 }
 
 
-void MeshExport(SDFNode* Evaluator, vec3 ModelMin, vec3 ModelMax, vec3 Step)
+void MeshExport(SDFNode* Evaluator, vec3 ModelMin, vec3 ModelMax, vec3 Step, int RefineIterations)
 {
 	if (ExportState.load() == 0)
 	{
@@ -523,7 +531,7 @@ void MeshExport(SDFNode* Evaluator, vec3 ModelMin, vec3 ModelMax, vec3 Step)
 			WriteProgress.store(0);
 			ExportState.store(1);
 
-			std::thread ExportThread(MeshExportThread, Evaluator, ModelMin, ModelMax, Step, std::string(Path));
+			std::thread ExportThread(MeshExportThread, Evaluator, ModelMin, ModelMax, Step, RefineIterations, std::string(Path));
 			ExportThread.detach();
 		}
 	}
