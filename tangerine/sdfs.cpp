@@ -79,10 +79,28 @@ struct BrushNode : public SDFNode
 	EvalMixin BrushFn;
 	TransformMixin* Transform;
 
-	BrushNode(EvalMixin& InBrushFn, void* InTransform)
+	BrushNode(EvalMixin& InBrushFn, void* InTransform, vec3 LocalMax)
 		: BrushFn(InBrushFn)
 		, Transform((TransformMixin*)InTransform)
 	{
+		vec3 LocalMin = LocalMax * vec3(-1.0);
+		vec3 Points[7];
+		Points[0] = LocalMax;
+		Points[1] = vec3(LocalMin.x, LocalMin.y, LocalMax.z);
+		Points[2] = vec3(LocalMin.x, LocalMax.y, LocalMin.z);
+		Points[3] = vec3(LocalMin.x, LocalMax.y, LocalMax.z);
+		Points[4] = vec3(LocalMax.x, LocalMin.y, LocalMin.z);
+		Points[5] = vec3(LocalMax.x, LocalMin.y, LocalMax.z);
+		Points[6] = vec3(LocalMax.x, LocalMax.y, LocalMin.z);
+
+		Bounds.Min = (*Transform)(LocalMin);
+		Bounds.Max = Bounds.Min;
+		for (vec3& Point : Points)
+		{
+			vec3 Tmp = (*Transform)(Point);
+			Bounds.Min = min(Bounds.Min, Tmp);
+			Bounds.Max = max(Bounds.Max, Tmp);
+		}
 	}
 
 	virtual float Eval(vec3 Point)
@@ -90,10 +108,24 @@ struct BrushNode : public SDFNode
 		return BrushFn((*Transform)(Point));
 	}
 
+	virtual float Clip(SDFBounds& Cell)
+	{
+		vec3 Center = (Cell.Min + Cell.Max) * vec3(0.5);
+		return Eval(Center);
+	}
+
 	virtual ~BrushNode()
 	{
 		delete Transform;
 	}
+};
+
+
+enum class SetType
+{
+	Union,
+	Diff,
+	Inter
 };
 
 
@@ -104,12 +136,18 @@ struct SetNode : public SDFNode
 	EvalMixin SetFn;
 	SDFNode* LHS;
 	SDFNode* RHS;
+	float Threshold;
+	SetType Mode;
 
-	SetNode(EvalMixin& InSetFn, SDFNode* InLHS, SDFNode* InRHS)
-		: SetFn(InSetFn)
+	SetNode(SetType InMode, EvalMixin& InSetFn, SDFNode* InLHS, SDFNode* InRHS, float InThreshold = 0.0)
+		: Mode(InMode)
+		, SetFn(InSetFn)
 		, LHS(InLHS)
 		, RHS(InRHS)
+		, Threshold(InThreshold)
 	{
+		Bounds.Min = min(LHS->Bounds.Min, RHS->Bounds.Min) - vec3(Threshold);
+		Bounds.Max = max(LHS->Bounds.Max, RHS->Bounds.Max) + vec3(Threshold);
 	}
 
 	virtual float Eval(vec3 Point)
@@ -117,6 +155,47 @@ struct SetNode : public SDFNode
 		return SetFn(
 			LHS->Eval(Point),
 			RHS->Eval(Point));
+	}
+
+	virtual float Clip(SDFBounds& Cell)
+	{
+		SDFBounds SetCell = Cell;
+		SetCell.Min -= vec3(Threshold);
+		SetCell.Max += vec3(Threshold);
+
+		bool A = (SetCell.Max.x >= LHS->Bounds.Min.x \
+			&& SetCell.Max.y >= LHS->Bounds.Min.y \
+			&& SetCell.Max.z >= LHS->Bounds.Min.z \
+			&& SetCell.Min.x <= LHS->Bounds.Max.x \
+			&& SetCell.Min.y <= LHS->Bounds.Max.y \
+			&& SetCell.Min.z <= LHS->Bounds.Max.z);
+
+		bool B = (SetCell.Max.x >= RHS->Bounds.Min.x \
+			&& SetCell.Max.y >= RHS->Bounds.Min.y \
+			&& SetCell.Max.z >= RHS->Bounds.Min.z \
+			&& SetCell.Min.x <= RHS->Bounds.Max.x \
+			&& SetCell.Min.y <= RHS->Bounds.Max.y \
+			&& SetCell.Min.z <= RHS->Bounds.Max.z);
+
+		if (A && B)
+		{
+			// Unions, Diffs, and Intersections all match on both.
+			return SetFn(LHS->Clip(SetCell), RHS->Clip(SetCell));
+		}
+		else if (A && (Mode == SetType::Union || Mode == SetType::Diff))
+		{
+			// Only Unions and Diffs match on just LHS.
+			return LHS->Clip(SetCell);
+		}
+		else if (B && Mode == SetType::Union)
+		{
+			// Only Unions match on just RHS.
+			return RHS->Clip(SetCell);
+		}
+		else
+		{
+			return FP_INFINITE;
+		}
 	}
 
 	virtual ~SetNode()
@@ -192,31 +271,32 @@ extern "C" TANGERINE_API void* MakeMatrixTransform(
 extern "C" TANGERINE_API void* MakeSphereBrush(void* Transform, float Radius)
 {
 	BrushNode::EvalMixin Eval = std::bind(SDF::SphereBrush, _1, Radius);
-	return new BrushNode(Eval, Transform);
+	return new BrushNode(Eval, Transform, vec3(Radius, Radius, Radius));
 }
 
 extern "C" TANGERINE_API void* MakeEllipsoidBrush(void* Transform, float RadipodeX, float RadipodeY, float RadipodeZ)
 {
 	BrushNode::EvalMixin Eval = std::bind(SDF::EllipsoidBrush, _1, vec3(RadipodeX, RadipodeY, RadipodeZ));
-	return new BrushNode(Eval, Transform);
+	return new BrushNode(Eval, Transform, vec3(RadipodeX, RadipodeY, RadipodeZ));
 }
 
 extern "C" TANGERINE_API void* MakeBoxBrush(void* Transform, float ExtentX, float ExtentY, float ExtentZ)
 {
 	BrushNode::EvalMixin Eval = std::bind(SDF::BoxBrush, _1, vec3(ExtentX, ExtentY, ExtentZ));
-	return new BrushNode(Eval, Transform);
+	return new BrushNode(Eval, Transform, vec3(ExtentX, ExtentY, ExtentZ));
 }
 
 extern "C" TANGERINE_API void* MakeTorusBrush(void* Transform, float MajorRadius, float MinorRadius)
 {
+	float Radius = MajorRadius + MinorRadius;
 	BrushNode::EvalMixin Eval = std::bind(SDF::TorusBrush, _1, MajorRadius, MinorRadius);
-	return new BrushNode(Eval, Transform);
+	return new BrushNode(Eval, Transform, vec3(Radius, Radius, MinorRadius));
 }
 
 extern "C" TANGERINE_API void* MakeCylinderBrush(void* Transform, float Radius, float Extent)
 {
 	BrushNode::EvalMixin Eval = std::bind(SDF::CylinderBrush, _1, Radius, Extent);
-	return new BrushNode(Eval, Transform);
+	return new BrushNode(Eval, Transform, vec3(Radius, Radius, Extent));
 }
 
 
@@ -224,37 +304,37 @@ extern "C" TANGERINE_API void* MakeCylinderBrush(void* Transform, float Radius, 
 extern "C" TANGERINE_API void* MakeUnionOp(void* LHS, void* RHS)
 {
 	SetNode::EvalMixin Eval = std::bind(SDF::UnionOp, _1, _2);
-	return new SetNode(Eval, (SetNode*)LHS, (SetNode*)RHS);
+	return new SetNode(SetType::Union, Eval, (SetNode*)LHS, (SetNode*)RHS);
 }
 
 extern "C" TANGERINE_API void* MakeDiffOp(void* LHS, void* RHS)
 {
 	SetNode::EvalMixin Eval = std::bind(SDF::CutOp, _1, _2);
-	return new SetNode(Eval, (SetNode*)LHS, (SetNode*)RHS);
+	return new SetNode(SetType::Diff, Eval, (SetNode*)LHS, (SetNode*)RHS);
 }
 
 extern "C" TANGERINE_API void* MakeInterOp(void* LHS, void* RHS)
 {
 	SetNode::EvalMixin Eval = std::bind(SDF::IntersectionOp, _1, _2);
-	return new SetNode(Eval, (SetNode*)LHS, (SetNode*)RHS);
+	return new SetNode(SetType::Inter, Eval, (SetNode*)LHS, (SetNode*)RHS);
 }
 
 extern "C" TANGERINE_API void* MakeBlendUnionOp(float Threshold, void* LHS, void* RHS)
 {
 	SetNode::EvalMixin Eval = std::bind(SDF::SmoothUnionOp, _1, _2, Threshold);
-	return new SetNode(Eval, (SetNode*)LHS, (SetNode*)RHS);
+	return new SetNode(SetType::Union, Eval, (SetNode*)LHS, (SetNode*)RHS, Threshold);
 }
 
 extern "C" TANGERINE_API void* MakeBlendDiffOp(float Threshold, void* LHS, void* RHS)
 {
 	SetNode::EvalMixin Eval = std::bind(SDF::SmoothCutOp, _1, _2, Threshold);
-	return new SetNode(Eval, (SetNode*)LHS, (SetNode*)RHS);
+	return new SetNode(SetType::Diff, Eval, (SetNode*)LHS, (SetNode*)RHS, Threshold);
 }
 
 extern "C" TANGERINE_API void* MakeBlendInterOp(float Threshold, void* LHS, void* RHS)
 {
 	SetNode::EvalMixin Eval = std::bind(SDF::SmoothIntersectionOp, _1, _2, Threshold);
-	return new SetNode(Eval, (SetNode*)LHS, (SetNode*)RHS);
+	return new SetNode(SetType::Inter, Eval, (SetNode*)LHS, (SetNode*)RHS, Threshold);
 }
 
 
@@ -342,10 +422,32 @@ void MeshExportThread(SDFNode* Evaluator, vec3 ModelMin, vec3 ModelMax, vec3 Ste
 					float X = float(i % Iterations.x) * Step.x + Start.x;
 
 					vec3 Cursor = vec3(X, Y, Z) + Half;
+#if 1
 					float Dist = Evaluator->Eval(Cursor);
 					float DistX = Evaluator->Eval(Cursor - vec3(Step.x, 0.0, 0.0));
 					float DistY = Evaluator->Eval(Cursor - vec3(0.0, Step.y, 0.0));
 					float DistZ = Evaluator->Eval(Cursor - vec3(0.0, 0.0, Step.z));
+#else
+					SDFBounds Cell;
+					Cell.Min = vec3(X, Y, Z);
+					Cell.Max = Cell.Min + Step;
+					float Dist = Evaluator->Clip(Cell);
+
+					SDFBounds CellX;
+					CellX.Min = Cell.Min - vec3(Step.x, 0.0, 0.0);
+					CellX.Max = CellX.Min + Step;
+					float DistX = Evaluator->Clip(CellX);
+
+					SDFBounds CellY;
+					CellY.Min = Cell.Min - vec3(0.0, Step.y, 0.0);
+					CellY.Max = CellY.Min + Step;
+					float DistY = Evaluator->Clip(CellY);
+
+					SDFBounds CellZ;
+					CellZ.Min = Cell.Min - vec3(0.0, 0.0, Step.z);
+					CellZ.Max = CellZ.Min + Step;
+					float DistZ = Evaluator->Clip(CellZ);
+#endif
 
 					if (sign(Dist) != sign(DistX))
 					{
