@@ -32,23 +32,13 @@
 #endif
 
 
-struct SDFBounds
-{
-	glm::vec3 Min;
-	glm::vec3 Max;
-};
-
-
 struct SDFNode
 {
-	SDFBounds Bounds;
-
 	virtual float Eval(glm::vec3 Point) = 0;
 
-	virtual float Clip(SDFBounds& Cell)
-	{
-		return FP_INFINITE;
-	};
+	virtual SDFNode* Copy() = 0;
+
+	virtual SDFNode* Clip(glm::vec3 Point, float Radius) = 0;
 
 	glm::vec3 Gradient(glm::vec3 Point);
 

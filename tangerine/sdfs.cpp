@@ -69,38 +69,24 @@ vec3 SDFNode::Gradient(vec3 Point)
 }
 
 
+using BrushMixin = std::function<float(vec3)>;
+using TransformMixin = std::function<vec3(vec3)>;
+using SetMixin = std::function<float(float, float)>;
+
+
 // The following structs are used to implement executable signed distance
 // functions, to be constructed indirectly from Racket.
+
+
 struct BrushNode : public SDFNode
 {
-	using EvalMixin = std::function<float(vec3)>;
-	using TransformMixin = std::function<vec3(vec3)>;
-
-	EvalMixin BrushFn;
+	BrushMixin BrushFn;
 	TransformMixin* Transform;
 
-	BrushNode(EvalMixin& InBrushFn, void* InTransform, vec3 LocalMax)
+	BrushNode(BrushMixin& InBrushFn, void* InTransform)
 		: BrushFn(InBrushFn)
 		, Transform((TransformMixin*)InTransform)
 	{
-		vec3 LocalMin = LocalMax * vec3(-1.0);
-		vec3 Points[7];
-		Points[0] = LocalMax;
-		Points[1] = vec3(LocalMin.x, LocalMin.y, LocalMax.z);
-		Points[2] = vec3(LocalMin.x, LocalMax.y, LocalMin.z);
-		Points[3] = vec3(LocalMin.x, LocalMax.y, LocalMax.z);
-		Points[4] = vec3(LocalMax.x, LocalMin.y, LocalMin.z);
-		Points[5] = vec3(LocalMax.x, LocalMin.y, LocalMax.z);
-		Points[6] = vec3(LocalMax.x, LocalMax.y, LocalMin.z);
-
-		Bounds.Min = (*Transform)(LocalMin);
-		Bounds.Max = Bounds.Min;
-		for (vec3& Point : Points)
-		{
-			vec3 Tmp = (*Transform)(Point);
-			Bounds.Min = min(Bounds.Min, Tmp);
-			Bounds.Max = max(Bounds.Max, Tmp);
-		}
 	}
 
 	virtual float Eval(vec3 Point)
@@ -108,10 +94,21 @@ struct BrushNode : public SDFNode
 		return BrushFn((*Transform)(Point));
 	}
 
-	virtual float Clip(SDFBounds& Cell)
+	virtual SDFNode* Copy()
 	{
-		vec3 Center = (Cell.Min + Cell.Max) * vec3(0.5);
-		return Eval(Center);
+		return new BrushNode(BrushFn, new TransformMixin(*Transform));
+	}
+
+	virtual SDFNode* Clip(vec3 Point, float Radius)
+	{
+		if (Eval(Point) <= Radius)
+		{
+			return Copy();
+		}
+		else
+		{
+			return nullptr;
+		}
 	}
 
 	virtual ~BrushNode()
@@ -121,7 +118,7 @@ struct BrushNode : public SDFNode
 };
 
 
-enum class SetType
+enum class SetFamily
 {
 	Union,
 	Diff,
@@ -129,25 +126,20 @@ enum class SetType
 };
 
 
+template<SetFamily Family, bool BlendMode>
 struct SetNode : public SDFNode
 {
-	using EvalMixin = std::function<float(float, float)>;
-
-	EvalMixin SetFn;
+	SetMixin SetFn;
 	SDFNode* LHS;
 	SDFNode* RHS;
 	float Threshold;
-	SetType Mode;
 
-	SetNode(SetType InMode, EvalMixin& InSetFn, SDFNode* InLHS, SDFNode* InRHS, float InThreshold = 0.0)
-		: Mode(InMode)
-		, SetFn(InSetFn)
+	SetNode(SetMixin& InSetFn, SDFNode* InLHS, SDFNode* InRHS, float InThreshold = 0.0)
+		: SetFn(InSetFn)
 		, LHS(InLHS)
 		, RHS(InRHS)
 		, Threshold(InThreshold)
 	{
-		Bounds.Min = min(LHS->Bounds.Min, RHS->Bounds.Min) - vec3(Threshold);
-		Bounds.Max = max(LHS->Bounds.Max, RHS->Bounds.Max) + vec3(Threshold);
 	}
 
 	virtual float Eval(vec3 Point)
@@ -157,44 +149,76 @@ struct SetNode : public SDFNode
 			RHS->Eval(Point));
 	}
 
-	virtual float Clip(SDFBounds& Cell)
+
+	virtual SDFNode* Copy()
 	{
-		SDFBounds SetCell = Cell;
-		SetCell.Min -= vec3(Threshold);
-		SetCell.Max += vec3(Threshold);
+		return new SetNode<Family, BlendMode>(SetFn, LHS->Copy(), RHS->Copy());
+	}
 
-		bool A = (SetCell.Max.x >= LHS->Bounds.Min.x \
-			&& SetCell.Max.y >= LHS->Bounds.Min.y \
-			&& SetCell.Max.z >= LHS->Bounds.Min.z \
-			&& SetCell.Min.x <= LHS->Bounds.Max.x \
-			&& SetCell.Min.y <= LHS->Bounds.Max.y \
-			&& SetCell.Min.z <= LHS->Bounds.Max.z);
 
-		bool B = (SetCell.Max.x >= RHS->Bounds.Min.x \
-			&& SetCell.Max.y >= RHS->Bounds.Min.y \
-			&& SetCell.Max.z >= RHS->Bounds.Min.z \
-			&& SetCell.Min.x <= RHS->Bounds.Max.x \
-			&& SetCell.Min.y <= RHS->Bounds.Max.y \
-			&& SetCell.Min.z <= RHS->Bounds.Max.z);
+	virtual SDFNode* Clip(vec3 Point, float Radius)
+	{
+		if (BlendMode)
+		{
+			// If both of these clip tests pass, then the point should be in the blending region
+			// for all blending set operator types.  If one of these returns nullptr, the other
+			// should be deleted.  If we don't return a new blending set node here, fail through
+			// to the regular set operator behavior to return an operand, when applicable.
 
-		if (A && B)
-		{
-			// Unions, Diffs, and Intersections all match on both.
-			return SetFn(LHS->Clip(SetCell), RHS->Clip(SetCell));
+			SDFNode* NewLHS = LHS->Clip(Point, Radius + Threshold);
+			SDFNode* NewRHS = RHS->Clip(Point, Radius + Threshold);
+			if (NewLHS && NewRHS)
+			{
+				return new SetNode<Family, BlendMode>(SetFn, NewLHS, NewRHS);
+			}
+			else if (NewLHS)
+			{
+				delete NewLHS;
+			}
+			else if (NewRHS)
+			{
+				delete NewRHS;
+			}
+			if (Family == SetFamily::Inter)
+			{
+				return nullptr;
+			}
 		}
-		else if (A && (Mode == SetType::Union || Mode == SetType::Diff))
+
+		SDFNode* NewLHS = LHS->Clip(Point, Radius);
+		SDFNode* NewRHS = RHS->Clip(Point, Radius);
+
+		if (NewLHS && NewRHS)
 		{
-			// Only Unions and Diffs match on just LHS.
-			return LHS->Clip(SetCell);
+			// Note, this shouldn't be possible to hit when BlendMode == true.
+			return new SetNode<Family, BlendMode>(SetFn, NewLHS, NewRHS);
 		}
-		else if (B && Mode == SetType::Union)
+		else if (Family == SetFamily::Union)
 		{
-			// Only Unions match on just RHS.
-			return RHS->Clip(SetCell);
+			// Return whichever operand matched or nullptr.
+			return NewLHS != nullptr ? NewLHS : NewRHS;
 		}
-		else
+		else if (Family == SetFamily::Diff)
 		{
-			return FP_INFINITE;
+			// We can only return the LHS side, which may be nullptr.
+			if (NewRHS)
+			{
+				delete NewRHS;
+			}
+			return NewLHS;
+		}
+		else if (Family == SetFamily::Inter)
+		{
+			// Neither operand is valid.
+			if (NewLHS)
+			{
+				delete NewLHS;
+			}
+			else if (NewRHS)
+			{
+				delete NewRHS;
+			}
+			return nullptr;
 		}
 	}
 
@@ -229,7 +253,7 @@ extern "C" TANGERINE_API void DiscardTree(void* Handle)
 // The following functions provide transform constructors to be used by brush nodes.
 extern "C" TANGERINE_API void* MakeIdentity()
 {
-	return new BrushNode::TransformMixin(
+	return new TransformMixin(
 		[](vec3 Point) -> vec3
 		{
 			return Point;
@@ -239,7 +263,7 @@ extern "C" TANGERINE_API void* MakeIdentity()
 extern "C" TANGERINE_API void* MakeTranslation(float X, float Y, float Z)
 {
 	vec3 Offset(X, Y, Z);
-	return new BrushNode::TransformMixin(
+	return new TransformMixin(
 		[=](vec3 Point) -> vec3
 		{
 			return Point - Offset;
@@ -258,7 +282,7 @@ extern "C" TANGERINE_API void* MakeMatrixTransform(
 		X3, Y3, Z3, W3,
 		X4, Y4, Z4, W4);
 
-	return new BrushNode::TransformMixin(
+	return new TransformMixin(
 		[=](vec3 Point) -> vec3
 		{
 			vec4 Tmp = Matrix * vec4(Point, 1.0);
@@ -270,71 +294,71 @@ extern "C" TANGERINE_API void* MakeMatrixTransform(
 // The following functions construct Brush nodes.
 extern "C" TANGERINE_API void* MakeSphereBrush(void* Transform, float Radius)
 {
-	BrushNode::EvalMixin Eval = std::bind(SDF::SphereBrush, _1, Radius);
-	return new BrushNode(Eval, Transform, vec3(Radius, Radius, Radius));
+	BrushMixin Eval = std::bind(SDF::SphereBrush, _1, Radius);
+	return new BrushNode(Eval, Transform);
 }
 
 extern "C" TANGERINE_API void* MakeEllipsoidBrush(void* Transform, float RadipodeX, float RadipodeY, float RadipodeZ)
 {
-	BrushNode::EvalMixin Eval = std::bind(SDF::EllipsoidBrush, _1, vec3(RadipodeX, RadipodeY, RadipodeZ));
-	return new BrushNode(Eval, Transform, vec3(RadipodeX, RadipodeY, RadipodeZ));
+	BrushMixin Eval = std::bind(SDF::EllipsoidBrush, _1, vec3(RadipodeX, RadipodeY, RadipodeZ));
+	return new BrushNode(Eval, Transform);
 }
 
 extern "C" TANGERINE_API void* MakeBoxBrush(void* Transform, float ExtentX, float ExtentY, float ExtentZ)
 {
-	BrushNode::EvalMixin Eval = std::bind(SDF::BoxBrush, _1, vec3(ExtentX, ExtentY, ExtentZ));
-	return new BrushNode(Eval, Transform, vec3(ExtentX, ExtentY, ExtentZ));
+	BrushMixin Eval = std::bind(SDF::BoxBrush, _1, vec3(ExtentX, ExtentY, ExtentZ));
+	return new BrushNode(Eval, Transform);
 }
 
 extern "C" TANGERINE_API void* MakeTorusBrush(void* Transform, float MajorRadius, float MinorRadius)
 {
 	float Radius = MajorRadius + MinorRadius;
-	BrushNode::EvalMixin Eval = std::bind(SDF::TorusBrush, _1, MajorRadius, MinorRadius);
-	return new BrushNode(Eval, Transform, vec3(Radius, Radius, MinorRadius));
+	BrushMixin Eval = std::bind(SDF::TorusBrush, _1, MajorRadius, MinorRadius);
+	return new BrushNode(Eval, Transform);
 }
 
 extern "C" TANGERINE_API void* MakeCylinderBrush(void* Transform, float Radius, float Extent)
 {
-	BrushNode::EvalMixin Eval = std::bind(SDF::CylinderBrush, _1, Radius, Extent);
-	return new BrushNode(Eval, Transform, vec3(Radius, Radius, Extent));
+	BrushMixin Eval = std::bind(SDF::CylinderBrush, _1, Radius, Extent);
+	return new BrushNode(Eval, Transform);
 }
 
 
 // The following functions construct CSG set operator nodes.
 extern "C" TANGERINE_API void* MakeUnionOp(void* LHS, void* RHS)
 {
-	SetNode::EvalMixin Eval = std::bind(SDF::UnionOp, _1, _2);
-	return new SetNode(SetType::Union, Eval, (SetNode*)LHS, (SetNode*)RHS);
+	SetMixin Eval = std::bind(SDF::UnionOp, _1, _2);
+	return new SetNode<SetFamily::Union, false>(Eval, (SDFNode*)LHS, (SDFNode*)RHS);
 }
 
 extern "C" TANGERINE_API void* MakeDiffOp(void* LHS, void* RHS)
 {
-	SetNode::EvalMixin Eval = std::bind(SDF::CutOp, _1, _2);
-	return new SetNode(SetType::Diff, Eval, (SetNode*)LHS, (SetNode*)RHS);
+	SetMixin Eval = std::bind(SDF::CutOp, _1, _2);
+	return new SetNode<SetFamily::Diff, false>(Eval, (SDFNode*)LHS, (SDFNode*)RHS);
 }
 
 extern "C" TANGERINE_API void* MakeInterOp(void* LHS, void* RHS)
 {
-	SetNode::EvalMixin Eval = std::bind(SDF::IntersectionOp, _1, _2);
-	return new SetNode(SetType::Inter, Eval, (SetNode*)LHS, (SetNode*)RHS);
+	SetMixin Eval = std::bind(SDF::IntersectionOp, _1, _2);
+	return new SetNode<SetFamily::Inter, false>(Eval, (SDFNode*)LHS, (SDFNode*)RHS);
 }
 
 extern "C" TANGERINE_API void* MakeBlendUnionOp(float Threshold, void* LHS, void* RHS)
 {
-	SetNode::EvalMixin Eval = std::bind(SDF::SmoothUnionOp, _1, _2, Threshold);
-	return new SetNode(SetType::Union, Eval, (SetNode*)LHS, (SetNode*)RHS, Threshold);
+	SetMixin Eval = std::bind(SDF::SmoothUnionOp, _1, _2, Threshold);
+	return new SetNode<SetFamily::Union, true>(Eval, (SDFNode*)LHS, (SDFNode*)RHS, Threshold);
 }
 
 extern "C" TANGERINE_API void* MakeBlendDiffOp(float Threshold, void* LHS, void* RHS)
 {
-	SetNode::EvalMixin Eval = std::bind(SDF::SmoothCutOp, _1, _2, Threshold);
-	return new SetNode(SetType::Diff, Eval, (SetNode*)LHS, (SetNode*)RHS, Threshold);
+	SetMixin Eval = std::bind(SDF::SmoothCutOp, _1, _2, Threshold);
+	return new SetNode<SetFamily::Diff, true>(Eval, (SDFNode*)LHS, (SDFNode*)RHS, Threshold);
 }
 
 extern "C" TANGERINE_API void* MakeBlendInterOp(float Threshold, void* LHS, void* RHS)
 {
-	SetNode::EvalMixin Eval = std::bind(SDF::SmoothIntersectionOp, _1, _2, Threshold);
-	return new SetNode(SetType::Inter, Eval, (SetNode*)LHS, (SetNode*)RHS, Threshold);
+	SetMixin Eval = std::bind(SDF::SmoothIntersectionOp, _1, _2, Threshold);
+	return new SetNode<SetFamily::Inter, true>(Eval, (SDFNode*)LHS, (SDFNode*)RHS, Threshold);
 }
 
 
@@ -422,41 +446,29 @@ void MeshExportThread(SDFNode* Evaluator, vec3 ModelMin, vec3 ModelMax, vec3 Ste
 					float X = float(i % Iterations.x) * Step.x + Start.x;
 
 					vec3 Cursor = vec3(X, Y, Z) + Half;
-#if 1
-					float Dist = Evaluator->Eval(Cursor);
-					float DistX = Evaluator->Eval(Cursor - vec3(Step.x, 0.0, 0.0));
-					float DistY = Evaluator->Eval(Cursor - vec3(0.0, Step.y, 0.0));
-					float DistZ = Evaluator->Eval(Cursor - vec3(0.0, 0.0, Step.z));
-#else
-					SDFBounds Cell;
-					Cell.Min = vec3(X, Y, Z);
-					Cell.Max = Cell.Min + Step;
-					float Dist = Evaluator->Clip(Cell);
 
-					SDFBounds CellX;
-					CellX.Min = Cell.Min - vec3(Step.x, 0.0, 0.0);
-					CellX.Max = CellX.Min + Step;
-					float DistX = Evaluator->Clip(CellX);
+					vec4 Dist;
+					{
+						SDFNode* Region = Evaluator->Clip(vec3(X, Y, Z), Diagonal * 2.0);
+						if (Region == nullptr)
+						{
+							continue;
+						}
+						Dist.x = Region->Eval(Cursor - vec3(Step.x, 0.0, 0.0));
+						Dist.y = Region->Eval(Cursor - vec3(0.0, Step.y, 0.0));
+						Dist.z = Region->Eval(Cursor - vec3(0.0, 0.0, Step.z));
+						Dist.w = Region->Eval(Cursor);
+						delete Region;
+					}
 
-					SDFBounds CellY;
-					CellY.Min = Cell.Min - vec3(0.0, Step.y, 0.0);
-					CellY.Max = CellY.Min + Step;
-					float DistY = Evaluator->Clip(CellY);
-
-					SDFBounds CellZ;
-					CellZ.Min = Cell.Min - vec3(0.0, 0.0, Step.z);
-					CellZ.Max = CellZ.Min + Step;
-					float DistZ = Evaluator->Clip(CellZ);
-#endif
-
-					if (sign(Dist) != sign(DistX))
+					if (sign(Dist.w) != sign(Dist.x))
 					{
 						ivec4 Quad(
 							NewVert(Half * vec3(-1.0, -1.0, -1.0) + Cursor),
 							NewVert(Half * vec3(-1.0,  1.0, -1.0) + Cursor),
 							NewVert(Half * vec3(-1.0,  1.0,  1.0) + Cursor),
 							NewVert(Half * vec3(-1.0, -1.0,  1.0) + Cursor));
-						if (sign(Dist) < sign(DistX))
+						if (sign(Dist.w) < sign(Dist.x))
 						{
 							Quad = Quad.wzyx;
 						}
@@ -465,14 +477,14 @@ void MeshExportThread(SDFNode* Evaluator, vec3 ModelMin, vec3 ModelMax, vec3 Ste
 						QuadsCS.unlock();
 					}
 
-					if (sign(Dist) != sign(DistY))
+					if (sign(Dist.w) != sign(Dist.y))
 					{
 						ivec4 Quad(
 							NewVert(Half * vec3(-1.0, -1.0, 1.0) + Cursor),
 							NewVert(Half * vec3( 1.0, -1.0, 1.0) + Cursor),
 							NewVert(Half * vec3( 1.0, -1.0, -1.0) + Cursor),
 							NewVert(Half * vec3(-1.0, -1.0, -1.0) + Cursor));
-						if (sign(Dist) < sign(DistY))
+						if (sign(Dist.w) < sign(Dist.y))
 						{
 							Quad = Quad.wzyx;
 						}
@@ -481,14 +493,14 @@ void MeshExportThread(SDFNode* Evaluator, vec3 ModelMin, vec3 ModelMax, vec3 Ste
 						QuadsCS.unlock();
 					}
 
-					if (sign(Dist) != sign(DistZ))
+					if (sign(Dist.w) != sign(Dist.z))
 					{
 						ivec4 Quad(
 							NewVert(Half * vec3(-1.0, -1.0, -1.0) + Cursor),
 							NewVert(Half * vec3( 1.0, -1.0, -1.0) + Cursor),
 							NewVert(Half * vec3( 1.0,  1.0, -1.0) + Cursor),
 							NewVert(Half * vec3(-1.0,  1.0, -1.0) + Cursor));
-						if (sign(Dist) < sign(DistZ))
+						if (sign(Dist.w) < sign(Dist.z))
 						{
 							Quad = Quad.wzyx;
 						}
@@ -521,14 +533,23 @@ void MeshExportThread(SDFNode* Evaluator, vec3 ModelMin, vec3 ModelMax, vec3 Ste
 					vec3& Vertex = Vertices[i];
 					vec3 Low = Vertex - vec3(Half);
 					vec3 High = Vertex + vec3(Half);
+
+					SDFNode* Subtree = Evaluator->Clip(Vertex, Diagonal);
+					if (!Subtree)
+					{
+						continue;
+					}
+
 					vec3 Cursor = Vertex;
 					for (int r = 0; r < RefineIterations; ++r)
 					{
-						vec3 RayDir = Evaluator->Gradient(Cursor);
-						float Dist = Evaluator->Eval(Cursor) * -1.0;
+						vec3 RayDir = Subtree->Gradient(Cursor);
+						float Dist = Subtree->Eval(Cursor) * -1.0;
 						Cursor += RayDir * Dist;
 					}
+					delete Subtree;
 					Cursor = clamp(Cursor, Low, High);
+
 					if (distance(Cursor, Vertex) <= Diagonal)
 					{
 						// TODO: despite the above clamp, some times the Cursor will end up on 0,0,0 when it would be
