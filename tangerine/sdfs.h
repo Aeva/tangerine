@@ -42,18 +42,3 @@ struct SDFNode
 
 	virtual ~SDFNode() {};
 };
-
-
-void MeshExport(SDFNode* Evaluator, glm::vec3 ModelMin, glm::vec3 ModelMax, glm::vec3 Step, int RefineIterations);
-void CancelExport(bool Halt);
-
-
-struct ExportProgress
-{
-	int Stage;
-	float Generation;
-	float Refinement;
-	float Write;
-};
-
-ExportProgress GetExportProgress();

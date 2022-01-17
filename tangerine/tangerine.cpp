@@ -23,6 +23,7 @@
 #include <imgui_impl_opengl3.h>
 
 #include "sdfs.h"
+#include "export.h"
 
 #include <iostream>
 #include <cstring>
