@@ -78,32 +78,33 @@ using SetMixin = std::function<float(float, float)>;
 // functions, to be constructed indirectly from Racket.
 
 
-struct BrushNode : public SDFNode
+struct TransformNode : public SDFNode
 {
-	BrushMixin BrushFn;
-	TransformMixin* Transform;
+	TransformMixin TransformFn;
+	SDFNode* Child;
 
-	BrushNode(BrushMixin& InBrushFn, void* InTransform)
-		: BrushFn(InBrushFn)
-		, Transform((TransformMixin*)InTransform)
+	TransformNode(TransformMixin& InTransformFn, SDFNode* InChild)
+		: TransformFn(InTransformFn)
+		, Child(InChild)
 	{
+	}
+
+	virtual vec3 Transform(vec3 Point)
+	{
+		return Point;
 	}
 
 	virtual float Eval(vec3 Point)
 	{
-		return BrushFn((*Transform)(Point));
-	}
-
-	virtual SDFNode* Copy()
-	{
-		return new BrushNode(BrushFn, new TransformMixin(*Transform));
+		return Child->Eval(TransformFn(Point));
 	}
 
 	virtual SDFNode* Clip(vec3 Point, float Radius)
 	{
-		if (Eval(Point) <= Radius)
+		SDFNode* NewChild = Child->Clip(TransformFn(Point), Radius);
+		if (NewChild)
 		{
-			return Copy();
+			return new TransformNode(TransformFn, NewChild);
 		}
 		else
 		{
@@ -111,9 +112,37 @@ struct BrushNode : public SDFNode
 		}
 	}
 
-	virtual ~BrushNode()
+	virtual ~TransformNode()
 	{
-		delete Transform;
+		delete Child;
+	}
+};
+
+
+struct BrushNode : public SDFNode
+{
+	BrushMixin BrushFn;
+
+	BrushNode(BrushMixin& InBrushFn)
+		: BrushFn(InBrushFn)
+	{
+	}
+
+	virtual float Eval(vec3 Point)
+	{
+		return BrushFn(Point);
+	}
+
+	virtual SDFNode* Clip(vec3 Point, float Radius)
+	{
+		if (Eval(Point) <= Radius)
+		{
+			return new BrushNode(BrushFn);
+		}
+		else
+		{
+			return nullptr;
+		}
 	}
 };
 
@@ -148,13 +177,6 @@ struct SetNode : public SDFNode
 			LHS->Eval(Point),
 			RHS->Eval(Point));
 	}
-
-
-	virtual SDFNode* Copy()
-	{
-		return new SetNode<Family, BlendMode>(SetFn, LHS->Copy(), RHS->Copy());
-	}
-
 
 	virtual SDFNode* Clip(vec3 Point, float Radius)
 	{
@@ -260,21 +282,26 @@ extern "C" TANGERINE_API void* MakeIdentity()
 		});
 }
 
-extern "C" TANGERINE_API void* MakeTranslation(float X, float Y, float Z)
+
+extern "C" TANGERINE_API void* MakeTranslation(float X, float Y, float Z, void* Child)
 {
 	vec3 Offset(X, Y, Z);
-	return new TransformMixin(
+	TransformMixin Eval = TransformMixin(
 		[=](vec3 Point) -> vec3
 		{
 			return Point - Offset;
 		});
+
+	return new TransformNode(Eval, (SDFNode*)Child);
 }
+
 
 extern "C" TANGERINE_API void* MakeMatrixTransform(
 	float X1, float Y1, float Z1, float W1,
 	float X2, float Y2, float Z2, float W2,
 	float X3, float Y3, float Z3, float W3,
-	float X4, float Y4, float Z4, float W4)
+	float X4, float Y4, float Z4, float W4,
+	void* Child)
 {
 	mat4 Matrix(
 		X1, Y1, Z1, W1,
@@ -282,45 +309,47 @@ extern "C" TANGERINE_API void* MakeMatrixTransform(
 		X3, Y3, Z3, W3,
 		X4, Y4, Z4, W4);
 
-	return new TransformMixin(
+	TransformMixin Eval = TransformMixin(
 		[=](vec3 Point) -> vec3
 		{
 			vec4 Tmp = Matrix * vec4(Point, 1.0);
 			return Tmp.xyz / Tmp.www;
 		});
+
+	return new TransformNode(Eval, (SDFNode*)Child);
 }
 
 
 // The following functions construct Brush nodes.
-extern "C" TANGERINE_API void* MakeSphereBrush(void* Transform, float Radius)
+extern "C" TANGERINE_API void* MakeSphereBrush(float Radius)
 {
 	BrushMixin Eval = std::bind(SDF::SphereBrush, _1, Radius);
-	return new BrushNode(Eval, Transform);
+	return new BrushNode(Eval);
 }
 
-extern "C" TANGERINE_API void* MakeEllipsoidBrush(void* Transform, float RadipodeX, float RadipodeY, float RadipodeZ)
+extern "C" TANGERINE_API void* MakeEllipsoidBrush(float RadipodeX, float RadipodeY, float RadipodeZ)
 {
 	BrushMixin Eval = std::bind(SDF::EllipsoidBrush, _1, vec3(RadipodeX, RadipodeY, RadipodeZ));
-	return new BrushNode(Eval, Transform);
+	return new BrushNode(Eval);
 }
 
-extern "C" TANGERINE_API void* MakeBoxBrush(void* Transform, float ExtentX, float ExtentY, float ExtentZ)
+extern "C" TANGERINE_API void* MakeBoxBrush(float ExtentX, float ExtentY, float ExtentZ)
 {
 	BrushMixin Eval = std::bind(SDF::BoxBrush, _1, vec3(ExtentX, ExtentY, ExtentZ));
-	return new BrushNode(Eval, Transform);
+	return new BrushNode(Eval);
 }
 
-extern "C" TANGERINE_API void* MakeTorusBrush(void* Transform, float MajorRadius, float MinorRadius)
+extern "C" TANGERINE_API void* MakeTorusBrush(float MajorRadius, float MinorRadius)
 {
 	float Radius = MajorRadius + MinorRadius;
 	BrushMixin Eval = std::bind(SDF::TorusBrush, _1, MajorRadius, MinorRadius);
-	return new BrushNode(Eval, Transform);
+	return new BrushNode(Eval);
 }
 
-extern "C" TANGERINE_API void* MakeCylinderBrush(void* Transform, float Radius, float Extent)
+extern "C" TANGERINE_API void* MakeCylinderBrush(float Radius, float Extent)
 {
 	BrushMixin Eval = std::bind(SDF::CylinderBrush, _1, Radius, Extent);
-	return new BrushNode(Eval, Transform);
+	return new BrushNode(Eval);
 }
 
 

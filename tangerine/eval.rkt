@@ -23,7 +23,6 @@
          sdf-build
          sdf-free
          sdf-eval
-         sdf-binding-test
          SetTreeEvaluator)
 
 
@@ -35,19 +34,19 @@
 (define-backend EvalTree (_fun _HANDLE _float _float _float -> _void))
 (define-backend DiscardTree (_fun _HANDLE -> _void))
 
-(define-backend MakeIdentity (_fun -> _HANDLE))
-(define-backend MakeTranslation (_fun _float _float _float -> _HANDLE))
+(define-backend MakeTranslation (_fun _float _float _float _HANDLE -> _HANDLE))
 (define-backend MakeMatrixTransform (_fun _float _float _float _float
                                           _float _float _float _float
                                           _float _float _float _float
                                           _float _float _float _float
+                                          _HANDLE
                                           -> _HANDLE))
 
-(define-backend MakeSphereBrush (_fun _HANDLE _float -> _HANDLE))
-(define-backend MakeEllipsoidBrush (_fun _HANDLE _float _float _float -> _HANDLE))
-(define-backend MakeBoxBrush (_fun _HANDLE _float _float _float -> _HANDLE))
-(define-backend MakeTorusBrush (_fun _HANDLE _float _float -> _HANDLE))
-(define-backend MakeCylinderBrush (_fun _HANDLE _float _float -> _HANDLE))
+(define-backend MakeSphereBrush (_fun _float -> _HANDLE))
+(define-backend MakeEllipsoidBrush (_fun _float _float _float -> _HANDLE))
+(define-backend MakeBoxBrush (_fun _float _float _float -> _HANDLE))
+(define-backend MakeTorusBrush (_fun _float _float -> _HANDLE))
+(define-backend MakeCylinderBrush (_fun _float _float -> _HANDLE))
 
 (define-backend MakeUnionOp (_fun _HANDLE _HANDLE -> _HANDLE))
 (define-backend MakeDiffOp (_fun _HANDLE _HANDLE -> _HANDLE))
@@ -59,80 +58,74 @@
 
 
 ; Dispatch SDF creation functions from CSGST expressions.
-(define (translate csgst [transform null])
+(define (translate csgst)
   (unless (csg? csgst)
     (error "Expected CSGST expression."))
 
-  (cond
-    [(eq? (car csgst) 'move)
+  (case (car csgst)
+    [(move)
      (let-values ([(offset-x offset-y offset-z subtree) (splat (cdr csgst))])
-       (translate subtree (MakeTranslation offset-x offset-y offset-z)))]
+       (MakeTranslation offset-x offset-y offset-z (translate subtree)))]
 
-    [(eq? (car csgst) 'mat4)
+    [(mat4)
      (let-values ([(matrix subtree) (splat (cdr csgst))])
-       (translate subtree (apply MakeMatrixTransform (flatten matrix))))]
+       (apply MakeMatrixTransform (append (flatten matrix) (list (translate subtree)))))]
 
-    [(and (brush? csgst) (null? transform))
-     (translate csgst (MakeIdentity))]
+    [(paint)
+     (translate (caddr csgst))]
 
-    [else
-     (case (car csgst)
+    [(sphere)
+     (let ([radius (cadr csgst)])
+       (MakeSphereBrush radius))]
 
-       [(paint)
-        (translate (caddr csgst) transform)]
+    [(ellipsoid)
+     (let-values ([(radipode-x radipode-y radipode-z) (splat (cdr csgst))])
+       (apply MakeEllipsoidBrush (list radipode-x radipode-y radipode-z)))]
 
-       [(sphere)
-        (let ([radius (cadr csgst)])
-          (MakeSphereBrush transform radius))]
+    [(box)
+     (let-values ([(extent-x extent-y extent-z) (splat (cdr csgst))])
+       (apply MakeBoxBrush (list extent-x extent-y extent-z)))]
 
-       [(ellipsoid)
-        (let-values ([(radipode-x radipode-y radipode-z) (splat (cdr csgst))])
-          (apply MakeEllipsoidBrush (list transform radipode-x radipode-y radipode-z)))]
+    [(torus)
+     (let-values ([(major-radius minor-radius) (splat (cdr csgst))])
+       (MakeTorusBrush major-radius minor-radius))]
 
-       [(box)
-        (let-values ([(extent-x extent-y extent-z) (splat (cdr csgst))])
-          (apply MakeBoxBrush (list transform extent-x extent-y extent-z)))]
+    [(cylinder)
+     (let-values ([(radius extent) (splat (cdr csgst))])
+       (MakeCylinderBrush radius extent))]
 
-       [(torus)
-        (let-values ([(major-radius minor-radius) (splat (cdr csgst))])
-          (MakeTorusBrush transform major-radius minor-radius))]
+    [(union)
+     (let ([lhs (translate (cadr csgst))]
+           [rhs (translate (caddr csgst))])
+       (MakeUnionOp lhs rhs))]
 
-       [(cylinder)
-        (let-values ([(radius extent) (splat (cdr csgst))])
-          (MakeCylinderBrush transform radius extent))]
+    [(diff)
+     (let ([lhs (translate (cadr csgst))]
+           [rhs (translate (caddr csgst))])
+       (MakeDiffOp lhs rhs))]
 
-       [(union)
-        (let ([lhs (translate (cadr csgst))]
-              [rhs (translate (caddr csgst))])
-          (MakeUnionOp lhs rhs))]
+    [(inter)
+     (let ([lhs (translate (cadr csgst))]
+           [rhs (translate (caddr csgst))])
+       (MakeInterOp lhs rhs))]
 
-       [(diff)
-        (let ([lhs (translate (cadr csgst))]
-              [rhs (translate (caddr csgst))])
-          (MakeDiffOp lhs rhs))]
+    [(blend-union)
+     (let ([threshold (cadr csgst)]
+           [lhs (translate (caddr csgst))]
+           [rhs (translate (cadddr csgst))])
+       (MakeBlendUnionOp threshold lhs rhs))]
 
-       [(inter)
-        (let ([lhs (translate (cadr csgst))]
-              [rhs (translate (caddr csgst))])
-          (MakeInterOp lhs rhs))]
+    [(blend-diff)
+     (let ([threshold (cadr csgst)]
+           [lhs (translate (caddr csgst))]
+           [rhs (translate (cadddr csgst))])
+       (MakeBlendDiffOp threshold lhs rhs))]
 
-       [(blend-union)
-        (let ([threshold (cadr csgst)]
-              [lhs (translate (caddr csgst))]
-              [rhs (translate (cadddr csgst))])
-          (MakeBlendUnionOp threshold lhs rhs))]
-
-       [(blend-diff)
-        (let ([threshold (cadr csgst)]
-              [lhs (translate (caddr csgst))]
-              [rhs (translate (cadddr csgst))])
-          (MakeBlendDiffOp threshold lhs rhs))]
-
-       [(blend-inter)
-        (let ([threshold (cadr csgst)]
-              [lhs (translate (caddr csgst))]
-              [rhs (translate (cadddr csgst))])
-          (MakeBlendInterOp threshold lhs rhs))])]))
+    [(blend-inter)
+     (let ([threshold (cadr csgst)]
+           [lhs (translate (caddr csgst))]
+           [rhs (translate (cadddr csgst))])
+       (MakeBlendInterOp threshold lhs rhs))]))
 
 
 ; Returns #t if the s-expression wraps a SDF evaluation tree handle.
@@ -171,10 +164,3 @@
   (unless (sdf-handle-is-valid? handle)
     (error "Expected valid SDF handle."))
   (EvalTree (cdr handle) x y z))
-
-
-(define (sdf-binding-test)
-  (let* ([tree (MakeSphereBrush (MakeIdentity) 1.0)]
-         [dist (EvalTree tree 0. 0. 0.)])
-    (DiscardTree tree)
-    dist))

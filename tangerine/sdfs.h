@@ -36,8 +36,6 @@ struct SDFNode
 {
 	virtual float Eval(glm::vec3 Point) = 0;
 
-	virtual SDFNode* Copy() = 0;
-
 	virtual SDFNode* Clip(glm::vec3 Point, float Radius) = 0;
 
 	glm::vec3 Gradient(glm::vec3 Point);
