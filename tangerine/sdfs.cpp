@@ -23,6 +23,8 @@
 #include <mutex>
 #include <thread>
 #include <string>
+#include <chezscheme.h>
+#include <racketcs.h>
 #include <nfd.h>
 #include "sdfs.h"
 
@@ -87,11 +89,6 @@ struct TransformNode : public SDFNode
 		: TransformFn(InTransformFn)
 		, Child(InChild)
 	{
-	}
-
-	virtual vec3 Transform(vec3 Point)
-	{
-		return Point;
 	}
 
 	virtual float Eval(vec3 Point)
@@ -272,17 +269,7 @@ extern "C" TANGERINE_API void DiscardTree(void* Handle)
 }
 
 
-// The following functions provide transform constructors to be used by brush nodes.
-extern "C" TANGERINE_API void* MakeIdentity()
-{
-	return new TransformMixin(
-		[](vec3 Point) -> vec3
-		{
-			return Point;
-		});
-}
-
-
+// The following functions construct transform nodes.
 extern "C" TANGERINE_API void* MakeTranslation(float X, float Y, float Z, void* Child)
 {
 	vec3 Offset(X, Y, Z);
