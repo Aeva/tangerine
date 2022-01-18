@@ -56,8 +56,7 @@
 (define-backend EmitShader (_fun _string/utf-8 _string/utf-8 _string/utf-8 -> _size))
 (define-backend EmitSubtree (_fun _size [_size = (length params)] [params : (_list i _float)] -> _void))
 (define-backend EmitSection (_fun (_list i _float) (_list i _float) (_list i _float) -> _void))
-(define-backend SetLimitsCallback (_fun _float _float _float _float _float _float -> _void)
-  #:make-fail (lambda (missing-no) (lambda () (lambda (min-x min-y min-z max-x max-y max-z) (void)))))
+(define-backend SetLimitsCallback (_fun _float _float _float _float _float _float -> _void))
 (define-backend RacketErrorCallback (_fun _string/utf-8 -> _void))
 
 
@@ -167,63 +166,90 @@
           [else (~a csgst)])))
 
 
+; This function compiles a CSG tree into a set of partial GLSL sources and
+; related parameter data, which is to be later used by tangerine to compose
+; shaders and parameter buffers.  Model files should define a function called
+; "emit-glsl", which calls this function and returns the results without
+; modification.  This allows for checking the validity of the model offline
+; without running tangerine.
 (define (compile csgst)
-  (let*-values ([(coalesced-tree) (coalesce csgst)]
-                [(limits parts) (segments coalesced-tree)]
-                [(parts) (drawables parts)])
-    (let ([handle (sdf-build coalesced-tree)])
-      (when (sdf-handle-is-valid? handle)
-        (SetTreeEvaluator (cdr handle))))
-    (apply SetLimitsCallback limits)
-    (for/list ([part (in-list parts)]
-               [subtree-index (in-range (length parts))])
-      (let* ([subtree (car part)]
-             [params (cadr part)]
-             [bounds (caddr part)])
-        (append
-         (list
-          subtree
-          params
-          (string-join
-           (flatten
-            (list
-             "layout(std430, binding = 0)"
-             "restrict readonly buffer SubtreeParameterBlock"
-             "{"
-             "\tfloat PARAMS[];"
-             "};\n"
-             @~a{const uint SubtreeIndex = @subtree-index;}
-             "MaterialDist ClusterDist(vec3 Point)"
-             "{"
-             (~a "\treturn TreeRoot(" (eval-dist subtree) ");")
-             "}\n"))
-           "\n"))
-         (for/list ([bound (in-list bounds)])
-           (let* ([low (car bound)]
-                  [high (cdr bound)]
-                  [extent (vec* 0.5 (vec- high low))]
-                  [center (vec+ low extent)])
-             (cons extent center))))))))
+  (let*-values
+      (; Perform transform folding
+       [(coalesced-tree) (coalesce csgst)]
+
+       ; Find the model boundaries, and bounded subtrees
+       [(limits parts) (segments coalesced-tree)]
+
+       ; Create an evaluator for the model.
+       [(evaluator) (sdf-build coalesced-tree)]
+
+       ; Convert the bounded subtrees into bounded subtrees with extracted
+       ; parameters.  Each "part" is in the form (list subtree params bounds).
+       [(parts) (drawables parts)])
+
+    ; Generate GLSL functions and instancing data for each shader to compile.
+    ; This will be processed further by "renderer-load-and-process-model".
+    (values
+     limits
+     evaluator
+     (for/list ([part (in-list parts)]
+                [subtree-index (in-range (length parts))])
+       (let* ([subtree (car part)]
+              [params (cadr part)]
+              [bounds (caddr part)])
+         (append
+          (list
+           subtree
+           params
+           (string-join
+            (flatten
+             (list
+              "layout(std430, binding = 0)"
+              "restrict readonly buffer SubtreeParameterBlock"
+              "{"
+              "\tfloat PARAMS[];"
+              "};\n"
+              @~a{const uint SubtreeIndex = @subtree-index;}
+              "MaterialDist ClusterDist(vec3 Point)"
+              "{"
+              (~a "\treturn TreeRoot(" (eval-dist subtree) ");")
+              "}\n"))
+            "\n"))
+          (for/list ([bound (in-list bounds)])
+            (let* ([low (car bound)]
+                   [high (cdr bound)]
+                   [extent (vec* 0.5 (vec- high low))]
+                   [center (vec+ low extent)])
+              (cons extent center)))))))))
 
 
-;(genericize (coalesce (move-x 10 (diff (cube 1) (sphere 1.4)))))
-;(let-values ([(limits parts) (segments (coalesce (move 1 2 3 (diff (cube 1) (sphere 1.4)))))])
-;            (drawables parts))
-;(compile (rotate-z 45 (box 1 2 3)))
-
-
+; This is called by the tangerine application to invoke the shape compiler for
+; a given model source, and pass the results into the renderer.  The generated
+; GLSL will be combined with additional GLSL sources there and passed off to
+; OpenGL's GLSL compiler.  If all goes well, the resulting shader object will
+; be used to render the model.
 (define (renderer-load-and-process-model path-str)
   (with-handlers ([exn:fail? (λ (err) (RacketErrorCallback (exn->string err)))])
     (let ([path (string->path path-str)])
       (dynamic-rerequire path)
-      (let ([clusters ((dynamic-require path 'emit-glsl))])
+      (let*-values ([(compiler) (dynamic-require path 'emit-glsl)]
+                    [(limits evaluator clusters) (compiler)])
+
+        ; Set the model bounds used by the renderer.
+        (apply SetLimitsCallback limits)
+
+        ; Set the model evaluator to be used by the STL exporter.
+        (when (sdf-handle-is-valid? evaluator)
+          (SetTreeEvaluator (cdr evaluator)))
+
+        ; Emit shaders for the renderer to finish compiling, and instance
+        ; data for the renderer to draw.
         (for ([cluster (in-list clusters)])
-          (let* ([tree (~a (car cluster))]
-                 [pretty (pretty-print (car cluster))]
+          (let* ([tree (car cluster)]
                  [params (cadr cluster)]
                  [dist (caddr cluster)]
                  [aabbs (cdddr cluster)]
-                 [index (EmitShader tree pretty dist)]
+                 [index (EmitShader (~a tree) (pretty-print tree) dist)]
                  [matrix (flatten (mat4-identity))])
             (EmitSubtree index params)
             (for ([aabb (in-list aabbs)])
