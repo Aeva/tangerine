@@ -228,4 +228,5 @@
             (EmitSubtree index params)
             (for ([aabb (in-list aabbs)])
               (EmitSection (car aabb) (cdr aabb) matrix)))))))
+  (collect-garbage)
   (void))

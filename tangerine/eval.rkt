@@ -29,7 +29,7 @@
 
 
 (define-ffi-definer define-backend (ffi-lib #f) #:default-make-fail make-not-available)
-(define _HANDLE (_cpointer 'void))
+(define _HANDLE (_cpointer/null 'void))
 
 (define-backend SetTreeEvaluator (_fun _HANDLE -> _void))
 
@@ -163,6 +163,23 @@
   (void))
 
 
+; Executor for lazy deletion of SDF trees created by sdf-clip.
+(define sdf-executor (make-will-executor))
+(void
+ (thread
+       (λ ()
+         (let loop ()
+           (will-execute sdf-executor)
+           (loop)))))
+
+
+; Register a SDF tree for lazy deletion.
+(define (lazy-sdf-free handle)
+  (when (sdf-handle-is-valid? handle)
+    (will-register sdf-executor handle (λ (handle) (DiscardTree (cdr handle)))))
+  (void))
+
+
 ; Evaluate the SDF tree for a given point.  If the handle is null, then this will throw an error.
 (define (sdf-eval handle x y z)
   (unless (sdf-handle-is-valid? handle)
@@ -171,12 +188,15 @@
 
 
 ; Evaluate the SDF tree for a given point and radius to produce a new SDF tree containing only
-; nodes which can contribute to the specified region.  This must be manually freed by the Racket
-; library independently of the original tree.
+; nodes which can contribute to the specified region.  If an invalid tree was returned, then
+; no SDF nodes could contribute to the specified region.
 (define (sdf-clip handle x y z radius)
   (unless (sdf-handle-is-valid? handle)
     (error "Expected valid SDF handle."))
-  (ClipTree (cdr handle) x y z radius))
+  (let* ([clip-ptr (ClipTree (cdr handle) x y z radius)]
+         [new-handle (cons 'sdf-handle (or clip-ptr null))])
+    (lazy-sdf-free new-handle)
+    new-handle))
 
 
 ; Returns a csgst expression for the given executable SDF tree handle.
