@@ -1,4 +1,4 @@
-#lang at-exp racket/base
+#lang racket/base
 
 ; Copyright 2021 Aeva Palecek
 ;
@@ -58,11 +58,6 @@
 (define-backend EmitSection (_fun (_list i _float) (_list i _float) (_list i _float) -> _void))
 (define-backend SetLimitsCallback (_fun _float _float _float _float _float _float -> _void))
 (define-backend RacketErrorCallback (_fun _string/utf-8 -> _void))
-
-
-(define (glsl-vec3 vec)
-  (let-values ([(x y z) (apply values vec)])
-    @~a{vec3(@x, @y, @z)}))
 
 
 (define (splat args)
@@ -196,25 +191,13 @@
                 [subtree-index (in-range (length parts))])
        (let* ([subtree (car part)]
               [params (cadr part)]
-              [bounds (caddr part)])
+              [bounds (caddr part)]
+              [glsl (generate-glsl subtree subtree-index)])
          (append
           (list
            subtree
            params
-           (string-join
-            (flatten
-             (list
-              "layout(std430, binding = 0)"
-              "restrict readonly buffer SubtreeParameterBlock"
-              "{"
-              "\tfloat PARAMS[];"
-              "};\n"
-              @~a{const uint SubtreeIndex = @subtree-index;}
-              "MaterialDist ClusterDist(vec3 Point)"
-              "{"
-              (~a "\treturn TreeRoot(" (eval-dist subtree) ");")
-              "}\n"))
-            "\n"))
+           glsl)
           (for/list ([bound (in-list bounds)])
             (let* ([low (car bound)]
                    [high (cdr bound)]

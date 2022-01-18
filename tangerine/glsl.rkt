@@ -20,7 +20,7 @@
 (require "vec.rkt")
 
 
-(provide eval-dist)
+(provide generate-glsl)
 
 
 (define (splat args)
@@ -33,7 +33,7 @@
 
 (define (params n offset)
   (for/list ([i (in-range n)])
-     (param (+ i offset))))
+    (param (+ i offset))))
 
 
 (define (params-str n offset)
@@ -113,3 +113,21 @@
          @~a{MaterialDist(@material, @child)})]
 
       [else (error "Unknown CSGST node:" csgst)])))
+
+
+; Convert a CSG tree into an equivalent GLSL definition.
+(define (generate-glsl csgst subtree-index)
+  (string-join
+   (flatten
+    (list
+     "layout(std430, binding = 0)"
+     "restrict readonly buffer SubtreeParameterBlock"
+     "{"
+     "\tfloat PARAMS[];"
+     "};\n"
+     @~a{const uint SubtreeIndex = @subtree-index;}
+     "MaterialDist ClusterDist(vec3 Point)"
+     "{"
+     (~a "\treturn TreeRoot(" (eval-dist csgst) ");")
+     "}\n"))
+   "\n"))
