@@ -61,8 +61,7 @@
        (null? (cdr params)))
       (for/list ([i (in-range size)])
         (car params))
-      (let ([out null]
-            [params (append (flatten params) (list 0. 0. 0. 0.))])
+      (let ([params (append (flatten params) (list 0. 0. 0. 0.))])
         (take params size))))
 
 
