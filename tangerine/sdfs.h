@@ -38,6 +38,8 @@ struct SDFNode
 
 	virtual SDFNode* Clip(glm::vec3 Point, float Radius) = 0;
 
+	virtual void* Quote() = 0;
+
 	glm::vec3 Gradient(glm::vec3 Point);
 
 	virtual ~SDFNode() {};

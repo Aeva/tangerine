@@ -5,6 +5,7 @@ Scons
 Sstring_to_symbol
 Sstring
 Snil
+Sflonum
 racket_dynamic_require
 racket_embedded_load_bytes
 racket_embedded_load_file

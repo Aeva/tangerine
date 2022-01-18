@@ -143,9 +143,6 @@
     <None Include="..\regen.bat">
       <Filter>Racket Stuff</Filter>
     </None>
-    <None Include="..\third_party\racket\lib\libracketcs_d9hn5s.def">
-      <Filter>Racket Stuff</Filter>
-    </None>
     <None Include="..\shaders\bg.fs.glsl">
       <Filter>Shaders</Filter>
     </None>
@@ -184,6 +181,9 @@
     </None>
     <None Include="..\materials\gray.glsl">
       <Filter>Materials</Filter>
+    </None>
+    <None Include="..\third_party\racket\lib\libracketcs_da32rk.def">
+      <Filter>Racket Stuff</Filter>
     </None>
   </ItemGroup>
   <ItemGroup>

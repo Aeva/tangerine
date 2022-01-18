@@ -23,6 +23,8 @@
          sdf-build
          sdf-free
          sdf-eval
+         sdf-clip
+         sdf-quote
          SetTreeEvaluator)
 
 
@@ -32,6 +34,8 @@
 (define-backend SetTreeEvaluator (_fun _HANDLE -> _void))
 
 (define-backend EvalTree (_fun _HANDLE _float _float _float -> _void))
+(define-backend ClipTree (_fun _HANDLE _float _float _float _float -> _HANDLE))
+(define-backend QuoteTree (_fun _HANDLE -> _scheme))
 (define-backend DiscardTree (_fun _HANDLE -> _void))
 
 (define-backend MakeTranslation (_fun _float _float _float _HANDLE -> _HANDLE))
@@ -164,3 +168,19 @@
   (unless (sdf-handle-is-valid? handle)
     (error "Expected valid SDF handle."))
   (EvalTree (cdr handle) x y z))
+
+
+; Evaluate the SDF tree for a given point and radius to produce a new SDF tree containing only
+; nodes which can contribute to the specified region.  This must be manually freed by the Racket
+; library independently of the original tree.
+(define (sdf-clip handle x y z radius)
+  (unless (sdf-handle-is-valid? handle)
+    (error "Expected valid SDF handle."))
+  (ClipTree (cdr handle) x y z radius))
+
+
+; Returns a csgst expression for the given executable SDF tree handle.
+(define (sdf-quote handle)
+  (unless (sdf-handle-is-valid? handle)
+    (error "Expected valid SDF handle."))
+  (QuoteTree (cdr handle)))
