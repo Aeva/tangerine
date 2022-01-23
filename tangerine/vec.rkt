@@ -33,9 +33,13 @@
          vec-
          vec*
          vec/
+         vec/↑
          vec=
          vec-min
          vec-max
+         vec-floor
+         vec-ceil
+         vec-round
          vec-len
          normalize
          distance
@@ -167,6 +171,10 @@
 (define vec/ (vec-op /))
 
 
+; Divide and round up.
+(define vec/↑ (vec-op (lambda (n d) (ceiling (/ n d)))))
+
+
 (define (vec= lhs rhs)
   (and
    (= (length lhs) (length rhs))
@@ -179,6 +187,18 @@
 
 
 (define vec-max (vec-op max))
+
+
+(define (vec-floor vec)
+  (map floor vec))
+
+
+(define (vec-ceil vec)
+  (map ceiling vec))
+
+
+(define (vec-round vec)
+  (map round vec))
 
 
 (define (dot lhs rhs)

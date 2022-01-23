@@ -4,7 +4,7 @@
 (require racket/string)
 (require racket/format)
 (require "csgst.rkt")
-(require "bounds.rkt")
+(require "bounds-compiler.rkt")
 (require "vec.rkt")
 
 

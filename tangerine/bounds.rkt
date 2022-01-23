@@ -23,6 +23,7 @@
 
 
 (provide segments
+         extract-subtrees
          simple-bounds)
 
 
@@ -402,14 +403,15 @@
            (filter aabb-valid?
                    (tree-aabb csg-tree)))]
          [subtrees (extract-subtrees bounds)])
-    (values (find-model-limits bounds)
+    (values
+     (find-model-limits bounds)
      (for/list ([subtree (in-list subtrees)])
        (cons subtree
              (remove-duplicates
               (for/list ([aabb (in-list bounds)]
                          #:when (equal? (caddr aabb) subtree))
                 (cons (car aabb)
-                        (cadr aabb)))))))))
+                      (cadr aabb)))))))))
 
 
 ; Determines the bounding box for the entire graph without performing splitting.
