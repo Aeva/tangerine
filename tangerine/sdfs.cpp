@@ -308,7 +308,17 @@ extern "C" TANGERINE_API float EvalTree(void* Handle, float X, float Y, float Z)
 // original SDF tree.
 extern "C" TANGERINE_API void* ClipTree(void* Handle, float X, float Y, float Z, float Radius)
 {
-	return ((SDFNode*)Handle)->Clip(vec3(X, Y, Z), Radius);
+	vec3 Point = vec3(X, Y, Z);
+	SDFNode* Clipped = ((SDFNode*)Handle)->Clip(Point, Radius);
+	if (Clipped && abs(Clipped->Eval(Point)) > Radius)
+	{
+		delete Clipped;
+		return nullptr;
+	}
+	else
+	{
+		return Clipped;
+	}
 }
 
 // Return the csgst representation of a SDF tree.
