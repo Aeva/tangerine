@@ -127,6 +127,18 @@
   (if (>= n 0) 1.0 -1.0))
 
 
+; Accumulate a stack of unions.
+(define (accumulate thing stack)
+  (if (null? stack)
+      thing
+      (union thing stack)))
+
+
+; Needed for now to make cut aways look right w/ materials.
+(define (embed substrate inlay)
+  (union (diff substrate inlay) inlay))
+
+
 ; Generate a brick wall along a path.
 (define (brick-walk height start stop . etc)
   (define (find-strokes start stop . corners)
@@ -142,6 +154,8 @@
   (define controls (cons start (cons stop etc)))
   (define strokes (apply find-strokes controls))
   (define cursor start)
+  (define bricks null)
+  (define cement null)
   (define masonry null)
   (define t 0)
 
@@ -163,16 +177,18 @@
                [m-adjust (* (+ (* brick-height .5) (* mortar -.5)) dir -1)]
                [m-height (- brick-height mortar)]
                [m-depth (- (* raise height) (* mortar 1.5))])
-          (set! masonry
-                (cons
+          (set! bricks
+                (accumulate
+                 (move* cursor (repeat-h dir run height (even? t)))
+                 bricks))
+          (set! cement
+                (accumulate
                  (move* cursor
-                        (union
-                         (repeat-h dir run height (even? t))
                          (move-x m-adjust
                                  (paint 3
                                         (align (* -1 dir) 0 -1
-                                               (box m-width m-height m-depth))))))
-                 masonry))
+                                               (box m-width m-height m-depth)))))
+                 cement))
           (set! t (+ t run))
           (set! cursor (vec+ cursor (vec2 dx 0)))))
 
@@ -184,27 +200,29 @@
                [m-adjust (* (+ (* brick-height .5) (* mortar -.5)) dir -1)]
                [m-width (- brick-height mortar)]
                [m-depth (- (* raise height) (* mortar 1.5))])
-          (set! masonry
-                (cons
+          (set! bricks
+                (accumulate
+                 (move* cursor (repeat-v (sign dy) (abs dy) height (even? t)))
+                 bricks))
+          (set! cement
+                (accumulate
                  (move* cursor
-                        (union
-                         (repeat-v (sign dy) (abs dy) height (even? t))
                          (move-y m-adjust
                                  (paint 3
                                         (align 0 (* -1 dir) -1
-                                               (box m-width m-height m-depth))))))
-                 masonry))
+                                               (box m-width m-height m-depth)))))
+                 cement))
           (set! t (+ t (abs dy)))
           (set! cursor (vec+ cursor (vec2 0 dy)))))))
   (let ([final (if (null? etc)
                    stop
                    (last etc))])
     (when (not (vec= start final))
-      (set! masonry
-            (cons
+      (set! bricks
+            (accumulate
              (move* start (stack-c height))
-             (cons
+             (accumulate
               (move* final (stack-c height (even? (- t 1))))
-              masonry)))))
+              bricks)))))
 
-  (if ((length masonry) . > . 1) (apply union masonry) masonry))
+  (embed cement bricks))
