@@ -11,6 +11,7 @@ def opengl_params(debug):
         "GL_ARB_debug_output",
         "GL_ARB_direct_state_access",
         "GL_ARB_gpu_shader5",
+        "GL_ARB_parallel_shader_compile",
         "GL_ARB_program_interface_query",
         "GL_ARB_shader_image_load_store",
         "GL_ARB_shader_storage_buffer_object",

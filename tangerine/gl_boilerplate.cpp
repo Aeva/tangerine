@@ -246,27 +246,39 @@ const std::string GetShaderExtensions(GLenum ShaderType)
 }
 
 
-StatusCode CompileShader(GLenum ShaderType, const ShaderSource& Source, GLuint& ProgramID)
+ShaderCompileJob::ShaderCompileJob(GLenum InShaderType, const ShaderSource& Source)
+	: ShaderType(InShaderType)
 {
 	const std::string Extensions = GetShaderExtensions(ShaderType);
-
-	std::vector<std::string> Sources;
-	std::vector<std::string> BreadCrumbs;
-	std::vector<std::string> Index;
 	Sources.push_back(Extensions);
 	Index.push_back("(generated block)");
 
-	RouteSource(BreadCrumbs, Index, Sources, Source);
+	{
+		std::vector<std::string> BreadCrumbs;
+		RouteSource(BreadCrumbs, Index, Sources, Source);
+	}
 
-	const GLsizei Count = (GLsizei)Sources.size();
+	StringCount = (GLsizei)Sources.size();
 	std::vector<const char*> Strings;
-	Strings.reserve(Count);
-	for (int i = 0; i < Count; ++i)
+	Strings.reserve(StringCount);
+	for (int i = 0; i < StringCount; ++i)
 	{
 		Strings.push_back(Sources[i].c_str());
 	}
-	ProgramID = glCreateShaderProgramv(ShaderType, Count, Strings.data());
+	ProgramID = glCreateShaderProgramv(ShaderType, StringCount, Strings.data());
+}
 
+
+bool ShaderCompileJob::WaitingForCompiler()
+{
+	GLint CompileStatus;
+	glGetProgramiv(ProgramID, GL_COMPLETION_STATUS_ARB, &CompileStatus);
+	return CompileStatus != GL_TRUE;
+}
+
+
+StatusCode ShaderCompileJob::FinishCompile()
+{
 	GLint LinkStatus;
 	glGetProgramiv(ProgramID, GL_LINK_STATUS, &LinkStatus);
 	if (!LinkStatus)
@@ -274,7 +286,7 @@ StatusCode CompileShader(GLenum ShaderType, const ShaderSource& Source, GLuint& 
 		std::string Error = GetInfoLog(ProgramID);
 		if (!Error.empty())
 		{
-			for (int i = 0; i < Count; ++i)
+			for (int i = 0; i < StringCount; ++i)
 			{
 				std::cout << Sources[i] << "\n";
 				std::cout << "################################################################\n";
@@ -290,6 +302,15 @@ StatusCode CompileShader(GLenum ShaderType, const ShaderSource& Source, GLuint& 
 		}
 	}
 	return StatusCode::PASS;
+}
+
+
+StatusCode CompileShader(GLenum ShaderType, const ShaderSource& Source, GLuint& ProgramID)
+{
+	ShaderCompileJob Job(ShaderType, Source);
+	StatusCode Status = Job.FinishCompile();
+	ProgramID = Job.ProgramID;
+	return Status;
 }
 
 
@@ -314,6 +335,68 @@ StatusCode ShaderPipeline::Setup(std::map<GLenum, ShaderSource> Shaders, const c
 		RETURN_ON_FAIL(CompileShader(Shader.first, Shader.second, Stages[Shader.first]));
 		glUseProgramStages(PipelineID, ShaderModeBit(Shader.first), Stages[Shader.first]);
 	}
+	glValidateProgramPipeline(PipelineID);
+	GLint ValidationStatus;
+	glGetProgramPipelineiv(PipelineID, GL_VALIDATE_STATUS, &ValidationStatus);
+	if (!ValidationStatus)
+	{
+		std::string Error = GetInfoLog(PipelineID);
+		std::cout << Error << "\n";
+		return StatusCode::FAIL;
+	}
+	return StatusCode::PASS;
+}
+
+
+void ShaderPipeline::AsyncSetup(std::map<GLenum, ShaderSource> Shaders, const char* PipelineName)
+{
+	glCreateProgramPipelines(1, &PipelineID);
+	glObjectLabel(GL_PROGRAM_PIPELINE, PipelineID, -1, PipelineName);
+	PendingJobs.reserve(Shaders.size());
+	for (const auto& Shader : Shaders)
+	{
+		PendingJobs.emplace_back(Shader.first, Shader.second);
+	}
+}
+
+
+bool ShaderPipeline::WaitingForCompiler()
+{
+	for (auto& Job : PendingJobs)
+	{
+		if (Job.WaitingForCompiler())
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
+
+StatusCode ShaderPipeline::FinishSetup()
+{
+	bool AnyFailed = false;
+
+	for (auto& Job : PendingJobs)
+	{
+		StatusCode JobStatus = Job.FinishCompile();
+		AnyFailed = AnyFailed || JobStatus == StatusCode::FAIL;
+	}
+
+	if (AnyFailed)
+	{
+		for (auto& Job : PendingJobs)
+		{
+			glDeleteProgram(Job.ProgramID);
+		}
+		return StatusCode::FAIL;
+	}
+
+	for (auto& Job : PendingJobs)
+	{
+		glUseProgramStages(PipelineID, ShaderModeBit(Job.ShaderType), Stages[Job.ShaderType]);
+	}
+
 	glValidateProgramPipeline(PipelineID);
 	GLint ValidationStatus;
 	glGetProgramPipelineiv(PipelineID, GL_VALIDATE_STATUS, &ValidationStatus);

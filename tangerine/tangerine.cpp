@@ -30,6 +30,7 @@
 #include <map>
 #include <vector>
 #include <chrono>
+#include <thread>
 
 #include <chezscheme.h>
 #include <racketcs.h>
@@ -42,6 +43,10 @@
 
 #define MINIMUM_VERSION_MAJOR 4
 #define MINIMUM_VERSION_MINOR 2
+
+#define ASYNC_SHADER_COMPILE 0
+
+using Clock = std::chrono::high_resolution_clock;
 
 
 struct SectionUpload
@@ -127,6 +132,35 @@ struct SubtreeShader
 		DistSource = InDistSource;
 		IsValid = false;
 	}
+
+	void StartAsyncSetup()
+	{
+		DepthShader.AsyncSetup(
+			{ {GL_VERTEX_SHADER, ShaderSource("shaders/cluster_draw.vs.glsl", true)},
+			  {GL_FRAGMENT_SHADER, GeneratedShader("shaders/math.glsl", DistSource, "shaders/cluster_draw.fs.glsl")} },
+			DebugName.c_str());
+	}
+
+	bool WaitingForCompiler()
+	{
+		return DepthShader.WaitingForCompiler();
+	}
+
+	StatusCode FinishAsyncSetup()
+	{
+		StatusCode Result = DepthShader.FinishSetup();
+
+		if (Result == StatusCode::FAIL)
+		{
+			DepthShader.Reset();
+			return Result;
+		}
+
+		glGenQueries(1, &DepthQuery);
+		IsValid = true;
+		return StatusCode::PASS;
+	}
+
 	StatusCode Compile()
 	{
 		StatusCode Result = DepthShader.Setup(
@@ -144,6 +178,7 @@ struct SubtreeShader
 		IsValid = true;
 		return StatusCode::PASS;
 	}
+
 	void Reset()
 	{
 		for (ModelSubtree& Subtree : Instances)
@@ -438,6 +473,11 @@ StatusCode SetupRenderer()
 	glGenVertexArrays(1, &NullVAO);
 	glBindVertexArray(NullVAO);
 
+	{
+		const int MaxThreads = std::thread::hardware_concurrency();
+		glMaxShaderCompilerThreadsARB(MaxThreads > 2 ? MaxThreads : 2);
+	}
+
 #if VISUALIZE_CLUSTER_COVERAGE
 	RETURN_ON_FAIL(ClusterCoverageShader.Setup(
 		{ {GL_VERTEX_SHADER, ShaderSource("shaders/cluster_coverage.vs.glsl", true)},
@@ -518,14 +558,14 @@ StatusCode SetupRenderer()
 
 
 double ShaderCompilerStallMs = 0.0;
+Clock::time_point ShaderCompilerStart;
 std::vector<SubtreeShader*> Drawables;
 void CompileNewShaders()
 {
 	Drawables.clear();
 	Drawables.reserve(PendingShaders.size());
 
-	using Clock = std::chrono::high_resolution_clock;
-	Clock::time_point StartTimePoint = Clock::now();
+	ShaderCompilerStart = Clock::now();
 
 	for (size_t SubtreeIndex : PendingShaders)
 	{
@@ -536,10 +576,11 @@ void CompileNewShaders()
 			Drawables.push_back(&Shader);
 		}
 	}
+
 	PendingShaders.clear();
 
-	Clock::time_point EndTimePoint = Clock::now();
-	std::chrono::duration<double, std::milli> Delta = EndTimePoint - StartTimePoint;
+	Clock::time_point ShaderCompilerStop = Clock::now();
+	std::chrono::duration<double, std::milli> Delta = ShaderCompilerStop - ShaderCompilerStart;
 	ShaderCompilerStallMs = Delta.count();
 }
 
@@ -566,7 +607,6 @@ void RenderFrame(int ScreenWidth, int ScreenHeight)
 
 	double CurrentTime;
 	{
-		using Clock = std::chrono::high_resolution_clock;
 		static Clock::time_point StartTimePoint = Clock::now();
 		static Clock::time_point LastTimePoint = StartTimePoint;
 		Clock::time_point CurrentTimePoint = Clock::now();
@@ -845,7 +885,6 @@ void LoadModel(nfdchar_t* Path)
 		Drawables.clear();
 		ClearTreeEvaluator();
 
-		using Clock = std::chrono::high_resolution_clock;
 		Clock::time_point StartTimePoint = Clock::now();
 
 		Sactivate_thread();
