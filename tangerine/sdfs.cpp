@@ -76,6 +76,11 @@ ptr SchemeThing(ptr List)
 	return List;
 }
 
+ptr SchemeThing(int Number)
+{
+	return Sinteger(Number);
+}
+
 ptr SchemeThing(double Number)
 {
 	return Sflonum(Number);
@@ -289,6 +294,47 @@ struct SetNode : public SDFNode
 	{
 		delete LHS;
 		delete RHS;
+	}
+};
+
+
+struct PaintNode : public SDFNode
+{
+	int Material;
+	SDFNode* Child;
+
+	PaintNode(int InMaterial, SDFNode* InChild)
+		: Material(InMaterial)
+		, Child(InChild)
+	{
+	}
+
+	virtual float Eval(vec3 Point)
+	{
+		return Child->Eval(Point);
+	}
+
+	virtual SDFNode* Clip(vec3 Point, float Radius)
+	{
+		SDFNode* NewChild = Child->Clip(Point, Radius);
+		if (NewChild)
+		{
+			return new PaintNode(Material, NewChild);
+		}
+		else
+		{
+			return nullptr;
+		}
+	}
+
+	virtual ptr Quote()
+	{
+		return SchemeList("paint", Material, Child->Quote());
+	}
+
+	virtual ~PaintNode()
+	{
+		delete Child;
 	}
 };
 
@@ -527,4 +573,11 @@ extern "C" TANGERINE_API void* MakeBlendInterOp(float Threshold, void* LHS, void
 
 	SetMixin Eval = std::bind(SDF::SmoothIntersectionOp, _1, _2, Threshold);
 	return new SetNode<SetFamily::Inter, true>(Quote, Eval, (SDFNode*)LHS, (SDFNode*)RHS, Threshold);
+}
+
+
+// Misc nodes
+extern "C" TANGERINE_API void* MakePaint(int Material, void* Child)
+{
+	return new PaintNode(Material, (SDFNode*)Child);
 }

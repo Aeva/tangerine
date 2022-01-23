@@ -60,6 +60,8 @@
 (define-backend MakeBlendDiffOp (_fun _float _HANDLE _HANDLE -> _HANDLE))
 (define-backend MakeBlendInterOp (_fun _float _HANDLE _HANDLE -> _HANDLE))
 
+(define-backend MakePaint (_fun _int _HANDLE -> _HANDLE))
+
 
 ; Dispatch SDF creation functions from CSGST expressions.
 (define (translate csgst)
@@ -76,7 +78,8 @@
        (apply MakeMatrixTransform (append (flatten matrix) (list (translate subtree)))))]
 
     [(paint)
-     (translate (caddr csgst))]
+     (let-values ([(material subtree) (splat (cdr csgst))])
+       (MakePaint material (translate subtree)))]
 
     [(sphere)
      (let ([radius (cadr csgst)])
