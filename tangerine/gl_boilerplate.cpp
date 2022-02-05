@@ -31,14 +31,48 @@ ShaderSource GeneratedShader(std::string PrePath, std::string Generated, std::st
 }
 
 
-std::string GetInfoLog(GLuint ObjectId)
+std::string GetShaderInfoLog(GLuint ObjectId)
+{
+	GLint LogLength;
+	glGetShaderiv(ObjectId, GL_INFO_LOG_LENGTH, &LogLength);
+	if (LogLength)
+	{
+		std::string InfoLog(LogLength, 0);
+		glGetShaderInfoLog(ObjectId, LogLength, nullptr, (char*)InfoLog.data());
+		return InfoLog;
+	}
+	else
+	{
+		return std::string();
+	}
+}
+
+
+std::string GetProgramInfoLog(GLuint ObjectId)
 {
 	GLint LogLength;
 	glGetProgramiv(ObjectId, GL_INFO_LOG_LENGTH, &LogLength);
 	if (LogLength)
 	{
 		std::string InfoLog(LogLength, 0);
-		glGetProgramInfoLog(ObjectId, LogLength, NULL, (char*)InfoLog.data());
+		glGetProgramInfoLog(ObjectId, LogLength, nullptr, (char*)InfoLog.data());
+		return InfoLog;
+	}
+	else
+	{
+		return std::string();
+	}
+}
+
+
+std::string GetPipelineInfoLog(GLuint ObjectId)
+{
+	GLint LogLength;
+	glGetProgramPipelineiv(ObjectId, GL_INFO_LOG_LENGTH, &LogLength);
+	if (LogLength)
+	{
+		std::string InfoLog(LogLength, 0);
+		glGetProgramPipelineInfoLog(ObjectId, LogLength, nullptr, (char*)InfoLog.data());
 		return InfoLog;
 	}
 	else
@@ -265,7 +299,15 @@ ShaderCompileJob::ShaderCompileJob(GLenum InShaderType, const ShaderSource& Sour
 	{
 		Strings.push_back(Sources[i].c_str());
 	}
-	ProgramID = glCreateShaderProgramv(ShaderType, StringCount, Strings.data());
+
+	ShaderID = glCreateShader(ShaderType);
+	glShaderSource(ShaderID, StringCount, Strings.data(), nullptr);
+	glCompileShader(ShaderID);
+
+	ProgramID = glCreateProgram();
+	glProgramParameteri(ProgramID, GL_PROGRAM_SEPARABLE, GL_TRUE);
+	glAttachShader(ProgramID, ShaderID);
+	glLinkProgram(ProgramID);
 }
 
 
@@ -279,29 +321,47 @@ bool ShaderCompileJob::WaitingForCompiler()
 
 StatusCode ShaderCompileJob::FinishCompile()
 {
+	std::string Error;
+	StatusCode Status = StatusCode::PASS;
+
+	GLint CompileStatus;
+	glGetShaderiv(ShaderID, GL_COMPILE_STATUS, &CompileStatus);
+
 	GLint LinkStatus;
 	glGetProgramiv(ProgramID, GL_LINK_STATUS, &LinkStatus);
-	if (!LinkStatus)
+
+	if (!CompileStatus)
 	{
-		std::string Error = GetInfoLog(ProgramID);
-		if (!Error.empty())
-		{
-			for (int i = 0; i < StringCount; ++i)
-			{
-				std::cout << Sources[i] << "\n";
-				std::cout << "################################################################\n";
-			}
-			std::cout << "Generated part:\n" << Sources[0] << "\n\n";
-			std::cout << "Shader string paths:\n";
-			for (int i = 0; i < Index.size(); ++i)
-			{
-				std::cout << i << " -> " << Index[i] << "\n";
-			}
-			std::cout << "\n" << Error << '\n';
-			return StatusCode::FAIL;
-		}
+		std::string Error = GetShaderInfoLog(ShaderID);
+		Status = StatusCode::FAIL;
 	}
-	return StatusCode::PASS;
+	else if (!LinkStatus)
+	{
+		std::string Error = GetProgramInfoLog(ProgramID);
+		Status = StatusCode::FAIL;
+	}
+
+	glDetachShader(ProgramID, ShaderID);
+	glDeleteShader(ShaderID);
+	ShaderID = 0;
+
+	if (!Error.empty())
+	{
+		for (int i = 0; i < StringCount; ++i)
+		{
+			std::cout << Sources[i] << "\n";
+			std::cout << "################################################################\n";
+		}
+		std::cout << "Generated part:\n" << Sources[0] << "\n\n";
+		std::cout << "Shader string paths:\n";
+		for (int i = 0; i < Index.size(); ++i)
+		{
+			std::cout << i << " -> " << Index[i] << "\n";
+		}
+		std::cout << "\n" << Error << '\n';
+	}
+
+	return Status;
 }
 
 
@@ -340,7 +400,7 @@ StatusCode ShaderPipeline::Setup(std::map<GLenum, ShaderSource> Shaders, const c
 	glGetProgramPipelineiv(PipelineID, GL_VALIDATE_STATUS, &ValidationStatus);
 	if (!ValidationStatus)
 	{
-		std::string Error = GetInfoLog(PipelineID);
+		std::string Error = GetPipelineInfoLog(PipelineID);
 		std::cout << Error << "\n";
 		return StatusCode::FAIL;
 	}
@@ -394,15 +454,17 @@ StatusCode ShaderPipeline::FinishSetup()
 
 	for (auto& Job : PendingJobs)
 	{
-		glUseProgramStages(PipelineID, ShaderModeBit(Job.ShaderType), Stages[Job.ShaderType]);
+		glUseProgramStages(PipelineID, ShaderModeBit(Job.ShaderType), Job.ProgramID);
 	}
+
+	PendingJobs.clear();
 
 	glValidateProgramPipeline(PipelineID);
 	GLint ValidationStatus;
 	glGetProgramPipelineiv(PipelineID, GL_VALIDATE_STATUS, &ValidationStatus);
 	if (!ValidationStatus)
 	{
-		std::string Error = GetInfoLog(PipelineID);
+		std::string Error = GetPipelineInfoLog(PipelineID);
 		std::cout << Error << "\n";
 		return StatusCode::FAIL;
 	}

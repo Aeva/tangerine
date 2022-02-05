@@ -119,6 +119,7 @@ struct SubtreeShader
 		, PrettyTree(Old.PrettyTree)
 		, DistSource(Old.DistSource)
 		, IsValid(Old.IsValid)
+		, Incomplete(Old.Incomplete)
 	{
 		Old.IsValid = false;
 		std::swap(DepthShader, Old.DepthShader);
@@ -131,10 +132,12 @@ struct SubtreeShader
 		PrettyTree = InPrettyTree;
 		DistSource = InDistSource;
 		IsValid = false;
+		Incomplete = false;
 	}
 
 	void StartAsyncSetup()
 	{
+		Incomplete = true;
 		DepthShader.AsyncSetup(
 			{ {GL_VERTEX_SHADER, ShaderSource("shaders/cluster_draw.vs.glsl", true)},
 			  {GL_FRAGMENT_SHADER, GeneratedShader("shaders/math.glsl", DistSource, "shaders/cluster_draw.fs.glsl")} },
@@ -158,6 +161,7 @@ struct SubtreeShader
 
 		glGenQueries(1, &DepthQuery);
 		IsValid = true;
+		Incomplete = false;
 		return StatusCode::PASS;
 	}
 
@@ -187,6 +191,7 @@ struct SubtreeShader
 		}
 		Instances.clear();
 	}
+
 	void Release()
 	{
 		Reset();
@@ -197,7 +202,9 @@ struct SubtreeShader
 			glDeleteQueries(1, &DepthQuery);
 		}
 	}
+
 	bool IsValid;
+	bool Incomplete;
 	std::string DebugName;
 	std::string PrettyTree;
 	std::string DistSource;
@@ -557,31 +564,37 @@ StatusCode SetupRenderer()
 }
 
 
-double ShaderCompilerStallMs = 0.0;
+double ShaderCompilerConvergenceMs = 0.0;
 Clock::time_point ShaderCompilerStart;
 std::vector<SubtreeShader*> Drawables;
-void CompileNewShaders()
+void CompileNewShaders(const double LastInnerFrameDeltaMs)
 {
-	Drawables.clear();
-	Drawables.reserve(PendingShaders.size());
+	Clock::time_point ProcessingStart = Clock::now();
 
-	ShaderCompilerStart = Clock::now();
+	double Budget = 16.6 - LastInnerFrameDeltaMs;
+	Budget = fmaxf(Budget, 8.0);
+	Budget = fminf(Budget, 15.0);
 
-	for (size_t SubtreeIndex : PendingShaders)
+	while (PendingShaders.size() > 0)
 	{
-		SubtreeShader& Shader = SubtreeShaders[SubtreeIndex];
-		StatusCode Result = Shader.Compile();
-		if (Result == StatusCode::PASS && Shader.Instances.size() > 0)
+		std::chrono::duration<double, std::milli> Delta = Clock::now() - ProcessingStart;
+		if (Delta.count() > Budget)
 		{
-			Drawables.push_back(&Shader);
+			break;
+		}
+		else
+		{
+			size_t SubtreeIndex = PendingShaders.back();
+			PendingShaders.pop_back();
+
+			SubtreeShader& Shader = SubtreeShaders[SubtreeIndex];
+			Shader.StartAsyncSetup();
+			if (Shader.Instances.size() > 0)
+			{
+				Drawables.push_back(&Shader);
+			}
 		}
 	}
-
-	PendingShaders.clear();
-
-	Clock::time_point ShaderCompilerStop = Clock::now();
-	std::chrono::duration<double, std::milli> Delta = ShaderCompilerStop - ShaderCompilerStart;
-	ShaderCompilerStallMs = Delta.count();
 }
 
 
@@ -599,26 +612,28 @@ float PresentDeltaMs = 0.0;
 glm::vec3 CameraFocus = glm::vec3(0.0, 0.0, 0.0);
 void RenderFrame(int ScreenWidth, int ScreenHeight)
 {
+	static double LastInnerFrameDeltaMs = 0.0;
+
 	if (PendingShaders.size() > 0)
 	{
-		CompileNewShaders();
-		glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+		CompileNewShaders(LastInnerFrameDeltaMs);
 	}
+
+	Clock::time_point FrameStartTimePoint = Clock::now();
 
 	double CurrentTime;
 	{
-		static Clock::time_point StartTimePoint = Clock::now();
+		static Clock::time_point StartTimePoint = FrameStartTimePoint;
 		static Clock::time_point LastTimePoint = StartTimePoint;
-		Clock::time_point CurrentTimePoint = Clock::now();
 		{
-			std::chrono::duration<double, std::milli> FrameDelta = CurrentTimePoint - LastTimePoint;
+			std::chrono::duration<double, std::milli> FrameDelta = FrameStartTimePoint - LastTimePoint;
 			PresentDeltaMs = float(FrameDelta.count());
 		}
 		{
-			std::chrono::duration<double, std::milli> EpochDelta = CurrentTimePoint - StartTimePoint;
+			std::chrono::duration<double, std::milli> EpochDelta = FrameStartTimePoint - StartTimePoint;
 			CurrentTime = float(EpochDelta.count());
 		}
-		LastTimePoint = CurrentTimePoint;
+		LastTimePoint = FrameStartTimePoint;
 		PresentFrequency = float(1000.0 / PresentDeltaMs);
 	}
 
@@ -728,6 +743,24 @@ void RenderFrame(int ScreenWidth, int ScreenHeight)
 			}
 			for (SubtreeShader* Shader : Drawables)
 			{
+				if (Shader->Incomplete)
+				{
+					if (Shader->WaitingForCompiler())
+					{
+						continue;
+					}
+					else
+					{
+						StatusCode Result = Shader->FinishAsyncSetup();
+						glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
+						std::chrono::duration<double, std::milli> Delta = Clock::now() - ShaderCompilerStart;
+						ShaderCompilerConvergenceMs = Delta.count();
+					}
+				}
+				else if (!Shader->IsValid)
+				{
+					continue;
+				}
 				GLsizei DebugNameLen = Shader->DebugName.size() < 100 ? -1 : 100;
 				glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, DebugNameLen, Shader->DebugName.c_str());
 				if (ShowHeatmap)
@@ -834,6 +867,11 @@ void RenderFrame(int ScreenWidth, int ScreenHeight)
 		glDrawArrays(GL_TRIANGLES, 0, 3);
 		glPopDebugGroup();
 	}
+
+	{
+		std::chrono::duration<double, std::milli> InnerFrameDelta = Clock::now() - FrameStartTimePoint;
+		LastInnerFrameDeltaMs = float(InnerFrameDelta.count());
+	}
 }
 
 
@@ -901,6 +939,10 @@ void LoadModel(nfdchar_t* Path)
 
 		LastPath = Path;
 		PendingSubtree = nullptr;
+
+		Drawables.reserve(PendingShaders.size());
+		ShaderCompilerConvergenceMs = 0.0;
+		ShaderCompilerStart = Clock::now();
 	}
 }
 
@@ -1101,8 +1143,7 @@ void RenderUI(SDL_Window* Window, bool& Live)
 			ImGui::Separator();
 			ImGui::Text("Model Loading\n");
 			ImGui::Text(" Racket: %.1f ms\n", ModelProcessingStallMs);
-			ImGui::Text(" OpenGL: %.1f ms\n", ShaderCompilerStallMs);
-			ImGui::Text("  Total: %.1f ms\n", ModelProcessingStallMs + ShaderCompilerStallMs);
+			ImGui::Text(" OpenGL: %.1f ms\n", ShaderCompilerConvergenceMs);
 		}
 		ImGui::End();
 	}

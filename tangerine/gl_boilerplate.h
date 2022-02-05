@@ -52,6 +52,7 @@ struct ShaderCompileJob
 	GLenum ShaderType;
 	std::vector<std::string> Sources;
 	std::vector<std::string> Index;
+	GLuint ShaderID;
 	GLuint ProgramID;
 	GLsizei StringCount;
 	ShaderCompileJob(GLenum InShaderType, const ShaderSource& InSource);
