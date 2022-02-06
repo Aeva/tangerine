@@ -15,7 +15,7 @@
 
 #include <iostream>
 #include <fstream>
-#include <set>
+#include <map>
 #include "gl_boilerplate.h"
 
 
@@ -204,7 +204,26 @@ StatusCode RouteSource(std::vector<std::string>& BreadCrumbs, std::vector<std::s
 {
 	if (Source.Mode == ShaderSource::Variant::PATH)
 	{
-		return FillSources(BreadCrumbs, Index, Sources, Source.Source);
+		static std::map<std::string, std::vector<std::string>> Cache;
+		std::vector<std::string>& CachedSources = Cache[Source.Source];
+		if (CachedSources.empty())
+		{
+			std::vector<std::string> NewSources;
+			RETURN_ON_FAIL(FillSources(BreadCrumbs, Index, NewSources, Source.Source));
+			for (const auto& SourceString : NewSources)
+			{
+				CachedSources.push_back(SourceString);
+				Sources.push_back(SourceString);
+			}
+		}
+		else
+		{
+			for (const auto& SourceString : CachedSources)
+			{
+				Sources.push_back(SourceString);
+			}
+		}
+		return StatusCode::PASS;
 	}
 	else if (Source.Mode == ShaderSource::Variant::STR)
 	{
