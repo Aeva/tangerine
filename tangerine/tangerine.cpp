@@ -1142,8 +1142,8 @@ void RenderUI(SDL_Window* Window, bool& Live)
 
 			ImGui::Separator();
 			ImGui::Text("Model Loading\n");
-			ImGui::Text(" Racket: %.1f ms\n", ModelProcessingStallMs);
-			ImGui::Text(" OpenGL: %.1f ms\n", ShaderCompilerConvergenceMs);
+			ImGui::Text(" Racket: %.3f s\n", ModelProcessingStallMs / 1000.0);
+			ImGui::Text(" OpenGL: %.3f s\n", ShaderCompilerConvergenceMs / 1000.0);
 		}
 		ImGui::End();
 	}
