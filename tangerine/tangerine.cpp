@@ -37,6 +37,8 @@
 
 #include <nfd.h>
 
+#include "profiling.h"
+
 #include "errors.h"
 #include "gl_boilerplate.h"
 #include "../shaders/defines.h"
@@ -1392,11 +1394,15 @@ int main(int argc, char* argv[])
 	{
 		return 0;
 	}
+
+	StartProfiling();
+
 	bool Live = true;
 	{
 		ImGuiIO& io = ImGui::GetIO();
 		while (Live)
 		{
+			RootScopeEvent(Frame);
 			SDL_Event Event;
 			MouseMotionX = 0;
 			MouseMotionY = 0;
@@ -1511,23 +1517,27 @@ int main(int argc, char* argv[])
 				}
 			}
 			{
+				ScopedEvent(UpdateUI);
 				RenderUI(Window, Live);
 				ImGui::Render();
 			}
 			{
+				ScopedEvent(Tangerine);
 				int ScreenWidth;
 				int ScreenHeight;
 				SDL_GetWindowSize(Window, &ScreenWidth, &ScreenHeight);
 				RenderFrame(ScreenWidth, ScreenHeight);
 			}
 			{
-				{
-					glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Dear ImGui");
-					glBeginQuery(GL_TIME_ELAPSED, UiTimeQuery);
-					ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-					glEndQuery(GL_TIME_ELAPSED);
-					glPopDebugGroup();
-				}
+				ScopedEvent(DearImGuiDraw);
+				glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Dear ImGui");
+				glBeginQuery(GL_TIME_ELAPSED, UiTimeQuery);
+				ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+				glEndQuery(GL_TIME_ELAPSED);
+				glPopDebugGroup();
+			}
+			{
+				ScopedEvent(Present);
 				SDL_GL_SwapWindow(Window);
 			}
 			UpdateElapsedTime(DepthTimeQuery, DepthElapsedTimeMs);
@@ -1556,6 +1566,9 @@ int main(int argc, char* argv[])
 			}
 		}
 	}
+
+	StopProfiling();
+
 	{
 		std::cout << "Shutting down...\n";
 		for (SubtreeShader& Shader : SubtreeShaders)

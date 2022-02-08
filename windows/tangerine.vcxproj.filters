@@ -25,6 +25,9 @@
     <Filter Include="Materials">
       <UniqueIdentifier>{29dbd6df-6b50-4218-b066-0c8744efd090}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Third Party\Remotery">
+      <UniqueIdentifier>{bcab95f6-ec1e-4ea0-9636-6036d25c5a0b}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\third_party\glad\glad.c">
@@ -64,6 +67,12 @@
       <Filter>Tangerine</Filter>
     </ClCompile>
     <ClCompile Include="..\tangerine\export.cpp">
+      <Filter>Tangerine</Filter>
+    </ClCompile>
+    <ClCompile Include="..\third_party\remotery\Remotery.c">
+      <Filter>Third Party\Remotery</Filter>
+    </ClCompile>
+    <ClCompile Include="..\tangerine\profiling.cpp">
       <Filter>Tangerine</Filter>
     </ClCompile>
   </ItemGroup>
@@ -121,6 +130,12 @@
       <Filter>Tangerine</Filter>
     </ClInclude>
     <ClInclude Include="..\tangerine\export.h">
+      <Filter>Tangerine</Filter>
+    </ClInclude>
+    <ClInclude Include="..\third_party\remotery\Remotery.h">
+      <Filter>Third Party\Remotery</Filter>
+    </ClInclude>
+    <ClInclude Include="..\tangerine\profiling.h">
       <Filter>Tangerine</Filter>
     </ClInclude>
   </ItemGroup>
