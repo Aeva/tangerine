@@ -167,6 +167,7 @@
   <ItemGroup>
     <ClCompile Include="..\tangerine\export.cpp" />
     <ClCompile Include="..\tangerine\gl_boilerplate.cpp" />
+    <ClCompile Include="..\tangerine\profiling.cpp" />
     <ClCompile Include="..\tangerine\sdfs.cpp" />
     <ClCompile Include="..\tangerine\tangerine.cpp" />
     <ClCompile Include="..\third_party\glad\glad.c" />
@@ -184,6 +185,7 @@
     <ClInclude Include="..\tangerine\errors.h" />
     <ClInclude Include="..\tangerine\export.h" />
     <ClInclude Include="..\tangerine\gl_boilerplate.h" />
+    <ClInclude Include="..\tangerine\profiling.h" />
     <ClInclude Include="..\tangerine\sdfs.h" />
     <ClInclude Include="..\third_party\glad\glad.h" />
     <ClInclude Include="..\third_party\glad\glad_wgl.h" />
@@ -221,6 +223,7 @@
     <None Include="..\shaders\splat.vs.glsl" />
     <None Include="..\shaders\tile_heap.glsl" />
     <None Include="..\third_party\racket\lib\libracketcs_da32rk.def" />
+    <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="tangerine.rc" />
@@ -230,5 +233,12 @@
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
+    <Import Project="packages\WinPixEventRuntime.1.0.220124001\build\WinPixEventRuntime.targets" Condition="Exists('packages\WinPixEventRuntime.1.0.220124001\build\WinPixEventRuntime.targets')" />
   </ImportGroup>
+  <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">
+    <PropertyGroup>
+      <ErrorText>This project references NuGet package(s) that are missing on this computer. Use NuGet Package Restore to download them.  For more information, see http://go.microsoft.com/fwlink/?LinkID=322105. The missing file is {0}.</ErrorText>
+    </PropertyGroup>
+    <Error Condition="!Exists('packages\WinPixEventRuntime.1.0.220124001\build\WinPixEventRuntime.targets')" Text="$([System.String]::Format('$(ErrorText)', 'packages\WinPixEventRuntime.1.0.220124001\build\WinPixEventRuntime.targets'))" />
+  </Target>
 </Project>

@@ -37,6 +37,8 @@
 
 #include <nfd.h>
 
+#include "profiling.h"
+
 #include "errors.h"
 #include "gl_boilerplate.h"
 #include "../shaders/defines.h"
@@ -569,6 +571,7 @@ Clock::time_point ShaderCompilerStart;
 std::vector<SubtreeShader*> Drawables;
 void CompileNewShaders(const double LastInnerFrameDeltaMs)
 {
+	BeginEvent("Compile New Shaders");
 	Clock::time_point ProcessingStart = Clock::now();
 
 	double Budget = 16.6 - LastInnerFrameDeltaMs;
@@ -584,6 +587,7 @@ void CompileNewShaders(const double LastInnerFrameDeltaMs)
 		}
 		else
 		{
+			BeginEvent("Start Async Compile");
 			size_t SubtreeIndex = PendingShaders.back();
 			PendingShaders.pop_back();
 
@@ -593,8 +597,10 @@ void CompileNewShaders(const double LastInnerFrameDeltaMs)
 			{
 				Drawables.push_back(&Shader);
 			}
+			EndEvent();
 		}
 	}
+	EndEvent();
 }
 
 
@@ -612,6 +618,7 @@ float PresentDeltaMs = 0.0;
 glm::vec3 CameraFocus = glm::vec3(0.0, 0.0, 0.0);
 void RenderFrame(int ScreenWidth, int ScreenHeight)
 {
+	BeginEvent("RenderFrame");
 	static double LastInnerFrameDeltaMs = 0.0;
 
 	if (PendingShaders.size() > 0)
@@ -730,6 +737,7 @@ void RenderFrame(int ScreenWidth, int ScreenHeight)
 	if (Drawables.size() > 0)
 	{
 		{
+			BeginEvent("Depth");
 			glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Depth");
 			glBeginQuery(GL_TIME_ELAPSED, DepthTimeQuery);
 			glBindFramebuffer(GL_FRAMEBUFFER, DepthPass);
@@ -751,16 +759,20 @@ void RenderFrame(int ScreenWidth, int ScreenHeight)
 					}
 					else
 					{
+						BeginEvent("FinishAsyncSetup");
 						StatusCode Result = Shader->FinishAsyncSetup();
 						glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 						std::chrono::duration<double, std::milli> Delta = Clock::now() - ShaderCompilerStart;
 						ShaderCompilerConvergenceMs = Delta.count();
+						EndEvent();
 					}
 				}
 				else if (!Shader->IsValid)
 				{
 					continue;
 				}
+
+				BeginEvent("Draw Drawable");
 				GLsizei DebugNameLen = Shader->DebugName.size() < 100 ? -1 : 100;
 				glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, DebugNameLen, Shader->DebugName.c_str());
 				if (ShowHeatmap)
@@ -782,12 +794,14 @@ void RenderFrame(int ScreenWidth, int ScreenHeight)
 					glEndQuery(GL_TIME_ELAPSED);
 				}
 				glPopDebugGroup();
+				EndEvent();
 			}
 			if (!ShowHeatmap)
 			{
 				glEndQuery(GL_TIME_ELAPSED);
 			}
 			glPopDebugGroup();
+			EndEvent();
 		}
 		{
 			glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Resolve Material Stencil");
@@ -872,6 +886,8 @@ void RenderFrame(int ScreenWidth, int ScreenHeight)
 		std::chrono::duration<double, std::milli> InnerFrameDelta = Clock::now() - FrameStartTimePoint;
 		LastInnerFrameDeltaMs = float(InnerFrameDelta.count());
 	}
+
+	EndEvent();
 }
 
 
@@ -1397,6 +1413,7 @@ int main(int argc, char* argv[])
 		ImGuiIO& io = ImGui::GetIO();
 		while (Live)
 		{
+			BeginEvent("Frame");
 			SDL_Event Event;
 			MouseMotionX = 0;
 			MouseMotionY = 0;
@@ -1511,8 +1528,10 @@ int main(int argc, char* argv[])
 				}
 			}
 			{
+				BeginEvent("Update UI");
 				RenderUI(Window, Live);
 				ImGui::Render();
+				EndEvent();
 			}
 			{
 				int ScreenWidth;
@@ -1521,14 +1540,18 @@ int main(int argc, char* argv[])
 				RenderFrame(ScreenWidth, ScreenHeight);
 			}
 			{
-				{
-					glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Dear ImGui");
-					glBeginQuery(GL_TIME_ELAPSED, UiTimeQuery);
-					ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-					glEndQuery(GL_TIME_ELAPSED);
-					glPopDebugGroup();
-				}
+				BeginEvent("Dear ImGui Draw");
+				glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Dear ImGui");
+				glBeginQuery(GL_TIME_ELAPSED, UiTimeQuery);
+				ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+				glEndQuery(GL_TIME_ELAPSED);
+				glPopDebugGroup();
+				EndEvent();
+			}
+			{
+				BeginEvent("Present");
 				SDL_GL_SwapWindow(Window);
+				EndEvent();
 			}
 			UpdateElapsedTime(DepthTimeQuery, DepthElapsedTimeMs);
 			UpdateElapsedTime(GridBgTimeQuery, GridBgElapsedTimeMs);
@@ -1554,6 +1577,7 @@ int main(int argc, char* argv[])
 				}
 				DepthTimeBuffer.Upload(Upload.data(), QueryCount * sizeof(float));
 			}
+			EndEvent();
 		}
 	}
 	{

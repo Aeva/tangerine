@@ -66,6 +66,9 @@
     <ClCompile Include="..\tangerine\export.cpp">
       <Filter>Tangerine</Filter>
     </ClCompile>
+    <ClCompile Include="..\tangerine\profiling.cpp">
+      <Filter>Tangerine</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\third_party\glad\glad.h">
@@ -121,6 +124,9 @@
       <Filter>Tangerine</Filter>
     </ClInclude>
     <ClInclude Include="..\tangerine\export.h">
+      <Filter>Tangerine</Filter>
+    </ClInclude>
+    <ClInclude Include="..\tangerine\profiling.h">
       <Filter>Tangerine</Filter>
     </ClInclude>
   </ItemGroup>
@@ -185,6 +191,7 @@
     <None Include="..\third_party\racket\lib\libracketcs_da32rk.def">
       <Filter>Racket Stuff</Filter>
     </None>
+    <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="tangerine.rc" />
