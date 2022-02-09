@@ -24,3 +24,10 @@ void BeginEvent(const char* EventName);
 
 
 void EndEvent();
+
+
+struct ProfileScope
+{
+	ProfileScope(const char* EventName);
+	~ProfileScope();
+};

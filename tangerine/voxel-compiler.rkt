@@ -21,6 +21,7 @@
 (require "compiler-common.rkt")
 (require "eval.rkt")
 (require "vec.rkt")
+(require "profiling.rkt")
 
 (provide voxel-compiler)
 
@@ -63,35 +64,49 @@
                  [vox-low (vec-max model-low (vec- center half-voxel))]
                  [vox-high (vec-min model-high (vec+ center half-voxel))])
             (list vox-low vox-high subtree)))]
-       [(subtrees) (extract-subtrees voxels)])
+       [(subtrees) (profile-scope "extract subtrees"
+                                  (extract-subtrees voxels))])
 
-    (for/list ([subtree (in-list subtrees)])
-      (cons subtree
-            (for/list ([voxel (in-list voxels)]
-                       #:when (equal? (caddr voxel) subtree))
-              (cons (car voxel) (cadr voxel)))))))
+    (profile-scope
+     "group subtrees"
+
+     (for/list ([subtree (in-list subtrees)])
+       (cons subtree
+             (for/list ([voxel (in-list voxels)]
+                        #:when (equal? (caddr voxel) subtree))
+               (cons (car voxel) (cadr voxel))))))))
 
 
 ; Compiler strat that divides the model's volume into voxels.  The CSG tree is
 ; then evaluated for each voxel to remove all branches that cannot affect the
 ; voxel.
 (define (voxel-compiler csgst [voxel-size .25])
-  (let*
-      (; Perform transform folding
-       [coalesced-tree (coalesce csgst)]
+  (profile-scope
+   "voxel-compiler"
+   (let*
+       (; Perform transform folding
+        [coalesced-tree
+         (profile-scope "transform folding"
+                        (coalesce csgst))]
 
-       ; Find the model boundaries, and bounded subtrees
-       [limits (simple-bounds coalesced-tree)]
+        ; Find the model boundaries, and bounded subtrees
+        [limits
+         (profile-scope "model bounds"
+                        (simple-bounds coalesced-tree))]
 
-       ; Create an evaluator for the model.
-       [evaluator (sdf-build coalesced-tree)]
+        ; Create an evaluator for the model.
+        [evaluator
+         (profile-scope "evaluator"
+                        (sdf-build coalesced-tree))]
 
-       ; Find voxel subtrees.
-       [parts (if (sdf-handle-is-valid? evaluator)
-                  (vox-and-clip coalesced-tree limits evaluator voxel-size)
-                  null)])
+        ; Find voxel subtrees.
+        [parts (if (sdf-handle-is-valid? evaluator)
+                   (profile-scope "find voxel subtrees"
+                                  (vox-and-clip coalesced-tree limits evaluator voxel-size))
+                   null)])
 
-    (assemble (flatten limits) evaluator parts)))
+     (profile-scope "glsl generation"
+                    (assemble (flatten limits) evaluator parts)))))
 
 
 ; test

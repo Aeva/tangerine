@@ -575,8 +575,8 @@ void CompileNewShaders(const double LastInnerFrameDeltaMs)
 	Clock::time_point ProcessingStart = Clock::now();
 
 	double Budget = 16.6 - LastInnerFrameDeltaMs;
-	Budget = fmaxf(Budget, 8.0);
-	Budget = fminf(Budget, 15.0);
+	Budget = fmaxf(Budget, 1.0);
+	Budget = fminf(Budget, 14.0);
 
 	while (PendingShaders.size() > 0)
 	{
@@ -917,6 +917,7 @@ extern "C" void TANGERINE_API RacketErrorCallback(const char* ErrorMessage)
 double ModelProcessingStallMs = 0.0;
 void LoadModel(nfdchar_t* Path)
 {
+	BeginEvent("Load Model");
 	static nfdchar_t* LastPath = nullptr;
 	if (!Path)
 	{
@@ -960,13 +961,16 @@ void LoadModel(nfdchar_t* Path)
 		ShaderCompilerConvergenceMs = 0.0;
 		ShaderCompilerStart = Clock::now();
 	}
+	EndEvent();
 }
 
 
 void OpenModel()
 {
 	nfdchar_t* Path = nullptr;
+	BeginEvent("NFD_OpenDialog");
 	nfdresult_t Result = NFD_OpenDialog("rkt", "models", &Path);
+	EndEvent();
 	if (Result == NFD_OKAY)
 	{
 		LoadModel(Path);
@@ -1418,6 +1422,7 @@ int main(int argc, char* argv[])
 			MouseMotionX = 0;
 			MouseMotionY = 0;
 			MouseMotionZ = 0;
+			BeginEvent("Process Input");
 			while (SDL_PollEvent(&Event))
 			{
 				ImGui_ImplSDL2_ProcessEvent(&Event);
@@ -1527,6 +1532,7 @@ int main(int argc, char* argv[])
 					}
 				}
 			}
+			EndEvent();
 			{
 				BeginEvent("Update UI");
 				RenderUI(Window, Live);
@@ -1553,29 +1559,33 @@ int main(int argc, char* argv[])
 				SDL_GL_SwapWindow(Window);
 				EndEvent();
 			}
-			UpdateElapsedTime(DepthTimeQuery, DepthElapsedTimeMs);
-			UpdateElapsedTime(GridBgTimeQuery, GridBgElapsedTimeMs);
-			UpdateElapsedTime(OutlinerTimeQuery, OutlinerElapsedTimeMs);
-			UpdateElapsedTime(UiTimeQuery, UiElapsedTimeMs);
-			if (ShowHeatmap)
 			{
-				const size_t QueryCount = Drawables.size();
-				float Range = 0.0;
-				std::vector<float> Upload(QueryCount, 0.0);
-				for (int i = 0; i < QueryCount; ++i)
+				BeginEvent("Query Results");
+				UpdateElapsedTime(DepthTimeQuery, DepthElapsedTimeMs);
+				UpdateElapsedTime(GridBgTimeQuery, GridBgElapsedTimeMs);
+				UpdateElapsedTime(OutlinerTimeQuery, OutlinerElapsedTimeMs);
+				UpdateElapsedTime(UiTimeQuery, UiElapsedTimeMs);
+				if (ShowHeatmap)
 				{
-					GLuint TimeQuery = Drawables[i]->DepthQuery;
-					double ElapsedTimeMs;
-					UpdateElapsedTime(TimeQuery, ElapsedTimeMs);
-					Upload[i] = float(ElapsedTimeMs);
-					DepthElapsedTimeMs += ElapsedTimeMs;
-					Range = fmax(Range, float(ElapsedTimeMs));
+					const size_t QueryCount = Drawables.size();
+					float Range = 0.0;
+					std::vector<float> Upload(QueryCount, 0.0);
+					for (int i = 0; i < QueryCount; ++i)
+					{
+						GLuint TimeQuery = Drawables[i]->DepthQuery;
+						double ElapsedTimeMs;
+						UpdateElapsedTime(TimeQuery, ElapsedTimeMs);
+						Upload[i] = float(ElapsedTimeMs);
+						DepthElapsedTimeMs += ElapsedTimeMs;
+						Range = fmax(Range, float(ElapsedTimeMs));
+					}
+					for (int i = 0; i < QueryCount; ++i)
+					{
+						Upload[i] /= Range;
+					}
+					DepthTimeBuffer.Upload(Upload.data(), QueryCount * sizeof(float));
 				}
-				for (int i = 0; i < QueryCount; ++i)
-				{
-					Upload[i] /= Range;
-				}
-				DepthTimeBuffer.Upload(Upload.data(), QueryCount * sizeof(float));
+				EndEvent();
 			}
 			EndEvent();
 		}

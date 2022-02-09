@@ -20,6 +20,7 @@
 #include <racketcs.h>
 
 #include "sdfs.h"
+#include "profiling.h"
 
 
 using TreeHandle = void*;
@@ -347,6 +348,7 @@ struct PaintNode : public SDFNode
 // Evaluate a SDF tree.
 extern "C" TANGERINE_API float EvalTree(void* Handle, float X, float Y, float Z)
 {
+	ProfileScope("EvalTree");
 	return ((SDFNode*)Handle)->Eval(vec3(X, Y, Z));
 }
 
@@ -354,7 +356,9 @@ extern "C" TANGERINE_API float EvalTree(void* Handle, float X, float Y, float Z)
 // original SDF tree.
 extern "C" TANGERINE_API void* ClipTree(void* Handle, float X, float Y, float Z, float Radius)
 {
+	ProfileScope("ClipTree");
 	vec3 Point = vec3(X, Y, Z);
+
 	SDFNode* Clipped = ((SDFNode*)Handle)->Clip(Point, Radius);
 	if (Clipped && abs(Clipped->Eval(Point)) > Radius)
 	{
@@ -370,12 +374,14 @@ extern "C" TANGERINE_API void* ClipTree(void* Handle, float X, float Y, float Z,
 // Return the csgst representation of a SDF tree.
 extern "C" TANGERINE_API ptr QuoteTree(void* Handle)
 {
+	ProfileScope("QuoteTree");
 	return ((SDFNode*)Handle)->Quote();
 }
 
 // Delete a CSG operator tree that was constructed with the functions below.
 extern "C" TANGERINE_API void DiscardTree(void* Handle)
 {
+	ProfileScope("DiscardTree");
 	delete (SDFNode*)Handle;
 }
 

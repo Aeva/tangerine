@@ -60,3 +60,29 @@ void EndEvent()
 	PIXEndEvent();
 #endif
 }
+
+
+ProfileScope::ProfileScope(const char* EventName)
+{
+	BeginEvent(EventName);
+}
+
+
+ProfileScope::~ProfileScope()
+{
+	EndEvent();
+}
+
+
+#ifdef USE_PIX
+extern "C" TANGERINE_API void BeginRacketEvent(const char* EventName)
+{
+	PIXBeginEvent(PIX_COLOR(0xFF, 0x00, 0x00), EventName);
+}
+
+
+extern "C" TANGERINE_API void EndRacketEvent()
+{
+	PIXEndEvent();
+}
+#endif

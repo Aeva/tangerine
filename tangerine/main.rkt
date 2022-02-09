@@ -26,6 +26,7 @@
 (require "voxel-compiler.rkt")
 (require "vec.rkt")
 (require "eval.rkt")
+(require "profiling.rkt")
 
 (provide compile
          bounds-compiler
@@ -110,30 +111,39 @@
 ; OpenGL's GLSL compiler.  If all goes well, the resulting shader object will
 ; be used to render the model.
 (define (renderer-load-and-process-model path-str)
-  (with-handlers ([exn:fail? (λ (err) (RacketErrorCallback (exn->string err)))])
-    (let ([path (string->path path-str)])
-      (dynamic-rerequire path)
-      (let*-values ([(compiler) (dynamic-require path 'emit-glsl)]
-                    [(limits evaluator clusters) (compiler)])
+  (profile-scope
+   "renderer-load-and-process-model"
 
-        ; Set the model bounds used by the renderer.
-        (apply SetLimitsCallback limits)
+   (with-handlers ([exn:fail? (λ (err) (RacketErrorCallback (exn->string err)))])
+     (let ([path (string->path path-str)])
+       (dynamic-rerequire path)
+       (let*-values ([(compiler) (dynamic-require path 'emit-glsl)]
+                     [(limits evaluator clusters) (compiler)])
 
-        ; Set the model evaluator to be used by the STL exporter.
-        (when (sdf-handle-is-valid? evaluator)
-          (SetTreeEvaluator (cdr evaluator)))
+         ; Set the model bounds used by the renderer.
+         (apply SetLimitsCallback limits)
 
-        ; Emit shaders for the renderer to finish compiling, and instance
-        ; data for the renderer to draw.
-        (for ([cluster (in-list clusters)])
-          (let* ([tree (car cluster)]
-                 [params (cadr cluster)]
-                 [dist (caddr cluster)]
-                 [aabbs (cdddr cluster)]
-                 [index (EmitShader (~a tree) (pretty-print tree) dist)]
-                 [matrix (flatten (mat4-identity))])
-            (EmitSubtree index params)
-            (for ([aabb (in-list aabbs)])
-              (EmitSection (car aabb) (cdr aabb) matrix)))))))
-  (collect-garbage)
+         ; Set the model evaluator to be used by the STL exporter.
+         (when (sdf-handle-is-valid? evaluator)
+           (SetTreeEvaluator (cdr evaluator)))
+
+         ; Emit shaders for the renderer to finish compiling, and instance
+         ; data for the renderer to draw.
+         (profile-scope
+          "emit shaders and subtrees"
+
+          (for ([cluster (in-list clusters)])
+            (let* ([tree (car cluster)]
+                   [params (cadr cluster)]
+                   [dist (caddr cluster)]
+                   [aabbs (cdddr cluster)]
+                   [index (EmitShader (~a tree) (pretty-print tree) dist)]
+                   [matrix (flatten (mat4-identity))])
+              (EmitSubtree index params)
+              (for ([aabb (in-list aabbs)])
+                (EmitSection (car aabb) (cdr aabb) matrix)))))))))
+
+  (profile-scope
+   "GC"
+   (collect-garbage))
   (void))
