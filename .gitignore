@@ -4,10 +4,10 @@ windows/.vs
 windows/x64
 windows/enc_temp_folder
 windows/packages
-windows/packages.config
 racket/lib
 racket/modules
 third_party/racket/lib/x64
+WinPixEventRuntime.dll
 tangerine.pdb
 tangerine.exe
 tangerine.lib
