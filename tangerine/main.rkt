@@ -55,10 +55,13 @@
 
 
 (define-ffi-definer define-backend (ffi-lib #f) #:default-make-fail make-not-available)
-(define-backend EmitShader (_fun _string/utf-8 _string/utf-8 _string/utf-8 -> _size))
-(define-backend EmitSubtree (_fun _size [_size = (length params)] [params : (_list i _float)] -> _void))
+(define-backend EmitShader (_fun _string/utf-8
+                                 _string/utf-8
+                                 _string/utf-8
+                                 [_size = (length params)]
+                                 [params : (_list i _float)]
+                                 -> _size))
 (define-backend EmitSection (_fun (_list i _float) (_list i _float) (_list i _float) -> _void))
-(define-backend SetLimitsCallback (_fun _float _float _float _float _float _float -> _void))
 (define-backend RacketErrorCallback (_fun _string/utf-8 -> _void))
 
 
@@ -120,9 +123,6 @@
        (let*-values ([(compiler) (dynamic-require path 'emit-glsl)]
                      [(limits evaluator clusters) (compiler)])
 
-         ; Set the model bounds used by the renderer.
-         (apply SetLimitsCallback limits)
-
          ; Set the model evaluator to be used by the STL exporter.
          (when (sdf-handle-is-valid? evaluator)
            (SetTreeEvaluator (cdr evaluator)))
@@ -130,16 +130,15 @@
          ; Emit shaders for the renderer to finish compiling, and instance
          ; data for the renderer to draw.
          (profile-scope
-          "emit shaders and subtrees"
+          "emit shaders and sections"
 
           (for ([cluster (in-list clusters)])
             (let* ([tree (car cluster)]
                    [params (cadr cluster)]
                    [dist (caddr cluster)]
                    [aabbs (cdddr cluster)]
-                   [index (EmitShader (~a tree) (pretty-print tree) dist)]
+                   [index (EmitShader (~a tree) (pretty-print tree) dist params)]
                    [matrix (flatten (mat4-identity))])
-              (EmitSubtree index params)
               (for ([aabb (in-list aabbs)])
                 (EmitSection (car aabb) (cdr aabb) matrix)))))))))
 

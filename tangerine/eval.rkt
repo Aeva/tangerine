@@ -24,6 +24,7 @@
          sdf-free
          sdf-eval
          sdf-clip
+         sdf-bounds
          sdf-quote
          SetTreeEvaluator)
 
@@ -35,6 +36,7 @@
 
 (define-backend EvalTree (_fun _HANDLE _float _float _float -> _void))
 (define-backend ClipTree (_fun _HANDLE _float _float _float _float -> _HANDLE))
+(define-backend TreeBounds (_fun _HANDLE -> _scheme))
 (define-backend QuoteTree (_fun _HANDLE -> _scheme))
 (define-backend DiscardTree (_fun _HANDLE -> _void))
 
@@ -200,6 +202,13 @@
          [new-handle (cons 'sdf-handle (or clip-ptr null))])
     (lazy-sdf-free new-handle)
     new-handle))
+
+
+; Returns a bounding AABB for the given executable SDF tree handle.
+(define (sdf-bounds handle)
+  (unless (sdf-handle-is-valid? handle)
+    (error "Expected valid SDF handle."))
+  (TreeBounds (cdr handle)))
 
 
 ; Returns a csgst expression for the given executable SDF tree handle.

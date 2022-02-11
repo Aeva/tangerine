@@ -23,8 +23,7 @@
 
 
 (provide segments
-         extract-subtrees
-         simple-bounds)
+         extract-subtrees)
 
 
 ; Is it an AABB?
@@ -412,80 +411,6 @@
                          #:when (equal? (caddr aabb) subtree))
                 (cons (car aabb)
                       (cadr aabb)))))))))
-
-
-; Determines the bounding box for the entire graph without performing splitting.
-(define (simple-bounds csgst)
-  (let ([node (car csgst)]
-        [args (cdr csgst)])
-
-    (cond [(brush? csgst)
-           (brush-bounds node args)]
-
-          [(transform? csgst)
-           (case node
-             [(move)
-              (let*-values ([(x y z child) (splat args)]
-                            [(aabb) (simple-bounds child)]
-                            [(low) (car aabb)]
-                            [(high) (cadr aabb)]
-                            [(offset) (vec3 x y z)])
-                (list (vec+ offset low)
-                      (vec+ offset high)))]
-
-             [(mat4)
-              (let*-values ([(matrix child) (splat args)]
-                            [(aabb) (simple-bounds child)]
-                            [(low) (car aabb)]
-                            [(high) (cadr aabb)]
-                            [(points) (map (λ (pt) (apply-matrix pt matrix))
-                                           (corners aabb))])
-                (list (apply vec-min points)
-                      (apply vec-max points)))])]
-
-             [(binary-operator? csgst)
-              (let*-values ([(lhs-child rhs-child) (splat args)]
-                            [(lhs-aabb) (simple-bounds lhs-child)]
-                            [(rhs-aabb) (simple-bounds rhs-child)]
-                            [(lhs-low lhs-high) (splat lhs-aabb)]
-                            [(rhs-low rhs-high) (splat rhs-aabb)])
-                (case node
-                  [(union)
-                   (list (vec-min lhs-low rhs-low)
-                         (vec-max lhs-high rhs-high))]
-
-                  [(diff)
-                   (list lhs-low lhs-high)]
-
-                  [(inter)
-                   (list (vec-max lhs-low rhs-low)
-                         (vec-min lhs-high rhs-high))]
-
-                  [else (error csgst)]))]
-
-             [(blend-operator? csgst)
-              (let*-values ([(threshold lhs-child rhs-child) (splat args)]
-                            [(lhs-aabb) (simple-bounds lhs-child)]
-                            [(rhs-aabb) (simple-bounds rhs-child)]
-                            [(lhs-low lhs-high) (splat lhs-aabb)]
-                            [(rhs-low rhs-high) (splat rhs-aabb)]
-                            [(padding) (vec3 threshold)]
-                            [(liminal-low) (vec- (vec-max lhs-low rhs-low) padding)]
-                            [(liminal-high) (vec+ (vec-min lhs-high rhs-high) padding)]
-                            [(base-op) (case node
-                                         [(blend-union) union]
-                                         [(blend-diff) diff]
-                                         [(blend-inter) inter])]
-                            [(low high) (splat (simple-bounds (base-op lhs-child rhs-child)))])
-                (list (vec-min low liminal-low)
-                      (vec-max high liminal-high)))]
-
-             [(paint? csgst)
-              (let*-values ([(material child) (splat args)])
-                (simple-bounds child))]
-
-             [else (error csgst)])))
-
 
 ; Tests
 ;(tree-aabb (cube 2))

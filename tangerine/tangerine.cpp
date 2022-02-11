@@ -225,34 +225,32 @@ std::vector<size_t> PendingShaders;
 ShaderPipeline TestMaterials[6];
 
 
-extern "C" size_t TANGERINE_API EmitShader(const char* ShaderTree, const char* PrettyTree, const char* ShaderSource)
+ModelSubtree* PendingSubtree = nullptr;
+extern "C" size_t TANGERINE_API EmitShader(const char* ShaderTree, const char* PrettyTree, const char* ShaderSource, size_t ParamCount, float* Params)
 {
 	std::string Tree = std::string(ShaderTree);
 	std::string Pretty = std::string(PrettyTree);
 	std::string Source = std::string(ShaderSource);
 	auto Found = SubtreeMap.find(Tree);
+
+	size_t ShaderIndex;
 	if (Found == SubtreeMap.end())
 	{
 		size_t Index = SubtreeShaders.size();
 		SubtreeShaders.emplace_back(Tree, Pretty, Source);
 		SubtreeMap[Tree] = Index;
 		PendingShaders.push_back(Index);
-		return Index;
+		ShaderIndex = Index;
 	}
 	else
 	{
-		return Found->second;
+		ShaderIndex = Found->second;
 	}
-}
 
-
-ModelSubtree* PendingSubtree = nullptr;
-
-
-extern "C" void TANGERINE_API EmitSubtree(size_t ShaderIndex, size_t ParamCount, float* Params)
-{
 	SubtreeShaders[ShaderIndex].Instances.emplace_back(ParamCount, Params);
 	PendingSubtree = &(SubtreeShaders[ShaderIndex].Instances.back());
+
+	return ShaderIndex;
 }
 
 
@@ -282,10 +280,12 @@ void ClearTreeEvaluator()
 }
 
 
+AABB ModelBounds = { glm::vec3(0.0), glm::vec3(0.0) };
 extern "C" TANGERINE_API void SetTreeEvaluator(void* InTreeEvaluator)
 {
 	ClearTreeEvaluator();
 	TreeEvaluator = (SDFNode*)InTreeEvaluator;
+	ModelBounds = TreeEvaluator->Bounds();
 }
 
 
@@ -611,8 +611,6 @@ int ShowBackground = 0;
 bool ShowSubtrees = false;
 bool ShowHeatmap = false;
 bool ResetCamera = true;
-glm::vec4 ModelMin = glm::vec4(0.0);
-glm::vec4 ModelMax = glm::vec4(0.0);
 float PresentFrequency = 0.0;
 float PresentDeltaMs = 0.0;
 glm::vec3 CameraFocus = glm::vec3(0.0, 0.0, 0.0);
@@ -669,7 +667,7 @@ void RenderFrame(int ScreenWidth, int ScreenHeight)
 			RotateX = 0.0;
 			RotateZ = 0.0;
 			Zoom = 14.0;
-			CameraFocus = (ModelMax.xyz - ModelMin.xyz) * glm::vec3(0.5) + ModelMin.xyz;
+			CameraFocus = (ModelBounds.Max - ModelBounds.Min) * glm::vec3(0.5) + ModelBounds.Min;
 		}
 
 		RotateX = fmodf(RotateX - MouseMotionY, 360.0);
@@ -707,8 +705,8 @@ void RenderFrame(int ScreenWidth, int ScreenHeight)
 			ClipToView,
 			glm::vec4(CameraOrigin, 1.0f),
 			glm::vec4(Width, Height, 1.0f / Width, 1.0f / Height),
-			ModelMin,
-			ModelMax,
+			glm::vec4(ModelBounds.Min, 1.0),
+			glm::vec4(ModelBounds.Max, 1.0),
 			float(CurrentTime),
 		};
 		ViewInfo.Upload((void*)&BufferData, sizeof(BufferData));
@@ -896,13 +894,6 @@ void ToggleFullScreen(SDL_Window* Window)
 	static bool FullScreen = false;
 	FullScreen = !FullScreen;
 	SDL_SetWindowFullscreen(Window, FullScreen ? SDL_WINDOW_FULLSCREEN_DESKTOP : 0);
-}
-
-
-extern "C" void TANGERINE_API SetLimitsCallback(float MinX, float MinY, float MinZ, float MaxX, float MaxY, float MaxZ)
-{
-	ModelMin = glm::vec4(MinX, MinY, MinZ, 1.0);
-	ModelMax = glm::vec4(MaxX, MaxY, MaxZ, 1.0);
 }
 
 
@@ -1248,12 +1239,12 @@ void RenderUI(SDL_Window* Window, bool& Live)
 							ExportSplitStep[1],
 							ExportSplitStep[2]);
 						int RefinementSteps = ExportSkipRefine ? 0 : ExportRefinementSteps;
-						MeshExport(TreeEvaluator, ModelMin.xyz, ModelMax.xyz, VoxelSize, RefinementSteps);
+						MeshExport(TreeEvaluator, ModelBounds.Min, ModelBounds.Max, VoxelSize, RefinementSteps);
 					}
 					else
 					{
 						glm::vec3 VoxelSize = glm::vec3(ExportStepSize);
-						MeshExport(TreeEvaluator, ModelMin.xyz, ModelMax.xyz, VoxelSize, DefaultExportRefinementSteps);
+						MeshExport(TreeEvaluator, ModelBounds.Min, ModelBounds.Max, VoxelSize, DefaultExportRefinementSteps);
 					}
 					ShowExportOptions = false;
 				}

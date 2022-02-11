@@ -113,11 +113,13 @@ struct TransformNode : public SDFNode
 {
 	SymbolMixin SymbolFn;
 	TransformMixin TransformFn;
+	TransformMixin InverseFn;
 	SDFNode* Child;
 
-	TransformNode(SymbolMixin& InSymbolFn, TransformMixin& InTransformFn, SDFNode* InChild)
+	TransformNode(SymbolMixin& InSymbolFn, TransformMixin& InTransformFn, TransformMixin& InInverseFn, SDFNode* InChild)
 		: SymbolFn(InSymbolFn)
 		, TransformFn(InTransformFn)
+		, InverseFn(InInverseFn)
 		, Child(InChild)
 	{
 	}
@@ -132,12 +134,43 @@ struct TransformNode : public SDFNode
 		SDFNode* NewChild = Child->Clip(TransformFn(Point), Radius);
 		if (NewChild)
 		{
-			return new TransformNode(SymbolFn, TransformFn, NewChild);
+			return new TransformNode(SymbolFn, TransformFn, InverseFn, NewChild);
 		}
 		else
 		{
 			return nullptr;
 		}
+	}
+
+	virtual AABB Bounds()
+	{
+		const AABB ChildBounds = Child->Bounds();
+		const vec3 A = ChildBounds.Min;
+		const vec3 B = ChildBounds.Max;
+
+		const vec3 Points[7] = \
+		{
+			B,
+			vec3(B.x, A.yz),
+			vec3(A.x, B.y, A.z),
+			vec3(A.xy, B.z),
+			vec3(A.x, B.yz),
+			vec3(B.x, A.y, B.z),
+			vec3(B.xy, A.z)
+		};
+
+		AABB Bounds;
+		Bounds.Min = InverseFn(A);
+		Bounds.Max = Bounds.Min;
+
+		for (const vec3& Point : Points)
+		{
+			const vec3 Tmp = InverseFn(Point);
+			Bounds.Min = min(Bounds.Min, Tmp);
+			Bounds.Max = max(Bounds.Max, Tmp);
+		}
+
+		return Bounds;
 	}
 
 	virtual ptr Quote()
@@ -156,10 +189,12 @@ struct BrushNode : public SDFNode
 {
 	BrushMixin BrushFn;
 	SymbolMixin SymbolFn;
+	AABB BrushAABB;
 
-	BrushNode(SymbolMixin& InSymbolFn, BrushMixin& InBrushFn)
+	BrushNode(SymbolMixin& InSymbolFn, BrushMixin& InBrushFn, AABB& InBrushAABB)
 		: SymbolFn(InSymbolFn)
 		, BrushFn(InBrushFn)
+		, BrushAABB(InBrushAABB)
 	{
 	}
 
@@ -172,12 +207,17 @@ struct BrushNode : public SDFNode
 	{
 		if (Eval(Point) <= Radius)
 		{
-			return new BrushNode(SymbolFn, BrushFn);
+			return new BrushNode(SymbolFn, BrushFn, BrushAABB);
 		}
 		else
 		{
 			return nullptr;
 		}
+	}
+
+	virtual AABB Bounds()
+	{
+		return BrushAABB;
 	}
 
 	virtual ptr Quote()
@@ -286,6 +326,40 @@ struct SetNode : public SDFNode
 		}
 	}
 
+	virtual AABB Bounds()
+	{
+		AABB BoundsLHS = LHS->Bounds();
+		AABB BoundsRHS = RHS->Bounds();
+
+		AABB Combined;
+		if (Family == SetFamily::Union)
+		{
+			Combined.Min = min(BoundsLHS.Min, BoundsRHS.Min);
+			Combined.Max = max(BoundsLHS.Max, BoundsRHS.Max);
+		}
+		else if (Family == SetFamily::Diff)
+		{
+			Combined = BoundsLHS;
+		}
+		else if (Family == SetFamily::Inter)
+		{
+			Combined.Min = max(BoundsLHS.Min, BoundsRHS.Min);
+			Combined.Max = min(BoundsLHS.Max, BoundsRHS.Max);
+		}
+
+		if (BlendMode)
+		{
+			AABB Liminal;
+			Liminal.Min = max(BoundsLHS.Min, BoundsRHS.Min) - vec3(Threshold);
+			Liminal.Max = min(BoundsLHS.Max, BoundsRHS.Max) + vec3(Threshold);
+
+			Combined.Min = min(Combined.Min, Liminal.Min);
+			Combined.Max = max(Combined.Max, Liminal.Max);
+		}
+
+		return Combined;
+	}
+
 	virtual ptr Quote()
 	{
 		return SymbolFn(SchemeList(LHS->Quote(), RHS->Quote()));
@@ -326,6 +400,11 @@ struct PaintNode : public SDFNode
 		{
 			return nullptr;
 		}
+	}
+
+	virtual AABB Bounds()
+	{
+		return Child->Bounds();
 	}
 
 	virtual ptr Quote()
@@ -371,6 +450,17 @@ extern "C" TANGERINE_API void* ClipTree(void* Handle, float X, float Y, float Z,
 	}
 }
 
+// Extract the bounds of a SDF tree.
+extern "C" TANGERINE_API ptr TreeBounds(void* Handle)
+{
+	ProfileScope("TreeBounds");
+	AABB Tmp = ((SDFNode*)Handle)->Bounds();
+
+	return SchemeList(
+		SchemeList(Tmp.Min.x, Tmp.Min.y, Tmp.Min.z),
+		SchemeList(Tmp.Max.x, Tmp.Max.y, Tmp.Max.z));
+}
+
 // Return the csgst representation of a SDF tree.
 extern "C" TANGERINE_API ptr QuoteTree(void* Handle)
 {
@@ -403,7 +493,13 @@ extern "C" TANGERINE_API void* MakeTranslation(float X, float Y, float Z, void* 
 			return Point - Offset;
 		});
 
-	return new TransformNode(Quote, Eval, (SDFNode*)Child);
+	TransformMixin Inverse = TransformMixin(
+		[=](vec3 Point) -> vec3
+		{
+			return Point + Offset;
+		});
+
+	return new TransformNode(Quote, Eval, Inverse, (SDFNode*)Child);
 }
 
 
@@ -419,6 +515,8 @@ extern "C" TANGERINE_API void* MakeMatrixTransform(
 		X2, Y2, Z2, W2,
 		X3, Y3, Z3, W3,
 		X4, Y4, Z4, W4);
+
+	mat4 InvMatrix = inverse(Matrix);
 
 	SymbolMixin Quote = SymbolMixin(
 		[=](ptr Child) -> ptr
@@ -440,7 +538,20 @@ extern "C" TANGERINE_API void* MakeMatrixTransform(
 			return Tmp.xyz / Tmp.www;
 		});
 
-	return new TransformNode(Quote, Eval, (SDFNode*)Child);
+	TransformMixin Inverse = TransformMixin(
+		[=](vec3 Point) -> vec3
+		{
+			vec4 Tmp = InvMatrix * vec4(Point, 1.0);
+			return Tmp.xyz / Tmp.www;
+		});
+
+	return new TransformNode(Quote, Eval, Inverse, (SDFNode*)Child);
+}
+
+
+AABB SymmetricalBounds(vec3 High)
+{
+	return { High * vec3(-1), High };
 }
 
 
@@ -454,7 +565,9 @@ extern "C" TANGERINE_API void* MakeSphereBrush(float Radius)
 		});
 
 	BrushMixin Eval = std::bind(SDF::SphereBrush, _1, Radius);
-	return new BrushNode(Quote, Eval);
+
+	AABB Bounds = SymmetricalBounds(vec3(Radius));
+	return new BrushNode(Quote, Eval, Bounds);
 }
 
 extern "C" TANGERINE_API void* MakeEllipsoidBrush(float RadipodeX, float RadipodeY, float RadipodeZ)
@@ -466,7 +579,9 @@ extern "C" TANGERINE_API void* MakeEllipsoidBrush(float RadipodeX, float Radipod
 		});
 
 	BrushMixin Eval = std::bind(SDF::EllipsoidBrush, _1, vec3(RadipodeX, RadipodeY, RadipodeZ));
-	return new BrushNode(Quote, Eval);
+
+	AABB Bounds = SymmetricalBounds(vec3(RadipodeX, RadipodeY, RadipodeZ));
+	return new BrushNode(Quote, Eval, Bounds);
 }
 
 extern "C" TANGERINE_API void* MakeBoxBrush(float ExtentX, float ExtentY, float ExtentZ)
@@ -478,13 +593,13 @@ extern "C" TANGERINE_API void* MakeBoxBrush(float ExtentX, float ExtentY, float 
 		});
 
 	BrushMixin Eval = std::bind(SDF::BoxBrush, _1, vec3(ExtentX, ExtentY, ExtentZ));
-	return new BrushNode(Quote, Eval);
+
+	AABB Bounds = SymmetricalBounds(vec3(ExtentX, ExtentY, ExtentZ));
+	return new BrushNode(Quote, Eval, Bounds);
 }
 
 extern "C" TANGERINE_API void* MakeTorusBrush(float MajorRadius, float MinorRadius)
 {
-	float Radius = MajorRadius + MinorRadius;
-
 	SymbolMixin Quote = SymbolMixin(
 		[=](ptr Unused) -> ptr
 		{
@@ -492,7 +607,10 @@ extern "C" TANGERINE_API void* MakeTorusBrush(float MajorRadius, float MinorRadi
 		});
 
 	BrushMixin Eval = std::bind(SDF::TorusBrush, _1, MajorRadius, MinorRadius);
-	return new BrushNode(Quote, Eval);
+
+	float Radius = MajorRadius + MinorRadius;
+	AABB Bounds = SymmetricalBounds(vec3(Radius, Radius, MinorRadius));
+	return new BrushNode(Quote, Eval, Bounds);
 }
 
 extern "C" TANGERINE_API void* MakeCylinderBrush(float Radius, float Extent)
@@ -504,7 +622,9 @@ extern "C" TANGERINE_API void* MakeCylinderBrush(float Radius, float Extent)
 		});
 
 	BrushMixin Eval = std::bind(SDF::CylinderBrush, _1, Radius, Extent);
-	return new BrushNode(Quote, Eval);
+
+	AABB Bounds = SymmetricalBounds(vec3(Radius, Radius, Extent));
+	return new BrushNode(Quote, Eval, Bounds);
 }
 
 

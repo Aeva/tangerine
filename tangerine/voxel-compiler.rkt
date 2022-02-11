@@ -42,7 +42,7 @@
     (values aligned-low aligned-high voxel-count)))
 
 
-(define (vox-and-clip csgst limits evaluator voxel-size)
+(define (vox-and-clip limits evaluator voxel-size)
   (let*-values
       ([(model-low) (car limits)]
        [(model-high) (cadr limits)]
@@ -89,20 +89,20 @@
          (profile-scope "transform folding"
                         (coalesce csgst))]
 
-        ; Find the model boundaries, and bounded subtrees
-        [limits
-         (profile-scope "model bounds"
-                        (simple-bounds coalesced-tree))]
-
         ; Create an evaluator for the model.
         [evaluator
          (profile-scope "evaluator"
                         (sdf-build coalesced-tree))]
 
+        ; Find the model boundaries, and bounded subtrees
+        [limits
+         (profile-scope "model bounds"
+                        (sdf-bounds evaluator))]
+
         ; Find voxel subtrees.
         [parts (if (sdf-handle-is-valid? evaluator)
                    (profile-scope "find voxel subtrees"
-                                  (vox-and-clip coalesced-tree limits evaluator voxel-size))
+                                  (vox-and-clip limits evaluator voxel-size))
                    null)])
 
      (profile-scope "glsl generation"

@@ -32,11 +32,20 @@
 #endif
 
 
+struct AABB
+{
+	glm::vec3 Min;
+	glm::vec3 Max;
+};
+
+
 struct SDFNode
 {
 	virtual float Eval(glm::vec3 Point) = 0;
 
 	virtual SDFNode* Clip(glm::vec3 Point, float Radius) = 0;
+
+	virtual AABB Bounds() = 0;
 
 	virtual void* Quote() = 0;
 
