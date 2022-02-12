@@ -103,10 +103,14 @@
         [parts (if (sdf-handle-is-valid? evaluator)
                    (profile-scope "find voxel subtrees"
                                   (vox-and-clip limits evaluator voxel-size))
-                   null)])
+                   null)]
 
-     (profile-scope "glsl generation"
-                    (assemble (flatten limits) evaluator parts)))))
+        ; Generate GLSL.
+        [clusters
+         (profile-scope "generate glsl clusters"
+                    (assemble parts))])
+
+     (values evaluator clusters))))
 
 
 ; test

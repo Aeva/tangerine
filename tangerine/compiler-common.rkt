@@ -92,10 +92,9 @@
       (list subtree params bounds))))
 
 
-; Translates compiled csg expressions into glsl.  The "limits" and "evaluator"
-; args are passed through as return values.  This formats all of the compiled
+; Translates compiled csg expressions into glsl.  This formats all of the compiled
 ; data in the structure expected by "renderer-load-and-process-model".
-(define (assemble limits evaluator bounded-trees)
+(define (assemble bounded-trees)
 
   ; Convert the bounded subtrees into bounded subtrees with extracted
   ; parameters.  Each "part" is in the form (list subtree params bounds).
@@ -103,23 +102,20 @@
 
     ; Generate GLSL functions and instancing data for each shader to compile.
     ; This will be processed further by "renderer-load-and-process-model".
-    (values
-     limits
-     evaluator
-     (for/list ([part (in-list parts)]
-                [subtree-index (in-range (length parts))])
-       (let* ([subtree (car part)]
-              [params (cadr part)]
-              [bounds (caddr part)]
-              [glsl (generate-glsl subtree subtree-index)])
-         (append
-          (list
-           subtree
-           params
-           glsl)
-          (for/list ([bound (in-list bounds)])
-            (let* ([low (car bound)]
-                   [high (cdr bound)]
-                   [extent (vec* 0.5 (vec- high low))]
-                   [center (vec+ low extent)])
-              (cons extent center)))))))))
+    (for/list ([part (in-list parts)]
+               [subtree-index (in-range (length parts))])
+      (let* ([subtree (car part)]
+             [params (cadr part)]
+             [bounds (caddr part)]
+             [glsl (generate-glsl subtree subtree-index)])
+        (append
+         (list
+          subtree
+          params
+          glsl)
+         (for/list ([bound (in-list bounds)])
+           (let* ([low (car bound)]
+                  [high (cdr bound)]
+                  [extent (vec* 0.5 (vec- high low))]
+                  [center (vec+ low extent)])
+             (cons extent center))))))))

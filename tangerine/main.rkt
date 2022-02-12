@@ -22,15 +22,12 @@
 (require ffi/unsafe)
 (require ffi/unsafe/define)
 (require "csgst.rkt")
-(require "bounds-compiler.rkt")
 (require "voxel-compiler.rkt")
 (require "vec.rkt")
 (require "eval.rkt")
 (require "profiling.rkt")
 
 (provide compile
-         bounds-compiler
-         voxel-compiler
          align
          paint
          paint-over
@@ -121,7 +118,7 @@
      (let ([path (string->path path-str)])
        (dynamic-rerequire path)
        (let*-values ([(compiler) (dynamic-require path 'emit-glsl)]
-                     [(limits evaluator clusters) (compiler)])
+                     [(evaluator clusters) (compiler)])
 
          ; Set the model evaluator to be used by the STL exporter.
          (when (sdf-handle-is-valid? evaluator)
