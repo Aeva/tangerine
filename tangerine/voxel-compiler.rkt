@@ -16,7 +16,6 @@
 
 (require racket/generator)
 (require racket/list)
-(require "bounds.rkt")
 (require "coalesce.rkt")
 (require "compiler-common.rkt")
 (require "eval.rkt")
@@ -28,6 +27,13 @@
 
 (define (splat args)
   (apply values args))
+
+
+; Extract a list of subtrees from a list of AABBs.
+(define (extract-subtrees bounds)
+  (remove-duplicates
+   (for/list ([aabb (in-list bounds)])
+     (caddr aabb))))
 
 
 (define (find-grid limits voxel-size)
