@@ -16,6 +16,8 @@
 
 (require racket/generator)
 (require racket/list)
+(require ffi/unsafe)
+(require ffi/unsafe/define)
 (require "coalesce.rkt")
 (require "compiler-common.rkt")
 (require "eval.rkt")
@@ -23,6 +25,16 @@
 (require "profiling.rkt")
 
 (provide voxel-compiler)
+
+
+(define-ffi-definer define-backend (ffi-lib #f) #:default-make-fail make-not-available)
+(define _HANDLE (_cpointer/null 'void))
+(define-backend VoxelFinder (_fun _HANDLE _float -> _scheme))
+
+(define (voxel-finder handle voxel-size)
+  (unless (sdf-handle-is-valid? handle)
+    (error "Expected valid SDF handle."))
+  (VoxelFinder (cdr handle) voxel-size))
 
 
 (define (splat args)
@@ -36,40 +48,9 @@
      (caddr aabb))))
 
 
-(define (find-grid limits voxel-size)
-  (let* ([low (car limits)]
-         [high (cadr limits)]
-         [actual-extent (vec- high low)]
-         [voxel-count (vec/↑ actual-extent (vec3 voxel-size))]
-         [aligned-extent (vec* voxel-size voxel-count)]
-         [padding (vec* (vec- aligned-extent actual-extent) (vec3 .5))]
-         [aligned-low (vec- low padding)]
-         [aligned-high (vec+ high padding)])
-    (values aligned-low aligned-high voxel-count)))
-
-
-(define (vox-and-clip limits evaluator voxel-size)
+(define (vox-and-clip evaluator voxel-size)
   (let*-values
-      ([(model-low) (car limits)]
-       [(model-high) (cadr limits)]
-       [(grid-low grid-high voxel-count) (find-grid limits voxel-size)]
-       [(half-voxel) (vec* voxel-size (vec3 .5))]
-       [(radius) (vec-len half-voxel)]
-       [(start-x start-y start-z) (splat (vec+ grid-low half-voxel))]
-       [(stop-x stop-y stop-z) (splat grid-high)]
-       [(step-x step-y step-z) (splat (vec3 voxel-size))]
-       [(voxels)
-        (for/list ([clip (in-generator
-                          (for* ([vz (in-range start-z stop-z step-z)]
-                                 [vy (in-range start-y stop-y step-y)]
-                                 [vx (in-range start-x stop-x step-x)])
-                            (yield (list (sdf-clip evaluator vx vy vz radius) vx vy vz))))]
-                   #:when (sdf-handle-is-valid? (car clip)))
-          (let* ([subtree (sdf-quote (car clip))]
-                 [center (cdr clip)]
-                 [vox-low (vec-max model-low (vec- center half-voxel))]
-                 [vox-high (vec-min model-high (vec+ center half-voxel))])
-            (list vox-low vox-high subtree)))]
+      ([(voxels) (voxel-finder evaluator voxel-size)]
        [(subtrees) (profile-scope "extract subtrees"
                                   (extract-subtrees voxels))])
 
@@ -100,15 +81,10 @@
          (profile-scope "evaluator"
                         (sdf-build coalesced-tree))]
 
-        ; Find the model boundaries, and bounded subtrees
-        [limits
-         (profile-scope "model bounds"
-                        (sdf-bounds evaluator))]
-
         ; Find voxel subtrees.
         [parts (if (sdf-handle-is-valid? evaluator)
                    (profile-scope "find voxel subtrees"
-                                  (vox-and-clip limits evaluator voxel-size))
+                                  (vox-and-clip evaluator voxel-size))
                    null)]
 
         ; Generate GLSL.

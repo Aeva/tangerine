@@ -92,6 +92,8 @@ ptr SchemeThing(const char* Symbol)
 	return Sstring_to_symbol(Symbol);
 }
 
+ptr SchemeThing(vec3 Vector);
+
 template<typename Head>
 ptr SchemeList(Head Item)
 {
@@ -102,6 +104,11 @@ template<typename Head, typename... Tail>
 ptr SchemeList(Head Item, Tail... Next)
 {
 	return Scons(SchemeThing(Item), SchemeList(Next...));
+}
+
+ptr SchemeThing(vec3 Vector)
+{
+	return SchemeList(Vector.x, Vector.y, Vector.z);
 }
 
 
@@ -473,6 +480,68 @@ extern "C" TANGERINE_API void DiscardTree(void* Handle)
 {
 	ProfileScope("DiscardTree");
 	delete (SDFNode*)Handle;
+}
+
+// Iterate over a voxel grid and return bounded subtrees.
+extern "C" TANGERINE_API ptr VoxelFinder(void* Handle, const float VoxelSize)
+{
+	BeginEvent("VoxelFinder");
+	SDFNode* Evaluator = (SDFNode*)Handle;
+	AABB Limits = Evaluator->Bounds();
+
+	AABB Volume;
+	{
+		vec3 Extent = Limits.Max - Limits.Min;
+		vec3 VoxelCount = ceil(Extent / VoxelSize);
+		vec3 Padding = (VoxelSize * VoxelCount - Extent) * vec3(0.5);
+		Volume.Min = Limits.Min - Padding;
+		Volume.Max = Limits.Max + Padding;
+	}
+
+	const float HalfSize = VoxelSize * 0.5;
+	const float Radius = length(vec3(HalfSize));
+
+	const vec3 Start = Volume.Min + HalfSize;
+	const vec3 Stop = Volume.Max;
+	const vec3 Step = vec3(VoxelSize);
+
+	ptr Head = Snil;
+
+	for (float z = Start.z; z < Stop.z; z += Step.z)
+	{
+		for (float y = Start.y; y < Stop.y; y += Step.y)
+		{
+			for (float x = Start.x; x < Stop.x; x += Step.x)
+			{
+				// Profiling shows that the clipping is the most expensive part of this loop.
+				// The quote and cons are virtually free in comparison.
+
+				const vec3 Cursor = vec3(x, y, z);
+				BeginEvent("Clip");
+				SDFNode* Clipped = Evaluator->Clip(Cursor, Radius);
+				EndEvent();
+				if (Clipped)
+				{
+					if (abs(Clipped->Eval(Cursor)) <= Radius)
+					{
+						BeginEvent("Quote and Cons");
+						Head = Scons(
+							SchemeList(
+								max(Volume.Min, Cursor - vec3(HalfSize)),
+								min(Volume.Max, Cursor + vec3(HalfSize)),
+								Clipped->Quote()),
+							Head);
+						EndEvent();
+					}
+
+					delete Clipped;
+				}
+			}
+		}
+	}
+
+	EndEvent();
+	return Head;
 }
 
 
