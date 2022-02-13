@@ -23,6 +23,7 @@
 #include <imgui_impl_opengl3.h>
 
 #include "sdfs.h"
+#include "shape_compiler.h"
 #include "export.h"
 
 #include <iostream>
@@ -226,11 +227,12 @@ ShaderPipeline TestMaterials[6];
 
 
 ModelSubtree* PendingSubtree = nullptr;
-extern "C" size_t TANGERINE_API EmitShader(const char* ShaderTree, const char* PrettyTree, const char* ShaderSource, size_t ParamCount, float* Params)
+size_t EmitShader(std::string Source)
 {
-	std::string Tree = std::string(ShaderTree);
-	std::string Pretty = std::string(PrettyTree);
-	std::string Source = std::string(ShaderSource);
+	// TODO: debug versions
+	std::string& Tree = Source;
+	std::string& Pretty = Source;
+
 	auto Found = SubtreeMap.find(Tree);
 
 	size_t ShaderIndex;
@@ -247,23 +249,22 @@ extern "C" size_t TANGERINE_API EmitShader(const char* ShaderTree, const char* P
 		ShaderIndex = Found->second;
 	}
 
-	SubtreeShaders[ShaderIndex].Instances.emplace_back(ParamCount, Params);
-	PendingSubtree = &(SubtreeShaders[ShaderIndex].Instances.back());
-
 	return ShaderIndex;
 }
 
-
-extern "C" void TANGERINE_API EmitSection(float InExtent[3], float InCenter[3], float Matrix[16])
+void EmitParameters(size_t ShaderIndex, std::vector<float> Params)
 {
-	glm::mat4 LocalToWorld;
-	for (int i = 0; i < 4; ++i)
-	{
-		LocalToWorld[i] = glm::vec4(Matrix[i * 4 + 0], Matrix[i * 4 + 1], Matrix[i * 4 + 2], Matrix[i * 4 + 3]);
-	}
-	glm::vec4 Center = glm::vec4(InCenter[0], InCenter[1], InCenter[2], 0.0);
-	glm::vec4 Extent = glm::vec4(InExtent[0], InExtent[1], InExtent[2], 0.0);
-	PendingSubtree->Sections.emplace_back(LocalToWorld, Center, Extent);
+	// TODO: Instances is currently a vector, but should it be a map...?
+	SubtreeShaders[ShaderIndex].Instances.emplace_back(Params.size(), Params.data());
+	PendingSubtree = &(SubtreeShaders[ShaderIndex].Instances.back());
+}
+
+void EmitVoxel(AABB Bounds)
+{
+	glm::mat4 LocalToWorld = glm::identity<glm::mat4>();
+	glm::vec3 Extent = (Bounds.Max - Bounds.Min) * glm::vec3(0.5);
+	glm::vec3 Center = Extent + Bounds.Min;
+	PendingSubtree->Sections.emplace_back(LocalToWorld, glm::vec4(Center, 0.0), glm::vec4(Extent, 0.0));
 }
 
 
@@ -281,11 +282,12 @@ void ClearTreeEvaluator()
 
 
 AABB ModelBounds = { glm::vec3(0.0), glm::vec3(0.0) };
-extern "C" TANGERINE_API void SetTreeEvaluator(void* InTreeEvaluator)
+//extern "C" TANGERINE_API void SetTreeEvaluator(void* InTreeEvaluator)
+void SetTreeEvaluator(SDFNode* InTreeEvaluator, AABB Limits)
 {
 	ClearTreeEvaluator();
-	TreeEvaluator = (SDFNode*)InTreeEvaluator;
-	ModelBounds = TreeEvaluator->Bounds();
+	TreeEvaluator = InTreeEvaluator;
+	ModelBounds = Limits;// TreeEvaluator->Bounds();
 }
 
 
@@ -580,12 +582,6 @@ void CompileNewShaders(const double LastInnerFrameDeltaMs)
 
 	while (PendingShaders.size() > 0)
 	{
-		std::chrono::duration<double, std::milli> Delta = Clock::now() - ProcessingStart;
-		if (Delta.count() > Budget)
-		{
-			break;
-		}
-		else
 		{
 			BeginEvent("Start Async Compile");
 			size_t SubtreeIndex = PendingShaders.back();
@@ -598,6 +594,12 @@ void CompileNewShaders(const double LastInnerFrameDeltaMs)
 				Drawables.push_back(&Shader);
 			}
 			EndEvent();
+		}
+
+		std::chrono::duration<double, std::milli> Delta = Clock::now() - ProcessingStart;
+		if (Delta.count() > Budget)
+		{
+			break;
 		}
 	}
 	EndEvent();

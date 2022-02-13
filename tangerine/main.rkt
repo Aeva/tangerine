@@ -15,16 +15,11 @@
 ; limitations under the License.
 
 (require racket/exn)
-(require racket/list)
-(require racket/string)
-(require racket/format)
 (require racket/rerequire)
 (require ffi/unsafe)
 (require ffi/unsafe/define)
 (require "csgst.rkt")
 (require "voxel-compiler.rkt")
-(require "vec.rkt")
-(require "eval.rkt")
 (require "profiling.rkt")
 
 (provide compile
@@ -52,46 +47,39 @@
 
 
 (define-ffi-definer define-backend (ffi-lib #f) #:default-make-fail make-not-available)
-(define-backend EmitShader (_fun _string/utf-8
-                                 _string/utf-8
-                                 _string/utf-8
-                                 [_size = (length params)]
-                                 [params : (_list i _float)]
-                                 -> _size))
-(define-backend EmitSection (_fun (_list i _float) (_list i _float) (_list i _float) -> _void))
 (define-backend RacketErrorCallback (_fun _string/utf-8 -> _void))
 
 
 ; Used by pretty-print below for operators.
-(define (pretty-print-op head operands)
-  (define tmp (~a "⎛" head))
-  (let* ([treext (string-join operands "\n")]
-         [lines (string-split treext "\n")])
-    (for ([i (in-naturals 1)]
-          [line lines])
-      (let* ([last? (eq? i (length lines))]
-             [sep (if last? "⎝" "⎜")])
-        (set! tmp (string-append tmp "\n" sep "  " line)))))
-  tmp)
+;(define (pretty-print-op head operands)
+;  (define tmp (~a "⎛" head))
+;  (let* ([treext (string-join operands "\n")]
+;         [lines (string-split treext "\n")])
+;    (for ([i (in-naturals 1)]
+;          [line lines])
+;      (let* ([last? (eq? i (length lines))]
+;             [sep (if last? "⎝" "⎜")])
+;        (set! tmp (string-append tmp "\n" sep "  " line)))))
+;  tmp)
 
 
 ; Pretty print the CSG tree for debugging.
-(define (pretty-print csgst)
-  (let ([node (car csgst)])
-    (cond [(or
-            (eq? node 'union)
-            (eq? node 'inter)
-            (eq? node 'diff))
-           (pretty-print-op node (map pretty-print (cdr csgst)))]
-          [(or
-            (eq? node 'blend-union)
-            (eq? node 'blend-inter)
-            (eq? node 'blend-diff))
-           (let ([threshold (cadr csgst)]
-                 [subtrees (cddr csgst)])
-             (pretty-print-op (~a node " " threshold)
-                              (map pretty-print subtrees)))]
-          [else (~a csgst)])))
+;(define (pretty-print csgst)
+;  (let ([node (car csgst)])
+;    (cond [(or
+;            (eq? node 'union)
+;            (eq? node 'inter)
+;            (eq? node 'diff))
+;           (pretty-print-op node (map pretty-print (cdr csgst)))]
+;          [(or
+;            (eq? node 'blend-union)
+;            (eq? node 'blend-inter)
+;            (eq? node 'blend-diff))
+;           (let ([threshold (cadr csgst)]
+;                 [subtrees (cddr csgst)])
+;             (pretty-print-op (~a node " " threshold)
+;                              (map pretty-print subtrees)))]
+;          [else (~a csgst)])))
 
 
 ; This function compiles a CSG tree into a set of partial GLSL sources and
@@ -117,27 +105,8 @@
    (with-handlers ([exn:fail? (λ (err) (RacketErrorCallback (exn->string err)))])
      (let ([path (string->path path-str)])
        (dynamic-rerequire path)
-       (let*-values ([(compiler) (dynamic-require path 'emit-glsl)]
-                     [(evaluator clusters) (compiler)])
-
-         ; Set the model evaluator to be used by the STL exporter.
-         (when (sdf-handle-is-valid? evaluator)
-           (SetTreeEvaluator (cdr evaluator)))
-
-         ; Emit shaders for the renderer to finish compiling, and instance
-         ; data for the renderer to draw.
-         (profile-scope
-          "emit shaders and sections"
-
-          (for ([cluster (in-list clusters)])
-            (let* ([tree (car cluster)]
-                   [params (cadr cluster)]
-                   [dist (caddr cluster)]
-                   [aabbs (cdddr cluster)]
-                   [index (EmitShader (~a tree) (pretty-print tree) dist params)]
-                   [matrix (flatten (mat4-identity))])
-              (for ([aabb (in-list aabbs)])
-                (EmitSection (car aabb) (cdr aabb) matrix)))))))))
+       (let* ([compiler (dynamic-require path 'emit-glsl)])
+         (compiler)))))
 
   (profile-scope
    "GC"

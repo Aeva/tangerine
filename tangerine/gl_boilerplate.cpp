@@ -351,12 +351,12 @@ StatusCode ShaderCompileJob::FinishCompile()
 
 	if (!CompileStatus)
 	{
-		std::string Error = GetShaderInfoLog(ShaderID);
+		Error = GetShaderInfoLog(ShaderID);
 		Status = StatusCode::FAIL;
 	}
 	else if (!LinkStatus)
 	{
-		std::string Error = GetProgramInfoLog(ProgramID);
+		Error = GetProgramInfoLog(ProgramID);
 		Status = StatusCode::FAIL;
 	}
 

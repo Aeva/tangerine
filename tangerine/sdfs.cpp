@@ -13,6 +13,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include <array>
+#include <format>
 #include <functional>
 #include <cmath>
 
@@ -23,7 +25,6 @@
 #include "profiling.h"
 
 
-using TreeHandle = void*;
 using namespace glm;
 using namespace std::placeholders;
 
@@ -68,6 +69,7 @@ vec3 SDFNode::Gradient(vec3 Point)
 using SymbolMixin = std::function<ptr(ptr)>;
 using BrushMixin = std::function<float(vec3)>;
 using TransformMixin = std::function<vec3(vec3)>;
+using PointMixin = std::function<std::string(const int, const std::string&)>;
 using SetMixin = std::function<float(float, float)>;
 
 
@@ -112,19 +114,48 @@ ptr SchemeThing(vec3 Vector)
 }
 
 
+template<typename ParamsT>
+int StoreParams(std::vector<float>& TreeParams, const ParamsT& NodeParams)
+{
+	const int Offset = (int)TreeParams.size();
+	for (const float& Param : NodeParams)
+	{
+		TreeParams.push_back(Param);
+	}
+	return Offset;
+}
+
+std::string MakeParamList(int Offset, int Count)
+{
+	if (Count <= 1)
+	{
+		return std::format("PARAMS[{}]", Offset);
+	}
+	else
+	{
+		return std::format("PARAMS[{}], {}", Offset, MakeParamList(Offset + 1, Count - 1));
+	}
+}
+
+
 // The following structs are used to implement executable signed distance
 // functions, to be constructed indirectly from Racket.
 
 
+template<typename ParamsT>
 struct TransformNode : public SDFNode
 {
+	PointMixin PointFn;
+	ParamsT NodeParams;
 	SymbolMixin SymbolFn;
 	TransformMixin TransformFn;
 	TransformMixin InverseFn;
 	SDFNode* Child;
 
-	TransformNode(SymbolMixin& InSymbolFn, TransformMixin& InTransformFn, TransformMixin& InInverseFn, SDFNode* InChild)
-		: SymbolFn(InSymbolFn)
+	TransformNode(PointMixin& InPointFn, ParamsT& InNodeParams, SymbolMixin& InSymbolFn, TransformMixin& InTransformFn, TransformMixin& InInverseFn, SDFNode* InChild)
+		: PointFn(InPointFn)
+		, NodeParams(InNodeParams)
+		, SymbolFn(InSymbolFn)
 		, TransformFn(InTransformFn)
 		, InverseFn(InInverseFn)
 		, Child(InChild)
@@ -141,7 +172,7 @@ struct TransformNode : public SDFNode
 		SDFNode* NewChild = Child->Clip(TransformFn(Point), Radius);
 		if (NewChild)
 		{
-			return new TransformNode(SymbolFn, TransformFn, InverseFn, NewChild);
+			return new TransformNode(PointFn, NodeParams, SymbolFn, TransformFn, InverseFn, NewChild);
 		}
 		else
 		{
@@ -185,6 +216,13 @@ struct TransformNode : public SDFNode
 		return SymbolFn(Child->Quote());
 	}
 
+	virtual std::string Compile(std::vector<float>& TreeParams, std::string& Point)
+	{
+		const int Offset = StoreParams(TreeParams, NodeParams);
+		std::string NewPoint = PointFn(Offset, Point);
+		return Child->Compile(TreeParams, NewPoint);
+	}
+
 	virtual ~TransformNode()
 	{
 		delete Child;
@@ -192,14 +230,19 @@ struct TransformNode : public SDFNode
 };
 
 
+template<typename ParamsT>
 struct BrushNode : public SDFNode
 {
-	BrushMixin BrushFn;
+	std::string BrushFnName;
+	ParamsT NodeParams;
 	SymbolMixin SymbolFn;
+	BrushMixin BrushFn;
 	AABB BrushAABB;
 
-	BrushNode(SymbolMixin& InSymbolFn, BrushMixin& InBrushFn, AABB& InBrushAABB)
-		: SymbolFn(InSymbolFn)
+	BrushNode(const std::string& InBrushFnName, const ParamsT& InNodeParams, SymbolMixin& InSymbolFn, BrushMixin& InBrushFn, AABB& InBrushAABB)
+		: BrushFnName(InBrushFnName)
+		, NodeParams(InNodeParams)
+		, SymbolFn(InSymbolFn)
 		, BrushFn(InBrushFn)
 		, BrushAABB(InBrushAABB)
 	{
@@ -214,7 +257,7 @@ struct BrushNode : public SDFNode
 	{
 		if (Eval(Point) <= Radius)
 		{
-			return new BrushNode(SymbolFn, BrushFn, BrushAABB);
+			return new BrushNode(BrushFnName, NodeParams, SymbolFn, BrushFn, BrushAABB);
 		}
 		else
 		{
@@ -230,6 +273,12 @@ struct BrushNode : public SDFNode
 	virtual ptr Quote()
 	{
 		return SymbolFn(Snil);
+	}
+
+	virtual std::string Compile(std::vector<float>& TreeParams, std::string& Point)
+	{
+		const int Offset = StoreParams(TreeParams, NodeParams);
+		return std::format("{}({}, {})", BrushFnName, Point, MakeParamList(Offset, (int)NodeParams.size()));
 	}
 };
 
@@ -251,7 +300,7 @@ struct SetNode : public SDFNode
 	SDFNode* RHS;
 	float Threshold;
 
-	SetNode(SymbolMixin& InSymbolFn, SetMixin& InSetFn, SDFNode* InLHS, SDFNode* InRHS, float InThreshold = 0.0)
+	SetNode(SymbolMixin& InSymbolFn, SetMixin& InSetFn, SDFNode* InLHS, SDFNode* InRHS, float InThreshold)
 		: SymbolFn(InSymbolFn)
 		, SetFn(InSetFn)
 		, LHS(InLHS)
@@ -280,7 +329,7 @@ struct SetNode : public SDFNode
 			SDFNode* NewRHS = RHS->Clip(Point, Radius + Threshold);
 			if (NewLHS && NewRHS)
 			{
-				return new SetNode<Family, BlendMode>(SymbolFn, SetFn, NewLHS, NewRHS);
+				return new SetNode<Family, BlendMode>(SymbolFn, SetFn, NewLHS, NewRHS, Threshold);
 			}
 			else if (NewLHS)
 			{
@@ -302,7 +351,7 @@ struct SetNode : public SDFNode
 		if (NewLHS && NewRHS)
 		{
 			// Note, this shouldn't be possible to hit when BlendMode == true.
-			return new SetNode<Family, BlendMode>(SymbolFn, SetFn, NewLHS, NewRHS);
+			return new SetNode<Family, BlendMode>(SymbolFn, SetFn, NewLHS, NewRHS, Threshold);
 		}
 		else if (Family == SetFamily::Union)
 		{
@@ -372,6 +421,45 @@ struct SetNode : public SDFNode
 		return SymbolFn(SchemeList(LHS->Quote(), RHS->Quote()));
 	}
 
+	virtual std::string Compile(std::vector<float>& TreeParams, std::string& Point)
+	{
+		const std::string CompiledLHS = LHS->Compile(TreeParams, Point);
+		const std::string CompiledRHS = RHS->Compile(TreeParams, Point);
+
+		if (BlendMode)
+		{
+			const int Offset = (int)TreeParams.size();
+			TreeParams.push_back(Threshold);
+			if (Family == SetFamily::Union)
+			{
+				return std::format("SmoothUnionOp({}, {}, PARAMS[{}])", CompiledLHS, CompiledRHS, Offset);
+			}
+			else if (Family == SetFamily::Diff)
+			{
+				return std::format("SmoothCutOp({}, {}, PARAMS[{}])", CompiledLHS, CompiledRHS, Offset);
+			}
+			else if (Family == SetFamily::Inter)
+			{
+				return std::format("SmoothIntersectionOp({}, {}, PARAMS[{}])", CompiledLHS, CompiledRHS, Offset);
+			}
+		}
+		else
+		{
+			if (Family == SetFamily::Union)
+			{
+				return std::format("UnionOp({}, {})", CompiledLHS, CompiledRHS);
+			}
+			else if (Family == SetFamily::Diff)
+			{
+				return std::format("CutOp({}, {})", CompiledLHS, CompiledRHS);
+			}
+			else if (Family == SetFamily::Inter)
+			{
+				return std::format("IntersectionOp({}, {})", CompiledLHS, CompiledRHS);
+			}
+		}
+	}
+
 	virtual ~SetNode()
 	{
 		delete LHS;
@@ -417,6 +505,11 @@ struct PaintNode : public SDFNode
 	virtual ptr Quote()
 	{
 		return SchemeList("paint", Material, Child->Quote());
+	}
+
+	virtual std::string Compile(std::vector<float>& TreeParams, std::string& Point)
+	{
+		return std::format("MaterialDist({}, {})", Material, Child->Compile(TreeParams, Point));
 	}
 
 	virtual ~PaintNode()
@@ -482,73 +575,19 @@ extern "C" TANGERINE_API void DiscardTree(void* Handle)
 	delete (SDFNode*)Handle;
 }
 
-// Iterate over a voxel grid and return bounded subtrees.
-extern "C" TANGERINE_API ptr VoxelFinder(void* Handle, const float VoxelSize)
-{
-	BeginEvent("VoxelFinder");
-	SDFNode* Evaluator = (SDFNode*)Handle;
-	AABB Limits = Evaluator->Bounds();
-
-	AABB Volume;
-	{
-		vec3 Extent = Limits.Max - Limits.Min;
-		vec3 VoxelCount = ceil(Extent / VoxelSize);
-		vec3 Padding = (VoxelSize * VoxelCount - Extent) * vec3(0.5);
-		Volume.Min = Limits.Min - Padding;
-		Volume.Max = Limits.Max + Padding;
-	}
-
-	const float HalfSize = VoxelSize * 0.5;
-	const float Radius = length(vec3(HalfSize));
-
-	const vec3 Start = Volume.Min + HalfSize;
-	const vec3 Stop = Volume.Max;
-	const vec3 Step = vec3(VoxelSize);
-
-	ptr Head = Snil;
-
-	for (float z = Start.z; z < Stop.z; z += Step.z)
-	{
-		for (float y = Start.y; y < Stop.y; y += Step.y)
-		{
-			for (float x = Start.x; x < Stop.x; x += Step.x)
-			{
-				// Profiling shows that the clipping is the most expensive part of this loop.
-				// The quote and cons are virtually free in comparison.
-
-				const vec3 Cursor = vec3(x, y, z);
-				BeginEvent("Clip");
-				SDFNode* Clipped = Evaluator->Clip(Cursor, Radius);
-				EndEvent();
-				if (Clipped)
-				{
-					if (abs(Clipped->Eval(Cursor)) <= Radius)
-					{
-						BeginEvent("Quote and Cons");
-						Head = Scons(
-							SchemeList(
-								max(Volume.Min, Cursor - vec3(HalfSize)),
-								min(Volume.Max, Cursor + vec3(HalfSize)),
-								Clipped->Quote()),
-							Head);
-						EndEvent();
-					}
-
-					delete Clipped;
-				}
-			}
-		}
-	}
-
-	EndEvent();
-	return Head;
-}
-
 
 // The following functions construct transform nodes.
 extern "C" TANGERINE_API void* MakeTranslation(float X, float Y, float Z, void* Child)
 {
 	vec3 Offset(X, Y, Z);
+
+	std::array<float, 3> Params = { X, Y, Z };
+
+	PointMixin PointFn = PointMixin(
+		[](const int Offset, const std::string& Point) -> std::string
+		{
+			return std::format("({} - vec3({}))", Point, MakeParamList(Offset, 3));
+		});
 
 	SymbolMixin Quote = SymbolMixin(
 		[=](ptr Child) -> ptr
@@ -568,7 +607,7 @@ extern "C" TANGERINE_API void* MakeTranslation(float X, float Y, float Z, void* 
 			return Point + Offset;
 		});
 
-	return new TransformNode(Quote, Eval, Inverse, (SDFNode*)Child);
+	return new TransformNode(PointFn, Params, Quote, Eval, Inverse, (SDFNode*)Child);
 }
 
 
@@ -579,6 +618,14 @@ extern "C" TANGERINE_API void* MakeMatrixTransform(
 	float X4, float Y4, float Z4, float W4,
 	void* Child)
 {
+	std::array<float, 16> Params = \
+	{
+		X1, Y1, Z1, W1,
+		X2, Y2, Z2, W2,
+		X3, Y3, Z3, W3,
+		X4, Y4, Z4, W4
+	};
+
 	mat4 Matrix(
 		X1, Y1, Z1, W1,
 		X2, Y2, Z2, W2,
@@ -586,6 +633,12 @@ extern "C" TANGERINE_API void* MakeMatrixTransform(
 		X4, Y4, Z4, W4);
 
 	mat4 InvMatrix = inverse(Matrix);
+
+	PointMixin PointFn = PointMixin(
+		[](const int Offset, const std::string& Point) -> std::string
+		{
+			return std::format("MatrixTransform({}, mat4({}))", Point, MakeParamList(Offset, 16));
+		});
 
 	SymbolMixin Quote = SymbolMixin(
 		[=](ptr Child) -> ptr
@@ -614,7 +667,7 @@ extern "C" TANGERINE_API void* MakeMatrixTransform(
 			return Tmp.xyz / Tmp.www;
 		});
 
-	return new TransformNode(Quote, Eval, Inverse, (SDFNode*)Child);
+	return new TransformNode(PointFn, Params, Quote, Eval, Inverse, (SDFNode*)Child);
 }
 
 
@@ -627,6 +680,8 @@ AABB SymmetricalBounds(vec3 High)
 // The following functions construct Brush nodes.
 extern "C" TANGERINE_API void* MakeSphereBrush(float Radius)
 {
+	std::array<float, 1> Params = { Radius };
+
 	SymbolMixin Quote = SymbolMixin(
 		[=](ptr Unused) -> ptr
 		{
@@ -636,11 +691,13 @@ extern "C" TANGERINE_API void* MakeSphereBrush(float Radius)
 	BrushMixin Eval = std::bind(SDF::SphereBrush, _1, Radius);
 
 	AABB Bounds = SymmetricalBounds(vec3(Radius));
-	return new BrushNode(Quote, Eval, Bounds);
+	return new BrushNode("SphereBrush", Params, Quote, Eval, Bounds);
 }
 
 extern "C" TANGERINE_API void* MakeEllipsoidBrush(float RadipodeX, float RadipodeY, float RadipodeZ)
 {
+	std::array<float, 3> Params = { RadipodeX, RadipodeY, RadipodeZ };
+
 	SymbolMixin Quote = SymbolMixin(
 		[=](ptr Unused) -> ptr
 		{
@@ -650,11 +707,13 @@ extern "C" TANGERINE_API void* MakeEllipsoidBrush(float RadipodeX, float Radipod
 	BrushMixin Eval = std::bind(SDF::EllipsoidBrush, _1, vec3(RadipodeX, RadipodeY, RadipodeZ));
 
 	AABB Bounds = SymmetricalBounds(vec3(RadipodeX, RadipodeY, RadipodeZ));
-	return new BrushNode(Quote, Eval, Bounds);
+	return new BrushNode("UnwrappedEllipsoidBrush", Params, Quote, Eval, Bounds);
 }
 
 extern "C" TANGERINE_API void* MakeBoxBrush(float ExtentX, float ExtentY, float ExtentZ)
 {
+	std::array<float, 3> Params = { ExtentX, ExtentY, ExtentZ };
+
 	SymbolMixin Quote = SymbolMixin(
 		[=](ptr Unused) -> ptr
 		{
@@ -664,11 +723,13 @@ extern "C" TANGERINE_API void* MakeBoxBrush(float ExtentX, float ExtentY, float 
 	BrushMixin Eval = std::bind(SDF::BoxBrush, _1, vec3(ExtentX, ExtentY, ExtentZ));
 
 	AABB Bounds = SymmetricalBounds(vec3(ExtentX, ExtentY, ExtentZ));
-	return new BrushNode(Quote, Eval, Bounds);
+	return new BrushNode("UnwrappedBoxBrush", Params, Quote, Eval, Bounds);
 }
 
 extern "C" TANGERINE_API void* MakeTorusBrush(float MajorRadius, float MinorRadius)
 {
+	std::array<float, 2> Params = { MajorRadius, MinorRadius };
+
 	SymbolMixin Quote = SymbolMixin(
 		[=](ptr Unused) -> ptr
 		{
@@ -679,11 +740,14 @@ extern "C" TANGERINE_API void* MakeTorusBrush(float MajorRadius, float MinorRadi
 
 	float Radius = MajorRadius + MinorRadius;
 	AABB Bounds = SymmetricalBounds(vec3(Radius, Radius, MinorRadius));
-	return new BrushNode(Quote, Eval, Bounds);
+
+	return new BrushNode("TorusBrush", Params, Quote, Eval, Bounds);
 }
 
 extern "C" TANGERINE_API void* MakeCylinderBrush(float Radius, float Extent)
 {
+	std::array<float, 2> Params = { Radius, Extent };
+
 	SymbolMixin Quote = SymbolMixin(
 		[=](ptr Unused) -> ptr
 		{
@@ -693,7 +757,7 @@ extern "C" TANGERINE_API void* MakeCylinderBrush(float Radius, float Extent)
 	BrushMixin Eval = std::bind(SDF::CylinderBrush, _1, Radius, Extent);
 
 	AABB Bounds = SymmetricalBounds(vec3(Radius, Radius, Extent));
-	return new BrushNode(Quote, Eval, Bounds);
+	return new BrushNode("CylinderBrush", Params, Quote, Eval, Bounds);
 }
 
 
@@ -707,7 +771,7 @@ extern "C" TANGERINE_API void* MakeUnionOp(void* LHS, void* RHS)
 		});
 
 	SetMixin Eval = std::bind(SDF::UnionOp, _1, _2);
-	return new SetNode<SetFamily::Union, false>(Quote, Eval, (SDFNode*)LHS, (SDFNode*)RHS);
+	return new SetNode<SetFamily::Union, false>(Quote, Eval, (SDFNode*)LHS, (SDFNode*)RHS, 0.0);
 }
 
 extern "C" TANGERINE_API void* MakeDiffOp(void* LHS, void* RHS)
@@ -719,7 +783,7 @@ extern "C" TANGERINE_API void* MakeDiffOp(void* LHS, void* RHS)
 		});
 
 	SetMixin Eval = std::bind(SDF::CutOp, _1, _2);
-	return new SetNode<SetFamily::Diff, false>(Quote, Eval, (SDFNode*)LHS, (SDFNode*)RHS);
+	return new SetNode<SetFamily::Diff, false>(Quote, Eval, (SDFNode*)LHS, (SDFNode*)RHS, 0.0);
 }
 
 extern "C" TANGERINE_API void* MakeInterOp(void* LHS, void* RHS)
@@ -731,7 +795,7 @@ extern "C" TANGERINE_API void* MakeInterOp(void* LHS, void* RHS)
 		});
 
 	SetMixin Eval = std::bind(SDF::IntersectionOp, _1, _2);
-	return new SetNode<SetFamily::Inter, false>(Quote, Eval, (SDFNode*)LHS, (SDFNode*)RHS);
+	return new SetNode<SetFamily::Inter, false>(Quote, Eval, (SDFNode*)LHS, (SDFNode*)RHS, 0.0);
 }
 
 extern "C" TANGERINE_API void* MakeBlendUnionOp(float Threshold, void* LHS, void* RHS)

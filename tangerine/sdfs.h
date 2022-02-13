@@ -15,6 +15,8 @@
 
 #pragma once
 
+#include <vector>
+#include <string>
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #define GLM_FORCE_SWIZZLE
 #include <glm/vec3.hpp>
@@ -48,6 +50,8 @@ struct SDFNode
 	virtual AABB Bounds() = 0;
 
 	virtual void* Quote() = 0;
+
+	virtual std::string Compile(std::vector<float>& TreeParams, std::string& Point) = 0;
 
 	glm::vec3 Gradient(glm::vec3 Point);
 
