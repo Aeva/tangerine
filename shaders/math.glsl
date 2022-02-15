@@ -28,10 +28,24 @@ float EllipsoidBrush(vec3 Point, vec3 Radipodes)
 }
 
 
+// This exists to simplify parameter generation.
+float UnwrappedEllipsoidBrush(vec3 Point, float RadipodeX, float RadipodeY, float RadipodeZ)
+{
+	return EllipsoidBrush(Point, vec3(RadipodeX, RadipodeY, RadipodeZ));
+}
+
+
 float BoxBrush(vec3 Point, vec3 Extent)
 {
 	vec3 A = abs(Point) - Extent;
 	return length(max(A, 0.0)) + min(max(max(A.x, A.y), A.z), 0.0);
+}
+
+
+// This exists to simplify parameter generation.
+float UnwrappedBoxBrush(vec3 Point, float ExtentX, float ExtentY, float ExtentZ)
+{
+	return BoxBrush(Point, vec3(ExtentX, ExtentY, ExtentZ));
 }
 
 
