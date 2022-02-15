@@ -31,7 +31,6 @@
 #include <map>
 #include <vector>
 #include <chrono>
-#include <thread>
 
 #include <chezscheme.h>
 #include <racketcs.h>
@@ -122,7 +121,6 @@ struct SubtreeShader
 		, PrettyTree(Old.PrettyTree)
 		, DistSource(Old.DistSource)
 		, IsValid(Old.IsValid)
-		, Incomplete(Old.Incomplete)
 	{
 		Old.IsValid = false;
 		std::swap(DepthShader, Old.DepthShader);
@@ -135,37 +133,6 @@ struct SubtreeShader
 		PrettyTree = InPrettyTree;
 		DistSource = InDistSource;
 		IsValid = false;
-		Incomplete = false;
-	}
-
-	void StartAsyncSetup()
-	{
-		Incomplete = true;
-		DepthShader.AsyncSetup(
-			{ {GL_VERTEX_SHADER, ShaderSource("shaders/cluster_draw.vs.glsl", true)},
-			  {GL_FRAGMENT_SHADER, GeneratedShader("shaders/math.glsl", DistSource, "shaders/cluster_draw.fs.glsl")} },
-			DebugName.c_str());
-	}
-
-	bool WaitingForCompiler()
-	{
-		return DepthShader.WaitingForCompiler();
-	}
-
-	StatusCode FinishAsyncSetup()
-	{
-		StatusCode Result = DepthShader.FinishSetup();
-
-		if (Result == StatusCode::FAIL)
-		{
-			DepthShader.Reset();
-			return Result;
-		}
-
-		glGenQueries(1, &DepthQuery);
-		IsValid = true;
-		Incomplete = false;
-		return StatusCode::PASS;
 	}
 
 	StatusCode Compile()
@@ -207,11 +174,10 @@ struct SubtreeShader
 	}
 
 	bool IsValid;
-	bool Incomplete;
 	std::string DebugName;
 	std::string PrettyTree;
 	std::string DistSource;
-	ShaderPipeline DepthShader;
+	ShaderProgram DepthShader;
 	GLuint DepthQuery;
 
 	std::vector<ModelSubtree> Instances;
@@ -223,7 +189,7 @@ std::vector<SubtreeShader> SubtreeShaders;
 std::vector<size_t> PendingShaders;
 
 
-ShaderPipeline TestMaterials[6];
+ShaderProgram TestMaterials[6];
 
 
 ModelSubtree* PendingSubtree = nullptr;
@@ -292,11 +258,11 @@ void SetTreeEvaluator(SDFNode* InTreeEvaluator, AABB Limits)
 
 
 GLuint NullVAO;
-ShaderPipeline PaintShader;
-ShaderPipeline MaterialResolveShader;
-ShaderPipeline NoiseShader;
-ShaderPipeline BgShader;
-ShaderPipeline ResolveOutputShader;
+ShaderProgram PaintShader;
+ShaderProgram MaterialResolveShader;
+ShaderProgram NoiseShader;
+ShaderProgram BgShader;
+ShaderProgram ResolveOutputShader;
 
 Buffer ViewInfo("ViewInfo Buffer");
 Buffer MaterialInfo("MaterialInfo Buffer");
@@ -484,11 +450,6 @@ StatusCode SetupRenderer()
 	glGenVertexArrays(1, &NullVAO);
 	glBindVertexArray(NullVAO);
 
-	{
-		const int MaxThreads = std::thread::hardware_concurrency();
-		glMaxShaderCompilerThreadsARB(MaxThreads > 2 ? MaxThreads : 2);
-	}
-
 #if VISUALIZE_CLUSTER_COVERAGE
 	RETURN_ON_FAIL(ClusterCoverageShader.Setup(
 		{ {GL_VERTEX_SHADER, ShaderSource("shaders/cluster_coverage.vs.glsl", true)},
@@ -580,19 +541,26 @@ void CompileNewShaders(const double LastInnerFrameDeltaMs)
 	Budget = fmaxf(Budget, 1.0);
 	Budget = fminf(Budget, 14.0);
 
+	bool NeedBarrier = false;
+
 	while (PendingShaders.size() > 0)
 	{
 		{
-			BeginEvent("Start Async Compile");
+			BeginEvent("Compile Shader");
 			size_t SubtreeIndex = PendingShaders.back();
 			PendingShaders.pop_back();
 
 			SubtreeShader& Shader = SubtreeShaders[SubtreeIndex];
-			Shader.StartAsyncSetup();
+			Shader.Compile();
 			if (Shader.Instances.size() > 0)
 			{
 				Drawables.push_back(&Shader);
 			}
+			NeedBarrier = true;
+
+			std::chrono::duration<double, std::milli> Delta = Clock::now() - ShaderCompilerStart;
+			ShaderCompilerConvergenceMs = Delta.count();
+
 			EndEvent();
 		}
 
@@ -601,6 +569,11 @@ void CompileNewShaders(const double LastInnerFrameDeltaMs)
 		{
 			break;
 		}
+	}
+
+	if (NeedBarrier)
+	{
+		glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 	}
 	EndEvent();
 }
@@ -751,23 +724,7 @@ void RenderFrame(int ScreenWidth, int ScreenHeight)
 			}
 			for (SubtreeShader* Shader : Drawables)
 			{
-				if (Shader->Incomplete)
-				{
-					if (Shader->WaitingForCompiler())
-					{
-						continue;
-					}
-					else
-					{
-						BeginEvent("FinishAsyncSetup");
-						StatusCode Result = Shader->FinishAsyncSetup();
-						glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
-						std::chrono::duration<double, std::milli> Delta = Clock::now() - ShaderCompilerStart;
-						ShaderCompilerConvergenceMs = Delta.count();
-						EndEvent();
-					}
-				}
-				else if (!Shader->IsValid)
+				if (!Shader->IsValid)
 				{
 					continue;
 				}
@@ -1155,8 +1112,8 @@ void RenderUI(SDL_Window* Window, bool& Live)
 
 			ImGui::Separator();
 			ImGui::Text("Model Loading\n");
-			ImGui::Text(" Racket: %.3f s\n", ModelProcessingStallMs / 1000.0);
-			ImGui::Text(" OpenGL: %.3f s\n", ShaderCompilerConvergenceMs / 1000.0);
+			ImGui::Text("  Processing: %.3f s\n", ModelProcessingStallMs / 1000.0);
+			ImGui::Text(" Convergence: %.3f s\n", ShaderCompilerConvergenceMs / 1000.0);
 		}
 		ImGui::End();
 	}

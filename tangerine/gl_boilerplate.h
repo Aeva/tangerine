@@ -47,35 +47,23 @@ struct ShaderSource
 };
 
 
-struct ShaderCompileJob
-{
-	GLenum ShaderType;
-	std::vector<std::string> Sources;
-	std::vector<std::string> Index;
-	GLuint ShaderID;
-	GLuint ProgramID;
-	GLsizei StringCount;
-	ShaderCompileJob(GLenum InShaderType, const ShaderSource& InSource);
-	bool WaitingForCompiler();
-	StatusCode FinishCompile();
-};
-
-
 ShaderSource GeneratedShader(std::string PrePath, std::string Generated, std::string PostPath);
 
 
-struct ShaderPipeline
+struct CompileInfo
 {
-	GLuint PipelineID = 0;
-	std::map<GLenum, GLuint> Stages;
-	std::vector<struct BindingPoint*> BindingPoints;
-	std::vector<ShaderCompileJob> PendingJobs;
+	GLuint ShaderID;
+	std::vector<std::string> Sources;
+	std::vector<std::string> Index;
+};
+
+
+struct ShaderProgram
+{
+	GLuint ProgramID = 0;
+	std::vector<CompileInfo> CompileJobs;
 
 	StatusCode Setup(std::map<GLenum, ShaderSource> Shaders, const char* PipelineName);
-
-	void AsyncSetup(std::map<GLenum, ShaderSource> Shaders, const char* PipelineName);
-	bool WaitingForCompiler();
-	StatusCode FinishSetup();
 
 	void Activate();
 	void Reset();
