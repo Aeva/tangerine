@@ -19,13 +19,15 @@
 #include "gl_boilerplate.h"
 
 
+#if _WIN64
 #define ENABLE_ASYNC_SHADER_COMPILE 1
+#endif
 
 
 void AsyncCompile(ShaderProgram* NewProgram);
 
 
-void StartWorkerThreads(SDL_Window* Window);
+void StartWorkerThreads();
 
 
 void JoinWorkerThreads();

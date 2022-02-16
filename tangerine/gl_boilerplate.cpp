@@ -399,12 +399,6 @@ StatusCode ShaderProgram::Compile()
 	}
 	glLinkProgram(ProgramID);
 
-	if (Warmed.load())
-	{
-		IsValid.store(true);
-		return StatusCode::PASS;
-	}
-
 	for (CompileInfo& Shader : CompileJobs)
 	{
 		GLint CompileStatus;
@@ -474,7 +468,6 @@ void ShaderProgram::Activate()
 void ShaderProgram::Reset()
 {
 	IsValid.store(false);
-	Warmed.store(false);
 	if (ProgramID != 0)
 	{
 		glDeleteProgram(ProgramID);

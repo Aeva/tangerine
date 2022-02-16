@@ -14,13 +14,17 @@
 // limitations under the License.
 
 #include <glad/glad.h>
+#if _WIN64
+#include <glad/glad_wgl.h>
+#endif
+
 #include <SDL.h>
 #include <SDL_opengl.h>
 
 #include "gl_async.h"
 
 
-#if ENABLE_ASYNC_SHADER_COMPILE
+#ifdef ENABLE_ASYNC_SHADER_COMPILE
 
 
 #include <thread>
@@ -44,31 +48,32 @@ std::mutex PendingCS;
 std::queue<ShaderProgram*> Pending;
 
 
+bool AsyncCompileEnabled;
+
+
 void AsyncCompile(ShaderProgram* NewProgram)
 {
+	if (AsyncCompileEnabled)
 	{
-		PendingCS.lock();
-		Pending.push(NewProgram);
-		PendingCS.unlock();
+		{
+			PendingCS.lock();
+			Pending.push(NewProgram);
+			PendingCS.unlock();
+		}
+		Fence++;
+		Fence.notify_one();
 	}
-	Fence++;
-	Fence.notify_one();
+	else
+	{
+		StatusCode Result = NewProgram->Compile();
+		NewProgram->IsValid.store(Result == StatusCode::PASS);
+	}
 }
 
 
-std::mutex ContextLock;
-
-
-void WorkerThreadMain(SDL_Window* Window)
+void WorkerThreadMain(HDC MainDeviceContext, HGLRC ThreadContext)
 {
-	SDL_GLContext Context;
-	{
-		ContextLock.lock();
-		Context = SDL_GL_CreateContext(Window);
-		SDL_GL_MakeCurrent(Window, Context);
-		ContextLock.unlock();
-	}
-
+	wglMakeCurrent(MainDeviceContext, ThreadContext);
 	while (Live.load() == 1)
 	{
 		ShaderProgram* Program = nullptr;
@@ -85,31 +90,59 @@ void WorkerThreadMain(SDL_Window* Window)
 		if (Program)
 		{
 			StatusCode Result = Program->Compile();
-			glFinish();
 			if (Result == StatusCode::PASS)
 			{
-				Program->ProgramID = 0;
-				Program->Warmed.store(true);
+				glFinish();
+				Program->IsValid.store(true);
 			}
 		}
 
 		Fence.wait(Fence.load());
 	}
 
-	SDL_GL_DeleteContext(Context);
+	wglDeleteContext(ThreadContext);
 }
 
 
-void StartWorkerThreads(SDL_Window* Window)
+void StartWorkerThreads()
 {
+	HDC MainDeviceContext = wglGetCurrentDC();
+	HGLRC MainGLContext = wglGetCurrentContext();
+
+	gladLoadWGL(MainDeviceContext);
+
+	int MajorVersion;
+	int MinorVersion;
+	int ProfileMask;
+	glGetIntegerv(GL_MAJOR_VERSION, &MajorVersion);
+	glGetIntegerv(GL_MINOR_VERSION, &MinorVersion);
+	glGetIntegerv(GL_CONTEXT_PROFILE_MASK, &ProfileMask);
+
+	static const int AttrList[7] = \
+	{
+		WGL_CONTEXT_MAJOR_VERSION_ARB, MajorVersion,
+		WGL_CONTEXT_MINOR_VERSION_ARB, MinorVersion,
+		WGL_CONTEXT_PROFILE_MASK_ARB, ProfileMask,
+		0
+	};
+
+	int ThreadsCreated = 0;
+
 	static const int ThreadCount = max(std::thread::hardware_concurrency() - 1, 1);
 	Threads.reserve(ThreadCount);
 	Live.store(1);
 	Fence.store(0);
 	for (int i = 0; i < ThreadCount; ++i)
 	{
-		Threads.push_back(std::thread(WorkerThreadMain, Window));
+		HGLRC ThreadContext = wglCreateContextAttribsARB(MainDeviceContext, MainGLContext, AttrList);
+		if (ThreadContext)
+		{
+			Threads.push_back(std::thread(WorkerThreadMain, MainDeviceContext, ThreadContext));
+			++ThreadsCreated;
+		}
 	}
+
+	AsyncCompileEnabled = ThreadsCreated > 0;
 }
 
 

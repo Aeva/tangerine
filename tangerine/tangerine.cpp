@@ -156,10 +156,6 @@ struct SubtreeShader
 
 	bool IsReady()
 	{
-		if (!DepthShader->IsValid.load() && DepthShader->Warmed.load())
-		{
-			DepthShader->Compile();
-		}
 		return DepthShader->IsValid.load();
 	}
 
@@ -1293,7 +1289,6 @@ int main(int argc, char* argv[])
 			SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, MINIMUM_VERSION_MAJOR);
 			SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, MINIMUM_VERSION_MINOR);
 			SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
-			SDL_GL_SetAttribute(SDL_GL_SHARE_WITH_CURRENT_CONTEXT, 0);
 			Window = SDL_CreateWindow(
 				"Tangerine",
 				SDL_WINDOWPOS_CENTERED,
@@ -1372,7 +1367,7 @@ int main(int argc, char* argv[])
 		return 0;
 	}
 	{
-		StartWorkerThreads(Window);
+		StartWorkerThreads();
 	}
 	bool Live = true;
 	{

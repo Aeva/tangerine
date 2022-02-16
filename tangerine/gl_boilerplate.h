@@ -61,7 +61,6 @@ struct CompileInfo
 
 struct ShaderProgram
 {
-	std::atomic_bool Warmed = false;
 	std::atomic_bool IsValid = false;
 
 	GLuint ProgramID = 0;
