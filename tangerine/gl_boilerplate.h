@@ -19,6 +19,7 @@
 #include <vector>
 #include <string>
 #include <map>
+#include <atomic>
 #include "errors.h"
 
 
@@ -60,10 +61,17 @@ struct CompileInfo
 
 struct ShaderProgram
 {
-	GLuint ProgramID = 0;
-	std::vector<CompileInfo> CompileJobs;
+	std::atomic_bool Warmed = false;
+	std::atomic_bool IsValid = false;
 
-	StatusCode Setup(std::map<GLenum, ShaderSource> Shaders, const char* PipelineName);
+	GLuint ProgramID = 0;
+
+	std::map<GLenum, ShaderSource> Shaders;
+	std::string ProgramName;
+
+	void AsyncSetup(std::map<GLenum, ShaderSource> InShaders, const char* InProgramName);
+	StatusCode Setup(std::map<GLenum, ShaderSource> InShaders, const char* InProgramName);
+	StatusCode Compile();
 
 	void Activate();
 	void Reset();

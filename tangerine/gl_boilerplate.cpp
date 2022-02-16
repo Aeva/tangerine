@@ -16,6 +16,7 @@
 #include <iostream>
 #include <fstream>
 #include <map>
+#include <mutex>
 #include "gl_boilerplate.h"
 #include "profiling.h"
 
@@ -309,7 +310,11 @@ StatusCode CompileShader(GLuint ShaderID, GLuint ProgramID, GLenum ShaderType, c
 
 	{
 		std::vector<std::string> BreadCrumbs;
-		RETURN_ON_FAIL(RouteSource(BreadCrumbs, Index, Sources, InputSource));
+		static std::mutex RouteSourceCS;
+		RouteSourceCS.lock();
+		StatusCode Status = RouteSource(BreadCrumbs, Index, Sources, InputSource);
+		RouteSourceCS.unlock();
+		RETURN_ON_FAIL(Status);
 	}
 
 	GLsizei StringCount = (GLsizei)Sources.size();
@@ -339,14 +344,35 @@ GLuint ShaderModeBit(GLenum ShaderMode)
 }
 
 
-StatusCode ShaderProgram::Setup(std::map<GLenum, ShaderSource> Shaders, const char* ProgramName)
+void ShaderProgram::AsyncSetup(std::map<GLenum, ShaderSource> InShaders, const char* InProgramName)
 {
 	Reset();
+	Shaders = InShaders;
+	ProgramName = std::string(InProgramName);
+}
 
+
+StatusCode ShaderProgram::Setup(std::map<GLenum, ShaderSource> InShaders, const char* InProgramName)
+{
+	AsyncSetup(InShaders, InProgramName);
+
+	StatusCode Result = Compile();
+	if (Result == StatusCode::PASS)
+	{
+		IsValid.store(true);
+	}
+
+	return Result;
+}
+
+
+StatusCode ShaderProgram::Compile()
+{
 	ProgramID = glCreateProgram();
-	glObjectLabel(GL_PROGRAM_PIPELINE, ProgramID, -1, ProgramName);
+	glObjectLabel(GL_PROGRAM_PIPELINE, ProgramID, -1, ProgramName.c_str());
 
 	StatusCode Result = StatusCode::PASS;
+	std::vector<CompileInfo> CompileJobs;
 
 	for (const auto& Shader : Shaders)
 	{
@@ -372,6 +398,12 @@ StatusCode ShaderProgram::Setup(std::map<GLenum, ShaderSource> Shaders, const ch
 		}
 	}
 	glLinkProgram(ProgramID);
+
+	if (Warmed.load())
+	{
+		IsValid.store(true);
+		return StatusCode::PASS;
+	}
 
 	for (CompileInfo& Shader : CompileJobs)
 	{
@@ -420,7 +452,6 @@ StatusCode ShaderProgram::Setup(std::map<GLenum, ShaderSource> Shaders, const ch
 	{
 		Reset();
 	}
-
 	else
 	{
 		for (CompileInfo& Shader : CompileJobs)
@@ -442,17 +473,13 @@ void ShaderProgram::Activate()
 
 void ShaderProgram::Reset()
 {
+	IsValid.store(false);
+	Warmed.store(false);
 	if (ProgramID != 0)
 	{
-		for (CompileInfo& Shader : CompileJobs)
-		{
-			glDetachShader(ProgramID, Shader.ShaderID);
-		}
-
 		glDeleteProgram(ProgramID);
 		ProgramID = 0;
 	}
-	CompileJobs.clear();
 }
 
 

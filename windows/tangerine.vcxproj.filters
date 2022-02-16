@@ -72,6 +72,9 @@
     <ClCompile Include="..\tangerine\shape_compiler.cpp">
       <Filter>Tangerine</Filter>
     </ClCompile>
+    <ClCompile Include="..\tangerine\gl_async.cpp">
+      <Filter>Tangerine</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\third_party\glad\glad.h">
@@ -133,6 +136,9 @@
       <Filter>Tangerine</Filter>
     </ClInclude>
     <ClInclude Include="..\tangerine\shape_compiler.h">
+      <Filter>Tangerine</Filter>
+    </ClInclude>
+    <ClInclude Include="..\tangerine\gl_async.h">
       <Filter>Tangerine</Filter>
     </ClInclude>
   </ItemGroup>

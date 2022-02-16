@@ -41,6 +41,7 @@
 
 #include "errors.h"
 #include "gl_boilerplate.h"
+#include "gl_async.h"
 #include "../shaders/defines.h"
 
 #define MINIMUM_VERSION_MAJOR 4
@@ -120,37 +121,46 @@ struct SubtreeShader
 		: DebugName(Old.DebugName)
 		, PrettyTree(Old.PrettyTree)
 		, DistSource(Old.DistSource)
-		, IsValid(Old.IsValid)
 	{
-		Old.IsValid = false;
 		std::swap(DepthShader, Old.DepthShader);
 		std::swap(DepthQuery, Old.DepthQuery);
 		std::swap(Instances, Old.Instances);
 	}
+
 	SubtreeShader(std::string InDebugName, std::string InPrettyTree, std::string InDistSource)
 	{
+		DepthShader = new ShaderProgram;
 		DebugName = InDebugName;
 		PrettyTree = InPrettyTree;
 		DistSource = InDistSource;
-		IsValid = false;
 	}
 
-	StatusCode Compile()
+	~SubtreeShader()
 	{
-		StatusCode Result = DepthShader.Setup(
+		if (DepthShader)
+		{
+			delete DepthShader;
+		}
+	}
+
+	void StartCompile()
+	{
+		DepthShader->AsyncSetup(
 			{ {GL_VERTEX_SHADER, ShaderSource("shaders/cluster_draw.vs.glsl", true)},
 			  {GL_FRAGMENT_SHADER, GeneratedShader("shaders/math.glsl", DistSource, "shaders/cluster_draw.fs.glsl")} },
 			DebugName.c_str());
-
-		if (Result == StatusCode::FAIL)
-		{
-			DepthShader.Reset();
-			return Result;
-		}
+		AsyncCompile(DepthShader);
 
 		glGenQueries(1, &DepthQuery);
-		IsValid = true;
-		return StatusCode::PASS;
+	}
+
+	bool IsReady()
+	{
+		if (!DepthShader->IsValid.load() && DepthShader->Warmed.load())
+		{
+			DepthShader->Compile();
+		}
+		return DepthShader->IsValid.load();
 	}
 
 	void Reset()
@@ -165,20 +175,18 @@ struct SubtreeShader
 	void Release()
 	{
 		Reset();
-		DepthShader.Reset();
-		if (IsValid)
+		DepthShader->Reset();
+		if (DepthQuery != GL_INVALID_VALUE)
 		{
-			IsValid = false;
 			glDeleteQueries(1, &DepthQuery);
 		}
 	}
 
-	bool IsValid;
 	std::string DebugName;
 	std::string PrettyTree;
 	std::string DistSource;
-	ShaderProgram DepthShader;
-	GLuint DepthQuery;
+	ShaderProgram* DepthShader = nullptr;
+	GLuint DepthQuery = GL_INVALID_VALUE;
 
 	std::vector<ModelSubtree> Instances;
 };
@@ -551,7 +559,7 @@ void CompileNewShaders(const double LastInnerFrameDeltaMs)
 			PendingShaders.pop_back();
 
 			SubtreeShader& Shader = SubtreeShaders[SubtreeIndex];
-			Shader.Compile();
+			Shader.StartCompile();
 			if (Shader.Instances.size() > 0)
 			{
 				Drawables.push_back(&Shader);
@@ -724,7 +732,7 @@ void RenderFrame(int ScreenWidth, int ScreenHeight)
 			}
 			for (SubtreeShader* Shader : Drawables)
 			{
-				if (!Shader->IsValid)
+				if (!Shader->IsReady())
 				{
 					continue;
 				}
@@ -736,7 +744,7 @@ void RenderFrame(int ScreenWidth, int ScreenHeight)
 				{
 					glBeginQuery(GL_TIME_ELAPSED, Shader->DepthQuery);
 				}
-				Shader->DepthShader.Activate();
+				Shader->DepthShader->Activate();
 				for (ModelSubtree& Subtree : Shader->Instances)
 				{
 					Subtree.ParamsBuffer.Bind(GL_SHADER_STORAGE_BUFFER, 0);
@@ -1285,6 +1293,7 @@ int main(int argc, char* argv[])
 			SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, MINIMUM_VERSION_MAJOR);
 			SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, MINIMUM_VERSION_MINOR);
 			SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
+			SDL_GL_SetAttribute(SDL_GL_SHARE_WITH_CURRENT_CONTEXT, 0);
 			Window = SDL_CreateWindow(
 				"Tangerine",
 				SDL_WINDOWPOS_CENTERED,
@@ -1361,6 +1370,9 @@ int main(int argc, char* argv[])
 	if (SetupRenderer() == StatusCode::FAIL)
 	{
 		return 0;
+	}
+	{
+		StartWorkerThreads(Window);
 	}
 	bool Live = true;
 	{
@@ -1542,6 +1554,9 @@ int main(int argc, char* argv[])
 	}
 	{
 		std::cout << "Shutting down...\n";
+		{
+			JoinWorkerThreads();
+		}
 		for (SubtreeShader& Shader : SubtreeShaders)
 		{
 			Shader.Release();
@@ -1549,6 +1564,8 @@ int main(int argc, char* argv[])
 		ImGui_ImplOpenGL3_Shutdown();
 		ImGui_ImplSDL2_Shutdown();
 		ImGui::DestroyContext();
+		SDL_GL_DeleteContext(Context);
+		SDL_DestroyWindow(Window);
 	}
 	return 0;
 }
