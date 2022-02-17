@@ -61,8 +61,6 @@ struct CompileInfo
 
 struct ShaderProgram
 {
-	std::atomic_bool IsValid = false;
-
 	GLuint ProgramID = 0;
 
 	std::map<GLenum, ShaderSource> Shaders;

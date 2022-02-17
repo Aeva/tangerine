@@ -357,9 +357,9 @@ StatusCode ShaderProgram::Setup(std::map<GLenum, ShaderSource> InShaders, const 
 	AsyncSetup(InShaders, InProgramName);
 
 	StatusCode Result = Compile();
-	if (Result == StatusCode::PASS)
+	if (FAILED(Result))
 	{
-		IsValid.store(true);
+		Reset();
 	}
 
 	return Result;
@@ -467,7 +467,6 @@ void ShaderProgram::Activate()
 
 void ShaderProgram::Reset()
 {
-	IsValid.store(false);
 	if (ProgramID != 0)
 	{
 		glDeleteProgram(ProgramID);

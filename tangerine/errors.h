@@ -23,4 +23,5 @@ enum class StatusCode
 };
 
 
+#define FAILED(Expr) (Expr == StatusCode::FAIL)
 #define RETURN_ON_FAIL(Expr) { StatusCode Result = Expr; if (Result == StatusCode::FAIL) return Result; }

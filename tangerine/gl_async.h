@@ -17,6 +17,7 @@
 
 
 #include "gl_boilerplate.h"
+#include <memory>
 
 
 #if _WIN64
@@ -24,7 +25,21 @@
 #endif
 
 
-void AsyncCompile(ShaderProgram* NewProgram);
+struct ShaderEnvelope
+{
+	std::atomic_bool Ready = false;
+	std::atomic_bool Failed = false;
+	std::unique_ptr<ShaderProgram> Shader = nullptr;
+
+	ShaderProgram* Access();
+	~ShaderEnvelope();
+};
+
+
+void SetPipelineDefaults();
+
+
+void AsyncCompile(std::unique_ptr<ShaderProgram> NewProgram, std::shared_ptr<ShaderEnvelope> Outbox);
 
 
 void StartWorkerThreads();

@@ -122,41 +122,35 @@ struct SubtreeShader
 		, PrettyTree(Old.PrettyTree)
 		, DistSource(Old.DistSource)
 	{
-		std::swap(DepthShader, Old.DepthShader);
+		std::swap(Compiled, Old.Compiled);
 		std::swap(DepthQuery, Old.DepthQuery);
 		std::swap(Instances, Old.Instances);
 	}
 
 	SubtreeShader(std::string InDebugName, std::string InPrettyTree, std::string InDistSource)
 	{
-		DepthShader = new ShaderProgram;
+		Compiled.reset(new ShaderEnvelope);
 		DebugName = InDebugName;
 		PrettyTree = InPrettyTree;
 		DistSource = InDistSource;
 	}
 
-	~SubtreeShader()
-	{
-		if (DepthShader)
-		{
-			delete DepthShader;
-		}
-	}
-
 	void StartCompile()
 	{
-		DepthShader->AsyncSetup(
+		std::unique_ptr<ShaderProgram> NewShader;
+		NewShader.reset(new ShaderProgram());
+		NewShader->AsyncSetup(
 			{ {GL_VERTEX_SHADER, ShaderSource("shaders/cluster_draw.vs.glsl", true)},
 			  {GL_FRAGMENT_SHADER, GeneratedShader("shaders/math.glsl", DistSource, "shaders/cluster_draw.fs.glsl")} },
 			DebugName.c_str());
-		AsyncCompile(DepthShader);
+		AsyncCompile(std::move(NewShader), Compiled);
 
 		glGenQueries(1, &DepthQuery);
 	}
 
-	bool IsReady()
+	ShaderProgram* GetCompiledShader()
 	{
-		return DepthShader->IsValid.load();
+		return Compiled->Access();
 	}
 
 	void Reset()
@@ -171,18 +165,21 @@ struct SubtreeShader
 	void Release()
 	{
 		Reset();
-		DepthShader->Reset();
-		if (DepthQuery != GL_INVALID_VALUE)
+		Compiled.reset();
+		if (DepthQuery != 0)
 		{
 			glDeleteQueries(1, &DepthQuery);
+			DepthQuery = 0;
 		}
 	}
 
 	std::string DebugName;
 	std::string PrettyTree;
 	std::string DistSource;
-	ShaderProgram* DepthShader = nullptr;
-	GLuint DepthQuery = GL_INVALID_VALUE;
+
+	std::shared_ptr<ShaderEnvelope> Compiled;
+
+	GLuint DepthQuery = 0;
 
 	std::vector<ModelSubtree> Instances;
 };
@@ -252,7 +249,6 @@ void ClearTreeEvaluator()
 
 
 AABB ModelBounds = { glm::vec3(0.0), glm::vec3(0.0) };
-//extern "C" TANGERINE_API void SetTreeEvaluator(void* InTreeEvaluator)
 void SetTreeEvaluator(SDFNode* InTreeEvaluator, AABB Limits)
 {
 	ClearTreeEvaluator();
@@ -261,7 +257,6 @@ void SetTreeEvaluator(SDFNode* InTreeEvaluator, AABB Limits)
 }
 
 
-GLuint NullVAO;
 ShaderProgram PaintShader;
 ShaderProgram MaterialResolveShader;
 ShaderProgram NoiseShader;
@@ -447,12 +442,27 @@ struct OutlinerOptionsUpload
 };
 
 
+void SetPipelineDefaults()
+{
+	// For drawing without a VBO bound.
+	GLuint NullVAO;
+	glGenVertexArrays(1, &NullVAO);
+	glBindVertexArray(NullVAO);
+
+	glEnable(GL_CULL_FACE);
+	glEnable(GL_DEPTH_TEST);
+	glClipControl(GL_LOWER_LEFT, GL_ZERO_TO_ONE);
+	glDepthRange(1.0, 0.0);
+}
+
+
 // Renderer setup.
 StatusCode SetupRenderer()
 {
-	// For drawing without a VBO bound.
-	glGenVertexArrays(1, &NullVAO);
-	glBindVertexArray(NullVAO);
+	SetPipelineDefaults();
+
+	glClearColor(0.0, 0.0, 0.0, 1.0);
+	glClearDepth(0.0);
 
 #if VISUALIZE_CLUSTER_COVERAGE
 	RETURN_ON_FAIL(ClusterCoverageShader.Setup(
@@ -522,13 +532,6 @@ StatusCode SetupRenderer()
 	glGenQueries(1, &OutlinerTimeQuery);
 	glGenQueries(1, &UiTimeQuery);
 
-	glEnable(GL_CULL_FACE);
-	glEnable(GL_DEPTH_TEST);
-	glClipControl(GL_LOWER_LEFT, GL_ZERO_TO_ONE);
-	glDepthRange(1.0, 0.0);
-	glClearColor(0.0, 0.0, 0.0, 1.0);
-	glClearDepth(0.0);
-
 	return StatusCode::PASS;
 }
 
@@ -561,9 +564,6 @@ void CompileNewShaders(const double LastInnerFrameDeltaMs)
 				Drawables.push_back(&Shader);
 			}
 			NeedBarrier = true;
-
-			std::chrono::duration<double, std::milli> Delta = Clock::now() - ShaderCompilerStart;
-			ShaderCompilerConvergenceMs = Delta.count();
 
 			EndEvent();
 		}
@@ -726,22 +726,28 @@ void RenderFrame(int ScreenWidth, int ScreenHeight)
 			{
 				glEndQuery(GL_TIME_ELAPSED);
 			}
-			for (SubtreeShader* Shader : Drawables)
+			for (SubtreeShader* Drawable : Drawables)
 			{
-				if (!Shader->IsReady())
+				ShaderProgram* Shader = Drawable->GetCompiledShader();
+				if (!Shader)
 				{
+					if (!Drawable->Compiled->Failed.load())
+					{
+						std::chrono::duration<double, std::milli> Delta = Clock::now() - ShaderCompilerStart;
+						ShaderCompilerConvergenceMs = Delta.count();
+					}
 					continue;
 				}
 
 				BeginEvent("Draw Drawable");
-				GLsizei DebugNameLen = Shader->DebugName.size() < 100 ? -1 : 100;
-				glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, DebugNameLen, Shader->DebugName.c_str());
+				GLsizei DebugNameLen = Drawable->DebugName.size() < 100 ? -1 : 100;
+				glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, DebugNameLen, Drawable->DebugName.c_str());
 				if (ShowHeatmap)
 				{
-					glBeginQuery(GL_TIME_ELAPSED, Shader->DepthQuery);
+					glBeginQuery(GL_TIME_ELAPSED, Drawable->DepthQuery);
 				}
-				Shader->DepthShader->Activate();
-				for (ModelSubtree& Subtree : Shader->Instances)
+				Shader->Activate();
+				for (ModelSubtree& Subtree : Drawable->Instances)
 				{
 					Subtree.ParamsBuffer.Bind(GL_SHADER_STORAGE_BUFFER, 0);
 					for (SubtreeSection& Section : Subtree.Sections)
