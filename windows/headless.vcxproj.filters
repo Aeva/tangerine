@@ -1,0 +1,33 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Tangerine">
+      <UniqueIdentifier>{90898541-92da-4020-9222-c14fcc41fa75}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Third Party">
+      <UniqueIdentifier>{3326996f-a367-4a6d-89f3-00018307c666}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Third Party\GLM">
+      <UniqueIdentifier>{26182d00-6edc-4747-a7ab-167e6248940e}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\tangerine\sdfs.cpp">
+      <Filter>Tangerine</Filter>
+    </ClCompile>
+    <ClCompile Include="..\tangerine\profiling.cpp">
+      <Filter>Tangerine</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\tangerine\sdfs.h">
+      <Filter>Tangerine</Filter>
+    </ClInclude>
+    <ClInclude Include="..\tangerine\profiling.h">
+      <Filter>Tangerine</Filter>
+    </ClInclude>
+    <ClInclude Include="..\third_party\glm\glm.hpp">
+      <Filter>Third Party\GLM</Filter>
+    </ClInclude>
+  </ItemGroup>
+</Project>

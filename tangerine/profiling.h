@@ -15,6 +15,10 @@
 
 #pragma once
 
+#ifdef MINIMAL_DLL
+#define ENABLE_PROFILING 0
+#endif
+
 #ifndef ENABLE_PROFILING
 #define ENABLE_PROFILING 0
 #endif

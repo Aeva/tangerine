@@ -17,7 +17,7 @@
 (require racket/exn)
 (require racket/rerequire)
 (require ffi/unsafe)
-(require ffi/unsafe/define)
+(require "ffi.rkt")
 (require "csgst.rkt")
 (require "voxel-compiler.rkt")
 (require "profiling.rkt")
@@ -46,7 +46,6 @@
          renderer-load-and-process-model)
 
 
-(define-ffi-definer define-backend (ffi-lib #f) #:default-make-fail make-not-available)
 (define-backend RacketErrorCallback (_fun _string/utf-8 -> _void))
 
 

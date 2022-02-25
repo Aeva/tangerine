@@ -16,7 +16,7 @@
 
 (require racket/list)
 (require ffi/unsafe)
-(require ffi/unsafe/define)
+(require "ffi.rkt")
 (require "csgst.rkt")
 
 (provide sdf-handle-is-valid?
@@ -29,12 +29,11 @@
          SetTreeEvaluator)
 
 
-(define-ffi-definer define-backend (ffi-lib #f) #:default-make-fail make-not-available)
 (define _HANDLE (_cpointer/null 'void))
 
 (define-backend SetTreeEvaluator (_fun _HANDLE -> _void))
 
-(define-backend EvalTree (_fun _HANDLE _float _float _float -> _void))
+(define-backend EvalTree (_fun _HANDLE _float _float _float -> _float))
 (define-backend ClipTree (_fun _HANDLE _float _float _float _float -> _HANDLE))
 (define-backend TreeBounds (_fun _HANDLE -> _scheme))
 (define-backend QuoteTree (_fun _HANDLE -> _scheme))

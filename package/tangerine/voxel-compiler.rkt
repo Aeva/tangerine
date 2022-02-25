@@ -15,7 +15,7 @@
 ; limitations under the License.
 
 (require ffi/unsafe)
-(require ffi/unsafe/define)
+(require "ffi.rkt")
 (require "coalesce.rkt")
 (require "eval.rkt")
 (require "profiling.rkt")
@@ -23,7 +23,6 @@
 (provide voxel-compiler)
 
 
-(define-ffi-definer define-backend (ffi-lib #f) #:default-make-fail make-not-available)
 (define _HANDLE (_cpointer/null 'void))
 (define-backend VoxelCompiler (_fun _HANDLE _float -> _void))
 

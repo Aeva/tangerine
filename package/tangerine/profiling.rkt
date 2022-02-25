@@ -15,12 +15,9 @@
 ; limitations under the License.
 
 (require ffi/unsafe)
-(require ffi/unsafe/define)
+(require "ffi.rkt")
 
 (provide profile-scope)
-
-
-(define-ffi-definer define-backend (ffi-lib #f))
 
 
 (define-backend BeginRacketEvent (_fun _string/utf-8 -> _void)

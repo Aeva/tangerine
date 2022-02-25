@@ -18,8 +18,18 @@
 #include <functional>
 #include <cmath>
 
+#ifdef MINIMAL_DLL
+typedef void* ptr;
+#define Snil nullptr
+#define Sinteger(X) nullptr
+#define Sflonum(X) nullptr
+#define Sstring_to_symbol(X) nullptr
+#define Scons(...) nullptr
+
+#else
 #include <chezscheme.h>
 #include <racketcs.h>
+#endif
 
 #include "sdfs.h"
 #include "profiling.h"
