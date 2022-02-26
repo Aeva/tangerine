@@ -14,7 +14,7 @@
 // limitations under the License.
 
 #include <array>
-#include <format>
+#include <sstream>
 #include <functional>
 #include <cmath>
 
@@ -137,14 +137,13 @@ int StoreParams(std::vector<float>& TreeParams, const ParamsT& NodeParams)
 
 std::string MakeParamList(int Offset, int Count)
 {
-	if (Count <= 1)
+	std::ostringstream Stream;
+	Stream << "PARAMS[" << Offset++ << "]";
+	for (int i = 1; i < Count; ++i)
 	{
-		return std::format("PARAMS[{}]", Offset);
+		Stream << ", PARAMS[" << Offset++ << "]";
 	}
-	else
-	{
-		return std::format("PARAMS[{}], {}", Offset, MakeParamList(Offset + 1, Count - 1));
-	}
+	return Stream.str();
 }
 
 
@@ -288,7 +287,9 @@ struct BrushNode : public SDFNode
 	virtual std::string Compile(std::vector<float>& TreeParams, std::string& Point)
 	{
 		const int Offset = StoreParams(TreeParams, NodeParams);
-		return std::format("{}({}, {})", BrushFnName, Point, MakeParamList(Offset, (int)NodeParams.size()));
+		std::ostringstream Stream;
+		Stream << BrushFnName << "(" << Point << ", " << MakeParamList(Offset, (int)NodeParams.size()) << ")";
+		return Stream.str();
 	}
 };
 
@@ -440,32 +441,47 @@ struct SetNode : public SDFNode
 		{
 			const int Offset = (int)TreeParams.size();
 			TreeParams.push_back(Threshold);
+
+			auto Formatter = [&](const char* OpName)
+			{
+				std::ostringstream Stream;
+				Stream << OpName << "(" << CompiledLHS << ", " << CompiledRHS << ", PARAMS[" << Offset << "])";
+				return Stream.str();
+			};
+
 			if (Family == SetFamily::Union)
 			{
-				return std::format("SmoothUnionOp({}, {}, PARAMS[{}])", CompiledLHS, CompiledRHS, Offset);
+				return Formatter("SmoothUnionOp");
 			}
 			else if (Family == SetFamily::Diff)
 			{
-				return std::format("SmoothCutOp({}, {}, PARAMS[{}])", CompiledLHS, CompiledRHS, Offset);
+				return Formatter("SmoothCutOp");
 			}
 			else if (Family == SetFamily::Inter)
 			{
-				return std::format("SmoothIntersectionOp({}, {}, PARAMS[{}])", CompiledLHS, CompiledRHS, Offset);
+				return Formatter("SmoothIntersectionOp");
 			}
 		}
 		else
 		{
+			auto Formatter = [&](const char* OpName)
+			{
+				std::ostringstream Stream;
+				Stream << OpName << "(" << CompiledLHS << ", " << CompiledRHS << ")";
+				return Stream.str();
+			};
+
 			if (Family == SetFamily::Union)
 			{
-				return std::format("UnionOp({}, {})", CompiledLHS, CompiledRHS);
+				return Formatter("UnionOp");
 			}
 			else if (Family == SetFamily::Diff)
 			{
-				return std::format("CutOp({}, {})", CompiledLHS, CompiledRHS);
+				return Formatter("CutOp");
 			}
 			else if (Family == SetFamily::Inter)
 			{
-				return std::format("IntersectionOp({}, {})", CompiledLHS, CompiledRHS);
+				return Formatter("IntersectionOp");
 			}
 		}
 	}
@@ -519,7 +535,9 @@ struct PaintNode : public SDFNode
 
 	virtual std::string Compile(std::vector<float>& TreeParams, std::string& Point)
 	{
-		return std::format("MaterialDist({}, {})", Material, Child->Compile(TreeParams, Point));
+		std::ostringstream Stream;
+		Stream << "MaterialDist(" << Material << ", " << Child->Compile(TreeParams, Point) << ")";
+		return Stream.str();
 	}
 
 	virtual ~PaintNode()
@@ -596,7 +614,9 @@ extern "C" TANGERINE_API void* MakeTranslation(float X, float Y, float Z, void* 
 	PointMixin PointFn = PointMixin(
 		[](const int Offset, const std::string& Point) -> std::string
 		{
-			return std::format("({} - vec3({}))", Point, MakeParamList(Offset, 3));
+			std::ostringstream Stream;
+			Stream << "(" << Point << " - vec3(" << MakeParamList(Offset, 3) << "))";
+			return Stream.str();
 		});
 
 	SymbolMixin Quote = SymbolMixin(
@@ -647,7 +667,9 @@ extern "C" TANGERINE_API void* MakeMatrixTransform(
 	PointMixin PointFn = PointMixin(
 		[](const int Offset, const std::string& Point) -> std::string
 		{
-			return std::format("MatrixTransform({}, mat4({}))", Point, MakeParamList(Offset, 16));
+			std::ostringstream Stream;
+			Stream << "MatrixTransform(" << Point << ", mat4(" << MakeParamList(Offset, 16) << "))";
+			return Stream.str();
 		});
 
 	SymbolMixin Quote = SymbolMixin(

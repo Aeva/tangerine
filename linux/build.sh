@@ -2,11 +2,10 @@
 cd `dirname $0`
 cd ..
 clang++ \
-	-std=c++14 \
+	-std=c++20 \
 	-fPIC \
 	-Ithird_party \
-	-lGL \
-	backend/*.cpp \
-	third_party/glad/glad.c \
-	third_party/glad/glad_glx.c \
-	-shared -o tangerine.so
+	-DMINIMAL_DLL \
+	tangerine/sdfs.cpp \
+	tangerine/profiling.cpp \
+	-shared -o package/tangerine/tangerine.so

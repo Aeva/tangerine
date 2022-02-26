@@ -19,6 +19,7 @@
 #include <string>
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #define GLM_FORCE_SWIZZLE
+#define GLM_FORCE_INTRINSICS
 #include <glm/vec3.hpp>
 #include <glm/vec4.hpp>
 #include <glm/mat4x4.hpp>

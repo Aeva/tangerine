@@ -16,12 +16,19 @@
 
 (require ffi/unsafe)
 (require ffi/unsafe/define)
+(require racket/runtime-path)
 
 (provide define-backend)
+
+(define-runtime-path tangerine-dll "tangerine.dll")
+(define-runtime-path tangerine-so "tangerine.so")
 
 (define-ffi-definer
   define-backend
   (begin
-    (ffi-lib "tangerine.dll" #:fail (λ () (void)))
+    (ffi-lib (case (system-type)
+               [(windows) tangerine-dll]
+               [(unix) tangerine-so])
+             #:fail (λ () (void)))
     (ffi-lib #f))
   #:default-make-fail make-not-available)

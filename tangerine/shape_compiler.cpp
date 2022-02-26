@@ -15,7 +15,7 @@
 
 #include <map>
 #include <unordered_map>
-#include <format>
+#include <sstream>
 
 #include "shape_compiler.h"
 #include "profiling.h"
@@ -93,21 +93,19 @@ extern "C" TANGERINE_API void VoxelCompiler(void* Handle, const float VoxelSize)
 	int SubtreeIndex = 0;
 	for (auto& [Source, Variant] : Voxels)
 	{
-		std::string Boilerplated = std::format(
-			"layout(std430, binding = 0)\n"
+		std::ostringstream Stream;
+		Stream << "layout(std430, binding = 0)\n"
 			"restrict readonly buffer SubtreeParameterBlock\n"
-			"{{\n"
+			"{\n"
 			"\tfloat PARAMS[];\n"
-			"}};\n\n"
-			"const uint SubtreeIndex = {};\n\n"
+			"};\n\n"
+			"const uint SubtreeIndex = " << SubtreeIndex++ << ";\n\n"
 			"MaterialDist ClusterDist(vec3 Point)\n"
-			"{{\n"
-			"\treturn TreeRoot({});\n"
-			"}}\n",
-			SubtreeIndex++,
-			Source);
+			"{\n"
+			"\treturn TreeRoot(" << Source << ");\n"
+			"}\n";
 
-		size_t ShaderIndex = EmitShader(Boilerplated);
+		size_t ShaderIndex = EmitShader(Stream.str());
 		for (auto& [Params, Instances] : Variant)
 		{
 			EmitParameters(ShaderIndex, Params);
