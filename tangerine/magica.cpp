@@ -30,7 +30,7 @@ inline int max(int LHS, int RHS)
 }
 
 
-void Pool(const std::function<void()>& Thunk)
+inline void Pool(const std::function<void()>& Thunk)
 {
 	static const int ThreadCount = max(std::thread::hardware_concurrency(), 2);
 	std::vector<std::thread> Threads;

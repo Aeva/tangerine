@@ -184,6 +184,7 @@
     <ClCompile Include="..\third_party\imgui\imgui_draw.cpp" />
     <ClCompile Include="..\third_party\imgui\imgui_tables.cpp" />
     <ClCompile Include="..\third_party\imgui\imgui_widgets.cpp" />
+    <ClCompile Include="..\third_party\voxwriter\VoxWriter.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\shaders\defines.h" />
@@ -209,6 +210,7 @@
     <ClInclude Include="..\third_party\imgui\imstb_rectpack.h" />
     <ClInclude Include="..\third_party\imgui\imstb_textedit.h" />
     <ClInclude Include="..\third_party\imgui\imstb_truetype.h" />
+    <ClInclude Include="..\third_party\voxwriter\VoxWriter.h" />
     <ClInclude Include="resource.h" />
   </ItemGroup>
   <ItemGroup>
