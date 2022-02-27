@@ -29,7 +29,6 @@
          [model (sdf-build folded)])
     (unless (sdf-handle-is-valid? model)
       (error "Can't find backend dll?"))
-    (display "Exporting...")
     (ExportMagicaVoxel (cdr model) grid-size pallet-index path)
-    (display " Magikazam!\n")))
+    (display "Magikazam!\n")))
  
