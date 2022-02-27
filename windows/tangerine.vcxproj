@@ -82,6 +82,7 @@
     <OutDir>$(SolutionDir)..\</OutDir>
     <CustomBuildBeforeTargets>Link</CustomBuildBeforeTargets>
     <LibraryPath>$(SolutionDir)..\third_party\nfd\lib\x64;$(SolutionDir)..\third_party\sdl2\lib\x64;$(SolutionDir)..\third_party\racket\lib\x64;$(LibraryPath)</LibraryPath>
+    <IntDir>$(Platform)\$(Configuration)\tangerine\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <LinkIncremental>false</LinkIncremental>
@@ -89,6 +90,7 @@
     <OutDir>$(SolutionDir)..\</OutDir>
     <CustomBuildBeforeTargets>Link</CustomBuildBeforeTargets>
     <LibraryPath>$(SolutionDir)..\third_party\nfd\lib\x64;$(SolutionDir)..\third_party\sdl2\lib\x64;$(SolutionDir)..\third_party\racket\lib\x64;$(LibraryPath)</LibraryPath>
+    <IntDir>$(Platform)\$(Configuration)\tangerine\</IntDir>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -125,7 +127,7 @@
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;IMGUI_USE_WCHAR32;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <AdditionalIncludeDirectories>$(SolutionDir)..\third_party\imgui;$(SolutionDir)..\third_party\imgui\backends;$(SolutionDir)..\third_party\sdl2\include;$(SolutionDir)..\third_party\racket\include;$(SolutionDir)..\third_party\nfd\include;$(SolutionDir)..\third_party;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <LanguageStandard>stdcpp17</LanguageStandard>
+      <LanguageStandard>stdcpp20</LanguageStandard>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>

@@ -78,13 +78,15 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <LinkIncremental>true</LinkIncremental>
-    <OutDir>$(SolutionDir)..\package\tangerine</OutDir>
+    <OutDir>$(SolutionDir)..\package\tangerine\</OutDir>
     <TargetName>tangerine</TargetName>
+    <IntDir>$(Platform)\$(Configuration)\headless\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <LinkIncremental>false</LinkIncremental>
-    <OutDir>$(SolutionDir)..\package\tangerine</OutDir>
+    <OutDir>$(SolutionDir)..\package\tangerine\</OutDir>
     <TargetName>tangerine</TargetName>
+    <IntDir>$(Platform)\$(Configuration)\headless\</IntDir>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -120,7 +122,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;MINIMAL_DLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <LanguageStandard>stdcpp17</LanguageStandard>
+      <LanguageStandard>stdcpp20</LanguageStandard>
       <AdditionalIncludeDirectories>$(SolutionDir)..\third_party\racket\include;$(SolutionDir)..\third_party</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
