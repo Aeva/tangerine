@@ -58,6 +58,78 @@ It'll look like this:
 
 ![A MagicaVoxel rendering of a hollowed out cube with rounded corners.](https://raw.githubusercontent.com/Aeva/tangerine/excelsior/spoilers.png "Magikazam!")
 
+# Writing Your *Second* Tangerine Model
+
+Here's all of the functions you can use to construct models with in Tangerine:
+
+## Brush Functions
+
+Brush functions draw shapes.
+
+ * `(sphere diameter)`
+
+ * `(ellipsoid diameter-x diameter-y diameter-z)`
+
+ * `(box width length height)`
+
+ * `(cube widthlengthheight)`
+
+ * `(torus major-diameter minor-diameter)`
+
+ * `(cylinder diameter height)`
+
+## Basic Operators
+
+ Operators are used to construct complex models.
+
+ * `(union lhs rhs ...)`
+
+ * `(diff lhs rhs ...)`
+
+ * `(inter lhs rhs ...)`
+
+## Blending Operators
+
+ Blending operators provide a smooth transition between their operands.
+ The degree of smoothness is determined by the threshold parameter.
+
+ * `(blend union threshold lhs rhs ...)`
+
+ * `(blend diff threshold lhs rhs ...)`
+
+ * `(blend inter threshold lhs rhs ...)`
+
+## Transform Modifiers
+
+These may be applied to brushes and operators.
+
+ * `(move offset-x offset-y offset-z)`
+
+ * `(move-x offset-x)`
+
+ * `(move-y offset-y)`
+
+ * `(move-z offset-z)`
+
+ * `(rotate-x degrees)`
+
+ * `(rotate-y degrees)`
+
+ * `(rotate-z degrees)`
+
+## The Align Pseudo-Transform
+
+The `align` modifer can only be applied to brushes, and is used to set where the origin is per-axis.
+The origin parameters must be between -1.0 and 1.0, where 0.0 is the center of the brush's bounds (default behavior).
+
+ * `(align origin-x origin-y origin-z brush)`
+
+# Writing Your *Third* Tangerine Model
+
+There's more examples in the `models` folder of this repository for you to take inspiration from.
+They're written for Tangerine "*Majuscule*", but they can be made to work with Tangerine "*Miniscule*" by
+simply ignoring all of the stuff I have not explained yet.
+
 # Development Environment Setup
 
 ## Windows
