@@ -308,7 +308,7 @@
   (define op (cond
                [(or (eq? operator union) (eq? operator 'union)) 'blend-union]
                [(or (eq? operator diff) (eq? operator 'diff)) 'blend-diff]
-               [(or (eq? operator inter) (eq? operator inter)) 'blend-inter]
+               [(or (eq? operator inter) (eq? operator 'inter)) 'blend-inter]
                [else (error "Invalid CSG operator:" operator)]))
   (define (inner lhs rhs . etc)
     (if (null? etc)
