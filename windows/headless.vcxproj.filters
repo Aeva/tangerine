@@ -4,6 +4,12 @@
     <Filter Include="Tangerine">
       <UniqueIdentifier>{90898541-92da-4020-9222-c14fcc41fa75}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Third Party">
+      <UniqueIdentifier>{d04cc92c-001e-4e69-8ab6-d9622a6881fa}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Third Party\VoxWriter">
+      <UniqueIdentifier>{1909941c-30e2-47f0-86ea-e9360c8f2384}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\tangerine\sdfs.cpp">
@@ -12,6 +18,12 @@
     <ClCompile Include="..\tangerine\profiling.cpp">
       <Filter>Tangerine</Filter>
     </ClCompile>
+    <ClCompile Include="..\tangerine\magica.cpp">
+      <Filter>Tangerine</Filter>
+    </ClCompile>
+    <ClCompile Include="..\third_party\voxwriter\VoxWriter.cpp">
+      <Filter>Third Party\VoxWriter</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\tangerine\sdfs.h">
@@ -19,6 +31,15 @@
     </ClInclude>
     <ClInclude Include="..\tangerine\profiling.h">
       <Filter>Tangerine</Filter>
+    </ClInclude>
+    <ClInclude Include="..\tangerine\extern.h">
+      <Filter>Tangerine</Filter>
+    </ClInclude>
+    <ClInclude Include="..\tangerine\magica.h">
+      <Filter>Tangerine</Filter>
+    </ClInclude>
+    <ClInclude Include="..\third_party\voxwriter\VoxWriter.h">
+      <Filter>Third Party\VoxWriter</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

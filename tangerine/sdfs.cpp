@@ -25,12 +25,12 @@ typedef void* ptr;
 #define Sflonum(X) nullptr
 #define Sstring_to_symbol(X) nullptr
 #define Scons(...) nullptr
-
 #else
 #include <chezscheme.h>
 #include <racketcs.h>
 #endif
 
+#include "extern.h"
 #include "sdfs.h"
 #include "profiling.h"
 

@@ -17,6 +17,7 @@
 #include <unordered_map>
 #include <sstream>
 
+#include "extern.h"
 #include "shape_compiler.h"
 #include "profiling.h"
 

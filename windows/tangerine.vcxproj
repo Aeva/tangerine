@@ -170,6 +170,7 @@
     <ClCompile Include="..\tangerine\export.cpp" />
     <ClCompile Include="..\tangerine\gl_async.cpp" />
     <ClCompile Include="..\tangerine\gl_boilerplate.cpp" />
+    <ClCompile Include="..\tangerine\magica.cpp" />
     <ClCompile Include="..\tangerine\profiling.cpp" />
     <ClCompile Include="..\tangerine\sdfs.cpp" />
     <ClCompile Include="..\tangerine\shape_compiler.cpp" />
@@ -188,8 +189,10 @@
     <ClInclude Include="..\shaders\defines.h" />
     <ClInclude Include="..\tangerine\errors.h" />
     <ClInclude Include="..\tangerine\export.h" />
+    <ClInclude Include="..\tangerine\extern.h" />
     <ClInclude Include="..\tangerine\gl_async.h" />
     <ClInclude Include="..\tangerine\gl_boilerplate.h" />
+    <ClInclude Include="..\tangerine\magica.h" />
     <ClInclude Include="..\tangerine\profiling.h" />
     <ClInclude Include="..\tangerine\sdfs.h" />
     <ClInclude Include="..\tangerine\shape_compiler.h" />

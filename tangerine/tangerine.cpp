@@ -25,6 +25,7 @@
 #include "sdfs.h"
 #include "shape_compiler.h"
 #include "export.h"
+#include "extern.h"
 
 #include <iostream>
 #include <cstring>
@@ -867,7 +868,7 @@ void ToggleFullScreen(SDL_Window* Window)
 
 
 std::vector<std::string> RacketErrors;
-extern "C" void TANGERINE_API RacketErrorCallback(const char* ErrorMessage)
+extern "C" TANGERINE_API void RacketErrorCallback(const char* ErrorMessage)
 {
 	std::cout << ErrorMessage << "\n";
 	RacketErrors.push_back(std::string(ErrorMessage));

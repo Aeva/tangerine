@@ -8,4 +8,5 @@ clang++ \
 	-DMINIMAL_DLL \
 	tangerine/sdfs.cpp \
 	tangerine/profiling.cpp \
+	tangerine/magica.cpp \
 	-shared -o package/tangerine/tangerine.so

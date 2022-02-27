@@ -28,12 +28,6 @@
 #include <glm/gtx/extended_min_max.hpp>
 #include <glm/gtx/quaternion.hpp>
 
-#if _WIN64
-#define TANGERINE_API __declspec(dllexport)
-#elif defined(__GNUC__)
-#define TANGERINE_API __attribute__ ((visibility ("default")))
-#endif
-
 
 struct AABB
 {

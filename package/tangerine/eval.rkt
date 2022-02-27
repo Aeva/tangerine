@@ -26,6 +26,7 @@
          sdf-clip
          sdf-bounds
          sdf-quote
+         _HANDLE
          SetTreeEvaluator)
 
 
