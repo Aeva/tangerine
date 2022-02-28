@@ -675,7 +675,7 @@ namespace vox
 		lastError = fopen_s(&m_File, vFilePathName.c_str(), "wb");
 #else
         m_File = fopen(vFilePathName.c_str(), "wb");
-        lastError = errno;
+        lastError = m_File ? 0 : errno;
 #endif
 		if (lastError != 0)
 			return false;
