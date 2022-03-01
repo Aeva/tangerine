@@ -17,33 +17,11 @@
 #include <vector>
 #include <atomic>
 #include <mutex>
-#include <thread>
 
+#include "threadpool.h"
 #include "extern.h"
 #include "magica.h"
 #include "voxwriter/VoxWriter.h"
-
-
-inline int max(int LHS, int RHS)
-{
-	return LHS >= RHS ? LHS : RHS;
-}
-
-
-inline void Pool(const std::function<void()>& Thunk)
-{
-	static const int ThreadCount = max(std::thread::hardware_concurrency(), 2);
-	std::vector<std::thread> Threads;
-	Threads.reserve(ThreadCount);
-	for (int i = 0; i < ThreadCount; ++i)
-	{
-		Threads.push_back(std::thread(Thunk));
-	}
-	for (auto& Thread : Threads)
-	{
-		Thread.join();
-	}
-}
 
 
 extern "C" TANGERINE_API void ExportMagicaVoxel(SDFNode* Evaluator, float GridSize, int ColorIndex, const char* Path)

@@ -90,6 +90,9 @@
     <ClCompile Include="..\third_party\fmt\src\format.cc">
       <Filter>Third Party\FMT</Filter>
     </ClCompile>
+    <ClCompile Include="..\tangerine\threadpool.cpp">
+      <Filter>Tangerine</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\third_party\glad\glad.h">
@@ -164,6 +167,9 @@
     </ClInclude>
     <ClInclude Include="..\third_party\voxwriter\VoxWriter.h">
       <Filter>Third Party\VoxWriter</Filter>
+    </ClInclude>
+    <ClInclude Include="..\tangerine\threadpool.h">
+      <Filter>Tangerine</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

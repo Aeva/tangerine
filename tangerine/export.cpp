@@ -24,18 +24,13 @@
 #include <thread>
 #include <string>
 #include <nfd.h>
+#include "threadpool.h"
 #include "export.h"
 
 
 using TreeHandle = void*;
 using namespace glm;
 using namespace std::placeholders;
-
-
-inline int max(int LHS, int RHS)
-{
-	return LHS >= RHS ? LHS : RHS;
-}
 
 
 struct  Vec3Less
@@ -45,22 +40,6 @@ struct  Vec3Less
 		return LHS.x < RHS.x || (LHS.x == RHS.x && LHS.y < RHS.y) || (LHS.x == RHS.x && LHS.y == RHS.y && LHS.z < RHS.z);
 	}
 };
-
-
-inline void Pool(const std::function<void()>& Thunk)
-{
-	static const int ThreadCount = max(std::thread::hardware_concurrency(), 2);
-	std::vector<std::thread> Threads;
-	Threads.reserve(ThreadCount);
-	for (int i = 0; i < ThreadCount; ++i)
-	{
-		Threads.push_back(std::thread(Thunk));
-	}
-	for (auto& Thread : Threads)
-	{
-		Thread.join();
-	}
-}
 
 
 std::atomic_bool ExportActive;

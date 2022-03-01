@@ -10,6 +10,7 @@ clang++ \
 	tangerine/sdfs.cpp \
 	tangerine/profiling.cpp \
 	tangerine/magica.cpp \
+	tangerine/threadpool.cpp \
 	third_party/voxwriter/VoxWriter.cpp \
 	third_party/fmt/src/format.cc \
 	-shared -o package/tangerine/tangerine.so

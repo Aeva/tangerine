@@ -152,6 +152,7 @@
     <ClCompile Include="..\tangerine\magica.cpp" />
     <ClCompile Include="..\tangerine\profiling.cpp" />
     <ClCompile Include="..\tangerine\sdfs.cpp" />
+    <ClCompile Include="..\tangerine\threadpool.cpp" />
     <ClCompile Include="..\third_party\fmt\src\format.cc" />
     <ClCompile Include="..\third_party\voxwriter\VoxWriter.cpp" />
   </ItemGroup>
@@ -160,6 +161,7 @@
     <ClInclude Include="..\tangerine\magica.h" />
     <ClInclude Include="..\tangerine\profiling.h" />
     <ClInclude Include="..\tangerine\sdfs.h" />
+    <ClInclude Include="..\tangerine\threadpool.h" />
     <ClInclude Include="..\third_party\voxwriter\VoxWriter.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

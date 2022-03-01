@@ -177,6 +177,7 @@
     <ClCompile Include="..\tangerine\sdfs.cpp" />
     <ClCompile Include="..\tangerine\shape_compiler.cpp" />
     <ClCompile Include="..\tangerine\tangerine.cpp" />
+    <ClCompile Include="..\tangerine\threadpool.cpp" />
     <ClCompile Include="..\third_party\fmt\src\format.cc" />
     <ClCompile Include="..\third_party\glad\glad.c" />
     <ClCompile Include="..\third_party\glad\glad_wgl.c" />
@@ -200,6 +201,7 @@
     <ClInclude Include="..\tangerine\profiling.h" />
     <ClInclude Include="..\tangerine\sdfs.h" />
     <ClInclude Include="..\tangerine\shape_compiler.h" />
+    <ClInclude Include="..\tangerine\threadpool.h" />
     <ClInclude Include="..\third_party\glad\glad.h" />
     <ClInclude Include="..\third_party\glad\glad_wgl.h" />
     <ClInclude Include="..\third_party\glad\khrplatform.h" />
