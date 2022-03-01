@@ -23,8 +23,11 @@
 #include <mutex>
 #include <thread>
 #include <string>
+#ifndef MINIMAL_DLL
 #include <nfd.h>
+#endif
 #include "threadpool.h"
+#include "extern.h"
 #include "export.h"
 
 
@@ -283,6 +286,7 @@ void MeshExportThread(SDFNode* Evaluator, vec3 ModelMin, vec3 ModelMax, vec3 Ste
 }
 
 
+#ifndef MINIMAL_DLL
 ExportProgress GetExportProgress()
 {
 	ExportProgress Progress;
@@ -326,4 +330,20 @@ void CancelExport(bool Halt)
 	{
 		ExportState.fetch_add(1);
 	}
+}
+#endif
+
+
+extern "C" TANGERINE_API void ExportSTL(SDFNode* Evaluator, float GridSize, int RefineIterations, const char* Path)
+{
+	AABB Bounds = Evaluator->Bounds();
+	float Step = 1.0 / GridSize;
+
+	ExportActive.store(true);
+	ExportState.store(0);
+	GenerationProgress.store(0);
+	RefinementProgress.store(0);
+	WriteProgress.store(0);
+	ExportState.store(1);
+	MeshExportThread(Evaluator, Bounds.Min, Bounds.Max, vec3(Step), RefineIterations, std::string(Path));
 }

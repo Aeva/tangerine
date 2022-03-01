@@ -33,6 +33,9 @@
     <ClCompile Include="..\tangerine\threadpool.cpp">
       <Filter>Tangerine</Filter>
     </ClCompile>
+    <ClCompile Include="..\tangerine\export.cpp">
+      <Filter>Tangerine</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\tangerine\sdfs.h">
@@ -51,6 +54,9 @@
       <Filter>Third Party\VoxWriter</Filter>
     </ClInclude>
     <ClInclude Include="..\tangerine\threadpool.h">
+      <Filter>Tangerine</Filter>
+    </ClInclude>
+    <ClInclude Include="..\tangerine\export.h">
       <Filter>Tangerine</Filter>
     </ClInclude>
   </ItemGroup>

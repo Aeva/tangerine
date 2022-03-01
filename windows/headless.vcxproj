@@ -149,6 +149,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="..\tangerine\export.cpp" />
     <ClCompile Include="..\tangerine\magica.cpp" />
     <ClCompile Include="..\tangerine\profiling.cpp" />
     <ClCompile Include="..\tangerine\sdfs.cpp" />
@@ -157,6 +158,7 @@
     <ClCompile Include="..\third_party\voxwriter\VoxWriter.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\tangerine\export.h" />
     <ClInclude Include="..\tangerine\extern.h" />
     <ClInclude Include="..\tangerine\magica.h" />
     <ClInclude Include="..\tangerine\profiling.h" />

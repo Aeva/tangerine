@@ -17,6 +17,7 @@
 #include "sdfs.h"
 
 
+#ifndef MINIMAL_DLL
 struct ExportProgress
 {
 	int Stage;
@@ -29,3 +30,4 @@ struct ExportProgress
 void MeshExport(SDFNode* Evaluator, glm::vec3 ModelMin, glm::vec3 ModelMax, glm::vec3 Step, int RefineIterations);
 void CancelExport(bool Halt);
 ExportProgress GetExportProgress();
+#endif

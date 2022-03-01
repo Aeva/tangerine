@@ -9,6 +9,7 @@ clang++ \
 	-DMINIMAL_DLL \
 	tangerine/sdfs.cpp \
 	tangerine/profiling.cpp \
+	tangerine/export.cpp \
 	tangerine/magica.cpp \
 	tangerine/threadpool.cpp \
 	third_party/voxwriter/VoxWriter.cpp \

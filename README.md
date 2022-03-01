@@ -3,7 +3,7 @@
 Tangerine is a system for constructing, manipulating, evaluating, manifesting, and sometimes rendering
 signed distance functions.  There are two versions:
 
- * Tangerine "*Miniscule*" is a Racket library with no renderer, and can be used to generate [MagicaVoxel](https://ephtracy.github.io/) files.
+ * Tangerine "*Miniscule*" is a Racket library with no renderer, and can be used to generate [MagicaVoxel](https://ephtracy.github.io/) files and binary STL files.
 
  * Tangerine "*Majuscule*" is a standalone application, and you are strongly discouraged from using it at this time.
 
@@ -123,6 +123,12 @@ The `align` modifer can only be applied to brushes, and is used to set where the
 The origin parameters must be between -1.0 and 1.0, where 0.0 is the center of the brush's bounds (default behavior).
 
  * `(align origin-x origin-y origin-z brush)`
+
+## Export Functions
+
+ * `(export-magica csgst grid-size pallet-index path)`
+
+ * `(export-stl csgst grid-size path [refinement-iterations 5])`
 
 # Writing Your *Third* Tangerine Model
 
