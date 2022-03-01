@@ -14,7 +14,6 @@
 // limitations under the License.
 
 #include <array>
-#include <sstream>
 #include <functional>
 #include <cmath>
 
@@ -29,6 +28,8 @@ typedef void* ptr;
 #include <chezscheme.h>
 #include <racketcs.h>
 #endif
+
+#include "fmt/format.h"
 
 #include "extern.h"
 #include "sdfs.h"
@@ -137,13 +138,12 @@ int StoreParams(std::vector<float>& TreeParams, const ParamsT& NodeParams)
 
 std::string MakeParamList(int Offset, int Count)
 {
-	std::ostringstream Stream;
-	Stream << "PARAMS[" << Offset++ << "]";
+	std::string Params = fmt::format("PARAMS[{}]", Offset++);
 	for (int i = 1; i < Count; ++i)
 	{
-		Stream << ", PARAMS[" << Offset++ << "]";
+		Params = fmt::format("{}, PARAMS[{}]", Params, Offset++);
 	}
-	return Stream.str();
+	return Params;
 }
 
 
@@ -287,9 +287,8 @@ struct BrushNode : public SDFNode
 	virtual std::string Compile(std::vector<float>& TreeParams, std::string& Point)
 	{
 		const int Offset = StoreParams(TreeParams, NodeParams);
-		std::ostringstream Stream;
-		Stream << BrushFnName << "(" << Point << ", " << MakeParamList(Offset, (int)NodeParams.size()) << ")";
-		return Stream.str();
+		std::string Params = MakeParamList(Offset, (int)NodeParams.size());
+		return fmt::format("{}({}, {})", BrushFnName, Point, Params);
 	}
 };
 
@@ -442,46 +441,32 @@ struct SetNode : public SDFNode
 			const int Offset = (int)TreeParams.size();
 			TreeParams.push_back(Threshold);
 
-			auto Formatter = [&](const char* OpName)
-			{
-				std::ostringstream Stream;
-				Stream << OpName << "(" << CompiledLHS << ", " << CompiledRHS << ", PARAMS[" << Offset << "])";
-				return Stream.str();
-			};
-
 			if (Family == SetFamily::Union)
 			{
-				return Formatter("SmoothUnionOp");
+				return fmt::format("SmoothUnionOp({}, {}, PARAMS[{}])", CompiledLHS, CompiledRHS, Offset);
 			}
 			else if (Family == SetFamily::Diff)
 			{
-				return Formatter("SmoothCutOp");
+				return fmt::format("SmoothCutOp({}, {}, PARAMS[{}])", CompiledLHS, CompiledRHS, Offset);
 			}
 			else if (Family == SetFamily::Inter)
 			{
-				return Formatter("SmoothIntersectionOp");
+				return fmt::format("SmoothIntersectionOp({}, {}, PARAMS[{}])", CompiledLHS, CompiledRHS, Offset);
 			}
 		}
 		else
 		{
-			auto Formatter = [&](const char* OpName)
-			{
-				std::ostringstream Stream;
-				Stream << OpName << "(" << CompiledLHS << ", " << CompiledRHS << ")";
-				return Stream.str();
-			};
-
 			if (Family == SetFamily::Union)
 			{
-				return Formatter("UnionOp");
+				return fmt::format("UnionOp({}, {})", CompiledLHS, CompiledRHS);
 			}
 			else if (Family == SetFamily::Diff)
 			{
-				return Formatter("CutOp");
+				return fmt::format("CutOp({}, {})", CompiledLHS, CompiledRHS);
 			}
 			else if (Family == SetFamily::Inter)
 			{
-				return Formatter("IntersectionOp");
+				return fmt::format("IntersectionOp({}, {})", CompiledLHS, CompiledRHS);
 			}
 		}
 	}
@@ -535,9 +520,7 @@ struct PaintNode : public SDFNode
 
 	virtual std::string Compile(std::vector<float>& TreeParams, std::string& Point)
 	{
-		std::ostringstream Stream;
-		Stream << "MaterialDist(" << Material << ", " << Child->Compile(TreeParams, Point) << ")";
-		return Stream.str();
+		return fmt::format("MaterialDist({}, {})", Material, Child->Compile(TreeParams, Point));
 	}
 
 	virtual ~PaintNode()
@@ -614,9 +597,8 @@ extern "C" TANGERINE_API void* MakeTranslation(float X, float Y, float Z, void* 
 	PointMixin PointFn = PointMixin(
 		[](const int Offset, const std::string& Point) -> std::string
 		{
-			std::ostringstream Stream;
-			Stream << "(" << Point << " - vec3(" << MakeParamList(Offset, 3) << "))";
-			return Stream.str();
+			std::string Params = MakeParamList(Offset, 3);
+			return fmt::format("({} - vec3({}))", Point, Params);
 		});
 
 	SymbolMixin Quote = SymbolMixin(
@@ -667,9 +649,8 @@ extern "C" TANGERINE_API void* MakeMatrixTransform(
 	PointMixin PointFn = PointMixin(
 		[](const int Offset, const std::string& Point) -> std::string
 		{
-			std::ostringstream Stream;
-			Stream << "MatrixTransform(" << Point << ", mat4(" << MakeParamList(Offset, 16) << "))";
-			return Stream.str();
+			std::string Params = MakeParamList(Offset, 16);
+			return fmt::format("MatrixTransform({}, mat4({}))", Point, Params);
 		});
 
 	SymbolMixin Quote = SymbolMixin(

@@ -28,6 +28,9 @@
     <Filter Include="Third Party\VoxWriter">
       <UniqueIdentifier>{07bd9ee0-1cb9-431b-931a-8ea3a1e62fac}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Third Party\FMT">
+      <UniqueIdentifier>{fae911b0-7d59-411a-abf8-7769cd85e687}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\third_party\glad\glad.c">
@@ -83,6 +86,9 @@
     </ClCompile>
     <ClCompile Include="..\third_party\voxwriter\VoxWriter.cpp">
       <Filter>Third Party\VoxWriter</Filter>
+    </ClCompile>
+    <ClCompile Include="..\third_party\fmt\src\format.cc">
+      <Filter>Third Party\FMT</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

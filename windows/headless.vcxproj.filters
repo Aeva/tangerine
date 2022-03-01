@@ -10,6 +10,9 @@
     <Filter Include="Third Party\VoxWriter">
       <UniqueIdentifier>{1909941c-30e2-47f0-86ea-e9360c8f2384}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Third Party\FMT">
+      <UniqueIdentifier>{e4802326-49ff-4dd5-8a0e-144154908484}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\tangerine\sdfs.cpp">
@@ -23,6 +26,9 @@
     </ClCompile>
     <ClCompile Include="..\third_party\voxwriter\VoxWriter.cpp">
       <Filter>Third Party\VoxWriter</Filter>
+    </ClCompile>
+    <ClCompile Include="..\third_party\fmt\src\format.cc">
+      <Filter>Third Party\FMT</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
