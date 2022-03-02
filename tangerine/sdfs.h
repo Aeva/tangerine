@@ -44,8 +44,6 @@ struct SDFNode
 
 	virtual AABB Bounds() = 0;
 
-	virtual void* Quote() = 0;
-
 	virtual std::string Compile(std::vector<float>& TreeParams, std::string& Point) = 0;
 
 	glm::vec3 Gradient(glm::vec3 Point);
