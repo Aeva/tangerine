@@ -16,10 +16,17 @@
 #include <glad/glad.h>
 #if _WIN64
 #include <glad/glad_wgl.h>
+#include <processthreadsapi.h>
 #endif
 
 #include <SDL.h>
 #include <SDL_opengl.h>
+
+#include <thread>
+#include <atomic>
+#include <mutex>
+#include <condition_variable>
+#include <queue>
 
 #include "gl_async.h"
 
@@ -50,28 +57,61 @@ void Compile(std::unique_ptr<ShaderProgram>& NewProgram, std::shared_ptr<ShaderE
 #if _WIN64
 struct GLContext
 {
-	HDC Device;
-	HGLRC GL;
+	HDC DeviceContext;
+	HGLRC RenderContext;
+	HPBUFFERARB PBuffer;
 
-	GLContext(HDC InDevice, HGLRC InContext)
-		: Device(InDevice)
-		, GL(InContext)
+	GLContext(HDC InDeviceContext, HGLRC InRenderContext, HPBUFFERARB InPBuffer = nullptr)
+		: DeviceContext(InDeviceContext)
+		, RenderContext(InRenderContext)
+		, PBuffer(InPBuffer)
 	{
 		if (wglCreateContextAttribsARB == nullptr)
 		{
-			gladLoadWGL(Device);
+			gladLoadWGL(DeviceContext);
 		}
 	}
 
 	static GLContext GetCurrentContext()
 	{
-		HDC CurrentDevice = wglGetCurrentDC();
-		HGLRC CurrentGL = wglGetCurrentContext();
-		return GLContext(CurrentDevice, CurrentGL);
+		HDC CurrentDC = wglGetCurrentDC();
+		HGLRC CurrentRC = wglGetCurrentContext();
+		return GLContext(CurrentDC, CurrentRC);
 	}
 
 	GLContext CreateShared()
 	{
+		const int PixelFormatAttrs[13] = \
+		{
+			WGL_DRAW_TO_PBUFFER_ARB, 1,
+			WGL_RED_BITS_ARB, 0,
+			WGL_GREEN_BITS_ARB, 0,
+			WGL_BLUE_BITS_ARB, 0,
+			WGL_DEPTH_BITS_ARB, 0,
+			WGL_STENCIL_BITS_ARB, 0,
+			0
+		};
+
+		int PixelFormat = 0;
+		unsigned int Count = 0;
+		if (!wglChoosePixelFormatARB(DeviceContext, PixelFormatAttrs, nullptr, 1, &PixelFormat, &Count))
+		{
+			return GLContext(nullptr, nullptr, nullptr);
+		}
+
+		HPBUFFERARB NewPBuffer = wglCreatePbufferARB(DeviceContext, PixelFormat, 1, 1, nullptr);
+		if (!NewPBuffer)
+		{
+			return GLContext(nullptr, nullptr, nullptr);
+		}
+
+		HDC NewDeviceContext = wglGetPbufferDCARB(PBuffer);
+		if (!NewDeviceContext)
+		{
+			wglDestroyPbufferARB(NewPBuffer);
+			return GLContext(nullptr, nullptr, nullptr);
+		}
+
 		int MajorVersion;
 		int MinorVersion;
 		int ProfileMask;
@@ -87,33 +127,32 @@ struct GLContext
 			0
 		};
 
-		HGLRC NewContext = wglCreateContextAttribsARB(Device, GL, AttrList);
-		return GLContext(Device, NewContext);
+		HGLRC NewRenderContext = wglCreateContextAttribsARB(NewDeviceContext, RenderContext, AttrList);
+		return GLContext(NewDeviceContext, NewRenderContext, NewPBuffer);
 	}
 
 	bool IsValid()
 	{
-		return GL != 0;
+		return RenderContext != 0;
 	}
 
 	void MakeCurrent()
 	{
-		wglMakeCurrent(Device, GL);
+		wglMakeCurrent(DeviceContext, RenderContext);
 	}
 
 	void Shutdown()
 	{
-		wglDeleteContext(GL);
-		GL = 0;
+		wglDeleteContext(RenderContext);
+		if (PBuffer)
+		{
+			wglReleasePbufferDCARB(PBuffer, DeviceContext);
+			wglDestroyPbufferARB(PBuffer);
+		}
+		RenderContext = 0;
 	}
 };
 #endif
-
-
-#include <thread>
-#include <atomic>
-#include <mutex>
-#include <queue>
 
 
 ShaderProgram* ShaderEnvelope::Access()
@@ -135,11 +174,6 @@ ShaderEnvelope::~ShaderEnvelope()
 }
 
 
-std::vector<std::thread> Threads;
-std::atomic_int Live;
-std::atomic_int Fence;
-
-
 inline int max(int LHS, int RHS)
 {
 	return LHS >= RHS ? LHS : RHS;
@@ -153,7 +187,11 @@ struct PendingWork
 };
 
 
+std::atomic_int Live;
+std::vector<std::thread> Threads;
+
 std::mutex PendingCS;
+std::condition_variable PendingCV;
 std::queue<PendingWork> Pending;
 
 
@@ -165,12 +203,10 @@ void AsyncCompile(std::unique_ptr<ShaderProgram> NewProgram, std::shared_ptr<Sha
 	if (AsyncCompileEnabled)
 	{
 		{
-			PendingCS.lock();
+			std::lock_guard<std::mutex> ScopedLock(PendingCS);
 			Pending.push({std::move(NewProgram), Outbox});
-			PendingCS.unlock();
 		}
-		Fence++;
-		Fence.notify_all();
+		PendingCV.notify_one();
 	}
 	else
 	{
@@ -181,6 +217,9 @@ void AsyncCompile(std::unique_ptr<ShaderProgram> NewProgram, std::shared_ptr<Sha
 
 void WorkerThreadMain(GLContext ThreadContext)
 {
+#if _WIN64
+	SetThreadDescription(GetCurrentThread(), L"Shader Compiler Thread");
+#endif
 	ThreadContext.MakeCurrent();
 
 	{
@@ -192,25 +231,25 @@ void WorkerThreadMain(GLContext ThreadContext)
 
 	while (Live.load() == 1)
 	{
-		std::unique_ptr<ShaderProgram> Shader = nullptr;
-		std::shared_ptr<ShaderEnvelope> Outbox = nullptr;
+		std::unique_lock<std::mutex> Lock(PendingCS);
+
+		if (Pending.empty())
 		{
-			PendingCS.lock();
-			if (!Pending.empty())
+			PendingCV.wait(Lock);
+			if (Pending.empty())
 			{
-				Shader = std::move(Pending.front().Shader);
-				Outbox = Pending.front().Outbox;
-				Pending.pop();
+				Lock.unlock();
+				continue;
 			}
-			PendingCS.unlock();
 		}
 
-		if (Shader)
-		{
-			Compile<true>(Shader, Outbox);
-		}
+		std::unique_ptr<ShaderProgram> Shader = std::move(Pending.front().Shader);
+		std::shared_ptr<ShaderEnvelope> Outbox = Pending.front().Outbox;
+		Pending.pop();
 
-		Fence.wait(Fence.load());
+		Lock.unlock();
+
+		Compile<true>(Shader, Outbox);
 	}
 
 	ThreadContext.Shutdown();
@@ -226,7 +265,6 @@ void StartWorkerThreads()
 	static const int ThreadCount = max(std::thread::hardware_concurrency() - 1, 1);
 	Threads.reserve(ThreadCount);
 	Live.store(1);
-	Fence.store(0);
 	for (int i = 0; i < ThreadCount; ++i)
 	{
 		GLContext ThreadContext = MainContext.CreateShared();
@@ -244,8 +282,7 @@ void StartWorkerThreads()
 void JoinWorkerThreads()
 {
 	Live.store(0);
-	Fence++;
-	Fence.notify_all();
+	PendingCV.notify_all();
 	for (auto& Thread : Threads)
 	{
 		Thread.join();
