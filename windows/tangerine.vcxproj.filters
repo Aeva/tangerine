@@ -93,6 +93,9 @@
     <ClCompile Include="..\tangerine\threadpool.cpp">
       <Filter>Tangerine</Filter>
     </ClCompile>
+    <ClCompile Include="..\tangerine\gl_debug.cpp">
+      <Filter>Tangerine</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\third_party\glad\glad.h">
@@ -169,6 +172,9 @@
       <Filter>Third Party\VoxWriter</Filter>
     </ClInclude>
     <ClInclude Include="..\tangerine\threadpool.h">
+      <Filter>Tangerine</Filter>
+    </ClInclude>
+    <ClInclude Include="..\tangerine\gl_debug.h">
       <Filter>Tangerine</Filter>
     </ClInclude>
   </ItemGroup>

@@ -1,5 +1,5 @@
 
-// Copyright 2021 Aeva Palecek
+// Copyright 2022 Aeva Palecek
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -28,6 +28,7 @@
 #include <condition_variable>
 #include <queue>
 
+#include "gl_debug.h"
 #include "gl_async.h"
 
 
@@ -119,11 +120,18 @@ struct GLContext
 		glGetIntegerv(GL_MINOR_VERSION, &MinorVersion);
 		glGetIntegerv(GL_CONTEXT_PROFILE_MASK, &ProfileMask);
 
-		const int AttrList[7] = \
+#if ENABLE_DEBUG_CONTEXTS
+		const int ContextFlags = WGL_CONTEXT_DEBUG_BIT_ARB;
+#else
+		const int ContextFlags = 0;
+#endif
+
+		const int AttrList[9] = \
 		{
 			WGL_CONTEXT_MAJOR_VERSION_ARB, MajorVersion,
 			WGL_CONTEXT_MINOR_VERSION_ARB, MinorVersion,
 			WGL_CONTEXT_PROFILE_MASK_ARB, ProfileMask,
+			WGL_CONTEXT_FLAGS_ARB, ContextFlags,
 			0
 		};
 
@@ -215,12 +223,13 @@ void AsyncCompile(std::unique_ptr<ShaderProgram> NewProgram, std::shared_ptr<Sha
 }
 
 
-void WorkerThreadMain(GLContext ThreadContext)
+void WorkerThreadMain(GLContext ThreadContext, size_t ThreadIndex)
 {
 #if _WIN64
 	SetThreadDescription(GetCurrentThread(), L"Shader Compiler Thread");
 #endif
 	ThreadContext.MakeCurrent();
+	ConnectDebugCallback(ThreadIndex);
 
 	{
 		// This is meant to prevent a recompile on first draw.
@@ -270,7 +279,7 @@ void StartWorkerThreads()
 		GLContext ThreadContext = MainContext.CreateShared();
 		if (ThreadContext.IsValid())
 		{
-			Threads.push_back(std::thread(WorkerThreadMain, ThreadContext));
+			Threads.push_back(std::thread(WorkerThreadMain, ThreadContext, i+1));
 			++ThreadsCreated;
 		}
 	}

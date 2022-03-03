@@ -43,6 +43,7 @@
 #include "errors.h"
 #include "gl_boilerplate.h"
 #include "gl_async.h"
+#include "gl_debug.h"
 #include "../shaders/defines.h"
 
 #define MINIMUM_VERSION_MAJOR 4
@@ -1296,6 +1297,9 @@ int main(int argc, char* argv[])
 			SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, MINIMUM_VERSION_MAJOR);
 			SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, MINIMUM_VERSION_MINOR);
 			SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
+#if ENABLE_DEBUG_CONTEXTS
+			SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_DEBUG_FLAG);
+#endif
 			Window = SDL_CreateWindow(
 				"Tangerine",
 				SDL_WINDOWPOS_CENTERED,
@@ -1335,6 +1339,7 @@ int main(int argc, char* argv[])
 			std::cout << "Failed to setup OpenGL.\n";
 		}
 	}
+	ConnectDebugCallback(0);
 	{
 		std::cout << "Setting up Racket CS... ";
 		racket_boot_arguments_t BootArgs;
