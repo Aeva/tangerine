@@ -4,9 +4,6 @@
     <Filter Include="Third Party">
       <UniqueIdentifier>{4235e133-18c8-46cc-8dff-06f7bed8c229}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Third Party\Glad">
-      <UniqueIdentifier>{58c3769a-2133-4993-a33b-31c878253c60}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Third Party\GLM">
       <UniqueIdentifier>{aa067325-ce41-4fff-824a-ff78a60e4758}</UniqueIdentifier>
     </Filter>
@@ -33,20 +30,8 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\third_party\glad\glad.c">
-      <Filter>Third Party\Glad</Filter>
-    </ClCompile>
-    <ClCompile Include="..\third_party\glad\glad_wgl.c">
-      <Filter>Third Party\Glad</Filter>
-    </ClCompile>
-    <ClCompile Include="..\third_party\imgui\backends\imgui_impl_opengl3.cpp">
-      <Filter>Third Party\Dear ImGui</Filter>
-    </ClCompile>
     <ClCompile Include="..\third_party\imgui\backends\imgui_impl_sdl.cpp">
       <Filter>Third Party\Dear ImGui</Filter>
-    </ClCompile>
-    <ClCompile Include="..\tangerine\gl_boilerplate.cpp">
-      <Filter>Tangerine</Filter>
     </ClCompile>
     <ClCompile Include="..\tangerine\tangerine.cpp">
       <Filter>Tangerine</Filter>
@@ -78,9 +63,6 @@
     <ClCompile Include="..\tangerine\shape_compiler.cpp">
       <Filter>Tangerine</Filter>
     </ClCompile>
-    <ClCompile Include="..\tangerine\gl_async.cpp">
-      <Filter>Tangerine</Filter>
-    </ClCompile>
     <ClCompile Include="..\tangerine\magica.cpp">
       <Filter>Tangerine</Filter>
     </ClCompile>
@@ -93,39 +75,24 @@
     <ClCompile Include="..\tangerine\threadpool.cpp">
       <Filter>Tangerine</Filter>
     </ClCompile>
-    <ClCompile Include="..\tangerine\gl_debug.cpp">
+    <ClCompile Include="..\tangerine\hephaestus.cpp">
       <Filter>Tangerine</Filter>
+    </ClCompile>
+    <ClCompile Include="..\third_party\imgui\backends\imgui_impl_vulkan.cpp">
+      <Filter>Third Party\Dear ImGui</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\third_party\glad\glad.h">
-      <Filter>Third Party\Glad</Filter>
-    </ClInclude>
-    <ClInclude Include="..\third_party\glad\khrplatform.h">
-      <Filter>Third Party\Glad</Filter>
-    </ClInclude>
     <ClInclude Include="..\third_party\glm\glm.hpp">
       <Filter>Third Party\GLM</Filter>
     </ClInclude>
-    <ClInclude Include="..\third_party\glad\glad_wgl.h">
-      <Filter>Third Party\Glad</Filter>
-    </ClInclude>
     <ClInclude Include="..\shaders\defines.h">
       <Filter>Shaders</Filter>
-    </ClInclude>
-    <ClInclude Include="..\third_party\imgui\backends\imgui_impl_opengl3.h">
-      <Filter>Third Party\Dear ImGui</Filter>
-    </ClInclude>
-    <ClInclude Include="..\third_party\imgui\backends\imgui_impl_opengl3_loader.h">
-      <Filter>Third Party\Dear ImGui</Filter>
     </ClInclude>
     <ClInclude Include="..\third_party\imgui\backends\imgui_impl_sdl.h">
       <Filter>Third Party\Dear ImGui</Filter>
     </ClInclude>
     <ClInclude Include="..\tangerine\errors.h">
-      <Filter>Tangerine</Filter>
-    </ClInclude>
-    <ClInclude Include="..\tangerine\gl_boilerplate.h">
       <Filter>Tangerine</Filter>
     </ClInclude>
     <ClInclude Include="..\third_party\imgui\imconfig.h">
@@ -159,9 +126,6 @@
     <ClInclude Include="..\tangerine\shape_compiler.h">
       <Filter>Tangerine</Filter>
     </ClInclude>
-    <ClInclude Include="..\tangerine\gl_async.h">
-      <Filter>Tangerine</Filter>
-    </ClInclude>
     <ClInclude Include="..\tangerine\extern.h">
       <Filter>Tangerine</Filter>
     </ClInclude>
@@ -174,8 +138,11 @@
     <ClInclude Include="..\tangerine\threadpool.h">
       <Filter>Tangerine</Filter>
     </ClInclude>
-    <ClInclude Include="..\tangerine\gl_debug.h">
+    <ClInclude Include="..\tangerine\hephaestus.h">
       <Filter>Tangerine</Filter>
+    </ClInclude>
+    <ClInclude Include="..\third_party\imgui\backends\imgui_impl_vulkan.h">
+      <Filter>Third Party\Dear ImGui</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

@@ -13,14 +13,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <glad/glad.h>
 #include <SDL.h>
-#include <SDL_opengl.h>
 #include <SDL_clipboard.h>
 
 #include <imgui.h>
 #include <imgui_impl_sdl.h>
-#include <imgui_impl_opengl3.h>
 
 #include "sdfs.h"
 #include "shape_compiler.h"
@@ -41,9 +38,7 @@
 #include "profiling.h"
 
 #include "errors.h"
-#include "gl_boilerplate.h"
-#include "gl_async.h"
-#include "gl_debug.h"
+#include "hephaestus.h"
 #include "../shaders/defines.h"
 
 #define MINIMUM_VERSION_MAJOR 4
@@ -52,6 +47,8 @@
 #define ASYNC_SHADER_COMPILE 0
 
 using Clock = std::chrono::high_resolution_clock;
+
+#define GL_CODE 0
 
 
 struct SectionUpload
@@ -63,6 +60,7 @@ struct SectionUpload
 };
 
 
+#if GL_CODE
 struct SubtreeSection
 {
 	SubtreeSection(glm::mat4 LocalToWorld, glm::vec4 Center, glm::vec4 Extent)
@@ -954,7 +952,7 @@ double OutlinerElapsedTimeMs = 0.0;
 double UiElapsedTimeMs = 0.0;
 void RenderUI(SDL_Window* Window, bool& Live)
 {
-	ImGui_ImplOpenGL3_NewFrame();
+	ImGui_ImplVulkan_NewFrame();
 	ImGui_ImplSDL2_NewFrame();
 	ImGui::NewFrame();
 
@@ -1282,64 +1280,32 @@ void RenderUI(SDL_Window* Window, bool& Live)
 		}
 	}
 }
+#else
+size_t EmitShader(std::string Source)
+{
+	return 0;
+}
+void EmitVoxel(AABB Bounds)
+{
+}
+void SetTreeEvaluator(SDFNode* InTreeEvaluator, AABB Limits)
+{
+}
+void EmitParameters(size_t ShaderIndex, std::vector<float> Params)
+{
+}
+#endif // GL_CODE
 
 
 int main(int argc, char* argv[])
 {
-	SDL_Window* Window = nullptr;
-	SDL_GLContext Context = nullptr;
+	VkWindow* Backend = VkWindow::Create();
+	if (!Backend->Initialized())
 	{
-		std::cout << "Setting up SDL2... ";
-		SDL_SetMainReady();
-		if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER ) == 0)
-		{
-			SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
-			SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, MINIMUM_VERSION_MAJOR);
-			SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, MINIMUM_VERSION_MINOR);
-			SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
-#if ENABLE_DEBUG_CONTEXTS
-			SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_DEBUG_FLAG);
-#endif
-			Window = SDL_CreateWindow(
-				"Tangerine",
-				SDL_WINDOWPOS_CENTERED,
-				SDL_WINDOWPOS_CENTERED,
-				900, 900,
-				SDL_WINDOW_RESIZABLE | SDL_WINDOW_OPENGL);
-		}
-		if (Window == nullptr)
-		{
-			std::cout << "Failed to create SDL2 window.\n";
-			return 0;
-		}
-		else
-		{
-			Context = SDL_GL_CreateContext(Window);
-			if (Context == nullptr)
-			{
-				std::cout << "Failed to create SDL2 OpenGL Context.\n";
-				return 0;
-			}
-			else
-			{
-				SDL_GL_MakeCurrent(Window, Context);
-				SDL_GL_SetSwapInterval(1);
-				std::cout << "Done!\n";
-			}
-		}
+		delete Backend;
+		return 1;
 	}
-	{
-		std::cout << "Setting up OpenGL... ";
-		if (gladLoadGL())
-		{
-			std::cout << "Done!\n";
-		}
-		else
-		{
-			std::cout << "Failed to setup OpenGL.\n";
-		}
-	}
-	ConnectDebugCallback(0);
+
 	{
 		std::cout << "Setting up Racket CS... ";
 		racket_boot_arguments_t BootArgs;
@@ -1352,6 +1318,8 @@ int main(int argc, char* argv[])
 		racket_embedded_load_file("./racket/modules", 1);
 		std::cout << "Done!\n";
 	}
+
+#if GL_CODE
 	{
 		std::cout << "Setting up Dear ImGui... ";
 		IMGUI_CHECKVERSION();
@@ -1359,6 +1327,7 @@ int main(int argc, char* argv[])
 		ImGuiIO& io = ImGui::GetIO();
 		io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
 		ImGui::StyleColorsLight();
+
 		ImGui_ImplSDL2_InitForOpenGL(Window, Context);
 		ImGui_ImplOpenGL3_Init("#version 130");
 		{
@@ -1571,8 +1540,9 @@ int main(int argc, char* argv[])
 		ImGui_ImplOpenGL3_Shutdown();
 		ImGui_ImplSDL2_Shutdown();
 		ImGui::DestroyContext();
-		SDL_GL_DeleteContext(Context);
-		SDL_DestroyWindow(Window);
 	}
+#endif
+
+	delete Backend;
 	return 0;
 }

@@ -81,16 +81,18 @@
     <SourcePath>$(ProjectDir)..\backend;$(VC_SourcePath)</SourcePath>
     <OutDir>$(SolutionDir)..\</OutDir>
     <CustomBuildBeforeTargets>Link</CustomBuildBeforeTargets>
-    <LibraryPath>$(SolutionDir)..\third_party\nfd\lib\x64;$(SolutionDir)..\third_party\sdl2\lib\x64;$(SolutionDir)..\third_party\racket\lib\x64;$(LibraryPath)</LibraryPath>
+    <LibraryPath>$(VULKAN_SDK)\lib;$(SolutionDir)..\third_party\nfd\lib\x64;$(SolutionDir)..\third_party\sdl2\lib\x64;$(SolutionDir)..\third_party\racket\lib\x64;$(LibraryPath)</LibraryPath>
     <IntDir>$(Platform)\$(Configuration)\tangerine\</IntDir>
+    <IncludePath>$(VULKAN_SDK)\Include;$(IncludePath)</IncludePath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <LinkIncremental>false</LinkIncremental>
     <SourcePath>$(ProjectDir)..\backend;$(VC_SourcePath)</SourcePath>
     <OutDir>$(SolutionDir)..\</OutDir>
     <CustomBuildBeforeTargets>Link</CustomBuildBeforeTargets>
-    <LibraryPath>$(SolutionDir)..\third_party\nfd\lib\x64;$(SolutionDir)..\third_party\sdl2\lib\x64;$(SolutionDir)..\third_party\racket\lib\x64;$(LibraryPath)</LibraryPath>
+    <LibraryPath>$(VULKAN_SDK)\lib;$(SolutionDir)..\third_party\nfd\lib\x64;$(SolutionDir)..\third_party\sdl2\lib\x64;$(SolutionDir)..\third_party\racket\lib\x64;$(LibraryPath)</LibraryPath>
     <IntDir>$(Platform)\$(Configuration)\tangerine\</IntDir>
+    <IncludePath>$(VULKAN_SDK)\Include;$(IncludePath)</IncludePath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -132,7 +134,7 @@
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>libracketcs_da32rk.lib;opengl32.lib;SDL2.lib;SDL2main.lib;nfd.lib;comctl32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>libracketcs_da32rk.lib;vulkan-1.lib;SDL2.lib;SDL2main.lib;nfd.lib;comctl32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <CustomBuildStep>
       <Command>$(SolutionDir)..\regen.bat</Command>
@@ -152,13 +154,14 @@
       <ConformanceMode>true</ConformanceMode>
       <AdditionalIncludeDirectories>$(SolutionDir)..\third_party\fmt\include;$(SolutionDir)..\third_party\imgui;$(SolutionDir)..\third_party\imgui\backends;$(SolutionDir)..\third_party\sdl2\include;$(SolutionDir)..\third_party\racket\include;$(SolutionDir)..\third_party\nfd\include;$(SolutionDir)..\third_party;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp17</LanguageStandard>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>libracketcs_da32rk.lib;opengl32.lib;SDL2.lib;SDL2main.lib;nfd.lib;comctl32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>libracketcs_da32rk.lib;vulkan-1.lib;SDL2.lib;SDL2main.lib;nfd.lib;comctl32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <CustomBuildStep>
       <Command>$(SolutionDir)..\regen.bat</Command>
@@ -170,9 +173,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="..\tangerine\export.cpp" />
-    <ClCompile Include="..\tangerine\gl_async.cpp" />
-    <ClCompile Include="..\tangerine\gl_boilerplate.cpp" />
-    <ClCompile Include="..\tangerine\gl_debug.cpp" />
+    <ClCompile Include="..\tangerine\hephaestus.cpp" />
     <ClCompile Include="..\tangerine\magica.cpp" />
     <ClCompile Include="..\tangerine\profiling.cpp" />
     <ClCompile Include="..\tangerine\sdfs.cpp" />
@@ -180,10 +181,8 @@
     <ClCompile Include="..\tangerine\tangerine.cpp" />
     <ClCompile Include="..\tangerine\threadpool.cpp" />
     <ClCompile Include="..\third_party\fmt\src\format.cc" />
-    <ClCompile Include="..\third_party\glad\glad.c" />
-    <ClCompile Include="..\third_party\glad\glad_wgl.c" />
-    <ClCompile Include="..\third_party\imgui\backends\imgui_impl_opengl3.cpp" />
     <ClCompile Include="..\third_party\imgui\backends\imgui_impl_sdl.cpp" />
+    <ClCompile Include="..\third_party\imgui\backends\imgui_impl_vulkan.cpp" />
     <ClCompile Include="..\third_party\imgui\imgui.cpp" />
     <ClCompile Include="..\third_party\imgui\imgui_demo.cpp" />
     <ClCompile Include="..\third_party\imgui\imgui_draw.cpp" />
@@ -196,21 +195,15 @@
     <ClInclude Include="..\tangerine\errors.h" />
     <ClInclude Include="..\tangerine\export.h" />
     <ClInclude Include="..\tangerine\extern.h" />
-    <ClInclude Include="..\tangerine\gl_async.h" />
-    <ClInclude Include="..\tangerine\gl_boilerplate.h" />
-    <ClInclude Include="..\tangerine\gl_debug.h" />
+    <ClInclude Include="..\tangerine\hephaestus.h" />
     <ClInclude Include="..\tangerine\magica.h" />
     <ClInclude Include="..\tangerine\profiling.h" />
     <ClInclude Include="..\tangerine\sdfs.h" />
     <ClInclude Include="..\tangerine\shape_compiler.h" />
     <ClInclude Include="..\tangerine\threadpool.h" />
-    <ClInclude Include="..\third_party\glad\glad.h" />
-    <ClInclude Include="..\third_party\glad\glad_wgl.h" />
-    <ClInclude Include="..\third_party\glad\khrplatform.h" />
     <ClInclude Include="..\third_party\glm\glm.hpp" />
-    <ClInclude Include="..\third_party\imgui\backends\imgui_impl_opengl3.h" />
-    <ClInclude Include="..\third_party\imgui\backends\imgui_impl_opengl3_loader.h" />
     <ClInclude Include="..\third_party\imgui\backends\imgui_impl_sdl.h" />
+    <ClInclude Include="..\third_party\imgui\backends\imgui_impl_vulkan.h" />
     <ClInclude Include="..\third_party\imgui\imconfig.h" />
     <ClInclude Include="..\third_party\imgui\imgui.h" />
     <ClInclude Include="..\third_party\imgui\imgui_internal.h" />

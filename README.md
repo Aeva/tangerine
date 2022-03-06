@@ -146,17 +146,19 @@ This will build both the "*Miniscule*" and "*Majuscule*" versions of Tangerine.
 
  2. Install Visual Studio 2019 or newer with at least the C++ stuff.
 
- 3. Clone this project somewhere.
+ 3. Install the LunarG Vulkan SDK version 1.3.204.1.
 
- 4. Open the command line, cd into the project folder, and then run
+ 4. Clone this project somewhere.
+
+ 5. Open the command line, cd into the project folder, and then run
     `raco pkg install --link package/tangerine` to install the Tangerine Racket module from this repository.
     If you already have another version, uninstall it first.
 
- 5. Open windows/tangerine.sln, and rebuild all projects in either the Debug or Release config.
+ 6. Open windows/tangerine.sln, and rebuild all projects in either the Debug or Release config.
     You should now be able to run the program from the debugger.  The project `tangerine` is the standalone
     application, and the project `headless` provides the dll for the racket library.
 
- 6. (Optional) Run `package.bat` to package Tangerine "*Majuscule*" up into a distributable form in the folder `distrib`.
+ 7. (Optional) Run `package.bat` to package Tangerine "*Majuscule*" up into a distributable form in the folder `distrib`.
 
 ## Linux
 
