@@ -2,7 +2,7 @@
 cd `dirname $0`
 cd ..
 clang++ \
-	-std=c++20 \
+	-std=c++17 \
 	-fPIC \
 	-Ithird_party/fmt/include \
 	-Ithird_party \
