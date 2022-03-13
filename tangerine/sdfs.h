@@ -15,6 +15,7 @@
 
 #pragma once
 
+#include <functional>
 #include <vector>
 #include <string>
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
@@ -49,4 +50,42 @@ struct SDFNode
 	glm::vec3 Gradient(glm::vec3 Point);
 
 	virtual ~SDFNode() {};
+};
+
+
+struct SDFOctree
+{
+	AABB Bounds;
+	glm::vec3 Pivot;
+	float TargetSize;
+	bool Terminus;
+	SDFNode* Evaluator;
+	SDFOctree* Children[8];
+	SDFOctree* Parent;
+
+	static SDFOctree* Create(SDFNode* Evaluator, float TargetSize = 0.25);
+	void Populate();
+	~SDFOctree();
+	SDFNode* Descend(const glm::vec3 Point, const bool Exact=true);
+
+	using CallbackType = std::function<void(SDFOctree&)>;
+	void Walk(CallbackType& Callback);
+
+	float Eval(glm::vec3 Point, const bool Exact = true)
+	{
+		SDFNode* Node = Descend(Point, Exact);
+		if (!Exact && !Node)
+		{
+			return INFINITY;
+		}
+		return Node->Eval(Point);
+	}
+	glm::vec3 Gradient(glm::vec3 Point)
+	{
+		SDFNode* Node = Descend(Point);
+		return Node->Gradient(Point);
+	}
+
+private:
+	SDFOctree(SDFOctree* InParent, SDFNode* InEvaluator, float InTargetSize, AABB InBounds);
 };

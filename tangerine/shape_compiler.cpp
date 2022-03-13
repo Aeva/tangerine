@@ -33,22 +33,6 @@ extern "C" TANGERINE_API void VoxelCompiler(void* Handle, const float VoxelSize)
 	AABB Limits = Evaluator->Bounds();
 	SetTreeEvaluator(Evaluator, Limits);
 
-	AABB Volume;
-	{
-		vec3 Extent = Limits.Max - Limits.Min;
-		vec3 VoxelCount = ceil(Extent / VoxelSize);
-		vec3 Padding = (VoxelSize * VoxelCount - Extent) * vec3(0.5);
-		Volume.Min = Limits.Min - Padding;
-		Volume.Max = Limits.Max + Padding;
-	}
-
-	const float HalfSize = VoxelSize * 0.5;
-	const float Radius = length(vec3(HalfSize));
-
-	const vec3 Start = Volume.Min + vec3(HalfSize);
-	const vec3 Stop = Volume.Max;
-	const vec3 Step = vec3(VoxelSize);
-
 	using ParamsVec = std::vector<float>;
 	using BoundsVec = std::vector<AABB>;
 	using ParamsMap = std::map<ParamsVec, BoundsVec>;
@@ -56,38 +40,33 @@ extern "C" TANGERINE_API void VoxelCompiler(void* Handle, const float VoxelSize)
 
 	VariantsMap Voxels;
 
-	for (float z = Start.z; z < Stop.z; z += Step.z)
 	{
-		for (float y = Start.y; y < Stop.y; y += Step.y)
+		BeginEvent("Build Octree");
+		SDFOctree* Octree = SDFOctree::Create(Evaluator, VoxelSize);
+		EndEvent();
+
+		SDFOctree::CallbackType Thunk = [&](SDFOctree& Leaf)
 		{
-			for (float x = Start.x; x < Stop.x; x += Step.x)
-			{
-				const vec3 Cursor = vec3(x, y, z);
-				BeginEvent("Clip");
-				SDFNode* Clipped = Evaluator->Clip(Cursor, Radius);
-				EndEvent();
-				if (Clipped)
-				{
-					if (abs(Clipped->Eval(Cursor)) <= Radius)
-					{
-						std::vector<float> Params;
-						std::string Point = "Point";
-						std::string GLSL = Clipped->Compile(Params, Point);
+			std::vector<float> Params;
+			std::string Point = "Point";
+			std::string GLSL = Leaf.Evaluator->Compile(Params, Point);
 
-						auto VariantsInsert = Voxels.insert({ GLSL, ParamsMap() });
-						ParamsMap& Variant = (*(VariantsInsert.first)).second;
+			auto VariantsInsert = Voxels.insert({ GLSL, ParamsMap() });
+			ParamsMap& Variant = (*(VariantsInsert.first)).second;
 
-						auto ParamsInsert = Variant.insert({ Params, BoundsVec() });
-						BoundsVec& Instances = (*(ParamsInsert.first)).second;
+			auto ParamsInsert = Variant.insert({ Params, BoundsVec() });
+			BoundsVec& Instances = (*(ParamsInsert.first)).second;
 
-						AABB Bounds = { Cursor - vec3(HalfSize), Cursor + vec3(HalfSize) };
-						Instances.push_back(Bounds);
-					}
+			Instances.push_back(Leaf.Bounds);
+		};
 
-					delete Clipped;
-				}
-			}
-		}
+		BeginEvent("Walk Octree");
+		Octree->Walk(Thunk);
+		EndEvent();
+
+		BeginEvent("Delete Octree");
+		delete Octree;
+		EndEvent();
 	}
 
 	BeginEvent("Emit GLSL");

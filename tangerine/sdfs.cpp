@@ -669,3 +669,172 @@ extern "C" TANGERINE_API void* MakePaint(int Material, void* Child)
 {
 	return new PaintNode(Material, (SDFNode*)Child);
 }
+
+
+// SDFOctree function implementations
+SDFOctree* SDFOctree::Create(SDFNode* Evaluator, float TargetSize)
+{
+	// Determine the octree's bounding cube from the evaluator's bounding box.
+	AABB Bounds = Evaluator->Bounds();
+	vec3 Extent = Bounds.Max - Bounds.Min;
+	float Span = max(max(Extent.x, Extent.y), Extent.z);
+	vec3 Padding = (vec3(Span) - Extent) * vec3(0.5);
+	Bounds.Min -= Padding;
+	Bounds.Max += Padding;
+
+	SDFOctree* Tree = new SDFOctree(nullptr, Evaluator, TargetSize, Bounds);
+	if (Tree->Evaluator)
+	{
+		return Tree;
+	}
+	else
+	{
+		delete Tree;
+		return nullptr;
+	}
+}
+
+SDFOctree::SDFOctree(SDFOctree* InParent, SDFNode* InEvaluator, float InTargetSize, AABB InBounds)
+	: Parent(InParent)
+	, TargetSize(InTargetSize)
+	, Bounds(InBounds)
+{
+	vec3 Extent = Bounds.Max - Bounds.Min;
+	float Span = max(max(Extent.x, Extent.y), Extent.z);
+	Pivot = vec3(Span * 0.5) + Bounds.Min;
+
+	float Radius = length(vec3(Span)) * 0.5;
+	Evaluator = InEvaluator->Clip(Pivot, Radius);
+
+	Terminus = Span <= TargetSize || Evaluator == nullptr;
+	if (Terminus)
+	{
+		for (int i = 0; i < 8; ++i)
+		{
+			Children[i] = nullptr;
+		}
+	}
+	else
+	{
+		Populate();
+	}
+}
+
+void SDFOctree::Populate()
+{
+	for (int i = 0; i < 8; ++i)
+	{
+		AABB ChildBounds = Bounds;
+		if (i & 1)
+		{
+			ChildBounds.Min.x = Pivot.x;
+		}
+		else
+		{
+			ChildBounds.Max.x = Pivot.x;
+		}
+		if (i & 2)
+		{
+			ChildBounds.Min.y = Pivot.y;
+		}
+		else
+		{
+			ChildBounds.Max.y = Pivot.y;
+		}
+		if (i & 4)
+		{
+			ChildBounds.Min.z = Pivot.z;
+		}
+		else
+		{
+			ChildBounds.Max.z = Pivot.z;
+		}
+		Children[i] = new SDFOctree(this, Evaluator, TargetSize, ChildBounds);
+		if (Children[i]->Evaluator == nullptr)
+		{
+			delete Children[i];
+			Children[i] = nullptr;
+		}
+	}
+
+	bool AnyFound = false;
+	for (int i = 0; i < 8; ++i)
+	{
+		if (Children[i] != nullptr)
+		{
+			AnyFound = true;
+			break;
+		}
+	}
+
+	if (!AnyFound)
+	{
+		Terminus = true;
+	}
+}
+
+SDFOctree::~SDFOctree()
+{
+	for (int i = 0; i < 8; ++i)
+	{
+		if (Children[i])
+		{
+			delete Children[i];
+			Children[i] = nullptr;
+		}
+	}
+	if (Evaluator)
+	{
+		delete Evaluator;
+		Evaluator = nullptr;
+	}
+}
+
+SDFNode* SDFOctree::Descend(const glm::vec3 Point, const bool Exact)
+{
+	if (!Terminus)
+	{
+		int i = 0;
+		if (Point.x > Pivot.x)
+		{
+			i |= 1;
+		}
+		if (Point.y > Pivot.y)
+		{
+			i |= 2;
+		}
+		if (Point.z > Pivot.z)
+		{
+			i |= 4;
+		}
+		SDFOctree* Child = Children[i];
+		if (Child)
+		{
+			SDFNode* Found = Child->Descend(Point);
+			return Found || !Exact ? Found : Evaluator;
+		}
+		else if (!Exact)
+		{
+			return nullptr;
+		}
+	}
+	return Evaluator;
+};
+
+void SDFOctree::Walk(SDFOctree::CallbackType& Callback)
+{
+	if (Terminus)
+	{
+		Callback(*this);
+	}
+	else
+	{
+		for (SDFOctree* Child : Children)
+		{
+			if (Child)
+			{
+				Child->Walk(Callback);
+			}
+		}
+	}
+}
