@@ -219,6 +219,11 @@
 ; Extract the paint color, and then propogate the paint attribute in accordance to the mode.
 ; Exposed to the user via functions paint and paint-over.
 (define (paint-inner mode params)
+
+  (define (scrub number)
+    (unless (number? number) (error "Expected number, got: " number))
+    (max (min (fl number) 255.0) 0.0))
+
   (let*-values
       ([(csgst) (values (last params))]
 
@@ -228,16 +233,9 @@
            (values red green blue)]
           [(list name _) (color-by-name name)])])
 
-    (unless (or (flonum? red) (red . < . 0))
-      (error "Expected positive float:" red))
-    (unless (or (flonum? green) (red . < . 0))
-      (error "Expected positive float:" green))
-    (unless (or (flonum? blue) (red . < . 0))
-      (error "Expected positive float:" blue))
-
     (assert-csg csgst)
 
-    (paint-propagate red green blue mode csgst)))
+    (paint-propagate (scrub red) (scrub green) (scrub blue) mode csgst)))
 
 
 ; Paint all brushes in the subtree with a material annotation.  This

@@ -15,14 +15,13 @@
 ; limitations under the License.
 
 (require racket/match)
-(require math/flonum)
 (provide color-by-name)
 
 
 (define (color-hex c)
-  (let ([r (fl (/ (bitwise-and (arithmetic-shift c -16) #xFF) #xFF))]
-        [g (fl (/ (bitwise-and (arithmetic-shift c -8) #xFF) #xFF))]
-        [b (fl (/ (bitwise-and c #xFF) #xFF))])
+  (let ([r (/ (bitwise-and (arithmetic-shift c -16) #xFF) #xFF)]
+        [g (/ (bitwise-and (arithmetic-shift c -8) #xFF) #xFF)]
+        [b (/ (bitwise-and c #xFF) #xFF)])
     (values r g b)))
 
 
