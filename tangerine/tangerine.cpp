@@ -510,6 +510,7 @@ int MouseMotionZ = 0;
 int ShowBackground = 0;
 bool ShowSubtrees = false;
 bool ShowHeatmap = false;
+bool HighlightEdges = true;
 bool ResetCamera = true;
 float PresentFrequency = 0.0;
 float PresentDeltaMs = 0.0;
@@ -622,6 +623,10 @@ void RenderFrame(int ScreenWidth, int ScreenHeight)
 		if (ShowHeatmap)
 		{
 			OutlinerFlags |= 1 << 1;
+		}
+		if (HighlightEdges)
+		{
+			OutlinerFlags |= 1 << 2;
 		}
 		OutlinerOptionsUpload BufferData = {
 			OutlinerFlags,
@@ -908,6 +913,9 @@ void RenderUI(SDL_Window* Window, bool& Live)
 					ShowBackground = 0;
 				}
 				ImGui::EndMenu();
+			}
+			if (ImGui::MenuItem("Highlight Edges", nullptr, &HighlightEdges))
+			{
 			}
 			if (ImGui::MenuItem("Highlight Subtrees", nullptr, &ShowSubtrees))
 			{

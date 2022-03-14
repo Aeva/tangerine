@@ -123,16 +123,19 @@ void main()
 		{
 			float Angle = -1.0;
 			vec3 AverageNeighbor = CenterPosition;
-			for (int i = 0; i < 4; ++i)
+			if ((OutlinerFlags & 4) == 4)
 			{
-				int j = 7 - i;
-				vec3 Ray1 = normalize(Positions[i] - CenterPosition);
-				vec3 Ray2 = normalize(Positions[j] - CenterPosition);
-				float AngleAcross = dot(Ray1, Ray2);
-				if (AngleAcross > Angle)
+				for (int i = 0; i < 4; ++i)
 				{
-					Angle = AngleAcross;
-					AverageNeighbor = (Positions[i] + Positions[j]) * 0.5;
+					int j = 7 - i;
+					vec3 Ray1 = normalize(Positions[i] - CenterPosition);
+					vec3 Ray2 = normalize(Positions[j] - CenterPosition);
+					float AngleAcross = dot(Ray1, Ray2);
+					if (AngleAcross > Angle)
+					{
+						Angle = AngleAcross;
+						AverageNeighbor = (Positions[i] + Positions[j]) * 0.5;
+					}
 				}
 			}
 			{
