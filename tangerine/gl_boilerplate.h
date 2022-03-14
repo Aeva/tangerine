@@ -90,3 +90,15 @@ struct Buffer
 	void Bind(GLenum Target, GLuint BindingIndex);
 	void Bind(GLenum Target);
 };
+
+
+struct TimingQuery
+{
+	bool Pending = false;
+	GLuint QueryID = 0;
+	void Create();
+	void Release();
+	void Start();
+	void Stop();
+	double ReadMs();
+};

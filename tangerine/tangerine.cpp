@@ -147,7 +147,7 @@ struct SubtreeShader
 			DebugName.c_str());
 		AsyncCompile(std::move(NewShader), Compiled);
 
-		glGenQueries(1, &DepthQuery);
+		DepthQuery.Create();
 	}
 
 	ShaderProgram* GetCompiledShader()
@@ -168,11 +168,7 @@ struct SubtreeShader
 	{
 		Reset();
 		Compiled.reset();
-		if (DepthQuery != 0)
-		{
-			glDeleteQueries(1, &DepthQuery);
-			DepthQuery = 0;
-		}
+		DepthQuery.Release();
 	}
 
 	std::string DebugName;
@@ -181,7 +177,7 @@ struct SubtreeShader
 
 	std::shared_ptr<ShaderEnvelope> Compiled;
 
-	GLuint DepthQuery = 0;
+	TimingQuery DepthQuery;
 
 	std::vector<ModelSubtree> Instances;
 };
@@ -283,10 +279,10 @@ GLuint MaterialBuffer;
 GLuint MaterialStencilBuffer;
 GLuint ColorBuffer;
 
-GLuint DepthTimeQuery;
-GLuint GridBgTimeQuery;
-GLuint OutlinerTimeQuery;
-GLuint UiTimeQuery;
+TimingQuery DepthTimeQuery;
+TimingQuery GridBgTimeQuery;
+TimingQuery OutlinerTimeQuery;
+TimingQuery UiTimeQuery;
 
 
 void AllocateRenderTargets(int ScreenWidth, int ScreenHeight)
@@ -451,6 +447,7 @@ void SetPipelineDefaults()
 	glGenVertexArrays(1, &NullVAO);
 	glBindVertexArray(NullVAO);
 
+	glDisable(GL_DITHER);
 	glEnable(GL_CULL_FACE);
 	glEnable(GL_DEPTH_TEST);
 	glClipControl(GL_LOWER_LEFT, GL_ZERO_TO_ONE);
@@ -529,10 +526,10 @@ StatusCode SetupRenderer()
 		  {GL_FRAGMENT_SHADER, ShaderSource("shaders/noise.fs.glsl", true)} },
 		"Noise Shader"));
 
-	glGenQueries(1, &DepthTimeQuery);
-	glGenQueries(1, &GridBgTimeQuery);
-	glGenQueries(1, &OutlinerTimeQuery);
-	glGenQueries(1, &UiTimeQuery);
+	DepthTimeQuery.Create();
+	GridBgTimeQuery.Create();
+	OutlinerTimeQuery.Create();
+	UiTimeQuery.Create();
 
 	return StatusCode::PASS;
 }
@@ -718,7 +715,7 @@ void RenderFrame(int ScreenWidth, int ScreenHeight)
 		{
 			BeginEvent("Depth");
 			glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Depth");
-			glBeginQuery(GL_TIME_ELAPSED, DepthTimeQuery);
+			DepthTimeQuery.Start();
 			glBindFramebuffer(GL_FRAMEBUFFER, DepthPass);
 			glDepthMask(GL_TRUE);
 			glEnable(GL_DEPTH_TEST);
@@ -726,7 +723,7 @@ void RenderFrame(int ScreenWidth, int ScreenHeight)
 			glClear(GL_DEPTH_BUFFER_BIT);
 			if (ShowHeatmap)
 			{
-				glEndQuery(GL_TIME_ELAPSED);
+				DepthTimeQuery.Stop();
 			}
 			for (SubtreeShader* Drawable : Drawables)
 			{
@@ -746,7 +743,7 @@ void RenderFrame(int ScreenWidth, int ScreenHeight)
 				glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, DebugNameLen, Drawable->DebugName.c_str());
 				if (ShowHeatmap)
 				{
-					glBeginQuery(GL_TIME_ELAPSED, Drawable->DepthQuery);
+					Drawable->DepthQuery.Start();
 				}
 				Shader->Activate();
 				for (ModelSubtree& Subtree : Drawable->Instances)
@@ -760,14 +757,14 @@ void RenderFrame(int ScreenWidth, int ScreenHeight)
 				}
 				if (ShowHeatmap)
 				{
-					glEndQuery(GL_TIME_ELAPSED);
+					Drawable->DepthQuery.Stop();
 				}
 				glPopDebugGroup();
 				EndEvent();
 			}
 			if (!ShowHeatmap)
 			{
-				glEndQuery(GL_TIME_ELAPSED);
+				DepthTimeQuery.Stop();
 			}
 			glPopDebugGroup();
 			EndEvent();
@@ -788,7 +785,7 @@ void RenderFrame(int ScreenWidth, int ScreenHeight)
 			UploadMaterialInfo(-1);
 			MaterialInfo.Bind(GL_UNIFORM_BUFFER, 1);
 			glBindFramebuffer(GL_FRAMEBUFFER, ColorPass);
-			glBeginQuery(GL_TIME_ELAPSED, GridBgTimeQuery);
+			GridBgTimeQuery.Start();
 			glDepthMask(GL_FALSE);
 			glDepthFunc(GL_EQUAL);
 			switch (ShowBackground)
@@ -802,13 +799,13 @@ void RenderFrame(int ScreenWidth, int ScreenHeight)
 				glClearColor(0.6f, 0.6f, 0.6f, 1.0f);
 				glClear(GL_COLOR_BUFFER_BIT);
 			}
-			glEndQuery(GL_TIME_ELAPSED);
+			GridBgTimeQuery.Stop();
 			glPopDebugGroup();
 		}
 		{
 			glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Default Material");
 			UploadMaterialInfo(0);
-			glBeginQuery(GL_TIME_ELAPSED, OutlinerTimeQuery);
+			OutlinerTimeQuery.Start();
 			glBindTextureUnit(1, DepthBuffer);
 			glBindTextureUnit(2, PositionBuffer);
 			glBindTextureUnit(3, NormalBuffer);
@@ -818,7 +815,7 @@ void RenderFrame(int ScreenWidth, int ScreenHeight)
 			DepthTimeBuffer.Bind(GL_SHADER_STORAGE_BUFFER, 2);
 			PaintShader.Activate();
 			glDrawArrays(GL_TRIANGLES, 0, 3);
-			glEndQuery(GL_TIME_ELAPSED);
+			OutlinerTimeQuery.Stop();
 			glPopDebugGroup();
 		}
 		for (int TestMaterial = 0; TestMaterial < 6; ++TestMaterial)
@@ -937,14 +934,6 @@ void OpenModel()
 	{
 		LoadModel(Path);
 	}
-}
-
-
-void UpdateElapsedTime(GLuint Query, double& TimeMs)
-{
-	GLint TimeNs = 0;
-	glGetQueryObjectiv(Query, GL_QUERY_RESULT, &TimeNs);
-	TimeMs = double(TimeNs) / 1000000.0;
 }
 
 
@@ -1517,9 +1506,9 @@ int main(int argc, char* argv[])
 			{
 				BeginEvent("Dear ImGui Draw");
 				glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Dear ImGui");
-				glBeginQuery(GL_TIME_ELAPSED, UiTimeQuery);
+				UiTimeQuery.Start();
 				ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-				glEndQuery(GL_TIME_ELAPSED);
+				UiTimeQuery.Stop();
 				glPopDebugGroup();
 				EndEvent();
 			}
@@ -1530,10 +1519,11 @@ int main(int argc, char* argv[])
 			}
 			{
 				BeginEvent("Query Results");
-				UpdateElapsedTime(DepthTimeQuery, DepthElapsedTimeMs);
-				UpdateElapsedTime(GridBgTimeQuery, GridBgElapsedTimeMs);
-				UpdateElapsedTime(OutlinerTimeQuery, OutlinerElapsedTimeMs);
-				UpdateElapsedTime(UiTimeQuery, UiElapsedTimeMs);
+				DepthElapsedTimeMs = DepthTimeQuery.ReadMs();
+				GridBgElapsedTimeMs = GridBgTimeQuery.ReadMs();
+				OutlinerElapsedTimeMs = OutlinerTimeQuery.ReadMs();
+				UiElapsedTimeMs = UiTimeQuery.ReadMs();
+
 				if (ShowHeatmap)
 				{
 					const size_t QueryCount = Drawables.size();
@@ -1541,9 +1531,7 @@ int main(int argc, char* argv[])
 					std::vector<float> Upload(QueryCount, 0.0);
 					for (int i = 0; i < QueryCount; ++i)
 					{
-						GLuint TimeQuery = Drawables[i]->DepthQuery;
-						double ElapsedTimeMs;
-						UpdateElapsedTime(TimeQuery, ElapsedTimeMs);
+						double ElapsedTimeMs = Drawables[i]->DepthQuery.ReadMs();
 						Upload[i] = float(ElapsedTimeMs);
 						DepthElapsedTimeMs += ElapsedTimeMs;
 						Range = fmax(Range, float(ElapsedTimeMs));

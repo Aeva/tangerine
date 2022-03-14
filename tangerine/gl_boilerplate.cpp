@@ -21,6 +21,28 @@
 #include "profiling.h"
 
 
+inline GLsizei min(GLsizei LHS, GLsizei RHS)
+{
+	return LHS <= RHS ? LHS : RHS;
+}
+
+
+GLsizei GetMaxLabelLength()
+{
+	GLint MaxLabelLength;
+	glGetIntegerv(GL_MAX_LABEL_LENGTH, &MaxLabelLength);
+	return (GLsizei)MaxLabelLength - 1;
+}
+
+
+void SetDebugLable(GLenum ObjectType, GLuint ObjectID, std::string DebugLabel)
+{
+	static GLsizei MaxLabelLength = GetMaxLabelLength();
+	GLsizei DebugNameLength = min(DebugLabel.size(), MaxLabelLength);
+	glObjectLabel(ObjectType, ObjectID, DebugNameLength, DebugLabel.c_str());
+}
+
+
 ShaderSource GeneratedShader(std::string PrePath, std::string Generated, std::string PostPath)
 {
 	std::vector<ShaderSource> Sources = {
@@ -352,7 +374,7 @@ StatusCode ShaderProgram::Setup(std::map<GLenum, ShaderSource> InShaders, const 
 StatusCode ShaderProgram::Compile()
 {
 	ProgramID = glCreateProgram();
-	glObjectLabel(GL_PROGRAM, ProgramID, -1, ProgramName.c_str());
+	SetDebugLable(GL_PROGRAM, ProgramID, ProgramName);
 
 	StatusCode Result = StatusCode::PASS;
 	std::vector<CompileInfo> CompileJobs;
@@ -517,7 +539,7 @@ void Buffer::Upload(void* Data, size_t Bytes)
 		glCreateBuffers(1, &BufferID);
 		if (DebugName != nullptr)
 		{
-			glObjectLabel(GL_BUFFER, BufferID, -1, DebugName);
+			SetDebugLable(GL_BUFFER, BufferID, DebugName);
 		}
 		glNamedBufferStorage(BufferID, Bytes, Data, GL_DYNAMIC_STORAGE_BIT);
 		LastSize = Bytes;
@@ -538,4 +560,50 @@ void Buffer::Bind(GLenum Target, GLuint BindingIndex)
 void Buffer::Bind(GLenum Target)
 {
 	glBindBuffer(Target, BufferID);
+}
+
+
+void TimingQuery::Create()
+{
+	Release();
+	glGenQueries(1, &QueryID);
+}
+
+
+void TimingQuery::Release()
+{
+	if (QueryID != 0)
+	{
+		glDeleteQueries(1, &QueryID);
+		QueryID = 0;
+	}
+}
+
+
+void TimingQuery::Start()
+{
+	glBeginQuery(GL_TIME_ELAPSED, QueryID);
+	Pending = true;
+}
+
+
+void TimingQuery::Stop()
+{
+	glEndQuery(GL_TIME_ELAPSED);
+}
+
+
+double TimingQuery::ReadMs()
+{
+	double TimeMs = 0.0;
+
+	if (Pending)
+	{
+		Pending = false;
+		GLint TimeNs = 0;
+		glGetQueryObjectiv(QueryID, GL_QUERY_RESULT, &TimeNs);
+		TimeMs = double(TimeNs) / 1000000.0;
+	}
+
+	return TimeMs;
 }
