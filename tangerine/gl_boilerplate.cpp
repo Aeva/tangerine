@@ -67,23 +67,6 @@ std::string GetProgramInfoLog(GLuint ObjectId)
 }
 
 
-std::string GetPipelineInfoLog(GLuint ObjectId)
-{
-	GLint LogLength;
-	glGetProgramPipelineiv(ObjectId, GL_INFO_LOG_LENGTH, &LogLength);
-	if (LogLength)
-	{
-		std::string InfoLog(LogLength, 0);
-		glGetProgramPipelineInfoLog(ObjectId, LogLength, nullptr, (char*)InfoLog.data());
-		return InfoLog;
-	}
-	else
-	{
-		return std::string();
-	}
-}
-
-
 bool IsPrepender(std::string Line, std::string& NextPath)
 {
 	const std::string Prefix = "prepend: ";
@@ -369,10 +352,11 @@ StatusCode ShaderProgram::Setup(std::map<GLenum, ShaderSource> InShaders, const 
 StatusCode ShaderProgram::Compile()
 {
 	ProgramID = glCreateProgram();
-	glObjectLabel(GL_PROGRAM_PIPELINE, ProgramID, -1, ProgramName.c_str());
+	glObjectLabel(GL_PROGRAM, ProgramID, -1, ProgramName.c_str());
 
 	StatusCode Result = StatusCode::PASS;
 	std::vector<CompileInfo> CompileJobs;
+	std::vector<GLuint> Intermediaries;
 
 	for (const auto& Shader : Shaders)
 	{
@@ -380,15 +364,17 @@ StatusCode ShaderProgram::Compile()
 
 		GLuint ShaderID = glCreateShader(ShaderType);
 		glAttachShader(ProgramID, ShaderID);
-
-		// The shader object will only be deleted once it is detached, or when the program it is attached to is deleted.
-		glDeleteShader(ShaderID);
+		Intermediaries.push_back(ShaderID);
 
 		CompileInfo CompileJob;
 		CompileJob.ShaderID = ShaderID;
 		Result = CompileShader(ShaderID, ProgramID, ShaderType, Shader.second, CompileJob.Sources, CompileJob.Index);
 		if (Result == StatusCode::FAIL)
 		{
+			for (GLuint ShaderID : Intermediaries)
+			{
+				glDeleteShader(ShaderID);
+			}
 			Reset();
 			return StatusCode::FAIL;
 		}
@@ -453,6 +439,11 @@ StatusCode ShaderProgram::Compile()
 			glDetachShader(ProgramID, Shader.ShaderID);
 		}
 		CompileJobs.clear();
+	}
+
+	for (GLuint ShaderID : Intermediaries)
+	{
+		glDeleteShader(ShaderID);
 	}
 
 	return Result;
