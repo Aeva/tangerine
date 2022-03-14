@@ -19,16 +19,18 @@
 (provide emit-glsl)
 
 
-(define (spiral mag [tail (sphere .25)])
+(define ball-joint (paint #xafff00 (sphere .25)))
+(define segment (paint #xff00e4 (box .3 .19 .19)))
+
+
+(define (spiral mag [tail ball-joint])
   (union
-   (sphere .25)
+   ball-joint
    (rotate-y (* 1. mag)
              (rotate-x 10.
                        (union
-                        (move-x .125
-                                (box .3 .19 .19))
-                        (move-x .25
-                                tail))))))
+                        (move-x .125 segment)
+                        (move-x .25 tail))))))
 
 
 (define (descend fn steps [mag 0.])
