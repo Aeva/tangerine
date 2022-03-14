@@ -117,12 +117,28 @@ These may be applied to brushes and operators.
 
  * `(rotate-z degrees)`
 
-## The Align Pseudo-Transform
+## The Align Annotation
 
 The `align` modifer can only be applied to brushes, and is used to set where the origin is per-axis.
 The origin parameters must be between -1.0 and 1.0, where 0.0 is the center of the brush's bounds (default behavior).
 
  * `(align origin-x origin-y origin-z brush)`
+
+## The Paint Annotation
+
+The `paint` annotation assigns a color to all shapes in the given subtree.
+If the shape already has a color applied, then the old color will be used.
+
+The `paint-over` variant works the same as `paint`, but will override existing colors in the given subtree.
+
+Both versions accept three forms: six digit HTML color codes, CSS color names, or three numbers.
+The following examples of the `paint` annotation are equivalent:
+
+ * `(paint #xFF0000 (sphere 1))`
+
+ * `(paint 'red (sphere 1))`
+
+ * `(paint 1. 0. 0. (sphere 1))`
 
 ## Export Functions
 
