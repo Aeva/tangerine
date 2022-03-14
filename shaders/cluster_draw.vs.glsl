@@ -2,7 +2,7 @@ prepend: shaders/defines.h
 prepend: shaders/math.glsl
 --------------------------------------------------------------------------------
 
-// Copyright 2021 Aeva Palecek
+// Copyright 2022 Aeva Palecek
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
