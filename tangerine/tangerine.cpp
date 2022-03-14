@@ -1,5 +1,5 @@
 
-// Copyright 2021 Aeva Palecek
+// Copyright 2022 Aeva Palecek
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -188,9 +188,6 @@ std::vector<SubtreeShader> SubtreeShaders;
 std::vector<size_t> PendingShaders;
 
 
-ShaderProgram TestMaterials[6];
-
-
 ModelSubtree* PendingSubtree = nullptr;
 size_t EmitShader(std::string Source)
 {
@@ -256,18 +253,15 @@ void SetTreeEvaluator(SDFNode* InTreeEvaluator, AABB Limits)
 
 
 ShaderProgram PaintShader;
-ShaderProgram MaterialResolveShader;
 ShaderProgram NoiseShader;
 ShaderProgram BgShader;
 ShaderProgram ResolveOutputShader;
 
 Buffer ViewInfo("ViewInfo Buffer");
-Buffer MaterialInfo("MaterialInfo Buffer");
 Buffer OutlinerOptions("Outliner Options Buffer");
 
 Buffer DepthTimeBuffer("Subtree Heatmap Buffer");
 GLuint DepthPass;
-GLuint MaterialResolvePass;
 GLuint ColorPass;
 const GLuint FinalPass = 0;
 
@@ -276,7 +270,6 @@ GLuint PositionBuffer;
 GLuint NormalBuffer;
 GLuint SubtreeBuffer;
 GLuint MaterialBuffer;
-GLuint MaterialStencilBuffer;
 GLuint ColorBuffer;
 
 TimingQuery DepthTimeQuery;
@@ -291,14 +284,12 @@ void AllocateRenderTargets(int ScreenWidth, int ScreenHeight)
 	if (Initialized)
 	{
 		glDeleteFramebuffers(1, &DepthPass);
-		glDeleteFramebuffers(1, &MaterialResolvePass);
 		glDeleteFramebuffers(1, &ColorPass);
 		glDeleteTextures(1, &DepthBuffer);
 		glDeleteTextures(1, &PositionBuffer);
 		glDeleteTextures(1, &NormalBuffer);
 		glDeleteTextures(1, &SubtreeBuffer);
 		glDeleteTextures(1, &MaterialBuffer);
-		glDeleteTextures(1, &MaterialStencilBuffer);
 		glDeleteTextures(1, &ColorBuffer);
 	}
 	else
@@ -345,7 +336,7 @@ void AllocateRenderTargets(int ScreenWidth, int ScreenHeight)
 		glObjectLabel(GL_TEXTURE, SubtreeBuffer, -1, "Subtree ID");
 
 		glCreateTextures(GL_TEXTURE_2D, 1, &MaterialBuffer);
-		glTextureStorage2D(MaterialBuffer, 1, GL_R32UI, ScreenWidth, ScreenHeight);
+		glTextureStorage2D(MaterialBuffer, 1, GL_RGB8, ScreenWidth, ScreenHeight);
 		glTextureParameteri(MaterialBuffer, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 		glTextureParameteri(MaterialBuffer, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 		glTextureParameteri(MaterialBuffer, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
@@ -363,22 +354,6 @@ void AllocateRenderTargets(int ScreenWidth, int ScreenHeight)
 		glNamedFramebufferDrawBuffers(DepthPass, 4, ColorAttachments);
 	}
 
-	// Resolve material to depth pass.
-	{
-		glCreateTextures(GL_TEXTURE_2D, 1, &MaterialStencilBuffer);
-		glTextureStorage2D(MaterialStencilBuffer, 1, GL_DEPTH_COMPONENT32F, ScreenWidth, ScreenHeight);
-		glTextureParameteri(MaterialStencilBuffer, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-		glTextureParameteri(MaterialStencilBuffer, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-		glTextureParameteri(MaterialStencilBuffer, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-		glTextureParameteri(MaterialStencilBuffer, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-		glObjectLabel(GL_TEXTURE, MaterialStencilBuffer, -1, "Material Stencil");
-
-		glCreateFramebuffers(1, &MaterialResolvePass);
-		glObjectLabel(GL_FRAMEBUFFER, MaterialResolvePass, -1, "Material Resolve Pass");
-		glNamedFramebufferTexture(MaterialResolvePass, GL_DEPTH_ATTACHMENT, MaterialStencilBuffer, 0);
-		glNamedFramebufferDrawBuffers(MaterialResolvePass, 0, nullptr);
-	}
-
 	// Color passes.
 	{
 		glCreateTextures(GL_TEXTURE_2D, 1, &ColorBuffer);
@@ -390,8 +365,7 @@ void AllocateRenderTargets(int ScreenWidth, int ScreenHeight)
 		glObjectLabel(GL_TEXTURE, ColorBuffer, -1, "Color Buffer");
 
 		glCreateFramebuffers(1, &ColorPass);
-		glObjectLabel(GL_FRAMEBUFFER, ColorPass, -1, "Material Painting Pass");
-		glNamedFramebufferTexture(ColorPass, GL_DEPTH_ATTACHMENT, MaterialStencilBuffer, 0);
+		glObjectLabel(GL_FRAMEBUFFER, ColorPass, -1, "Color Pass");
 		glNamedFramebufferTexture(ColorPass, GL_COLOR_ATTACHMENT0, ColorBuffer, 0);
 		GLenum ColorAttachments[1] = { GL_COLOR_ATTACHMENT0 };
 		glNamedFramebufferDrawBuffers(ColorPass, 1, ColorAttachments);
@@ -412,23 +386,6 @@ struct ViewInfoUpload
 	float CurrentTime;
 	float Padding[3] = { 0 };
 };
-
-
-void UploadMaterialInfo(unsigned int MaterialMask)
-{
-	GLfloat MaskFloat = 0.0;
-	if (MaterialMask < UINT_MAX)
-	{
-		MaskFloat = 1.0 / (GLfloat(MaterialMask) + 1.0);
-	}
-	GLfloat BufferData[4] = {
-		MaskFloat,
-		0,
-		0,
-		0
-	};
-	MaterialInfo.Upload((void*)&BufferData, sizeof(GLuint) * 4);
-}
 
 
 struct OutlinerOptionsUpload
@@ -470,51 +427,16 @@ StatusCode SetupRenderer()
 		"Cluster Coverage Shader"));
 #else
 
-	RETURN_ON_FAIL(MaterialResolveShader.Setup(
-		{ {GL_VERTEX_SHADER, ShaderSource("shaders/splat.vs.glsl", true)},
-		  {GL_FRAGMENT_SHADER, ShaderSource("shaders/resolve_stencil.fs.glsl", true)} },
-		"Material Resolve Shader"));
-
 	RETURN_ON_FAIL(PaintShader.Setup(
-		{ {GL_VERTEX_SHADER, ShaderSource("shaders/masked.vs.glsl", true)},
+		{ {GL_VERTEX_SHADER, ShaderSource("shaders/splat.vs.glsl", true)},
 		  {GL_FRAGMENT_SHADER, ShaderSource("shaders/outliner.fs.glsl", true)} },
 		"Outliner Shader"));
 
 	RETURN_ON_FAIL(BgShader.Setup(
-		{ {GL_VERTEX_SHADER, ShaderSource("shaders/masked.vs.glsl", true)},
+		{ {GL_VERTEX_SHADER, ShaderSource("shaders/splat.vs.glsl", true)},
 		  {GL_FRAGMENT_SHADER, ShaderSource("shaders/bg.fs.glsl", true)} },
 		"Background Shader"));
 #endif
-
-	RETURN_ON_FAIL(TestMaterials[0].Setup(
-		{ {GL_VERTEX_SHADER, ShaderSource("shaders/masked.vs.glsl", true)},
-		  {GL_FRAGMENT_SHADER, ShaderSource("materials/black.glsl", true)} },
-		"Black Test Material Shader"));
-
-	RETURN_ON_FAIL(TestMaterials[1].Setup(
-		{ {GL_VERTEX_SHADER, ShaderSource("shaders/masked.vs.glsl", true)},
-		  {GL_FRAGMENT_SHADER, ShaderSource("materials/gray.glsl", true)} },
-		"Gray Test Material Shader"));
-
-	RETURN_ON_FAIL(TestMaterials[2].Setup(
-		{ {GL_VERTEX_SHADER, ShaderSource("shaders/masked.vs.glsl", true)},
-		  {GL_FRAGMENT_SHADER, ShaderSource("materials/white.glsl", true)} },
-		"White Test Material Shader"));
-
-	RETURN_ON_FAIL(TestMaterials[3].Setup(
-		{ {GL_VERTEX_SHADER, ShaderSource("shaders/masked.vs.glsl", true)},
-		  {GL_FRAGMENT_SHADER, ShaderSource("materials/red.glsl", true)} },
-		"Red Test Material Shader"));
-
-	RETURN_ON_FAIL(TestMaterials[4].Setup(
-		{ {GL_VERTEX_SHADER, ShaderSource("shaders/masked.vs.glsl", true)},
-		  {GL_FRAGMENT_SHADER, ShaderSource("materials/green.glsl", true)} },
-		"Green Test Material Shader"));
-
-	RETURN_ON_FAIL(TestMaterials[5].Setup(
-		{ {GL_VERTEX_SHADER, ShaderSource("shaders/masked.vs.glsl", true)},
-		  {GL_FRAGMENT_SHADER, ShaderSource("materials/blue.glsl", true)} },
-		"Blue Test Material Shader"));
 
 	RETURN_ON_FAIL(ResolveOutputShader.Setup(
 		{ {GL_VERTEX_SHADER, ShaderSource("shaders/splat.vs.glsl", true)},
@@ -770,20 +692,7 @@ void RenderFrame(int ScreenWidth, int ScreenHeight)
 			EndEvent();
 		}
 		{
-			glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Resolve Material Stencil");
-			glBindFramebuffer(GL_FRAMEBUFFER, MaterialResolvePass);
-			glDepthMask(GL_TRUE);
-			glDepthFunc(GL_ALWAYS);
-			glBindTextureUnit(1, DepthBuffer);
-			glBindTextureUnit(2, MaterialBuffer);
-			MaterialResolveShader.Activate();
-			glDrawArrays(GL_TRIANGLES, 0, 3);
-			glPopDebugGroup();
-		}
-		{
 			glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Background");
-			UploadMaterialInfo(-1);
-			MaterialInfo.Bind(GL_UNIFORM_BUFFER, 1);
 			glBindFramebuffer(GL_FRAMEBUFFER, ColorPass);
 			GridBgTimeQuery.Start();
 			glDepthMask(GL_FALSE);
@@ -804,27 +713,17 @@ void RenderFrame(int ScreenWidth, int ScreenHeight)
 		}
 		{
 			glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Default Material");
-			UploadMaterialInfo(0);
 			OutlinerTimeQuery.Start();
 			glBindTextureUnit(1, DepthBuffer);
 			glBindTextureUnit(2, PositionBuffer);
 			glBindTextureUnit(3, NormalBuffer);
 			glBindTextureUnit(4, SubtreeBuffer);
-			MaterialInfo.Bind(GL_UNIFORM_BUFFER, 1);
+			glBindTextureUnit(5, MaterialBuffer);
 			OutlinerOptions.Bind(GL_UNIFORM_BUFFER, 2);
 			DepthTimeBuffer.Bind(GL_SHADER_STORAGE_BUFFER, 2);
 			PaintShader.Activate();
 			glDrawArrays(GL_TRIANGLES, 0, 3);
 			OutlinerTimeQuery.Stop();
-			glPopDebugGroup();
-		}
-		for (int TestMaterial = 0; TestMaterial < 6; ++TestMaterial)
-		{
-			glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Test Material");
-			UploadMaterialInfo(TestMaterial + 1);
-			MaterialInfo.Bind(GL_UNIFORM_BUFFER, 1);
-			TestMaterials[TestMaterial].Activate();
-			glDrawArrays(GL_TRIANGLES, 0, 3);
 			glPopDebugGroup();
 		}
 		{

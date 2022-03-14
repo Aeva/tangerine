@@ -44,11 +44,12 @@ layout(binding = 1) uniform sampler2D DepthBuffer;
 layout(binding = 2) uniform sampler2D PositionBuffer;
 layout(binding = 3) uniform sampler2D NormalBuffer;
 layout(binding = 4) uniform usampler2D SubtreeBuffer;
+layout(binding = 5) uniform sampler2D MaterialBuffer;
 
 layout(location = 0) out vec4 OutColor;
 
 
-void SampleAt(vec2 Coord, out bool DepthMask, out vec3 Position, out vec3 Normal, out uint SubtreeIndex)
+void SampleAt(vec2 Coord, out bool DepthMask, out vec3 Position, out vec3 Normal, out uint SubtreeIndex, out vec3 Color)
 {
 	const vec2 UV = clamp(Coord * ScreenSize.zw, 0.0, 1.0);
 	DepthMask = texture(DepthBuffer, UV).r == 0.0 ? false : true;
@@ -57,14 +58,16 @@ void SampleAt(vec2 Coord, out bool DepthMask, out vec3 Position, out vec3 Normal
 		Position = texture(PositionBuffer, UV).rgb;
 		Normal = texture(NormalBuffer, UV).rgb;
 		SubtreeIndex = texture(SubtreeBuffer, UV).r;
+		Color = texture(MaterialBuffer, UV).rgb;
 	}
 }
 
 
 void SampleAt(vec2 Coord, out bool DepthMask, out vec3 Position, out vec3 Normal)
 {
-	uint Ignore;
-	SampleAt(Coord, DepthMask, Position, Normal, Ignore);
+	uint IgnoreSubtree;
+	vec3 IgnoreColor;
+	SampleAt(Coord, DepthMask, Position, Normal, IgnoreSubtree, IgnoreColor);
 }
 
 
@@ -81,7 +84,9 @@ void main()
 	vec3 CenterPosition;
 	vec3 CenterNormal;
 	uint SubtreeIndex;
-	SampleAt(gl_FragCoord.xy, DepthMask, CenterPosition, CenterNormal, SubtreeIndex);
+	vec3 BaseColor;
+	SampleAt(gl_FragCoord.xy, DepthMask, CenterPosition, CenterNormal, SubtreeIndex, BaseColor);
+	if (DepthMask)
 	{
 		vec3 Positions[8];
 		vec3 Normals[8];
@@ -131,7 +136,6 @@ void main()
 				}
 			}
 			{
-				vec3 BaseColor = vec3(1.0);
 				if ((OutlinerFlags & 1) == 1)
 				{
 					float PHI = 1.618033988749895;
@@ -161,5 +165,9 @@ void main()
 				}
 			}
 		}
+	}
+	else
+	{
+		discard;
 	}
 }

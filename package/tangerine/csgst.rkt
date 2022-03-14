@@ -18,8 +18,10 @@
 
 (require racket/math)
 (require racket/list)
+(require racket/match)
 (require math/flonum)
 (require "vec.rkt")
+(require "color-names.rkt")
 
 
 (provide brush?
@@ -182,19 +184,19 @@
 
 
 ; Provides the common functionality to paint and paint-over.
-(define (paint-inner material mode csgst)
+(define (paint-propagate red green blue mode csgst)
   (cond [(brush? csgst)
-         `(paint ,material ,csgst)]
+         `(paint ,red ,green ,blue ,csgst)]
 
         [(paint? csgst)
          (if mode
-             `(paint ,material ,(cddr csgst))
+             `(paint ,red ,green ,blue ,(cddr csgst))
              csgst)]
 
         [(binary-operator? csgst)
          (cons (car csgst)
                (for/list ([subtree (in-list (cdr csgst))])
-                 (paint-inner material mode subtree)))]
+                 (paint-propagate red green blue mode subtree)))]
 
         [(blend-operator? csgst)
          (let ([instruction (car csgst)]
@@ -203,31 +205,51 @@
            (cons instruction
                  (cons threshold
                        (for/list ([subtree (in-list operands)])
-                         (paint-inner material mode subtree)))))]
+                         (paint-propagate red green blue mode subtree)))))]
 
         [(transform? csgst)
          (let* ([pivot (- (length csgst) 1)]
                 [transform (take csgst pivot)]
                 [subtree (last csgst)])
-           (append transform (list (paint-inner material mode subtree))))]
+           (append transform (list (paint-propagate red green blue mode subtree))))]
 
         [else (error "unreachable")]))
 
 
+; Extract the paint color, and then propogate the paint attribute in accordance to the mode.
+; Exposed to the user via functions paint and paint-over.
+(define (paint-inner mode params)
+  (let*-values
+      ([(csgst) (values (last params))]
+
+       [(red green blue)
+        (match params
+          [(list red green blue _)
+           (values red green blue)]
+          [(list name _) (color-by-name name)])])
+
+    (unless (or (flonum? red) (red . < . 0))
+      (error "Expected positive float:" red))
+    (unless (or (flonum? green) (red . < . 0))
+      (error "Expected positive float:" green))
+    (unless (or (flonum? blue) (red . < . 0))
+      (error "Expected positive float:" blue))
+
+    (assert-csg csgst)
+
+    (paint-propagate red green blue mode csgst)))
+
+
 ; Paint all brushes in the subtree with a material annotation.  This
 ; will only modify brushes that do not already have an annotation.
-(define (paint material csgst)
-  (unless (or (exact? material) (material . < . 0))
-    (error "Expected positive integer"))
-  (paint-inner material #f csgst))
+(define (paint . params)
+  (paint-inner #f params))
 
 
 ; Paint all brushes in the subtree with a material annotation.
 ; This will override all annotations further down the tree.
-(define (paint-over material csgst)
-  (unless (or (exact? material) (material . < . 0))
-    (error "Expected positive integer"))
-  (paint-inner material #t csgst))
+(define (paint-over . params)
+  (paint-inner #t params))
 
 
 ; Spherice brush shape.

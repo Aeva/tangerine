@@ -29,16 +29,20 @@
 (define raise (+ brick-depth mortar))
 
 
+(define brick-color 'red)
+(define mortar-color 'white)
+
+
 (define brick-h
-  (paint 4 (align 0 0 -1 (box brick-width brick-height brick-depth))))
+  (paint brick-color (align 0 0 -1 (box brick-width brick-height brick-depth))))
 
 
 (define brick-v
-  (paint 4 (align 0 0 -1 (box brick-height brick-width brick-depth))))
+  (paint brick-color (align 0 0 -1 (box brick-height brick-width brick-depth))))
 
 
 (define brick-c
-  (paint 4 (align 0 0 -1 (box brick-height brick-height brick-depth))))
+  (paint brick-color (align 0 0 -1 (box brick-height brick-height brick-depth))))
 
 
 (define horizontal-even
@@ -185,7 +189,7 @@
                 (accumulate
                  (move* cursor
                          (move-x m-adjust
-                                 (paint 3
+                                 (paint mortar-color
                                         (align (* -1 dir) 0 -1
                                                (box m-width m-height m-depth)))))
                  cement))
@@ -208,7 +212,7 @@
                 (accumulate
                  (move* cursor
                          (move-y m-adjust
-                                 (paint 3
+                                 (paint mortar-color
                                         (align 0 (* -1 dir) -1
                                                (box m-width m-height m-depth)))))
                  cement))

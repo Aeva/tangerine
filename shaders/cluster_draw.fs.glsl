@@ -56,7 +56,7 @@ layout(location = 1) out vec4 OutNormal;
 layout(location = 1) out vec3 OutNormal;
 #endif
 layout(location = 2) out uint OutSubtreeID;
-layout(location = 3) out uint OutMaterial;
+layout(location = 3) out vec3 OutMaterial;
 
 
 vec3 Gradient(vec3 Position)
@@ -88,7 +88,7 @@ void main()
 	bool Hit = false;
 	float Travel = 0.0;
 	vec3 Position;
-	MaterialDist Dist = MaterialDist(0, 0.0);
+	MaterialDist Dist = MaterialDist(vec3(1.0), 0.0);
 
 	if (CanHit)
 	{
@@ -127,7 +127,7 @@ void main()
 		OutNormal.a = abs(clamp(Dist.Dist, -0.005, 0.005) / 0.005);
 #endif
 		OutSubtreeID = SubtreeIndex;
-		OutMaterial = Dist.Material;
+		OutMaterial = Dist.Color;
 
 		vec4 ViewPosition = WorldToView * WorldPosition;
 		ViewPosition /= ViewPosition.w;

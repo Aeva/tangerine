@@ -105,7 +105,7 @@ float SmoothCutOp(float LHS, float RHS, float Threshold)
 
 struct MaterialDist
 {
-	uint Material;
+	vec3 Color;
 	float Dist;
 };
 
@@ -113,14 +113,14 @@ struct MaterialDist
 #define BINARY_OP_ROUTES(Function) \
 MaterialDist Function##(float LHS, MaterialDist RHS) \
 { \
-	MaterialDist NewLHS = MaterialDist(0, LHS); \
+	MaterialDist NewLHS = MaterialDist(vec3(1.0), LHS); \
 	return Function##(NewLHS, RHS); \
 } \
 \
 \
 MaterialDist Function##(MaterialDist LHS, float RHS) \
 { \
-	MaterialDist NewRHS = MaterialDist(0, RHS); \
+	MaterialDist NewRHS = MaterialDist(vec3(1.0), RHS); \
 	return Function##(LHS, NewRHS); \
 }
 
@@ -129,8 +129,8 @@ MaterialDist Function##(MaterialDist LHS, float RHS) \
 MaterialDist Function##(MaterialDist LHS, MaterialDist RHS) \
 { \
 	float Dist = Function##(LHS.Dist, RHS.Dist); \
-	uint Material = (Dist == LHS.Dist) ? LHS.Material : RHS.Material; \
-	return MaterialDist(Material, Dist); \
+	vec3 Color = (Dist == LHS.Dist) ? LHS.Color : RHS.Color; \
+	return MaterialDist(Color, Dist); \
 } \
 BINARY_OP_ROUTES(Function)
 
@@ -141,7 +141,7 @@ BINARY_OP_VARIANTS(IntersectionOp)
 
 MaterialDist CutOp(MaterialDist LHS, MaterialDist RHS)
 {
-	return MaterialDist(LHS.Material, max(LHS.Dist, -RHS.Dist));
+	return MaterialDist(LHS.Color, max(LHS.Dist, -RHS.Dist));
 }
 BINARY_OP_ROUTES(CutOp)
 
@@ -149,14 +149,14 @@ BINARY_OP_ROUTES(CutOp)
 #define BLEND_OP_ROUTES(Function) \
 MaterialDist Function##(float LHS, MaterialDist RHS, float Threshold) \
 { \
-	MaterialDist NewLHS = MaterialDist(0, LHS); \
+	MaterialDist NewLHS = MaterialDist(vec3(1.0), LHS); \
 	return Function##(NewLHS, RHS, Threshold); \
 } \
 \
 \
 MaterialDist Function##(MaterialDist LHS, float RHS, float Threshold) \
 { \
-	MaterialDist NewRHS = MaterialDist(0, RHS); \
+	MaterialDist NewRHS = MaterialDist(vec3(1.0), RHS); \
 	return Function##(LHS, NewRHS, Threshold); \
 }
 
@@ -165,8 +165,8 @@ MaterialDist Function##(MaterialDist LHS, float RHS, float Threshold) \
 MaterialDist Function##(MaterialDist LHS, MaterialDist RHS, float Threshold) \
 { \
 	float Dist = Function(LHS.Dist, RHS.Dist, Threshold); \
-	uint Material = (abs(LHS.Dist - Dist) <= abs(RHS.Dist - Dist)) ? LHS.Material : RHS.Material; \
-	return MaterialDist(Material, Dist); \
+	vec3 Color = (abs(LHS.Dist - Dist) <= abs(RHS.Dist - Dist)) ? LHS.Color : RHS.Color; \
+	return MaterialDist(Color, Dist); \
 } \
 BLEND_OP_ROUTES(Function)
 
@@ -179,7 +179,7 @@ MaterialDist SmoothCutOp(MaterialDist LHS, MaterialDist RHS, float Threshold)
 {
 	float H = max(Threshold - abs(LHS.Dist + RHS.Dist), 0.0);
 	float Dist = max(LHS.Dist, -RHS.Dist) + H * H * 0.25 / Threshold;
-	return MaterialDist(LHS.Material, Dist);
+	return MaterialDist(LHS.Color, Dist);
 }
 BLEND_OP_ROUTES(SmoothCutOp)
 
@@ -192,7 +192,7 @@ MaterialDist TreeRoot(MaterialDist Dist)
 
 MaterialDist TreeRoot(float Dist)
 {
-	return MaterialDist(0, Dist);
+	return MaterialDist(vec3(1.0), Dist);
 }
 
 

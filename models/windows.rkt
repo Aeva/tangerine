@@ -84,4 +84,4 @@
 
 
 (define (emit-glsl)
-  (compile (paint 2 normal-wall)))
+  (compile (paint 'silver normal-wall)))

@@ -404,11 +404,11 @@ struct SetNode : public SDFNode
 
 struct PaintNode : public SDFNode
 {
-	int Material;
+	vec3 Color;
 	SDFNode* Child;
 
-	PaintNode(int InMaterial, SDFNode* InChild)
-		: Material(InMaterial)
+	PaintNode(vec3 InColor, SDFNode* InChild)
+		: Color(InColor)
 		, Child(InChild)
 	{
 	}
@@ -423,7 +423,7 @@ struct PaintNode : public SDFNode
 		SDFNode* NewChild = Child->Clip(Point, Radius);
 		if (NewChild)
 		{
-			return new PaintNode(Material, NewChild);
+			return new PaintNode(Color, NewChild);
 		}
 		else
 		{
@@ -438,7 +438,12 @@ struct PaintNode : public SDFNode
 
 	virtual std::string Compile(std::vector<float>& TreeParams, std::string& Point)
 	{
-		return fmt::format("MaterialDist({}, {})", Material, Child->Compile(TreeParams, Point));
+		const int Offset = (int)TreeParams.size();
+		TreeParams.push_back(Color.r);
+		TreeParams.push_back(Color.g);
+		TreeParams.push_back(Color.b);
+		std::string ColorParams = MakeParamList(Offset, 3);
+		return fmt::format("MaterialDist(vec3({}), {})", ColorParams, Child->Compile(TreeParams, Point));
 	}
 
 	virtual ~PaintNode()
@@ -665,9 +670,9 @@ extern "C" TANGERINE_API void* MakeBlendInterOp(float Threshold, void* LHS, void
 
 
 // Misc nodes
-extern "C" TANGERINE_API void* MakePaint(int Material, void* Child)
+extern "C" TANGERINE_API void* MakePaint(float Red, float Green, float Blue, void* Child)
 {
-	return new PaintNode(Material, (SDFNode*)Child);
+	return new PaintNode(vec3(Red, Green, Blue), (SDFNode*)Child);
 }
 
 
