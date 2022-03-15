@@ -144,6 +144,8 @@ The following examples of the `paint` annotation are equivalent:
 
  * `(export-magica csgst grid-size pallet-index path)`
 
+ * `(export-ply csgst grid-size path [refinement-iterations 5])`
+
  * `(export-stl csgst grid-size path [refinement-iterations 5])`
 
 # Writing Your *Third* Tangerine Model
