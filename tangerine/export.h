@@ -16,6 +16,11 @@
 #pragma once
 #include "sdfs.h"
 
+enum class ExportFormat
+{
+	STL,
+	PLY
+};
 
 #ifndef MINIMAL_DLL
 struct ExportProgress
@@ -27,15 +32,7 @@ struct ExportProgress
 	float Write;
 };
 
-
-enum class ExportFormat
-{
-	STL,
-	PLY
-};
-
-
-void MeshExport(SDFNode* Evaluator, glm::vec3 ModelMin, glm::vec3 ModelMax, glm::vec3 Step, int RefineIterations, ExportFormat Format = ExportFormat::PLY);
+void MeshExport(SDFNode* Evaluator, glm::vec3 ModelMin, glm::vec3 ModelMax, glm::vec3 Step, int RefineIterations, ExportFormat Format);
 void CancelExport(bool Halt);
 ExportProgress GetExportProgress();
 #endif

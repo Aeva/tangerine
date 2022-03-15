@@ -865,6 +865,7 @@ void RenderUI(SDL_Window* Window, bool& Live)
 	static float ExportSplitStep[3];
 	static bool ExportSkipRefine;
 	static int ExportRefinementSteps;
+	static ExportFormat ExportMeshFormat;
 
 	const bool DefaultExportSkipRefine = false;
 	const float DefaultExportStepSize = 0.01;
@@ -882,7 +883,18 @@ void RenderUI(SDL_Window* Window, bool& Live)
 			{
 				LoadModel(nullptr);
 			}
-			if (ImGui::MenuItem("Export", nullptr, false, TreeEvaluator != nullptr))
+			bool AnyExport = false;
+			if (ImGui::MenuItem("Export PLY", nullptr, false, TreeEvaluator != nullptr))
+			{
+				AnyExport = true;
+				ExportMeshFormat = ExportFormat::PLY;
+			}
+			if (ImGui::MenuItem("Export STL", nullptr, false, TreeEvaluator != nullptr))
+			{
+				AnyExport = true;
+				ExportMeshFormat = ExportFormat::STL;
+			}
+			if (AnyExport)
 			{
 				ShowExportOptions = true;
 
@@ -1063,6 +1075,7 @@ void RenderUI(SDL_Window* Window, bool& Live)
 			{
 				ImGui::ProgressBar(Progress.Generation, ImVec2(-FLT_MIN, 0), "Mesh Generation");
 				ImGui::ProgressBar(Progress.Refinement, ImVec2(-FLT_MIN, 0), "Mesh Refinement");
+				ImGui::ProgressBar(Progress.Secondary, ImVec2(-FLT_MIN, 0), "Vertex Attributes");
 				ImGui::ProgressBar(Progress.Write, ImVec2(-FLT_MIN, 0), "Saving");
 				if (ImGui::Button("Good Enough"))
 				{
@@ -1106,12 +1119,12 @@ void RenderUI(SDL_Window* Window, bool& Live)
 							ExportSplitStep[1],
 							ExportSplitStep[2]);
 						int RefinementSteps = ExportSkipRefine ? 0 : ExportRefinementSteps;
-						MeshExport(TreeEvaluator, ModelBounds.Min, ModelBounds.Max, VoxelSize, RefinementSteps);
+						MeshExport(TreeEvaluator, ModelBounds.Min, ModelBounds.Max, VoxelSize, RefinementSteps, ExportMeshFormat);
 					}
 					else
 					{
 						glm::vec3 VoxelSize = glm::vec3(ExportStepSize);
-						MeshExport(TreeEvaluator, ModelBounds.Min, ModelBounds.Max, VoxelSize, DefaultExportRefinementSteps);
+						MeshExport(TreeEvaluator, ModelBounds.Min, ModelBounds.Max, VoxelSize, DefaultExportRefinementSteps, ExportMeshFormat);
 					}
 					ShowExportOptions = false;
 				}

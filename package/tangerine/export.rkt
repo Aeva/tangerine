@@ -45,7 +45,7 @@
     (display "Export complete.\n")))
 
 (define (export-stl csgst grid-size path [refinement-iterations 5])
-  (export-mesh ExportSTL csgst grid-size path [refinement-iterations 5]))
+  (export-mesh ExportSTL csgst grid-size path refinement-iterations))
 
 (define (export-ply csgst grid-size path [refinement-iterations 5])
-  (export-mesh ExportPLY csgst grid-size path [refinement-iterations 5]))
+  (export-mesh ExportPLY csgst grid-size path refinement-iterations))

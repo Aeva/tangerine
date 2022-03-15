@@ -69,21 +69,34 @@ void WriteSTL(SDFOctree* Octree, std::string Path, std::vector<vec3> Vertices, s
 		OutFile << '\0';
 	}
 
-	WriteCount.store(Quads.size());
-
-	uint32_t Triangles = Quads.size() * 2;
-	OutFile.write(reinterpret_cast<char*>(&Triangles), 4);
-
+	SecondaryCount.store(Quads.size());
+	std::vector<glm::vec3> Normals;
+	Normals.reserve(Quads.size());
 	for (ivec4& Quad : Quads)
 	{
 		if (ExportState.load() != 3 || !ExportActive.load())
 		{
 			break;
 		}
-		WriteProgress.fetch_add(1);
+		SecondaryProgress.fetch_add(1);
+		vec3 Center = (Vertices[Quad.x] + Vertices[Quad.y] + Vertices[Quad.z] + Vertices[Quad.w]) / vec3(4.0);
+		vec3 Normal = Octree->Gradient(Center);
+		Normals.push_back(Normal);
+	}
+
+	WriteCount.store(Quads.size());
+	uint32_t Triangles = Quads.size() * 2;
+	OutFile.write(reinterpret_cast<char*>(&Triangles), 4);
+	for (int q = 0; q < Quads.size(); ++q)
+	{
+		if (ExportState.load() != 3 || !ExportActive.load())
 		{
-			vec3 Center = (Vertices[Quad.x] + Vertices[Quad.y] + Vertices[Quad.z]) / vec3(3.0);
-			vec3 Normal = Octree->Gradient(Center);
+			break;
+		}
+		WriteProgress.fetch_add(1);
+		ivec4& Quad = Quads[q];
+		vec3& Normal = Normals[q];
+		{
 			OutFile.write(reinterpret_cast<char*>(&Normal), 12);
 
 			OutFile.write(reinterpret_cast<char*>(&Vertices[Quad.x]), 12);
@@ -94,8 +107,6 @@ void WriteSTL(SDFOctree* Octree, std::string Path, std::vector<vec3> Vertices, s
 			OutFile.write(reinterpret_cast<char*>(&Attributes), 2);
 		}
 		{
-			vec3 Center = (Vertices[Quad.x] + Vertices[Quad.z] + Vertices[Quad.w]) / vec3(3.0);
-			vec3 Normal = Octree->Gradient(Center);
 			OutFile.write(reinterpret_cast<char*>(&Normal), 12);
 
 			OutFile.write(reinterpret_cast<char*>(&Vertices[Quad.x]), 12);
@@ -201,9 +212,24 @@ void WritePLY(SDFOctree* Octree, std::string Path, std::vector<vec3> Vertices, s
 		}
 	}
 
-	// Really it's more of a line count.
-	WriteCount.store(Vertices.size() + Quads.size());
+	// Populate vertex attributes.
+	SecondaryCount.store(Vertices.size());
+	std::vector<glm::vec3> Normals;
+	std::vector<glm::vec3> Colors;
+	Normals.reserve(Vertices.size());
+	Colors.reserve(Vertices.size());
+	for (int v = 0; v < Vertices.size(); ++v)
+	{
+		SecondaryProgress.fetch_add(1);
+		Normals.push_back(Octree->Gradient(Vertices[v]));
+		if (ExportColor)
+		{
+			Colors.push_back(Octree->Sample(Vertices[v]));
+		}
+	}
 
+	// Write vertex data.
+	WriteCount.store(Vertices.size() + Quads.size());
 	std::ofstream OutFile;
 	OutFile.open(Path, std::ios::out | std::ios::binary);
 	OutFile.write(Header.c_str(), Header.size());
@@ -211,16 +237,14 @@ void WritePLY(SDFOctree* Octree, std::string Path, std::vector<vec3> Vertices, s
 	{
 		WriteProgress.fetch_add(1);
 		OutFile.write(reinterpret_cast<char*>(&Vertices[v]), 12);
-		{
-			vec3 Normal = Octree->Gradient(Vertices[v]);
-			OutFile.write(reinterpret_cast<char*>(&Normal[v]), 12);
-		}
+		OutFile.write(reinterpret_cast<char*>(&Normals[v]), 12);
 		if (ExportColor)
 		{
-			vec3 Color = Octree->Sample(Vertices[v]);
-			OutFile.write(reinterpret_cast<char*>(&Color), 12);
+			OutFile.write(reinterpret_cast<char*>(&Colors[v]), 12);
 		}
 	}
+
+	// Write face data.
 	const int8_t FaceVerts = 3;
 	for (int q = 0; q < Quads.size(); ++q)
 	{
