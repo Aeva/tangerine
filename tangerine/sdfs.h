@@ -49,6 +49,10 @@ struct SDFNode
 
 	glm::vec3 Gradient(glm::vec3 Point);
 
+	virtual bool HasPaint() = 0;
+
+	virtual glm::vec4 Sample(glm::vec3 Point) = 0;
+
 	virtual ~SDFNode() {};
 };
 
@@ -84,6 +88,11 @@ struct SDFOctree
 	{
 		SDFNode* Node = Descend(Point);
 		return Node->Gradient(Point);
+	}
+	glm::vec3 Sample(glm::vec3 Point)
+	{
+		SDFNode* Node = Descend(Point);
+		return Node->Sample(Point);
 	}
 
 private:

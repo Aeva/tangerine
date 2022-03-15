@@ -16,7 +16,7 @@
 #include <array>
 #include <functional>
 #include <cmath>
-#include "fmt/format.h"
+#include <fmt/format.h>
 #include "extern.h"
 #include "sdfs.h"
 #include "profiling.h"
@@ -67,6 +67,9 @@ using BrushMixin = std::function<float(vec3)>;
 using TransformMixin = std::function<vec3(vec3)>;
 using PointMixin = std::function<std::string(const int, const std::string&)>;
 using SetMixin = std::function<float(float, float)>;
+
+
+const vec4 NullColor = vec4(1.0, 1.0, 1.0, 0.0);
 
 
 template<typename ParamsT>
@@ -169,6 +172,16 @@ struct TransformNode : public SDFNode
 		return Child->Compile(TreeParams, NewPoint);
 	}
 
+	virtual bool HasPaint()
+	{
+		return Child->HasPaint();
+	}
+
+	virtual vec4 Sample(glm::vec3 Point)
+	{
+		return Child->Sample(TransformFn(Point));
+	}
+
 	virtual ~TransformNode()
 	{
 		delete Child;
@@ -219,6 +232,16 @@ struct BrushNode : public SDFNode
 		const int Offset = StoreParams(TreeParams, NodeParams);
 		std::string Params = MakeParamList(Offset, (int)NodeParams.size());
 		return fmt::format("{}({}, {})", BrushFnName, Point, Params);
+	}
+
+	virtual bool HasPaint()
+	{
+		return false;
+	}
+
+	virtual vec4 Sample(glm::vec3 Point)
+	{
+		return NullColor;
 	}
 };
 
@@ -394,6 +417,33 @@ struct SetNode : public SDFNode
 		}
 	}
 
+	virtual bool HasPaint()
+	{
+		return LHS->HasPaint() || RHS->HasPaint();
+	}
+
+	virtual vec4 Sample(glm::vec3 Point)
+	{
+		if (Family == SetFamily::Diff)
+		{
+			return LHS->Sample(Point);
+		}
+		else
+		{
+			float EvalLHS = LHS->Eval(Point);
+			float EvalRHS = RHS->Eval(Point);
+
+			if (EvalLHS <= EvalRHS)
+			{
+				return LHS->Sample(Point);
+			}
+			else
+			{
+				return RHS->Sample(Point);
+			}
+		}
+	}
+
 	virtual ~SetNode()
 	{
 		delete LHS;
@@ -444,6 +494,16 @@ struct PaintNode : public SDFNode
 		TreeParams.push_back(Color.b);
 		std::string ColorParams = MakeParamList(Offset, 3);
 		return fmt::format("MaterialDist(vec3({}), {})", ColorParams, Child->Compile(TreeParams, Point));
+	}
+
+	virtual bool HasPaint()
+	{
+		return true;
+	}
+
+	virtual vec4 Sample(vec3 Point)
+	{
+		return vec4(Color, 1.0);
 	}
 
 	virtual ~PaintNode()

@@ -26,6 +26,7 @@
 #ifndef MINIMAL_DLL
 #include <nfd.h>
 #endif
+#include <fmt/format.h>
 #include "threadpool.h"
 #include "extern.h"
 #include "export.h"
@@ -51,12 +52,200 @@ std::atomic_int VoxelCount;
 std::atomic_int GenerationProgress;
 std::atomic_int VertexCount;
 std::atomic_int RefinementProgress;
-std::atomic_int QuadCount;
+std::atomic_int SecondaryCount;
+std::atomic_int SecondaryProgress;
+std::atomic_int WriteCount;
 std::atomic_int WriteProgress;
-void MeshExportThread(SDFNode* Evaluator, vec3 ModelMin, vec3 ModelMax, vec3 Step, int RefineIterations, std::string Path)
+
+
+void WriteSTL(SDFOctree* Octree, std::string Path, std::vector<vec3> Vertices, std::vector<ivec4> Quads)
+{
+	std::ofstream OutFile;
+	OutFile.open(Path, std::ios::out | std::ios::binary);
+
+	// Write 80 bytes for the header.
+	for (int i = 0; i < 80; ++i)
+	{
+		OutFile << '\0';
+	}
+
+	WriteCount.store(Quads.size());
+
+	uint32_t Triangles = Quads.size() * 2;
+	OutFile.write(reinterpret_cast<char*>(&Triangles), 4);
+
+	for (ivec4& Quad : Quads)
+	{
+		if (ExportState.load() != 3 || !ExportActive.load())
+		{
+			break;
+		}
+		WriteProgress.fetch_add(1);
+		{
+			vec3 Center = (Vertices[Quad.x] + Vertices[Quad.y] + Vertices[Quad.z]) / vec3(3.0);
+			vec3 Normal = Octree->Gradient(Center);
+			OutFile.write(reinterpret_cast<char*>(&Normal), 12);
+
+			OutFile.write(reinterpret_cast<char*>(&Vertices[Quad.x]), 12);
+			OutFile.write(reinterpret_cast<char*>(&Vertices[Quad.y]), 12);
+			OutFile.write(reinterpret_cast<char*>(&Vertices[Quad.z]), 12);
+
+			uint16_t Attributes = 0;
+			OutFile.write(reinterpret_cast<char*>(&Attributes), 2);
+		}
+		{
+			vec3 Center = (Vertices[Quad.x] + Vertices[Quad.z] + Vertices[Quad.w]) / vec3(3.0);
+			vec3 Normal = Octree->Gradient(Center);
+			OutFile.write(reinterpret_cast<char*>(&Normal), 12);
+
+			OutFile.write(reinterpret_cast<char*>(&Vertices[Quad.x]), 12);
+			OutFile.write(reinterpret_cast<char*>(&Vertices[Quad.z]), 12);
+			OutFile.write(reinterpret_cast<char*>(&Vertices[Quad.w]), 12);
+
+			uint16_t Attributes = 0;
+			OutFile.write(reinterpret_cast<char*>(&Attributes), 2);
+		}
+	}
+
+	// Align to 4 bytes for good luck.
+	size_t Written = 84 + 100 * Quads.size();
+	for (int i = 0; i < Written % 4; ++i)
+	{
+		OutFile << '\0';
+	}
+
+	OutFile.close();
+}
+
+
+std::string GetEndianName()
+{
+	int Num = 1;
+	int8_t* Head = reinterpret_cast<int8_t*>(&Num);
+	bool IsLittleEndian = *Head == Num;
+	if (IsLittleEndian)
+	{
+		return std::string("little");
+	}
+	else
+	{
+		return std::string("big");
+	}
+}
+
+
+std::string MonochromePlyHeader(size_t VertexCount, size_t TriangleCount)
+{
+	static const std::string EndianName = GetEndianName();
+	return fmt::format(
+		"ply\n"
+		"format binary_{}_endian 1.0\n"
+		"comment Created by Tangerine\n"
+		"element vertex {}\n"
+		"property float x\n"
+		"property float y\n"
+		"property float z\n"
+		"property float nx\n"
+		"property float ny\n"
+		"property float nz\n"
+		"element face {}\n"
+		"property list uchar uint vertex_indices\n"
+		"end_header\n",
+		EndianName,
+		VertexCount,
+		TriangleCount);
+}
+
+
+std::string ColorPlyHeader(size_t VertexCount, size_t TriangleCount)
+{
+	static const std::string EndianName = GetEndianName();
+	return fmt::format(
+		"ply\n"
+		"format binary_{}_endian 1.0\n"
+		"comment Created by Tangerine\n"
+		"element vertex {}\n"
+		"property float x\n"
+		"property float y\n"
+		"property float z\n"
+		"property float nx\n"
+		"property float ny\n"
+		"property float nz\n"
+		"property float red\n"
+		"property float green\n"
+		"property float blue\n"
+		"element face {}\n"
+		"property list uchar uint vertex_indices\n"
+		"end_header\n",
+		EndianName,
+		VertexCount,
+		TriangleCount);
+}
+
+
+void WritePLY(SDFOctree* Octree, std::string Path, std::vector<vec3> Vertices, std::vector<ivec4> Quads)
+{
+	const bool ExportColor = Octree->Evaluator->HasPaint();
+	std::string Header;
+	{
+		size_t VertexCount = Vertices.size();
+		size_t TriangleCount = Quads.size() * 2;
+
+		if (ExportColor)
+		{
+			Header = ColorPlyHeader(VertexCount, TriangleCount);
+		}
+		else
+		{
+			Header = MonochromePlyHeader(VertexCount, TriangleCount);
+		}
+	}
+
+	// Really it's more of a line count.
+	WriteCount.store(Vertices.size() + Quads.size());
+
+	std::ofstream OutFile;
+	OutFile.open(Path, std::ios::out | std::ios::binary);
+	OutFile.write(Header.c_str(), Header.size());
+	for (int v = 0; v < Vertices.size(); ++v)
+	{
+		WriteProgress.fetch_add(1);
+		OutFile.write(reinterpret_cast<char*>(&Vertices[v]), 12);
+		{
+			vec3 Normal = Octree->Gradient(Vertices[v]);
+			OutFile.write(reinterpret_cast<char*>(&Normal[v]), 12);
+		}
+		if (ExportColor)
+		{
+			vec3 Color = Octree->Sample(Vertices[v]);
+			OutFile.write(reinterpret_cast<char*>(&Color), 12);
+		}
+	}
+	const int8_t FaceVerts = 3;
+	for (int q = 0; q < Quads.size(); ++q)
+	{
+		WriteProgress.fetch_add(1);
+		{
+			ivec3 FaceA = Quads[q].xyz;
+			OutFile.write(reinterpret_cast<const char*>(&FaceVerts), 1);
+			OutFile.write(reinterpret_cast<char*>(&FaceA), 12);
+		}
+		{
+			ivec3 FaceB = Quads[q].xzw;
+			OutFile.write(reinterpret_cast<const char*>(&FaceVerts), 1);
+			OutFile.write(reinterpret_cast<char*>(&FaceB), 12);
+		}
+	}
+
+	OutFile.close();
+}
+
+
+void MeshExportThread(SDFNode* Evaluator, vec3 ModelMin, vec3 ModelMax, vec3 Step, int RefineIterations, std::string Path, ExportFormat Format)
 {
 	const vec3 Half = Step / vec3(2.0);
 	const float Diagonal = length(Half);
+	SDFOctree* Octree = SDFOctree::Create(Evaluator, 0.25);
 
 	std::vector<vec3> Vertices;
 	std::map<vec3, int, Vec3Less> VertMemo;
@@ -107,16 +296,15 @@ void MeshExportThread(SDFNode* Evaluator, vec3 ModelMin, vec3 ModelMax, vec3 Ste
 
 					vec4 Dist;
 					{
-						SDFNode* Region = Evaluator->Clip(vec3(X, Y, Z), Diagonal * 2.0);
-						if (Region == nullptr)
+						float Coarse = Octree->Eval(vec3(X, Y, Z));
+						if (Coarse > Diagonal * 2.0)
 						{
 							continue;
 						}
-						Dist.x = Region->Eval(Cursor - vec3(Step.x, 0.0, 0.0));
-						Dist.y = Region->Eval(Cursor - vec3(0.0, Step.y, 0.0));
-						Dist.z = Region->Eval(Cursor - vec3(0.0, 0.0, Step.z));
-						Dist.w = Region->Eval(Cursor);
-						delete Region;
+						Dist.x = Octree->Eval(Cursor - vec3(Step.x, 0.0, 0.0));
+						Dist.y = Octree->Eval(Cursor - vec3(0.0, Step.y, 0.0));
+						Dist.z = Octree->Eval(Cursor - vec3(0.0, 0.0, Step.z));
+						Dist.w = Octree->Eval(Cursor);
 					}
 
 					if (sign(Dist.w) != sign(Dist.x))
@@ -177,7 +365,6 @@ void MeshExportThread(SDFNode* Evaluator, vec3 ModelMin, vec3 ModelMax, vec3 Ste
 
 	ExportState.store(2);
 	VertexCount.store(Vertices.size());
-	QuadCount.store(Quads.size());
 
 	if (RefineIterations > 0)
 	{
@@ -192,8 +379,8 @@ void MeshExportThread(SDFNode* Evaluator, vec3 ModelMin, vec3 ModelMax, vec3 Ste
 					vec3 Low = Vertex - vec3(Half);
 					vec3 High = Vertex + vec3(Half);
 
-					SDFNode* Subtree = Evaluator->Clip(Vertex, Diagonal);
-					if (!Subtree)
+					float Coarse = Octree->Eval(Vertex);
+					if (Diagonal > Diagonal)
 					{
 						continue;
 					}
@@ -201,11 +388,10 @@ void MeshExportThread(SDFNode* Evaluator, vec3 ModelMin, vec3 ModelMax, vec3 Ste
 					vec3 Cursor = Vertex;
 					for (int r = 0; r < RefineIterations; ++r)
 					{
-						vec3 RayDir = Subtree->Gradient(Cursor);
-						float Dist = Subtree->Eval(Cursor) * -1.0;
+						vec3 RayDir = Octree->Gradient(Cursor);
+						float Dist = Octree->Eval(Cursor) * -1.0;
 						Cursor += RayDir * Dist;
 					}
-					delete Subtree;
 					Cursor = clamp(Cursor, Low, High);
 
 					if (distance(Cursor, Vertex) <= Diagonal)
@@ -226,63 +412,17 @@ void MeshExportThread(SDFNode* Evaluator, vec3 ModelMin, vec3 ModelMax, vec3 Ste
 
 	ExportState.store(3);
 
+	if (Format == ExportFormat::STL)
 	{
-		std::ofstream OutFile;
-		OutFile.open(Path, std::ios::out | std::ios::binary);
-
-		// Write 80 bytes for the header.
-		for (int i = 0; i < 80; ++i)
-		{
-			OutFile << '\0';
-		}
-
-		uint32_t Triangles = Quads.size() * 2;
-		OutFile.write(reinterpret_cast<char*>(&Triangles), 4);
-
-		for (ivec4& Quad : Quads)
-		{
-			if (ExportState.load() != 3 || !ExportActive.load())
-			{
-				break;
-			}
-			WriteProgress.fetch_add(1);
-			{
-				vec3 Center = (Vertices[Quad.x] + Vertices[Quad.y] + Vertices[Quad.z]) / vec3(3.0);
-				vec3 Normal = Evaluator->Gradient(Center);
-				OutFile.write(reinterpret_cast<char*>(&Normal), 12);
-
-				OutFile.write(reinterpret_cast<char*>(&Vertices[Quad.x]), 12);
-				OutFile.write(reinterpret_cast<char*>(&Vertices[Quad.y]), 12);
-				OutFile.write(reinterpret_cast<char*>(&Vertices[Quad.z]), 12);
-
-				uint16_t Attributes = 0;
-				OutFile.write(reinterpret_cast<char*>(&Attributes), 2);
-			}
-			{
-				vec3 Center = (Vertices[Quad.x] + Vertices[Quad.z] + Vertices[Quad.w]) / vec3(3.0);
-				vec3 Normal = Evaluator->Gradient(Center);
-				OutFile.write(reinterpret_cast<char*>(&Normal), 12);
-
-				OutFile.write(reinterpret_cast<char*>(&Vertices[Quad.x]), 12);
-				OutFile.write(reinterpret_cast<char*>(&Vertices[Quad.z]), 12);
-				OutFile.write(reinterpret_cast<char*>(&Vertices[Quad.w]), 12);
-
-				uint16_t Attributes = 0;
-				OutFile.write(reinterpret_cast<char*>(&Attributes), 2);
-			}
-		}
-
-		// Align to 4 bytes for good luck.
-		size_t Written = 84 + 100 * Quads.size();
-		for (int i = 0; i < Written % 4; ++i)
-		{
-			OutFile << '\0';
-		}
-
-		OutFile.close();
+		WriteSTL(Octree, Path, Vertices, Quads);
+	}
+	else if (Format == ExportFormat::PLY)
+	{
+		WritePLY(Octree, Path, Vertices, Quads);
 	}
 
 	ExportState.store(0);
+	delete Octree;
 }
 
 
@@ -293,27 +433,37 @@ ExportProgress GetExportProgress()
 	Progress.Stage = ExportState.load();
 	Progress.Generation = float(GenerationProgress.load() - 1) / float(VoxelCount.load());
 	Progress.Refinement = float(RefinementProgress.load() - 1) / float(VertexCount.load());
-	Progress.Write = float(WriteProgress.load() - 1) / float(QuadCount.load());
+	Progress.Secondary = float(SecondaryProgress.load() - 1) / float(SecondaryCount.load());
+	Progress.Write = float(WriteProgress.load() - 1) / float(WriteCount.load());
 	return Progress;
 }
 
 
-void MeshExport(SDFNode* Evaluator, vec3 ModelMin, vec3 ModelMax, vec3 Step, int RefineIterations)
+void MeshExport(SDFNode* Evaluator, vec3 ModelMin, vec3 ModelMax, vec3 Step, int RefineIterations, ExportFormat Format)
 {
 	if (ExportState.load() == 0)
 	{
 		nfdchar_t* Path = nullptr;
-		nfdresult_t Result = NFD_SaveDialog("stl", "model.stl", &Path);
+		nfdresult_t Result;
+		if (Format == ExportFormat::STL)
+		{
+			Result = NFD_SaveDialog("stl", "model.stl", &Path);
+		}
+		else if (Format == ExportFormat::PLY)
+		{
+			Result = NFD_SaveDialog("ply", "model.ply", &Path);
+		}
 		if (Result == NFD_OKAY)
 		{
 			ExportActive.store(true);
 			ExportState.store(0);
 			GenerationProgress.store(0);
 			RefinementProgress.store(0);
+			SecondaryProgress.store(0);
 			WriteProgress.store(0);
 			ExportState.store(1);
 
-			std::thread ExportThread(MeshExportThread, Evaluator, ModelMin, ModelMax, Step, RefineIterations, std::string(Path));
+			std::thread ExportThread(MeshExportThread, Evaluator, ModelMin, ModelMax, Step, RefineIterations, std::string(Path), Format);
 			ExportThread.detach();
 		}
 	}
@@ -334,7 +484,7 @@ void CancelExport(bool Halt)
 #endif
 
 
-extern "C" TANGERINE_API void ExportSTL(SDFNode* Evaluator, float GridSize, int RefineIterations, const char* Path)
+void ExportCommon(SDFNode* Evaluator, float GridSize, int RefineIterations, const char* Path, ExportFormat Format)
 {
 	AABB Bounds = Evaluator->Bounds();
 	float Step = 1.0 / GridSize;
@@ -345,5 +495,17 @@ extern "C" TANGERINE_API void ExportSTL(SDFNode* Evaluator, float GridSize, int 
 	RefinementProgress.store(0);
 	WriteProgress.store(0);
 	ExportState.store(1);
-	MeshExportThread(Evaluator, Bounds.Min, Bounds.Max, vec3(Step), RefineIterations, std::string(Path));
+	MeshExportThread(Evaluator, Bounds.Min, Bounds.Max, vec3(Step), RefineIterations, std::string(Path), Format);
+}
+
+
+extern "C" TANGERINE_API void ExportSTL(SDFNode* Evaluator, float GridSize, int RefineIterations, const char* Path)
+{
+	ExportCommon(Evaluator, GridSize, RefineIterations, Path, ExportFormat::STL);
+}
+
+
+extern "C" TANGERINE_API void ExportPLY(SDFNode * Evaluator, float GridSize, int RefineIterations, const char* Path)
+{
+	ExportCommon(Evaluator, GridSize, RefineIterations, Path, ExportFormat::PLY);
 }
