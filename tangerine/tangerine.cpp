@@ -256,9 +256,11 @@ ShaderProgram PaintShader;
 ShaderProgram NoiseShader;
 ShaderProgram BgShader;
 ShaderProgram ResolveOutputShader;
+ShaderProgram OctreeDebugShader;
 
 Buffer ViewInfo("ViewInfo Buffer");
 Buffer OutlinerOptions("Outliner Options Buffer");
+Buffer OctreeDebugOptions("Octree Debug Options Buffer");
 
 Buffer DepthTimeBuffer("Subtree Heatmap Buffer");
 GLuint DepthPass;
@@ -397,6 +399,15 @@ struct OutlinerOptionsUpload
 };
 
 
+struct OctreeDebugOptionsUpload
+{
+	GLuint OutlinerFlags;
+	GLuint Unused1;
+	GLuint Unused2;
+	GLuint Unused3;
+};
+
+
 void SetPipelineDefaults()
 {
 	// For drawing without a VBO bound.
@@ -447,6 +458,11 @@ StatusCode SetupRenderer()
 		{ {GL_VERTEX_SHADER, ShaderSource("shaders/splat.vs.glsl", true)},
 		  {GL_FRAGMENT_SHADER, ShaderSource("shaders/noise.fs.glsl", true)} },
 		"Noise Shader"));
+
+	RETURN_ON_FAIL(OctreeDebugShader.Setup(
+		{ {GL_VERTEX_SHADER, ShaderSource("shaders/cluster_draw.vs.glsl", true)},
+		  {GL_FRAGMENT_SHADER, GeneratedShader("shaders/math.glsl", "", "shaders/octree_debug.fs.glsl")} },
+		"Octree Debug Shader"));
 
 	DepthTimeQuery.Create();
 	GridBgTimeQuery.Create();
@@ -512,6 +528,7 @@ bool ShowSubtrees = false;
 bool ShowHeatmap = false;
 bool HighlightEdges = true;
 bool ResetCamera = true;
+bool ShowOctree = false;
 float PresentFrequency = 0.0;
 float PresentDeltaMs = 0.0;
 glm::vec3 CameraFocus = glm::vec3(0.0, 0.0, 0.0);
@@ -628,6 +645,10 @@ void RenderFrame(int ScreenWidth, int ScreenHeight)
 		{
 			OutlinerFlags |= 1 << 2;
 		}
+		if (ShowOctree)
+		{
+			OutlinerFlags |= 1 | 1 << 3;
+		}
 		OutlinerOptionsUpload BufferData = {
 			OutlinerFlags,
 			0,
@@ -652,6 +673,7 @@ void RenderFrame(int ScreenWidth, int ScreenHeight)
 			{
 				DepthTimeQuery.Stop();
 			}
+			int NextOctreeID = 0;
 			for (SubtreeShader* Drawable : Drawables)
 			{
 				ShaderProgram* Shader = Drawable->GetCompiledShader();
@@ -662,7 +684,10 @@ void RenderFrame(int ScreenWidth, int ScreenHeight)
 						std::chrono::duration<double, std::milli> Delta = Clock::now() - ShaderCompilerStart;
 						ShaderCompilerConvergenceMs = Delta.count();
 					}
-					continue;
+					if (!ShowOctree)
+					{
+						continue;
+					}
 				}
 
 				BeginEvent("Draw Drawable");
@@ -672,12 +697,32 @@ void RenderFrame(int ScreenWidth, int ScreenHeight)
 				{
 					Drawable->DepthQuery.Start();
 				}
-				Shader->Activate();
+
+				if (ShowOctree)
+				{
+					OctreeDebugShader.Activate();
+				}
+				else
+				{
+					Shader->Activate();
+				}
+
 				for (ModelSubtree& Subtree : Drawable->Instances)
 				{
 					Subtree.ParamsBuffer.Bind(GL_SHADER_STORAGE_BUFFER, 0);
 					for (SubtreeSection& Section : Subtree.Sections)
 					{
+						if (ShowOctree)
+						{
+							OctreeDebugOptionsUpload BufferData = {
+								++NextOctreeID,
+								0,
+								0,
+								0
+							};
+							OctreeDebugOptions.Upload((void*)&BufferData, sizeof(BufferData));
+							OctreeDebugOptions.Bind(GL_UNIFORM_BUFFER, 3);
+						}
 						Section.SectionBuffer.Bind(GL_UNIFORM_BUFFER, 2);
 						glDrawArrays(GL_TRIANGLES, 0, 36);
 					}
@@ -717,7 +762,7 @@ void RenderFrame(int ScreenWidth, int ScreenHeight)
 			glPopDebugGroup();
 		}
 		{
-			glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Default Material");
+			glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Paint");
 			OutlinerTimeQuery.Start();
 			glBindTextureUnit(1, DepthBuffer);
 			glBindTextureUnit(2, PositionBuffer);
@@ -926,16 +971,27 @@ void RenderUI(SDL_Window* Window, bool& Live)
 				}
 				ImGui::EndMenu();
 			}
+			if (ImGui::BeginMenu("Debug"))
+			{
+				if (ImGui::MenuItem("Subtrees", nullptr, &ShowSubtrees))
+				{
+					ShowHeatmap = false;
+					ShowOctree = false;
+				}
+				if (ImGui::MenuItem("Heatmap", nullptr, &ShowHeatmap))
+				{
+					ShowSubtrees = false;
+					ShowOctree = false;
+				}
+				if (ImGui::MenuItem("Octree", nullptr, &ShowOctree))
+				{
+					ShowHeatmap = false;
+					ShowSubtrees = false;
+				}
+				ImGui::EndMenu();
+			}
 			if (ImGui::MenuItem("Highlight Edges", nullptr, &HighlightEdges))
 			{
-			}
-			if (ImGui::MenuItem("Highlight Subtrees", nullptr, &ShowSubtrees))
-			{
-				ShowHeatmap = false;
-			}
-			if (ImGui::MenuItem("Show Heatmap", nullptr, &ShowHeatmap))
-			{
-				ShowSubtrees = false;
 			}
 			if (ImGui::MenuItem("Recenter"))
 			{

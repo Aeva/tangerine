@@ -152,8 +152,15 @@ void main()
 					vec3 Hot = vec3(1.0, 0.0, 0.0);
 					BaseColor = mix(Cold, Hot, Alpha * Alpha);
 				}
-				float Highlight = dot(CenterNormal, normalize(CameraOrigin.xyz - CenterPosition));
-				OutColor = vec4(BaseColor * vec3(Highlight), 1.0);
+				if ((OutlinerFlags & 8) == 8)
+				{
+					OutColor = vec4(BaseColor, 1.0);
+				}
+				else
+				{
+					float Highlight = dot(CenterNormal, normalize(CameraOrigin.xyz - CenterPosition));
+					OutColor = vec4(BaseColor * vec3(Highlight), 1.0);
+				}
 			}
 			if (Angle > -0.707)
 			{
