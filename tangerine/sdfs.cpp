@@ -834,7 +834,8 @@ void SDFOctree::Populate()
 
 	if (!AnyFound)
 	{
-		Terminus = true;
+		delete Evaluator;
+		Evaluator = nullptr;
 	}
 }
 
