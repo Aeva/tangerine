@@ -279,68 +279,72 @@ struct SetNode : public SDFNode
 
 	virtual SDFNode* Clip(vec3 Point, float Radius)
 	{
-		if (BlendMode)
+		if (Eval(Point) <= Radius)
 		{
-			// If both of these clip tests pass, then the point should be in the blending region
-			// for all blending set operator types.  If one of these returns nullptr, the other
-			// should be deleted.  If we don't return a new blending set node here, fail through
-			// to the regular set operator behavior to return an operand, when applicable.
+			if (BlendMode)
+			{
+				// If both of these clip tests pass, then the point should be in the blending region
+				// for all blending set operator types.  If one of these returns nullptr, the other
+				// should be deleted.  If we don't return a new blending set node here, fail through
+				// to the regular set operator behavior to return an operand, when applicable.
 
-			SDFNode* NewLHS = LHS->Clip(Point, Radius + Threshold);
-			SDFNode* NewRHS = RHS->Clip(Point, Radius + Threshold);
+				SDFNode* NewLHS = LHS->Clip(Point, Radius + Threshold);
+				SDFNode* NewRHS = RHS->Clip(Point, Radius + Threshold);
+				if (NewLHS && NewRHS)
+				{
+					return new SetNode<Family, BlendMode>(SetFn, NewLHS, NewRHS, Threshold);
+				}
+				else if (NewLHS)
+				{
+					delete NewLHS;
+				}
+				else if (NewRHS)
+				{
+					delete NewRHS;
+				}
+				if (Family == SetFamily::Inter)
+				{
+					return nullptr;
+				}
+			}
+
+			SDFNode* NewLHS = LHS->Clip(Point, Radius);
+			SDFNode* NewRHS = RHS->Clip(Point, Radius);
+
 			if (NewLHS && NewRHS)
 			{
+				// Note, this shouldn't be possible to hit when BlendMode == true.
 				return new SetNode<Family, BlendMode>(SetFn, NewLHS, NewRHS, Threshold);
 			}
-			else if (NewLHS)
+			else if (Family == SetFamily::Union)
 			{
-				delete NewLHS;
+				// Return whichever operand matched or nullptr.
+				return NewLHS != nullptr ? NewLHS : NewRHS;
 			}
-			else if (NewRHS)
+			else if (Family == SetFamily::Diff)
 			{
-				delete NewRHS;
+				// We can only return the LHS side, which may be nullptr.
+				if (NewRHS)
+				{
+					delete NewRHS;
+				}
+				return NewLHS;
 			}
-			if (Family == SetFamily::Inter)
+			else if (Family == SetFamily::Inter)
 			{
+				// Neither operand is valid.
+				if (NewLHS)
+				{
+					delete NewLHS;
+				}
+				else if (NewRHS)
+				{
+					delete NewRHS;
+				}
 				return nullptr;
 			}
 		}
-
-		SDFNode* NewLHS = LHS->Clip(Point, Radius);
-		SDFNode* NewRHS = RHS->Clip(Point, Radius);
-
-		if (NewLHS && NewRHS)
-		{
-			// Note, this shouldn't be possible to hit when BlendMode == true.
-			return new SetNode<Family, BlendMode>(SetFn, NewLHS, NewRHS, Threshold);
-		}
-		else if (Family == SetFamily::Union)
-		{
-			// Return whichever operand matched or nullptr.
-			return NewLHS != nullptr ? NewLHS : NewRHS;
-		}
-		else if (Family == SetFamily::Diff)
-		{
-			// We can only return the LHS side, which may be nullptr.
-			if (NewRHS)
-			{
-				delete NewRHS;
-			}
-			return NewLHS;
-		}
-		else if (Family == SetFamily::Inter)
-		{
-			// Neither operand is valid.
-			if (NewLHS)
-			{
-				delete NewLHS;
-			}
-			else if (NewRHS)
-			{
-				delete NewRHS;
-			}
-			return nullptr;
-		}
+		return nullptr;
 	}
 
 	virtual AABB Bounds()
