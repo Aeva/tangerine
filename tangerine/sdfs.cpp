@@ -18,8 +18,10 @@
 #include <cmath>
 #include <fmt/format.h>
 #include "extern.h"
-#include "sdfs.h"
 #include "profiling.h"
+
+#include "sdfs.h"
+#include <glm/gtc/type_ptr.hpp>
 
 
 using namespace glm;
@@ -64,8 +66,6 @@ vec3 SDFNode::Gradient(vec3 Point)
 
 
 using BrushMixin = std::function<float(vec3)>;
-using TransformMixin = std::function<vec3(vec3)>;
-using PointMixin = std::function<std::string(const int, const std::string&)>;
 using SetMixin = std::function<float(float, float)>;
 
 
@@ -79,6 +79,16 @@ int StoreParams(std::vector<float>& TreeParams, const ParamsT& NodeParams)
 	for (const float& Param : NodeParams)
 	{
 		TreeParams.push_back(Param);
+	}
+	return Offset;
+}
+
+int StoreParams(std::vector<float>& TreeParams, const float* NodeParams, size_t ParamCount)
+{
+	const int Offset = (int)TreeParams.size();
+	for (int i = 0; i < ParamCount; ++i)
+	{
+		TreeParams.push_back(NodeParams[i]);
 	}
 	return Offset;
 }
@@ -98,47 +108,177 @@ std::string MakeParamList(int Offset, int Count)
 // functions, to be constructed indirectly from Racket.
 
 
-template<typename ParamsT>
-struct TransformNode : public SDFNode
+struct TransformMachine
 {
-	PointMixin PointFn;
-	ParamsT NodeParams;
-	TransformMixin TransformFn;
-	TransformMixin InverseFn;
-	SDFNode* Child;
-
-	TransformNode(PointMixin& InPointFn, ParamsT& InNodeParams, TransformMixin& InTransformFn, TransformMixin& InInverseFn, SDFNode* InChild)
-		: PointFn(InPointFn)
-		, NodeParams(InNodeParams)
-		, TransformFn(InTransformFn)
-		, InverseFn(InInverseFn)
-		, Child(InChild)
+	enum class State
 	{
+		None,
+		Offset,
+		Matrix,
+		Dirty,
+	};
+
+	enum class Type
+	{
+		None,
+		Move,
+		Rotate,
+	};
+
+	TransformMachine(vec3 Offset)
+	{
+		Move(Offset);
 	}
 
-	virtual float Eval(vec3 Point)
+	TransformMachine(quat Rotation)
 	{
-		return Child->Eval(TransformFn(Point));
+		Rotate(Rotation);
 	}
 
-	virtual SDFNode* Clip(vec3 Point, float Radius)
+	void Move(vec3 Offset)
 	{
-		SDFNode* NewChild = Child->Clip(TransformFn(Point), Radius);
-		if (NewChild)
+		if (FoldState == State::None)
 		{
-			return new TransformNode(PointFn, NodeParams, TransformFn, InverseFn, NewChild);
+			FoldState = State::Offset;
 		}
-		else
+		else if (FoldState == State::Matrix)
 		{
-			return nullptr;
+			FoldState = State::Dirty;
+		}
+
+		switch (RunType)
+		{
+		case Type::Rotate:
+			Acc *= toMat4(RotateRun);
+
+		case Type::None:
+			RunType = Type::Move;
+			OffsetRun = vec3(0.0);
+
+		case Type::Move:
+			OffsetRun += Offset;
 		}
 	}
 
-	virtual AABB Bounds()
+	void Rotate(quat Rotation)
 	{
-		const AABB ChildBounds = Child->Bounds();
-		const vec3 A = ChildBounds.Min;
-		const vec3 B = ChildBounds.Max;
+		FoldState = State::Dirty;
+
+		switch (RunType)
+		{
+		case Type::Move:
+			Acc *= translate(identity<mat4>(), OffsetRun);
+
+		case Type::None:
+			RunType = Type::Rotate;
+			RotateRun = identity<quat>();
+
+		case Type::Rotate:
+			RotateRun *= Rotation;
+		}
+	}
+
+	vec3 ApplyInverse(vec3 Point)
+	{
+		switch (FoldState)
+		{
+		case State::Dirty:
+			Fold();
+
+		case State::Matrix:
+			return ApplyInverseMatrix(Point);
+
+		case State::Offset:
+			return Point - OffsetRun;
+
+		case State::None:
+			return Point;
+		}
+	}
+
+	vec3 Apply(vec3 Point)
+	{
+		switch (FoldState)
+		{
+		case State::Dirty:
+			Fold();
+
+		case State::Matrix:
+			return ApplyMatrix(Point);
+
+		case State::Offset:
+			return Point + OffsetRun;
+
+		case State::None:
+			return Point;
+		}
+	}
+
+	AABB Apply(const AABB InBounds)
+	{
+		switch (FoldState)
+		{
+		case State::Dirty:
+			Fold();
+
+		case State::Matrix:
+			return ApplyMatrix(InBounds);
+
+		case State::Offset:
+			return InBounds + OffsetRun;
+
+		case State::None:
+			return InBounds;
+		}
+	}
+
+	std::string Compile(std::vector<float>& TreeParams, std::string Point)
+	{
+		switch (FoldState)
+		{
+		case State::Dirty:
+			Fold();
+
+		case State::Matrix:
+			return CompileMatrix(TreeParams, Point);
+
+		case State::Offset:
+			return CompileOffset(TreeParams, Point);
+
+		case State::None:
+			return Point;
+		}
+	}
+
+private:
+
+	State FoldState = State::None;
+	Type RunType = Type::None;
+	union
+	{
+		vec3 OffsetRun;
+		quat RotateRun;
+	};
+
+	mat4 LastFold;
+	mat4 LastFoldInverse;
+
+	mat4 Acc = identity<mat4>();
+
+	void Fold()
+	{
+		if (FoldState == State::Dirty)
+		{
+			LastFold = Acc * toMat4(RotateRun);
+			LastFold = inverse(LastFold);
+			FoldState = State::Matrix;
+		}
+	}
+
+	AABB ApplyMatrix(const AABB InBounds)
+	{
+		const vec3 A = InBounds.Min;
+		const vec3 B = InBounds.Max;
 
 		const vec3 Points[7] = \
 		{
@@ -152,12 +292,12 @@ struct TransformNode : public SDFNode
 		};
 
 		AABB Bounds;
-		Bounds.Min = InverseFn(A);
+		Bounds.Min = ApplyMatrix(A);
 		Bounds.Max = Bounds.Min;
 
 		for (const vec3& Point : Points)
 		{
-			const vec3 Tmp = InverseFn(Point);
+			const vec3 Tmp = ApplyMatrix(Point);
 			Bounds.Min = min(Bounds.Min, Tmp);
 			Bounds.Max = max(Bounds.Max, Tmp);
 		}
@@ -165,11 +305,101 @@ struct TransformNode : public SDFNode
 		return Bounds;
 	}
 
+	vec3 ApplyMatrix(vec3 Point)
+	{
+		vec4 Tmp = LastFold * vec4(Point, 1.0);
+		return Tmp.xyz / Tmp.www;
+	}
+
+	vec3 ApplyInverseMatrix(vec3 Point)
+	{
+		vec4 Tmp = LastFoldInverse * vec4(Point, 1.0);
+		return Tmp.xyz / Tmp.www;
+	}
+
+	std::string CompileMatrix(std::vector<float>& TreeParams, std::string Point)
+	{
+		const int Offset = StoreParams(TreeParams, value_ptr(LastFoldInverse), 16);
+		std::string Params = MakeParamList(TreeParams.size(), Offset);
+		return fmt::format("MatrixTransform({}, mat4({}))", Point, Params);
+	}
+
+	std::string CompileOffset(std::vector<float>& TreeParams, std::string Point)
+	{
+		const int Offset = StoreParams(TreeParams, value_ptr(OffsetRun), 3);
+		std::string Params = MakeParamList(TreeParams.size(), Offset);
+		return fmt::format("({} - vec3({}))", Point, Params);
+	}
+};
+
+
+struct TransformNode : public SDFNode
+{
+	SDFNode* Child;
+	TransformMachine Transform;
+
+	TransformNode(SDFNode* InChild, vec3 InOffset)
+		: Child(InChild)
+		, Transform(InOffset)
+	{
+	}
+
+	TransformNode(SDFNode* InChild, quat InRotation)
+		: Child(InChild)
+		, Transform(InRotation)
+	{
+	}
+
+	TransformNode(SDFNode* InChild, TransformMachine& InTransform)
+		: Child(InChild)
+		, Transform(InTransform)
+	{
+	}
+
+	virtual float Eval(vec3 Point)
+	{
+		return Child->Eval(Transform.ApplyInverse(Point));
+	}
+
+	virtual SDFNode* Clip(vec3 Point, float Radius)
+	{
+		SDFNode* NewChild = Child->Clip(Transform.ApplyInverse(Point), Radius);
+		if (NewChild)
+		{
+			return new TransformNode(NewChild, Transform);
+		}
+		else
+		{
+			return nullptr;
+		}
+	}
+
+	virtual AABB Bounds()
+	{
+		return Transform.Apply(Child->Bounds());
+	}
+
+	virtual AABB InnerBounds()
+	{
+		return Transform.Apply(Child->InnerBounds());
+	}
+
 	virtual std::string Compile(std::vector<float>& TreeParams, std::string& Point)
 	{
-		const int Offset = StoreParams(TreeParams, NodeParams);
-		std::string NewPoint = PointFn(Offset, Point);
-		return Child->Compile(TreeParams, NewPoint);
+		std::string TransformedPoint = Transform.Compile(TreeParams, Point);
+		return Child->Compile(TreeParams, TransformedPoint);
+	}
+
+	virtual SDFNode* Move(vec3 Offset)
+	{
+		Transform.Move(Offset);
+		return nullptr;
+	}
+
+	virtual SDFNode* Rotate(quat Rotation)
+	{
+		Transform.Rotate(Rotation);
+		return nullptr;
 	}
 
 	virtual bool HasPaint()
@@ -177,9 +407,9 @@ struct TransformNode : public SDFNode
 		return Child->HasPaint();
 	}
 
-	virtual vec4 Sample(glm::vec3 Point)
+	virtual vec4 Sample(vec3 Point)
 	{
-		return Child->Sample(TransformFn(Point));
+		return Child->Sample(Transform.ApplyInverse(Point));
 	}
 
 	virtual ~TransformNode()
@@ -227,6 +457,11 @@ struct BrushNode : public SDFNode
 		return BrushAABB;
 	}
 
+	virtual AABB InnerBounds()
+	{
+		return BrushAABB;
+	}
+
 	virtual std::string Compile(std::vector<float>& TreeParams, std::string& Point)
 	{
 		const int Offset = StoreParams(TreeParams, NodeParams);
@@ -234,12 +469,22 @@ struct BrushNode : public SDFNode
 		return fmt::format("{}({}, {})", BrushFnName, Point, Params);
 	}
 
+	virtual SDFNode* Move(vec3 Offset)
+	{
+		return new TransformNode(this, Offset);
+	}
+
+	virtual SDFNode* Rotate(quat Rotation)
+	{
+		return new TransformNode(this, Rotation);
+	}
+
 	virtual bool HasPaint()
 	{
 		return false;
 	}
 
-	virtual vec4 Sample(glm::vec3 Point)
+	virtual vec4 Sample(vec3 Point)
 	{
 		return NullColor;
 	}
@@ -381,6 +626,30 @@ struct SetNode : public SDFNode
 		return Combined;
 	}
 
+	virtual AABB InnerBounds()
+	{
+		AABB BoundsLHS = LHS->InnerBounds();
+		AABB BoundsRHS = RHS->InnerBounds();
+
+		AABB Combined;
+		if (Family == SetFamily::Union)
+		{
+			Combined.Min = min(BoundsLHS.Min, BoundsRHS.Min);
+			Combined.Max = max(BoundsLHS.Max, BoundsRHS.Max);
+		}
+		else if (Family == SetFamily::Diff)
+		{
+			Combined = BoundsLHS;
+		}
+		else if (Family == SetFamily::Inter)
+		{
+			Combined.Min = max(BoundsLHS.Min, BoundsRHS.Min);
+			Combined.Max = min(BoundsLHS.Max, BoundsRHS.Max);
+		}
+
+		return Combined;
+	}
+
 	virtual std::string Compile(std::vector<float>& TreeParams, std::string& Point)
 	{
 		const std::string CompiledLHS = LHS->Compile(TreeParams, Point);
@@ -421,12 +690,38 @@ struct SetNode : public SDFNode
 		}
 	}
 
+	virtual SDFNode* Move(vec3 Offset)
+	{
+		for (SDFNode* Child : { LHS, RHS })
+		{
+			SDFNode* Rewrite = Child->Move(Offset);
+			if (Rewrite)
+			{
+				Child = Rewrite;
+			}
+		}
+		return nullptr;
+	}
+
+	virtual SDFNode* Rotate(quat Rotation)
+	{
+		for (SDFNode* Child : { LHS, RHS })
+		{
+			SDFNode* Rewrite = Child->Rotate(Rotation);
+			if (Rewrite)
+			{
+				Child = Rewrite;
+			}
+		}
+		return nullptr;
+	}
+
 	virtual bool HasPaint()
 	{
 		return LHS->HasPaint() || RHS->HasPaint();
 	}
 
-	virtual vec4 Sample(glm::vec3 Point)
+	virtual vec4 Sample(vec3 Point)
 	{
 		if (Family == SetFamily::Diff)
 		{
@@ -490,6 +785,11 @@ struct PaintNode : public SDFNode
 		return Child->Bounds();
 	}
 
+	virtual AABB InnerBounds()
+	{
+		return Child->InnerBounds();
+	}
+
 	virtual std::string Compile(std::vector<float>& TreeParams, std::string& Point)
 	{
 		const int Offset = (int)TreeParams.size();
@@ -498,6 +798,26 @@ struct PaintNode : public SDFNode
 		TreeParams.push_back(Color.b);
 		std::string ColorParams = MakeParamList(Offset, 3);
 		return fmt::format("MaterialDist(vec3({}), {})", ColorParams, Child->Compile(TreeParams, Point));
+	}
+
+	virtual SDFNode* Move(vec3 Offset)
+	{
+		SDFNode* Rewrite = Child->Move(Offset);
+		if (Rewrite)
+		{
+			Child = Rewrite;
+		}
+		return nullptr;
+	}
+
+	virtual SDFNode* Rotate(quat Rotation)
+	{
+		SDFNode* Rewrite = Child->Rotate(Rotation);
+		if (Rewrite)
+		{
+			Child = Rewrite;
+		}
+		return nullptr;
 	}
 
 	virtual bool HasPaint()
@@ -557,81 +877,34 @@ extern "C" TANGERINE_API void DiscardTree(void* Handle)
 }
 
 
-// The following functions construct transform nodes.
-extern "C" TANGERINE_API void* MakeTranslation(float X, float Y, float Z, void* Child)
+// The following functions apply transforms to the evaluator tree.  These will return
+// a new handle if the tree root was a brush with no transforms applied, otherwise these
+// will return the original tree handle.
+extern "C" TANGERINE_API void* MoveTree(void* Handle, float X, float Y, float Z)
 {
-	vec3 Offset(X, Y, Z);
-
-	std::array<float, 3> Params = { X, Y, Z };
-
-	PointMixin PointFn = PointMixin(
-		[](const int Offset, const std::string& Point) -> std::string
-		{
-			std::string Params = MakeParamList(Offset, 3);
-			return fmt::format("({} - vec3({}))", Point, Params);
-		});
-
-	TransformMixin Eval = TransformMixin(
-		[=](vec3 Point) -> vec3
-		{
-			return Point - Offset;
-		});
-
-	TransformMixin Inverse = TransformMixin(
-		[=](vec3 Point) -> vec3
-		{
-			return Point + Offset;
-		});
-
-	return new TransformNode(PointFn, Params, Eval, Inverse, (SDFNode*)Child);
+	ProfileScope("AlignTree");
+	SDFNode* Tree = ((SDFNode*)Handle);
+	SDFNode* Rewrite = Tree->Move(vec3(X, Y, Z));
+	return Rewrite ? Rewrite : Tree;
 }
 
-
-extern "C" TANGERINE_API void* MakeMatrixTransform(
-	float X1, float Y1, float Z1, float W1,
-	float X2, float Y2, float Z2, float W2,
-	float X3, float Y3, float Z3, float W3,
-	float X4, float Y4, float Z4, float W4,
-	void* Child)
+extern "C" TANGERINE_API void* QuatTree(void* Handle, float X, float Y, float Z, float W)
 {
-	std::array<float, 16> Params = \
-	{
-		X1, Y1, Z1, W1,
-		X2, Y2, Z2, W2,
-		X3, Y3, Z3, W3,
-		X4, Y4, Z4, W4
-	};
+	ProfileScope("AlignTree");
+	SDFNode* Tree = ((SDFNode*)Handle);
+	SDFNode* Rewrite = Tree->Rotate(quat(X, Y, Z, W));
+	return Rewrite ? Rewrite : Tree;
+}
 
-	mat4 Matrix(
-		X1, Y1, Z1, W1,
-		X2, Y2, Z2, W2,
-		X3, Y3, Z3, W3,
-		X4, Y4, Z4, W4);
-
-	mat4 InvMatrix = inverse(Matrix);
-
-	PointMixin PointFn = PointMixin(
-		[](const int Offset, const std::string& Point) -> std::string
-		{
-			std::string Params = MakeParamList(Offset, 16);
-			return fmt::format("MatrixTransform({}, mat4({}))", Point, Params);
-		});
-
-	TransformMixin Eval = TransformMixin(
-		[=](vec3 Point) -> vec3
-		{
-			vec4 Tmp = Matrix * vec4(Point, 1.0);
-			return Tmp.xyz / Tmp.www;
-		});
-
-	TransformMixin Inverse = TransformMixin(
-		[=](vec3 Point) -> vec3
-		{
-			vec4 Tmp = InvMatrix * vec4(Point, 1.0);
-			return Tmp.xyz / Tmp.www;
-		});
-
-	return new TransformNode(PointFn, Params, Eval, Inverse, (SDFNode*)Child);
+extern "C" TANGERINE_API void* AlignTree(void* Handle, float X, float Y, float Z)
+{
+	ProfileScope("AlignTree");
+	SDFNode* Tree = ((SDFNode*)Handle);
+	const vec3 Alignment = vec3(X, Y, Z);
+	const vec3 Half = Tree->InnerBounds().Extent() * vec3(0.5);
+	const vec3 Offset = mix(vec3(0.0), Half, Alignment);
+	SDFNode* Rewrite = Tree->Move(Offset);
+	return Rewrite ? Rewrite : Tree;
 }
 
 
@@ -860,7 +1133,7 @@ SDFOctree::~SDFOctree()
 	}
 }
 
-SDFNode* SDFOctree::Descend(const glm::vec3 Point, const bool Exact)
+SDFNode* SDFOctree::Descend(const vec3 Point, const bool Exact)
 {
 	if (!Terminus)
 	{

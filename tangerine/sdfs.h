@@ -34,6 +34,19 @@ struct AABB
 {
 	glm::vec3 Min;
 	glm::vec3 Max;
+
+	glm::vec3 Extent()
+	{
+		return Max - Min;
+	}
+
+	AABB operator+(const glm::vec3& Offset) const
+	{
+		return {
+			Min + Offset,
+			Max + Offset
+		};
+	}
 };
 
 
@@ -45,9 +58,15 @@ struct SDFNode
 
 	virtual AABB Bounds() = 0;
 
+	virtual AABB InnerBounds() = 0;
+
 	virtual std::string Compile(std::vector<float>& TreeParams, std::string& Point) = 0;
 
 	glm::vec3 Gradient(glm::vec3 Point);
+
+	virtual SDFNode* Move(glm::vec3 Offset) = 0;
+
+	virtual SDFNode* Rotate(glm::quat Rotation) = 0;
 
 	virtual bool HasPaint() = 0;
 
