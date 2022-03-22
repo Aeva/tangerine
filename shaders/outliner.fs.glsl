@@ -158,8 +158,13 @@ void main()
 				}
 				else
 				{
-					float Highlight = dot(CenterNormal, normalize(CameraOrigin.xyz - CenterPosition));
-					OutColor = vec4(BaseColor * vec3(Highlight), 1.0);
+					// Palecek 2022, "PBR Based Rendering"
+					vec3 V = normalize(CameraOrigin.xyz - CenterPosition);
+					vec3 N = CenterNormal;
+					float D = pow(max(dot(N, normalize(N * 0.75 + V)), 0.0), 2.0);
+					float F = 1.0 - max(dot(N, V), 0.0);
+					float BSDF = D + F * 0.25;
+					OutColor = vec4(BaseColor * BSDF, 1.0);
 				}
 			}
 			if (Angle > -0.707)
