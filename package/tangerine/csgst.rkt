@@ -105,6 +105,7 @@
       move-x
       move-y
       move-z
+      align
       mat4
       quat) #t]
     [else #f]))
@@ -166,21 +167,14 @@
          (list low high)))]))
 
 
-; Override a brush's origin.
-(define (align x y z brush)
-  (unless (brush? brush) (error "Expected CSG brush:" brush))
-  (if (and (= x 0)
-           (= y 0)
-           (= z 0))
-      brush
-      (let*
-          ([aabb (brush-bounds (car brush) (cdr brush))]
-           [low (car aabb)]
-           [high (cadr aabb)]
-           [alpha (vec+ (vec* (vec3 x y z) .5) .5)]
-           [anchor (lerp high low alpha)])
-        (let-values ([(x y z) (splat anchor)])
-          `(move ,x ,y ,z, brush)))))
+; Move a csgst tree relative to the origin.  The x y and z values are
+; expected to be a number between -1 and 1, where -1 -1 -1 places the
+; tree such that the lowest corner of the inner bounding box is aligned
+; with the origin, and 1 1 1 places the tree such that the highest corner
+; of the inner bounding box is aligned with the origin.
+(define (align x y z csgst)
+  (unless (csg? csgst) (error "Expected CSG expression:" csgst))
+  `(align ,(fl x) ,(fl y) ,(fl z) ,csgst))
 
 
 ; Provides the common functionality to paint and paint-over.

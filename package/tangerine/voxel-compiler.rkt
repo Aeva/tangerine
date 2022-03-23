@@ -34,15 +34,10 @@
   (profile-scope
    "voxel-compiler"
    (let*
-       (; Perform transform folding
-        [coalesced-tree
-         (profile-scope "transform folding"
-                        (coalesce csgst))]
-
-        ; Create an evaluator for the model.
+       (; Create an evaluator for the model.
         [evaluator
          (profile-scope "evaluator"
-                        (sdf-build coalesced-tree))])
+                        (sdf-build csgst))])
 
      (when (sdf-handle-is-valid? evaluator)
        (profile-scope "find voxel subtrees"

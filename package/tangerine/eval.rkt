@@ -36,13 +36,9 @@
 (define-backend ClipTree (_fun _HANDLE _float _float _float _float -> _HANDLE))
 (define-backend DiscardTree (_fun _HANDLE -> _void))
 
-(define-backend MakeTranslation (_fun _float _float _float _HANDLE -> _HANDLE))
-(define-backend MakeMatrixTransform (_fun _float _float _float _float
-                                          _float _float _float _float
-                                          _float _float _float _float
-                                          _float _float _float _float
-                                          _HANDLE
-                                          -> _HANDLE))
+(define-backend MoveTree (_fun _HANDLE _float _float _float -> _void))
+(define-backend RotateTree (_fun _HANDLE _float _float _float _float -> _void))
+(define-backend AlignTree (_fun _HANDLE _float _float _float -> _void))
 
 (define-backend MakeSphereBrush (_fun _float -> _HANDLE))
 (define-backend MakeEllipsoidBrush (_fun _float _float _float -> _HANDLE))
@@ -68,12 +64,22 @@
 
   (case (car csgst)
     [(move)
-     (let-values ([(offset-x offset-y offset-z subtree) (splat (cdr csgst))])
-       (MakeTranslation offset-x offset-y offset-z (translate subtree)))]
+     (let*-values ([(x y z subtree) (splat (cdr csgst))]
+                   [(evaluator) (translate subtree)])
+       (MoveTree evaluator x y z)
+       evaluator)]
 
-    [(mat4)
-     (let-values ([(matrix subtree) (splat (cdr csgst))])
-       (apply MakeMatrixTransform (append (flatten matrix) (list (translate subtree)))))]
+    [(quat)
+     (let*-values ([(x y z w subtree) (splat (cdr csgst))]
+                   [(evaluator) (translate subtree)])
+       (RotateTree evaluator x y z w)
+       evaluator)]
+
+    [(align)
+     (let*-values ([(x y z subtree) (splat (cdr csgst))]
+                   [(evaluator) (translate subtree)])
+       (AlignTree evaluator x y z)
+       evaluator)]
 
     [(paint)
      (let-values ([(red green blue subtree) (splat (cdr csgst))])

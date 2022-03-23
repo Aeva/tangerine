@@ -64,9 +64,9 @@ struct SDFNode
 
 	glm::vec3 Gradient(glm::vec3 Point);
 
-	virtual SDFNode* Move(glm::vec3 Offset) = 0;
+	virtual void Move(glm::vec3 Offset) = 0;
 
-	virtual SDFNode* Rotate(glm::quat Rotation) = 0;
+	virtual void Rotate(glm::quat Rotation) = 0;
 
 	virtual bool HasPaint() = 0;
 
