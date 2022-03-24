@@ -101,255 +101,118 @@ std::string MakeParamList(int Offset, int Count)
 
 struct TransformMachine
 {
-	enum class State
-	{
-		None,
-		Offset,
-		Matrix,
-		Dirty,
-	};
+	mat4 LastFold;
+	mat4 LastFoldInverse;
 
-	enum class Type
-	{
-		None,
-		Move,
-		Rotate,
-	};
+	bool IsIdentity;
+	bool IsTranslateOnly;
 
 	TransformMachine()
+		: LastFold(identity<mat4>())
+		, LastFoldInverse(identity<mat4>())
+		, IsIdentity(true)
+		, IsTranslateOnly(true)
 	{
-	}
-
-	TransformMachine(vec3 Offset)
-	{
-		Move(Offset);
-	}
-
-	TransformMachine(quat Rotation)
-	{
-		Rotate(Rotation);
 	}
 
 	void Move(vec3 Offset)
 	{
-		if (FoldState == State::None)
-		{
-			FoldState = State::Offset;
-		}
-		else if (FoldState == State::Matrix)
-		{
-			FoldState = State::Dirty;
-		}
-
-		switch (RunType)
-		{
-		case Type::Rotate:
-			Acc *= toMat4(RotateRun);
-			RotateRun = identity<mat4>();
-
-		case Type::None:
-			RunType = Type::Move;
-			OffsetRun = vec3(0.0);
-
-		case Type::Move:
-			OffsetRun += Offset;
-		}
+		IsIdentity = false;
+		LastFoldInverse = translate(LastFoldInverse, Offset * vec3(-1.0));
+		LastFold = inverse(LastFoldInverse);
 	}
 
 	void Rotate(quat Rotation)
 	{
-		FoldState = State::Dirty;
-
-		switch (RunType)
-		{
-		case Type::Move:
-			Acc *= Translate(OffsetRun);
-
-		case Type::None:
-			RunType = Type::Rotate;
-			RotateRun = identity<quat>();
-
-		case Type::Rotate:
-			RotateRun *= Rotation;
-		}
+		IsIdentity = false;
+		IsTranslateOnly = false;
+		LastFoldInverse *= transpose(toMat4(Rotation));
+		LastFold = inverse(LastFoldInverse);
 	}
 
 	vec3 ApplyInverse(vec3 Point)
-	{
-		switch (FoldState)
-		{
-		case State::Dirty:
-			Fold();
-
-		case State::Matrix:
-			return ApplyInverseMatrix(Point);
-
-		case State::Offset:
-			return Point - OffsetRun;
-
-		case State::None:
-			return Point;
-		}
-	}
-
-	vec3 Apply(vec3 Point)
-	{
-		switch (FoldState)
-		{
-		case State::Dirty:
-			Fold();
-
-		case State::Matrix:
-			return ApplyMatrix(Point);
-
-		case State::Offset:
-			return Point + OffsetRun;
-
-		case State::None:
-			return Point;
-		}
-	}
-
-	AABB Apply(const AABB InBounds)
-	{
-		switch (FoldState)
-		{
-		case State::Dirty:
-			Fold();
-
-		case State::Matrix:
-			return ApplyMatrix(InBounds);
-
-		case State::Offset:
-			return InBounds + OffsetRun;
-
-		case State::None:
-			return InBounds;
-		}
-	}
-
-	std::string Compile(std::vector<float>& TreeParams, std::string Point)
-	{
-		switch (FoldState)
-		{
-		case State::Dirty:
-			Fold();
-
-		case State::Matrix:
-			return CompileMatrix(TreeParams, Point);
-
-		case State::Offset:
-			return CompileOffset(TreeParams, Point);
-
-		case State::None:
-			return Point;
-		}
-	}
-
-private:
-
-	State FoldState = State::None;
-	Type RunType = Type::None;
-	union
-	{
-		vec3 OffsetRun;
-		quat RotateRun;
-	};
-
-	mat4 LastFold = identity<mat4>();
-	mat4 LastFoldInverse = identity<mat4>();
-
-	mat4 Acc = identity<mat4>();
-
-	void Fold()
-	{
-		if (FoldState == State::Dirty)
-		{
-			switch (RunType)
-			{
-			case Type::Rotate:
-				LastFold = Acc * toMat4(RotateRun);
-				break;
-			case Type::Move:
-				LastFold *= Translate(OffsetRun);
-				break;
-			default:
-				LastFold = identity<mat4>();
-			}
-			LastFoldInverse = inverse(LastFold);
-			FoldState = State::Matrix;
-		}
-	}
-
-	mat4 Translate(vec3 Offset)
-	{
-		mat4 Matrix = identity<mat4>();
-		Matrix[3].xyz = Offset.x;
-		return Matrix;
-	}
-
-	AABB ApplyMatrix(const AABB InBounds)
-	{
-		const vec3 A = InBounds.Min;
-		const vec3 B = InBounds.Max;
-
-		const vec3 Points[7] = \
-		{
-			B,
-			vec3(B.x, A.yz),
-			vec3(A.x, B.y, A.z),
-			vec3(A.xy, B.z),
-			vec3(A.x, B.yz),
-			vec3(B.x, A.y, B.z),
-			vec3(B.xy, A.z)
-		};
-
-		AABB Bounds;
-		Bounds.Min = ApplyMatrix(A);
-		Bounds.Max = Bounds.Min;
-
-		for (const vec3& Point : Points)
-		{
-			const vec3 Tmp = ApplyMatrix(Point);
-			Bounds.Min = min(Bounds.Min, Tmp);
-			Bounds.Max = max(Bounds.Max, Tmp);
-		}
-
-		return Bounds;
-	}
-
-	vec3 ApplyMatrix(vec3 Point)
-	{
-		vec4 Tmp = LastFold * vec4(Point, 1.0);
-		return Tmp.xyz / Tmp.www;
-	}
-
-	vec3 ApplyInverseMatrix(vec3 Point)
 	{
 		vec4 Tmp = LastFoldInverse * vec4(Point, 1.0);
 		return Tmp.xyz / Tmp.www;
 	}
 
-	std::string CompileMatrix(std::vector<float>& TreeParams, std::string Point)
+	vec3 Apply(vec3 Point)
 	{
-		const int Offset = TreeParams.size();
-		for (int i = 0; i < 16; ++i)
-		{
-			float Cell = value_ptr(LastFoldInverse)[i];
-			TreeParams.push_back(Cell);
-		}
-		std::string Params = MakeParamList(Offset, 16);
-		return fmt::format("MatrixTransform({}, mat4({}))", Point, Params);
+		vec4 Tmp = LastFold * vec4(Point, 1.0);
+		return Tmp.xyz / Tmp.www;
 	}
 
-	std::string CompileOffset(std::vector<float>& TreeParams, std::string Point)
+	AABB Apply(const AABB InBounds)
 	{
-		const int Offset = TreeParams.size();
-		TreeParams.push_back(OffsetRun.x);
-		TreeParams.push_back(OffsetRun.y);
-		TreeParams.push_back(OffsetRun.z);
-		std::string Params = MakeParamList(Offset, 3);
-		return fmt::format("({} - vec3({}))", Point, Params);
+		if (IsIdentity)
+		{
+			return InBounds;
+		}
+		if (IsTranslateOnly)
+		{
+			vec3 Offset = LastFold[3].xyz;
+			return {
+				InBounds.Min + Offset,
+				InBounds.Max + Offset
+			};
+		}
+		else
+		{
+			const vec3 A = InBounds.Min;
+			const vec3 B = InBounds.Max;
+
+			const vec3 Points[7] = \
+			{
+				B,
+				vec3(B.x, A.yz),
+				vec3(A.x, B.y, A.z),
+				vec3(A.xy, B.z),
+				vec3(A.x, B.yz),
+				vec3(B.x, A.y, B.z),
+				vec3(B.xy, A.z)
+			};
+
+			AABB Bounds;
+			Bounds.Min = Apply(A);
+			Bounds.Max = Bounds.Min;
+
+			for (const vec3& Point : Points)
+			{
+				const vec3 Tmp = Apply(Point);
+				Bounds.Min = min(Bounds.Min, Tmp);
+				Bounds.Max = max(Bounds.Max, Tmp);
+			}
+
+			return Bounds;
+		}
+	}
+
+	std::string Compile(std::vector<float>& TreeParams, std::string Point)
+	{
+		if (IsIdentity)
+		{
+			return Point;
+		}
+		else if (IsTranslateOnly)
+		{
+			const int Offset = TreeParams.size();
+			TreeParams.push_back(LastFold[3].x);
+			TreeParams.push_back(LastFold[3].y);
+			TreeParams.push_back(LastFold[3].z);
+			std::string Params = MakeParamList(Offset, 3);
+			return fmt::format("({} - vec3({}))", Point, Params);
+		}
+		else
+		{
+			const int Offset = TreeParams.size();
+			for (int i = 0; i < 16; ++i)
+			{
+				float Cell = value_ptr(LastFoldInverse)[i];
+				TreeParams.push_back(Cell);
+			}
+			std::string Params = MakeParamList(Offset, 16);
+			return fmt::format("MatrixTransform({}, mat4({}))", Point, Params);
+		}
 	}
 };
 
@@ -808,14 +671,14 @@ extern "C" TANGERINE_API void DiscardTree(void* Handle)
 // will return the original tree handle.
 extern "C" TANGERINE_API void MoveTree(void* Handle, float X, float Y, float Z)
 {
-	ProfileScope("AlignTree");
+	ProfileScope("Move");
 	SDFNode* Tree = ((SDFNode*)Handle);
 	Tree->Move(vec3(X, Y, Z));
 }
 
 extern "C" TANGERINE_API void RotateTree(void* Handle, float X, float Y, float Z, float W)
 {
-	ProfileScope("AlignTree");
+	ProfileScope("RotateTree");
 	SDFNode* Tree = ((SDFNode*)Handle);
 	Tree->Rotate(quat(W, X, Y, Z));
 }
@@ -827,7 +690,7 @@ extern "C" TANGERINE_API void AlignTree(void* Handle, float X, float Y, float Z)
 	const vec3 Alignment = vec3(X, Y, Z);
 	const vec3 Half = Tree->InnerBounds().Extent() * vec3(0.5);
 	const vec3 Offset = mix(vec3(0.0), Half, Alignment);
-	Tree->Move(Offset);
+	Tree->Move(Offset * vec3(-1.0));
 }
 
 
