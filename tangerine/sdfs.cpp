@@ -203,11 +203,7 @@ struct TransformMachine
 			return InBounds;
 
 		case State::Offset:
-			vec3 Offset = LastFold[3].xyz;
-			return {
-				InBounds.Min + Offset,
-				InBounds.Max + Offset
-			};
+			return ApplyOffset(InBounds);
 
 		case State::Matrix:
 			return ApplyMatrix(InBounds);
@@ -231,6 +227,15 @@ struct TransformMachine
 	}
 
 private:
+
+	AABB ApplyOffset(const AABB InBounds)
+	{
+		vec3 Offset = LastFold[3].xyz;
+		return {
+			InBounds.Min + Offset,
+			InBounds.Max + Offset
+		};
+	}
 
 	AABB ApplyMatrix(const AABB InBounds)
 	{
