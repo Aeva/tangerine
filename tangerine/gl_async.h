@@ -21,7 +21,7 @@
 
 
 #if _WIN64
-#define ENABLE_ASYNC_SHADER_COMPILE 1
+#define ENABLE_ASYNC_SHADER_COMPILE 0
 #endif
 
 

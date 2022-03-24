@@ -60,12 +60,10 @@ struct GLContext
 {
 	HDC DeviceContext;
 	HGLRC RenderContext;
-	HPBUFFERARB PBuffer;
 
-	GLContext(HDC InDeviceContext, HGLRC InRenderContext, HPBUFFERARB InPBuffer = nullptr)
+	GLContext(HDC InDeviceContext, HGLRC InRenderContext)
 		: DeviceContext(InDeviceContext)
 		, RenderContext(InRenderContext)
-		, PBuffer(InPBuffer)
 	{
 		if (wglCreateContextAttribsARB == nullptr)
 		{
@@ -82,37 +80,6 @@ struct GLContext
 
 	GLContext CreateShared()
 	{
-		const int PixelFormatAttrs[13] = \
-		{
-			WGL_DRAW_TO_PBUFFER_ARB, 1,
-			WGL_RED_BITS_ARB, 0,
-			WGL_GREEN_BITS_ARB, 0,
-			WGL_BLUE_BITS_ARB, 0,
-			WGL_DEPTH_BITS_ARB, 0,
-			WGL_STENCIL_BITS_ARB, 0,
-			0
-		};
-
-		int PixelFormat = 0;
-		unsigned int Count = 0;
-		if (!wglChoosePixelFormatARB(DeviceContext, PixelFormatAttrs, nullptr, 1, &PixelFormat, &Count))
-		{
-			return GLContext(nullptr, nullptr, nullptr);
-		}
-
-		HPBUFFERARB NewPBuffer = wglCreatePbufferARB(DeviceContext, PixelFormat, 1, 1, nullptr);
-		if (!NewPBuffer)
-		{
-			return GLContext(nullptr, nullptr, nullptr);
-		}
-
-		HDC NewDeviceContext = wglGetPbufferDCARB(PBuffer);
-		if (!NewDeviceContext)
-		{
-			wglDestroyPbufferARB(NewPBuffer);
-			return GLContext(nullptr, nullptr, nullptr);
-		}
-
 		int MajorVersion;
 		int MinorVersion;
 		int ProfileMask;
@@ -135,8 +102,12 @@ struct GLContext
 			0
 		};
 
-		HGLRC NewRenderContext = wglCreateContextAttribsARB(NewDeviceContext, RenderContext, AttrList);
-		return GLContext(NewDeviceContext, NewRenderContext, NewPBuffer);
+		HGLRC NewRenderContext = wglCreateContextAttribsARB(DeviceContext, RenderContext, AttrList);
+		if (!NewRenderContext)
+		{
+			return GLContext(nullptr, nullptr);
+		}
+		return GLContext(DeviceContext, NewRenderContext);
 	}
 
 	bool IsValid()
@@ -152,11 +123,6 @@ struct GLContext
 	void Shutdown()
 	{
 		wglDeleteContext(RenderContext);
-		if (PBuffer)
-		{
-			wglReleasePbufferDCARB(PBuffer, DeviceContext);
-			wglDestroyPbufferARB(PBuffer);
-		}
 		RenderContext = 0;
 	}
 };
