@@ -113,41 +113,90 @@ struct TransformMachine
 	mat4 LastFold;
 	mat4 LastFoldInverse;
 
+	bool OffsetPending;
+	vec3 OffsetRun;
+	bool RotatePending;
+	quat RotateRun;
+
 	TransformMachine()
 		: FoldState(State::Identity)
 		, LastFold(identity<mat4>())
 		, LastFoldInverse(identity<mat4>())
+		, OffsetPending(false)
+		, OffsetRun(vec3(0.0))
+		, RotatePending(false)
+		, RotateRun(identity<quat>())
 	{
+	}
+
+	void FoldOffset()
+	{
+		FoldState = (State)max((int)FoldState, (int)State::Offset);
+		LastFoldInverse = translate(LastFoldInverse, OffsetRun);
+		LastFold = inverse(LastFoldInverse);
+		OffsetRun = vec3(0.0);
+		OffsetPending = false;
+		FoldState = (State)max((int)FoldState, (int)State::Offset);
+	}
+
+	void FoldRotation()
+	{
+		LastFoldInverse *= transpose(toMat4(RotateRun));
+		LastFold = inverse(LastFoldInverse);
+		RotateRun = identity<quat>();
+		RotatePending = false;
+		FoldState = (State)max((int)FoldState, (int)State::Matrix);
+	}
+
+	void Fold()
+	{
+		if (RotatePending)
+		{
+			FoldRotation();
+		}
+		else if (OffsetPending)
+		{
+			FoldOffset();
+		}
 	}
 
 	void Move(vec3 Offset)
 	{
-		FoldState = (State)max((int)FoldState, (int)State::Offset);
-		LastFoldInverse = translate(LastFoldInverse, Offset * vec3(-1.0));
-		LastFold = inverse(LastFoldInverse);
+		if (RotatePending)
+		{
+			FoldRotation();
+		}
+		OffsetRun -= Offset;
+		OffsetPending = true;
 	}
 
 	void Rotate(quat Rotation)
 	{
-		FoldState = (State)max((int)FoldState, (int)State::Matrix);
-		LastFoldInverse *= transpose(toMat4(Rotation));
-		LastFold = inverse(LastFoldInverse);
+		if (OffsetPending)
+		{
+			FoldOffset();
+		}
+		RotateRun *= Rotation;
+		RotatePending = true;
 	}
 
 	vec3 ApplyInverse(vec3 Point)
 	{
+		Fold();
 		vec4 Tmp = LastFoldInverse * vec4(Point, 1.0);
 		return Tmp.xyz / Tmp.www;
 	}
 
 	vec3 Apply(vec3 Point)
 	{
+		Fold();
 		vec4 Tmp = LastFold * vec4(Point, 1.0);
 		return Tmp.xyz / Tmp.www;
 	}
 
 	AABB Apply(const AABB InBounds)
 	{
+		Fold();
 		switch (FoldState)
 		{
 		case State::Identity:
@@ -167,6 +216,7 @@ struct TransformMachine
 
 	std::string Compile(std::vector<float>& TreeParams, std::string Point)
 	{
+		Fold();
 		switch (FoldState)
 		{
 		case State::Identity:
