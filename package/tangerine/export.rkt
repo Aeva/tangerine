@@ -15,6 +15,7 @@
 ; limitations under the License.
 
 (require racket/list)
+(require math/flonum)
 (require ffi/unsafe)
 (require "ffi.rkt")
 (require "eval.rkt")
@@ -38,7 +39,7 @@
   (let ([model (sdf-build csgst)])
     (unless (sdf-handle-is-valid? model)
       (error "Can't find backend dll?"))
-    (exporter (cdr model) grid-size refinement-iterations path)
+    (exporter (cdr model) (fl grid-size) refinement-iterations path)
     (display "Export complete.\n")))
 
 (define (export-stl csgst grid-size path [refinement-iterations 5])
