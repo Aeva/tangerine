@@ -101,31 +101,35 @@ std::string MakeParamList(int Offset, int Count)
 
 struct TransformMachine
 {
+	enum class State
+	{
+		Identity = 0,
+		Offset = 1,
+		Matrix = 2
+	};
+
+	State FoldState;
+
 	mat4 LastFold;
 	mat4 LastFoldInverse;
 
-	bool IsIdentity;
-	bool IsTranslateOnly;
-
 	TransformMachine()
-		: LastFold(identity<mat4>())
+		: FoldState(State::Identity)
+		, LastFold(identity<mat4>())
 		, LastFoldInverse(identity<mat4>())
-		, IsIdentity(true)
-		, IsTranslateOnly(true)
 	{
 	}
 
 	void Move(vec3 Offset)
 	{
-		IsIdentity = false;
+		FoldState = (State)max((int)FoldState, (int)State::Offset);
 		LastFoldInverse = translate(LastFoldInverse, Offset * vec3(-1.0));
 		LastFold = inverse(LastFoldInverse);
 	}
 
 	void Rotate(quat Rotation)
 	{
-		IsIdentity = false;
-		IsTranslateOnly = false;
+		FoldState = (State)max((int)FoldState, (int)State::Matrix);
 		LastFoldInverse *= transpose(toMat4(Rotation));
 		LastFold = inverse(LastFoldInverse);
 	}
@@ -144,75 +148,90 @@ struct TransformMachine
 
 	AABB Apply(const AABB InBounds)
 	{
-		if (IsIdentity)
+		switch (FoldState)
 		{
+		case State::Identity:
 			return InBounds;
-		}
-		if (IsTranslateOnly)
-		{
+
+		case State::Offset:
 			vec3 Offset = LastFold[3].xyz;
 			return {
 				InBounds.Min + Offset,
 				InBounds.Max + Offset
 			};
-		}
-		else
-		{
-			const vec3 A = InBounds.Min;
-			const vec3 B = InBounds.Max;
 
-			const vec3 Points[7] = \
-			{
-				B,
-				vec3(B.x, A.yz),
-				vec3(A.x, B.y, A.z),
-				vec3(A.xy, B.z),
-				vec3(A.x, B.yz),
-				vec3(B.x, A.y, B.z),
-				vec3(B.xy, A.z)
-			};
-
-			AABB Bounds;
-			Bounds.Min = Apply(A);
-			Bounds.Max = Bounds.Min;
-
-			for (const vec3& Point : Points)
-			{
-				const vec3 Tmp = Apply(Point);
-				Bounds.Min = min(Bounds.Min, Tmp);
-				Bounds.Max = max(Bounds.Max, Tmp);
-			}
-
-			return Bounds;
+		case State::Matrix:
+			return ApplyMatrix(InBounds);
 		}
 	}
 
 	std::string Compile(std::vector<float>& TreeParams, std::string Point)
 	{
-		if (IsIdentity)
+		switch (FoldState)
 		{
+		case State::Identity:
 			return Point;
+
+		case State::Offset:
+			return CompileOffset(TreeParams, Point);
+
+		case State::Matrix:
+			return CompileMatrix(TreeParams, Point);
 		}
-		else if (IsTranslateOnly)
+	}
+
+private:
+
+	AABB ApplyMatrix(const AABB InBounds)
+	{
+		const vec3 A = InBounds.Min;
+		const vec3 B = InBounds.Max;
+
+		const vec3 Points[7] = \
 		{
-			const int Offset = TreeParams.size();
-			TreeParams.push_back(LastFold[3].x);
-			TreeParams.push_back(LastFold[3].y);
-			TreeParams.push_back(LastFold[3].z);
-			std::string Params = MakeParamList(Offset, 3);
-			return fmt::format("({} - vec3({}))", Point, Params);
-		}
-		else
+			B,
+			vec3(B.x, A.yz),
+			vec3(A.x, B.y, A.z),
+			vec3(A.xy, B.z),
+			vec3(A.x, B.yz),
+			vec3(B.x, A.y, B.z),
+			vec3(B.xy, A.z)
+		};
+
+		AABB Bounds;
+		Bounds.Min = Apply(A);
+		Bounds.Max = Bounds.Min;
+
+		for (const vec3& Point : Points)
 		{
-			const int Offset = TreeParams.size();
-			for (int i = 0; i < 16; ++i)
-			{
-				float Cell = value_ptr(LastFoldInverse)[i];
-				TreeParams.push_back(Cell);
-			}
-			std::string Params = MakeParamList(Offset, 16);
-			return fmt::format("MatrixTransform({}, mat4({}))", Point, Params);
+			const vec3 Tmp = Apply(Point);
+			Bounds.Min = min(Bounds.Min, Tmp);
+			Bounds.Max = max(Bounds.Max, Tmp);
 		}
+
+		return Bounds;
+	}
+
+	std::string CompileOffset(std::vector<float>& TreeParams, std::string Point)
+	{
+		const int Offset = TreeParams.size();
+		TreeParams.push_back(LastFold[3].x);
+		TreeParams.push_back(LastFold[3].y);
+		TreeParams.push_back(LastFold[3].z);
+		std::string Params = MakeParamList(Offset, 3);
+		return fmt::format("({} - vec3({}))", Point, Params);
+	}
+
+	std::string CompileMatrix(std::vector<float>& TreeParams, std::string Point)
+	{
+		const int Offset = TreeParams.size();
+		for (int i = 0; i < 16; ++i)
+		{
+			float Cell = value_ptr(LastFoldInverse)[i];
+			TreeParams.push_back(Cell);
+		}
+		std::string Params = MakeParamList(Offset, 16);
+		return fmt::format("MatrixTransform({}, mat4({}))", Point, Params);
 	}
 };
 
