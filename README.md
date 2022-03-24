@@ -103,26 +103,32 @@ Brush functions draw shapes.
 
 These may be applied to brushes and operators.
 
- * `(move offset-x offset-y offset-z)`
+ * `(move offset-x offset-y offset-z csgst)`
 
- * `(move-x offset-x)`
+ * `(move-x offset-x csgst)`
 
- * `(move-y offset-y)`
+ * `(move-y offset-y csgst)`
 
- * `(move-z offset-z)`
+ * `(move-z offset-z csgst)`
 
- * `(rotate-x degrees)`
+ * `(rotate-x degrees csgst)`
 
- * `(rotate-y degrees)`
+ * `(rotate-y degrees csgst)`
 
- * `(rotate-z degrees)`
+ * `(rotate-z degrees csgst)`
 
-## The Align Annotation
+## The Align Modifier
 
-The `align` modifer can only be applied to brushes, and is used to set where the origin is per-axis.
-The origin parameters must be between -1.0 and 1.0, where 0.0 is the center of the brush's bounds (default behavior).
+The `align` modifier offsets the expression tree to align it with the origin.
+The alignment parameters are specified per-axis, and must be between `-1.0` and `1.0`.
+The `align` modifier uses the inner bounding box of the expression tree, which
+means it ignores the padding that would otherwise be introduced by blend operators.
 
- * `(align origin-x origin-y origin-z brush)`
+For example `(align 0 0 0 (move-x 10 (cube 1)))` creates a cube centered at the origin, negating the move-x.
+
+For another example, `(align -1 -1 -1 (cube 1))` creates a cube who's negative-most corner is on the origin.
+
+ * `(align origin-x origin-y origin-z csgst)`
 
 ## The Paint Annotation
 

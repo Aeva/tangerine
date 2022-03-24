@@ -35,7 +35,7 @@ struct AABB
 	glm::vec3 Min;
 	glm::vec3 Max;
 
-	glm::vec3 Extent()
+	glm::vec3 Extent() const
 	{
 		return Max - Min;
 	}

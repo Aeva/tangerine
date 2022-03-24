@@ -53,31 +53,32 @@
 
 (define legs
   (move-z -1.875
-           (diff
-            (box 4 3.85 2.25)
-            (box 3.5 4 2.26)
-            (box 4.1 3.25 2.26)
-            (box 3.9 3.75 2.26))))
+          (diff
+           (box 4 3.85 2.25)
+           (box 3.5 4 2.26)
+           (box 4.1 3.25 2.26)
+           (box 3.9 3.75 2.26))))
 
 
 (define mailbox
   (paint #x01349d
-         (union
-          (diff
-           (union
-            (move-x -2 frame-bend)
-            (move-x 2 frame-bend)
-            (move-z 3 (rotate-y 90 (cylinder 3.85 4)))
-            (move-z 1.15 (box 4 3.85 3.85)))
-           (union
-            (move-z 3 (rotate-x 80 (move 0 2 -1 (box 3.6 2 2))))
-            (move 0 2 3.3 (box 3.6 3.4 1))
-            (move-z 3 (rotate-y 90 (cylinder 3.8 3.8)))))
-          (move 0 0.75 3.2 (rotate-x -18 (box 3.85 2.5 .05)))
-          (move 0 -.2 3.65 (box 3.85 .05 2.5))
-          (move 0 -.15 4.15 (box 3.5 0.05 1.25))
-          (move 0 -.15 3.5 (rotate-y 90 (cylinder .1 3.5)))
-          legs handle)))
+         (align 0 0 -1
+                (union
+                 (diff
+                  (union
+                   (move-x -2 frame-bend)
+                   (move-x 2 frame-bend)
+                   (move-z 3 (rotate-y 90 (cylinder 3.85 4)))
+                   (move-z 1.15 (box 4 3.85 3.85)))
+                  (union
+                   (move-z 3 (rotate-x 80 (move 0 2 -1 (box 3.6 2 2))))
+                   (move 0 2 3.3 (box 3.6 3.4 1))
+                   (move-z 3 (rotate-y 90 (cylinder 3.8 3.8)))))
+                 (move 0 0.75 3.2 (rotate-x -18 (box 3.85 2.5 .05)))
+                 (move 0 -.2 3.65 (box 3.85 .05 2.5))
+                 (move 0 -.15 4.15 (box 3.5 0.05 1.25))
+                 (move 0 -.15 3.5 (rotate-y 90 (cylinder .1 3.5)))
+                 legs handle))))
 
 
 (define (emit-glsl)

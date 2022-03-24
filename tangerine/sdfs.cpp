@@ -761,10 +761,10 @@ extern "C" TANGERINE_API void AlignTree(void* Handle, float X, float Y, float Z)
 {
 	ProfileScope("AlignTree");
 	SDFNode* Tree = ((SDFNode*)Handle);
-	const vec3 Alignment = vec3(X, Y, Z);
-	const vec3 Half = Tree->InnerBounds().Extent() * vec3(0.5);
-	const vec3 Offset = mix(vec3(0.0), Half, Alignment);
-	Tree->Move(Offset * vec3(-1.0));
+	const vec3 Alignment = vec3(X, Y, Z) * vec3(0.5) + vec3(0.5);
+	const AABB Bounds = Tree->InnerBounds();
+	const vec3 Offset = mix(Bounds.Min, Bounds.Max, Alignment) * vec3(-1.0);
+	Tree->Move(Offset);
 }
 
 
