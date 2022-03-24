@@ -16,7 +16,6 @@
 
 
 (require tangerine)
-(require tangerine/coalesce)
 (require tangerine/eval)
 (provide emit-glsl)
 

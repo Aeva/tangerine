@@ -16,7 +16,6 @@
 
 (require ffi/unsafe)
 (require "ffi.rkt")
-(require "coalesce.rkt")
 (require "eval.rkt")
 (require "profiling.rkt")
 
@@ -33,12 +32,7 @@
 (define (voxel-compiler csgst [voxel-size .25])
   (profile-scope
    "voxel-compiler"
-   (let*
-       (; Create an evaluator for the model.
-        [evaluator
-         (profile-scope "evaluator"
-                        (sdf-build csgst))])
-
+   (let ([evaluator (profile-scope "evaluator" (sdf-build csgst))])
      (when (sdf-handle-is-valid? evaluator)
        (profile-scope "find voxel subtrees"
                       (VoxelCompiler (cdr evaluator) voxel-size))))))

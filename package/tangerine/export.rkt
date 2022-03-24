@@ -18,7 +18,6 @@
 (require ffi/unsafe)
 (require "ffi.rkt")
 (require "eval.rkt")
-(require "coalesce.rkt")
 
 (provide export-magica
          export-stl
@@ -29,16 +28,14 @@
 (define-backend ExportPLY (_fun _HANDLE _float _int _string/utf-8 -> _void))
 
 (define (export-magica csgst grid-size pallet-index path)
-  (let* ([folded (coalesce csgst)]
-         [model (sdf-build folded)])
+  (let ([model (sdf-build csgst)])
     (unless (sdf-handle-is-valid? model)
       (error "Can't find backend dll?"))
     (ExportMagicaVoxel (cdr model) grid-size pallet-index path)
     (display "Magikazam!\n")))
 
 (define (export-mesh exporter csgst grid-size path refinement-iterations)
-  (let* ([folded (coalesce csgst)]
-         [model (sdf-build folded)])
+  (let ([model (sdf-build csgst)])
     (unless (sdf-handle-is-valid? model)
       (error "Can't find backend dll?"))
     (exporter (cdr model) grid-size refinement-iterations path)
