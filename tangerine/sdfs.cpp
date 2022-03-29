@@ -226,6 +226,24 @@ struct TransformMachine
 		}
 	}
 
+	bool operator==(TransformMachine& Other)
+	{
+		Fold();
+		Other.Fold();
+		if (FoldState == Other.FoldState)
+		{
+			if (FoldState == State::Identity)
+			{
+				return true;
+			}
+			else
+			{
+				return LastFold == Other.LastFold;
+			}
+		}
+		return false;
+	}
+
 private:
 
 	AABB ApplyOffset(const AABB InBounds)
@@ -370,6 +388,23 @@ struct BrushNode : public SDFNode
 	virtual vec4 Sample(vec3 Point)
 	{
 		return NullColor;
+	}
+
+	virtual bool operator==(SDFNode& Other)
+	{
+		BrushNode* OtherBrush = dynamic_cast<BrushNode*>(&Other);
+		if (OtherBrush && OtherBrush->BrushFnName == BrushFnName && OtherBrush->Transform == Transform)
+		{
+			for (int i = 0; i < NodeParams.size(); ++i)
+			{
+				if (OtherBrush->NodeParams[i] != NodeParams[i])
+				{
+					return false;
+				}
+			}
+			return true;
+		}
+		return false;
 	}
 };
 
@@ -616,6 +651,16 @@ struct SetNode : public SDFNode
 		}
 	}
 
+	virtual bool operator==(SDFNode& Other)
+	{
+		SetNode<Family, BlendMode>* OtherSet = dynamic_cast<SetNode<Family, BlendMode>*>(&Other);
+		if (OtherSet && Threshold == OtherSet->Threshold)
+		{
+			return *LHS == *(OtherSet->LHS) && *RHS == *(OtherSet->RHS);
+		}
+		return false;
+	}
+
 	virtual ~SetNode()
 	{
 		delete LHS;
@@ -691,6 +736,16 @@ struct PaintNode : public SDFNode
 	virtual vec4 Sample(vec3 Point)
 	{
 		return vec4(Color, 1.0);
+	}
+
+	virtual bool operator==(SDFNode& Other)
+	{
+		PaintNode* OtherPaint = dynamic_cast<PaintNode*>(&Other);
+		if (OtherPaint)
+		{
+			return Color == OtherPaint->Color && *Child == *(OtherPaint->Child);
+		}
+		return false;
 	}
 
 	virtual ~PaintNode()
@@ -974,6 +1029,40 @@ void SDFOctree::Populate()
 		delete Evaluator;
 		Evaluator = nullptr;
 	}
+#if ENABLE_OCTREE_COALESCENCE
+	else
+	{
+		AABB NewBounds;
+		bool Coalesce = true;
+		for (int i = 0; i < 8; ++i)
+		{
+			if (Children[i] != nullptr)
+			{
+				NewBounds = Children[i]->Bounds;
+				Coalesce = Children[i]->Terminus && *Evaluator == *(Children[i]->Evaluator);
+				if (!Coalesce)
+				{
+					break;
+				}
+			}
+		}
+		if (Coalesce)
+		{
+			for (int i = 0; i < 8; ++i)
+			{
+				if (Children[i] != nullptr)
+				{
+					NewBounds.Min = min(NewBounds.Min, Children[i]->Bounds.Min);
+					NewBounds.Max = max(NewBounds.Max, Children[i]->Bounds.Max);
+					delete Children[i];
+					Children[i] = nullptr;
+				}
+			}
+			Terminus = true;
+			Bounds = NewBounds;
+		}
+	}
+#endif // ENABLE_OCTREE_COALESCENCE
 }
 
 SDFOctree::~SDFOctree()

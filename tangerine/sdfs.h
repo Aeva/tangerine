@@ -30,6 +30,9 @@
 #include <glm/gtx/quaternion.hpp>
 
 
+#define ENABLE_OCTREE_COALESCENCE 1
+
+
 struct AABB
 {
 	glm::vec3 Min;
@@ -71,6 +74,13 @@ struct SDFNode
 	virtual bool HasPaint() = 0;
 
 	virtual glm::vec4 Sample(glm::vec3 Point) = 0;
+
+	virtual bool operator==(SDFNode& Other) = 0;
+
+	bool operator!=(SDFNode& Other)
+	{
+		return !(*this == Other);
+	}
 
 	virtual ~SDFNode() {};
 };
