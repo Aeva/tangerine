@@ -22,6 +22,8 @@
 #include <SDL.h>
 #include <SDL_opengl.h>
 
+#include <shaderc/shaderc.hpp>
+
 #include <thread>
 #include <atomic>
 #include <mutex>
