@@ -954,7 +954,7 @@ SDFOctree* SDFOctree::Create(SDFNode* Evaluator, float TargetSize)
 	Bounds.Min -= Padding;
 	Bounds.Max += Padding;
 
-	SDFOctree* Tree = new SDFOctree(nullptr, Evaluator, TargetSize, Bounds);
+	SDFOctree* Tree = new SDFOctree(nullptr, Evaluator, TargetSize, Bounds, 1);
 	if (Tree->Evaluator)
 	{
 		return Tree;
@@ -966,7 +966,7 @@ SDFOctree* SDFOctree::Create(SDFNode* Evaluator, float TargetSize)
 	}
 }
 
-SDFOctree::SDFOctree(SDFOctree* InParent, SDFNode* InEvaluator, float InTargetSize, AABB InBounds)
+SDFOctree::SDFOctree(SDFOctree* InParent, SDFNode* InEvaluator, float InTargetSize, AABB InBounds, int Depth)
 	: Parent(InParent)
 	, TargetSize(InTargetSize)
 	, Bounds(InBounds)
@@ -988,11 +988,11 @@ SDFOctree::SDFOctree(SDFOctree* InParent, SDFNode* InEvaluator, float InTargetSi
 	}
 	else
 	{
-		Populate();
+		Populate(Depth);
 	}
 }
 
-void SDFOctree::Populate()
+void SDFOctree::Populate(int Depth)
 {
 	bool Uniform = true;
 	bool Penultimate = true;
@@ -1025,7 +1025,7 @@ void SDFOctree::Populate()
 		{
 			ChildBounds.Max.z = Pivot.z;
 		}
-		Children[i] = new SDFOctree(this, Evaluator, TargetSize, ChildBounds);
+		Children[i] = new SDFOctree(this, Evaluator, TargetSize, ChildBounds, Depth + 1);
 		if (Children[i]->Evaluator == nullptr)
 		{
 			delete Children[i];
@@ -1056,7 +1056,7 @@ void SDFOctree::Populate()
 		}
 
 #if ENABLE_OCTREE_COALESCENCE
-		if ((Penultimate && Uniform) || Evaluator->Complexity() <= 3)
+		if ((Penultimate && Uniform) || Evaluator->Complexity() <= max(Depth, 3))
 		{
 			for (int i = 0; i < 8; ++i)
 			{

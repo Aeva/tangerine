@@ -99,7 +99,7 @@ struct SDFOctree
 	SDFOctree* Parent;
 
 	static SDFOctree* Create(SDFNode* Evaluator, float TargetSize = 0.25);
-	void Populate();
+	void Populate(int Depth);
 	~SDFOctree();
 	SDFNode* Descend(const glm::vec3 Point, const bool Exact=true);
 
@@ -127,5 +127,5 @@ struct SDFOctree
 	}
 
 private:
-	SDFOctree(SDFOctree* InParent, SDFNode* InEvaluator, float InTargetSize, AABB InBounds);
+	SDFOctree(SDFOctree* InParent, SDFNode* InEvaluator, float InTargetSize, AABB InBounds, int Depth);
 };
