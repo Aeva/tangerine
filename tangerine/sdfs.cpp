@@ -390,6 +390,11 @@ struct BrushNode : public SDFNode
 		return NullColor;
 	}
 
+	virtual int Complexity()
+	{
+		return 1;
+	}
+
 	virtual bool operator==(SDFNode& Other)
 	{
 		BrushNode* OtherBrush = dynamic_cast<BrushNode*>(&Other);
@@ -651,6 +656,11 @@ struct SetNode : public SDFNode
 		}
 	}
 
+	virtual int Complexity()
+	{
+		return LHS->Complexity() + RHS->Complexity();
+	}
+
 	virtual bool operator==(SDFNode& Other)
 	{
 		SetNode<Family, BlendMode>* OtherSet = dynamic_cast<SetNode<Family, BlendMode>*>(&Other);
@@ -736,6 +746,11 @@ struct PaintNode : public SDFNode
 	virtual vec4 Sample(vec3 Point)
 	{
 		return vec4(Color, 1.0);
+	}
+
+	virtual int Complexity()
+	{
+		return Child->Complexity();
 	}
 
 	virtual bool operator==(SDFNode& Other)
@@ -979,6 +994,10 @@ SDFOctree::SDFOctree(SDFOctree* InParent, SDFNode* InEvaluator, float InTargetSi
 
 void SDFOctree::Populate()
 {
+	bool Uniform = true;
+	bool Penultimate = true;
+	std::vector<SDFOctree*> Live;
+	Live.reserve(8);
 	for (int i = 0; i < 8; ++i)
 	{
 		AABB ChildBounds = Bounds;
@@ -1012,57 +1031,45 @@ void SDFOctree::Populate()
 			delete Children[i];
 			Children[i] = nullptr;
 		}
-	}
-
-	bool AnyFound = false;
-	for (int i = 0; i < 8; ++i)
-	{
-		if (Children[i] != nullptr)
+		else
 		{
-			AnyFound = true;
-			break;
+			Uniform &= *Evaluator == *(Children[i]->Evaluator);
+			Penultimate &= Children[i]->Terminus;
+			Live.push_back(Children[i]);
 		}
 	}
 
-	if (!AnyFound)
+	if (Live.size() == 0)
 	{
 		delete Evaluator;
 		Evaluator = nullptr;
+		Penultimate = false;
+		Terminus = true;
 	}
-#if ENABLE_OCTREE_COALESCENCE
 	else
 	{
-		AABB NewBounds;
-		bool Coalesce = true;
-		for (int i = 0; i < 8; ++i)
+		Bounds = Live[0]->Bounds;
+		for (int i = 1; i < Live.size(); ++i)
 		{
-			if (Children[i] != nullptr)
-			{
-				NewBounds = Children[i]->Bounds;
-				Coalesce = Children[i]->Terminus && *Evaluator == *(Children[i]->Evaluator);
-				if (!Coalesce)
-				{
-					break;
-				}
-			}
+			Bounds.Min = min(Bounds.Min, Live[i]->Bounds.Min);
+			Bounds.Max = max(Bounds.Max, Live[i]->Bounds.Max);
 		}
-		if (Coalesce)
+
+#if ENABLE_OCTREE_COALESCENCE
+		if ((Penultimate && Uniform) || Evaluator->Complexity() <= 3)
 		{
 			for (int i = 0; i < 8; ++i)
 			{
 				if (Children[i] != nullptr)
 				{
-					NewBounds.Min = min(NewBounds.Min, Children[i]->Bounds.Min);
-					NewBounds.Max = max(NewBounds.Max, Children[i]->Bounds.Max);
 					delete Children[i];
 					Children[i] = nullptr;
 				}
 			}
 			Terminus = true;
-			Bounds = NewBounds;
 		}
+#endif
 	}
-#endif // ENABLE_OCTREE_COALESCENCE
 }
 
 SDFOctree::~SDFOctree()

@@ -75,6 +75,8 @@ struct SDFNode
 
 	virtual glm::vec4 Sample(glm::vec3 Point) = 0;
 
+	virtual int Complexity() = 0;
+
 	virtual bool operator==(SDFNode& Other) = 0;
 
 	bool operator!=(SDFNode& Other)
