@@ -156,6 +156,15 @@ void main()
 				{
 					OutColor = vec4(BaseColor, 1.0);
 				}
+				else if ((OutlinerFlags & 16) == 16)
+				{
+					float LeafCount = float(SubtreeIndex);
+					float Alpha = (clamp(LeafCount, 1.0, 12.0) - 1) / 11.0;
+					vec3 Cold = vec3(0.0, 0.0, 0.0);
+					vec3 Hot = vec3(1.0, 1.0, 1.0);
+					BaseColor = mix(Cold, Hot, Alpha);
+					OutColor = vec4(BaseColor, 1.0);
+				}
 				else
 				{
 					// Palecek 2022, "PBR Based Rendering"

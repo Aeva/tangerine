@@ -123,13 +123,15 @@ struct SubtreeShader
 		: DebugName(Old.DebugName)
 		, PrettyTree(Old.PrettyTree)
 		, DistSource(Old.DistSource)
+		, LeafCount(Old.LeafCount)
 	{
 		std::swap(Compiled, Old.Compiled);
 		std::swap(DepthQuery, Old.DepthQuery);
 		std::swap(Instances, Old.Instances);
 	}
 
-	SubtreeShader(std::string InDebugName, std::string InPrettyTree, std::string InDistSource)
+	SubtreeShader(std::string InDebugName, std::string InPrettyTree, std::string InDistSource, int InLeafCount)
+		: LeafCount(InLeafCount)
 	{
 		Compiled.reset(new ShaderEnvelope);
 		DebugName = InDebugName;
@@ -171,6 +173,7 @@ struct SubtreeShader
 		DepthQuery.Release();
 	}
 
+	int LeafCount;
 	std::string DebugName;
 	std::string PrettyTree;
 	std::string DistSource;
@@ -189,7 +192,7 @@ std::vector<size_t> PendingShaders;
 
 
 ModelSubtree* PendingSubtree = nullptr;
-size_t EmitShader(std::string Source)
+size_t EmitShader(std::string Source, int LeafCount)
 {
 	// TODO: debug versions
 	std::string& Tree = Source;
@@ -201,7 +204,7 @@ size_t EmitShader(std::string Source)
 	if (Found == SubtreeMap.end())
 	{
 		size_t Index = SubtreeShaders.size();
-		SubtreeShaders.emplace_back(Tree, Pretty, Source);
+		SubtreeShaders.emplace_back(Tree, Pretty, Source, LeafCount);
 		SubtreeMap[Tree] = Index;
 		PendingShaders.push_back(Index);
 		ShaderIndex = Index;
@@ -529,6 +532,7 @@ bool ShowHeatmap = false;
 bool HighlightEdges = true;
 bool ResetCamera = true;
 bool ShowOctree = false;
+bool ShowLeafCount = false;
 float PresentFrequency = 0.0;
 float PresentDeltaMs = 0.0;
 glm::vec3 CameraFocus = glm::vec3(0.0, 0.0, 0.0);
@@ -649,6 +653,10 @@ void RenderFrame(int ScreenWidth, int ScreenHeight)
 		{
 			OutlinerFlags |= 1 | 1 << 3;
 		}
+		if (ShowLeafCount)
+		{
+			OutlinerFlags |= 1 << 4;
+		}
 		OutlinerOptionsUpload BufferData = {
 			OutlinerFlags,
 			0,
@@ -684,7 +692,7 @@ void RenderFrame(int ScreenWidth, int ScreenHeight)
 						std::chrono::duration<double, std::milli> Delta = Clock::now() - ShaderCompilerStart;
 						ShaderCompilerConvergenceMs = Delta.count();
 					}
-					if (!ShowOctree)
+					if (!ShowOctree || !ShowLeafCount)
 					{
 						continue;
 					}
@@ -698,7 +706,7 @@ void RenderFrame(int ScreenWidth, int ScreenHeight)
 					Drawable->DepthQuery.Start();
 				}
 
-				if (ShowOctree)
+				if (ShowOctree || ShowLeafCount)
 				{
 					OctreeDebugShader.Activate();
 				}
@@ -712,10 +720,19 @@ void RenderFrame(int ScreenWidth, int ScreenHeight)
 					Subtree.ParamsBuffer.Bind(GL_SHADER_STORAGE_BUFFER, 0);
 					for (SubtreeSection& Section : Subtree.Sections)
 					{
-						if (ShowOctree)
+						if (ShowOctree || ShowLeafCount)
 						{
+							int UploadValue;
+							if (ShowOctree)
+							{
+								UploadValue = ++NextOctreeID;
+							}
+							else
+							{
+								UploadValue = Drawable->LeafCount;
+							}
 							OctreeDebugOptionsUpload BufferData = {
-								++NextOctreeID,
+								UploadValue,
 								0,
 								0,
 								0
@@ -975,16 +992,25 @@ void RenderUI(SDL_Window* Window, bool& Live)
 			{
 				if (ImGui::MenuItem("Subtrees", nullptr, &ShowSubtrees))
 				{
-					ShowHeatmap = false;
 					ShowOctree = false;
+					ShowHeatmap = false;
+					ShowLeafCount = false;
 				}
 				if (ImGui::MenuItem("Heatmap", nullptr, &ShowHeatmap))
 				{
-					ShowSubtrees = false;
 					ShowOctree = false;
+					ShowSubtrees = false;
+					ShowLeafCount = false;
 				}
 				if (ImGui::MenuItem("Octree", nullptr, &ShowOctree))
 				{
+					ShowHeatmap = false;
+					ShowSubtrees = false;
+					ShowLeafCount = false;
+				}
+				if (ImGui::MenuItem("CSG Leaf Count", nullptr, &ShowLeafCount))
+				{
+					ShowOctree = false;
 					ShowHeatmap = false;
 					ShowSubtrees = false;
 				}

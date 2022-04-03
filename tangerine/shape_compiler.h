@@ -17,7 +17,7 @@
 
 #include "sdfs.h"
 
-size_t EmitShader(std::string Source);
+size_t EmitShader(std::string Source, int LeafCount);
 void EmitParameters(size_t ShaderIndex, std::vector<float> Params);
 void EmitVoxel(AABB Bounds);
 void SetTreeEvaluator(SDFNode* InTreeEvaluator, AABB Limits);

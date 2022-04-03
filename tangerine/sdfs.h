@@ -75,7 +75,7 @@ struct SDFNode
 
 	virtual glm::vec4 Sample(glm::vec3 Point) = 0;
 
-	virtual int Complexity() = 0;
+	virtual int LeafCount() = 0;
 
 	virtual bool operator==(SDFNode& Other) = 0;
 
@@ -94,6 +94,7 @@ struct SDFOctree
 	glm::vec3 Pivot;
 	float TargetSize;
 	bool Terminus;
+	int LeafCount;
 	SDFNode* Evaluator;
 	SDFOctree* Children[8];
 	SDFOctree* Parent;

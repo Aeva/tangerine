@@ -25,6 +25,19 @@
 using namespace glm;
 
 
+using ParamsVec = std::vector<float>;
+using BoundsVec = std::vector<AABB>;
+using ParamsMap = std::map<ParamsVec, BoundsVec>;
+
+struct ShaderInfo
+{
+	ParamsMap Params;
+	int LeafCount;
+};
+
+using VariantsMap = std::unordered_map<std::string, ShaderInfo>;
+
+
 // Iterate over a voxel grid and return bounded subtrees.
 extern "C" TANGERINE_API void VoxelCompiler(void* Handle, const float VoxelSize)
 {
@@ -32,11 +45,6 @@ extern "C" TANGERINE_API void VoxelCompiler(void* Handle, const float VoxelSize)
 	SDFNode* Evaluator = (SDFNode*)Handle;
 	AABB Limits = Evaluator->Bounds();
 	SetTreeEvaluator(Evaluator, Limits);
-
-	using ParamsVec = std::vector<float>;
-	using BoundsVec = std::vector<AABB>;
-	using ParamsMap = std::map<ParamsVec, BoundsVec>;
-	using VariantsMap = std::unordered_map<std::string, ParamsMap>;
 
 	VariantsMap Voxels;
 
@@ -51,8 +59,9 @@ extern "C" TANGERINE_API void VoxelCompiler(void* Handle, const float VoxelSize)
 			std::string Point = "Point";
 			std::string GLSL = Leaf.Evaluator->Compile(Params, Point);
 
-			auto VariantsInsert = Voxels.insert({ GLSL, ParamsMap() });
-			ParamsMap& Variant = (*(VariantsInsert.first)).second;
+			ShaderInfo VariantInfo = { ParamsMap(), Leaf.LeafCount };
+			auto VariantsInsert = Voxels.insert({ GLSL, VariantInfo });
+			ParamsMap& Variant = (*(VariantsInsert.first)).second.Params;
 
 			auto ParamsInsert = Variant.insert({ Params, BoundsVec() });
 			BoundsVec& Instances = (*(ParamsInsert.first)).second;
@@ -71,7 +80,7 @@ extern "C" TANGERINE_API void VoxelCompiler(void* Handle, const float VoxelSize)
 
 	BeginEvent("Emit GLSL");
 	int SubtreeIndex = 0;
-	for (auto& [Source, Variant] : Voxels)
+	for (auto& [Source, VariantInfo] : Voxels)
 	{
 		std::string BoilerPlate = fmt::format(
 			"layout(std430, binding = 0)\n"
@@ -87,8 +96,8 @@ extern "C" TANGERINE_API void VoxelCompiler(void* Handle, const float VoxelSize)
 			SubtreeIndex++,
 			Source);
 
-		size_t ShaderIndex = EmitShader(BoilerPlate);
-		for (auto& [Params, Instances] : Variant)
+		size_t ShaderIndex = EmitShader(BoilerPlate, VariantInfo.LeafCount);
+		for (auto& [Params, Instances] : VariantInfo.Params)
 		{
 			EmitParameters(ShaderIndex, Params);
 			for (const AABB& Bounds : Instances)

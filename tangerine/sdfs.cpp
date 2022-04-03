@@ -390,7 +390,7 @@ struct BrushNode : public SDFNode
 		return NullColor;
 	}
 
-	virtual int Complexity()
+	virtual int LeafCount()
 	{
 		return 1;
 	}
@@ -656,9 +656,9 @@ struct SetNode : public SDFNode
 		}
 	}
 
-	virtual int Complexity()
+	virtual int LeafCount()
 	{
-		return LHS->Complexity() + RHS->Complexity();
+		return LHS->LeafCount() + RHS->LeafCount();
 	}
 
 	virtual bool operator==(SDFNode& Other)
@@ -748,9 +748,9 @@ struct PaintNode : public SDFNode
 		return vec4(Color, 1.0);
 	}
 
-	virtual int Complexity()
+	virtual int LeafCount()
 	{
-		return Child->Complexity();
+		return Child->LeafCount();
 	}
 
 	virtual bool operator==(SDFNode& Other)
@@ -977,6 +977,7 @@ SDFOctree::SDFOctree(SDFOctree* InParent, SDFNode* InEvaluator, float InTargetSi
 
 	float Radius = length(vec3(Span)) * 0.5;
 	Evaluator = InEvaluator->Clip(Pivot, Radius);
+	LeafCount = Evaluator ? Evaluator->LeafCount() : 0;
 
 	Terminus = Span <= TargetSize || Evaluator == nullptr;
 	if (Terminus)
@@ -1056,7 +1057,7 @@ void SDFOctree::Populate(int Depth)
 		}
 
 #if ENABLE_OCTREE_COALESCENCE
-		if ((Penultimate && Uniform) || Evaluator->Complexity() <= max(Depth, 3))
+		if ((Penultimate && Uniform) || LeafCount <= max(Depth, 3))
 		{
 			for (int i = 0; i < 8; ++i)
 			{
