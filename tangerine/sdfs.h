@@ -65,6 +65,8 @@ struct SDFNode
 
 	virtual std::string Compile(std::vector<float>& TreeParams, std::string& Point) = 0;
 
+	virtual std::string Pretty() = 0;
+
 	glm::vec3 Gradient(glm::vec3 Point);
 
 	virtual void Move(glm::vec3 Offset) = 0;

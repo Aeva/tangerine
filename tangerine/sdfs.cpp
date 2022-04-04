@@ -226,6 +226,22 @@ struct TransformMachine
 		}
 	}
 
+	std::string Pretty(std::string Brush)
+	{
+		Fold();
+		switch (FoldState)
+		{
+		case State::Identity:
+			return Brush;
+
+		case State::Offset:
+			return fmt::format("Move({})", Brush);
+
+		case State::Matrix:
+			return fmt::format("Matrix({})", Brush);
+		}
+	}
+
 	bool operator==(TransformMachine& Other)
 	{
 		Fold();
@@ -368,6 +384,11 @@ struct BrushNode : public SDFNode
 		const int Offset = StoreParams(TreeParams, NodeParams);
 		std::string Params = MakeParamList(Offset, (int)NodeParams.size());
 		return fmt::format("{}({}, {})", BrushFnName, TransformedPoint, Params);
+	}
+
+	virtual std::string Pretty()
+	{
+		return Transform.Pretty(BrushFnName);
 	}
 
 	virtual void Move(vec3 Offset)
@@ -613,6 +634,30 @@ struct SetNode : public SDFNode
 		}
 	}
 
+	virtual std::string Pretty()
+	{
+		std::string Name = "Unknown";
+		if (Family == SetFamily::Union)
+		{
+			Name = "Union";
+		}
+		else if (Family == SetFamily::Diff)
+		{
+			Name = "Diff";
+		}
+		else if (Family == SetFamily::Inter)
+		{
+			Name = "Inter";
+		}
+		if (BlendMode)
+		{
+			Name = fmt::format("Blend{}", Name);
+		}
+		std::string PrettyL = LHS->Pretty();
+		std::string PrettyR = RHS->Pretty();
+		return fmt::format("{}(\n\t{},\n\t{})", Name, PrettyL, PrettyR);
+	}
+
 	virtual void Move(vec3 Offset)
 	{
 		for (SDFNode* Child : { LHS, RHS })
@@ -726,6 +771,11 @@ struct PaintNode : public SDFNode
 		TreeParams.push_back(Color.b);
 		std::string ColorParams = MakeParamList(Offset, 3);
 		return fmt::format("MaterialDist(vec3({}), {})", ColorParams, Child->Compile(TreeParams, Point));
+	}
+
+	virtual std::string Pretty()
+	{
+		return Child->Pretty();
 	}
 
 	virtual void Move(vec3 Offset)

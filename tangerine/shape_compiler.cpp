@@ -32,6 +32,7 @@ using ParamsMap = std::map<ParamsVec, BoundsVec>;
 struct ShaderInfo
 {
 	ParamsMap Params;
+	std::string Pretty;
 	int LeafCount;
 };
 
@@ -58,8 +59,9 @@ extern "C" TANGERINE_API void VoxelCompiler(void* Handle, const float VoxelSize)
 			std::vector<float> Params;
 			std::string Point = "Point";
 			std::string GLSL = Leaf.Evaluator->Compile(Params, Point);
+			std::string Pretty = Leaf.Evaluator->Pretty();
 
-			ShaderInfo VariantInfo = { ParamsMap(), Leaf.LeafCount };
+			ShaderInfo VariantInfo = { ParamsMap(), Pretty, Leaf.LeafCount };
 			auto VariantsInsert = Voxels.insert({ GLSL, VariantInfo });
 			ParamsMap& Variant = (*(VariantsInsert.first)).second.Params;
 
@@ -96,7 +98,7 @@ extern "C" TANGERINE_API void VoxelCompiler(void* Handle, const float VoxelSize)
 			SubtreeIndex++,
 			Source);
 
-		size_t ShaderIndex = EmitShader(BoilerPlate, VariantInfo.LeafCount);
+		size_t ShaderIndex = EmitShader(BoilerPlate, VariantInfo.Pretty, VariantInfo.LeafCount);
 		for (auto& [Params, Instances] : VariantInfo.Params)
 		{
 			EmitParameters(ShaderIndex, Params);

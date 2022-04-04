@@ -193,20 +193,20 @@ std::vector<size_t> PendingShaders;
 
 
 ModelSubtree* PendingSubtree = nullptr;
-size_t EmitShader(std::string Source, int LeafCount)
+size_t EmitShader(std::string InSource, std::string InPretty, int LeafCount)
 {
-	// TODO: debug versions
-	std::string& Tree = Source;
-	std::string& Pretty = Source;
+	std::string& Source = InSource;
+	std::string& Pretty = InPretty;
+	std::string& DebugName = InSource; // TODO
 
-	auto Found = SubtreeMap.find(Tree);
+	auto Found = SubtreeMap.find(Source);
 
 	size_t ShaderIndex;
 	if (Found == SubtreeMap.end())
 	{
 		size_t Index = SubtreeShaders.size();
-		SubtreeShaders.emplace_back(Tree, Pretty, Source, LeafCount);
-		SubtreeMap[Tree] = Index;
+		SubtreeShaders.emplace_back(DebugName, Pretty, Source, LeafCount);
+		SubtreeMap[Source] = Index;
 		PendingShaders.push_back(Index);
 		ShaderIndex = Index;
 	}
@@ -1160,19 +1160,18 @@ void RenderUI(SDL_Window* Window, bool& Live)
 			ImGuiWindowFlags_NoSavedSettings |
 			ImGuiWindowFlags_NoFocusOnAppearing;
 
+		ImGui::SetNextWindowPos(ImVec2(10.0, 32.0), ImGuiCond_Appearing, ImVec2(0.0, 0.0));
+		ImGui::SetNextWindowSize(ImVec2(256, 512), ImGuiCond_Appearing);
+
 		if (ImGui::Begin("CSG Subtrees", &ShowPrettyTrees, WindowFlags))
 		{
+			std::string Message = fmt::format("Shader Count: {}", SubtreeShaders.size());
+			ImGui::TextUnformatted(Message.c_str(), nullptr);
+
 			bool First = true;
 			for (SubtreeShader& Subtree : SubtreeShaders)
 			{
-				if (First)
-				{
-					First = false;
-				}
-				else
-				{
-					ImGui::Separator();
-				}
+				ImGui::Separator();
 				ImGui::TextUnformatted(Subtree.PrettyTree.c_str(), nullptr);
 			}
 		}
