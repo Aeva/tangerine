@@ -37,6 +37,7 @@
 #include <racketcs.h>
 
 #include <nfd.h>
+#include <fmt/format.h>
 
 #include "profiling.h"
 
@@ -677,6 +678,11 @@ void RenderFrame(int ScreenWidth, int ScreenHeight)
 			glEnable(GL_DEPTH_TEST);
 			glDepthFunc(GL_GREATER);
 			glClear(GL_DEPTH_BUFFER_BIT);
+			if (ShowLeafCount)
+			{
+				glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+				glClear(GL_COLOR_BUFFER_BIT);
+			}
 			if (ShowHeatmap)
 			{
 				DepthTimeQuery.Stop();
@@ -903,6 +909,17 @@ void OpenModel()
 }
 
 
+void GetMouseStateForGL(SDL_Window* Window, int& OutMouseX, int& OutMouseY)
+{
+	int TmpMouseY;
+	SDL_GetMouseState(&OutMouseX, &TmpMouseY);
+	int WindowWidth;
+	int WindowHeight;
+	SDL_GetWindowSize(Window, &WindowWidth, &WindowHeight);
+	OutMouseY = WindowHeight - TmpMouseY - 1;
+}
+
+
 double DepthElapsedTimeMs = 0.0;
 double GridBgElapsedTimeMs = 0.0;
 double OutlinerElapsedTimeMs = 0.0;
@@ -1043,6 +1060,22 @@ void RenderUI(SDL_Window* Window, bool& Live)
 			ImGui::EndMenu();
 		}
 		ImGui::EndMainMenuBar();
+	}
+
+	if (ShowLeafCount)
+	{
+		int MouseX;
+		int MouseY;
+		GetMouseStateForGL(Window, MouseX, MouseY);
+
+		int LeafCount = 0;
+		glBindFramebuffer(GL_READ_FRAMEBUFFER, DepthPass);
+		glReadBuffer(GL_COLOR_ATTACHMENT2);
+		glReadPixels(MouseX, MouseY, 1, 1, GL_RED_INTEGER, GL_UNSIGNED_INT, &LeafCount);
+		glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
+
+		std::string Msg = fmt::format("CSG Leaf Count: {}\n", LeafCount);
+		ImGui::SetTooltip(Msg.c_str());
 	}
 
 	if (ShowFocusOverlay)
@@ -1350,6 +1383,8 @@ int main(int argc, char* argv[])
 		ImGuiIO& io = ImGui::GetIO();
 		io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
 		ImGui::StyleColorsLight();
+		ImGuiStyle& Style = ImGui::GetStyle();
+		Style.FrameBorderSize = 1.0f;
 		ImGui_ImplSDL2_InitForOpenGL(Window, Context);
 		ImGui_ImplOpenGL3_Init("#version 130");
 		{
