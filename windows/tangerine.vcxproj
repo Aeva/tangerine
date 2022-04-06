@@ -133,6 +133,7 @@
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalDependencies>libracketcs_da32rk.lib;opengl32.lib;SDL2.lib;SDL2main.lib;nfd.lib;comctl32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <StackReserveSize>10485760</StackReserveSize>
     </Link>
     <CustomBuildStep>
       <Command>$(SolutionDir)..\regen.bat</Command>
