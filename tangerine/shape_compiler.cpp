@@ -72,7 +72,10 @@ extern "C" TANGERINE_API void VoxelCompiler(void* Handle, const float VoxelSize)
 		};
 
 		BeginEvent("Walk Octree");
-		Octree->Walk(Thunk);
+		if (Octree)
+		{
+			Octree->Walk(Thunk);
+		}
 		EndEvent();
 
 		BeginEvent("Delete Octree");
