@@ -29,7 +29,7 @@ float EllipsoidBrush(vec3 Point, vec3 Radipodes)
 
 
 // This exists to simplify parameter generation.
-float UnwrappedEllipsoidBrush(vec3 Point, float RadipodeX, float RadipodeY, float RadipodeZ)
+float EllipsoidBrush(vec3 Point, float RadipodeX, float RadipodeY, float RadipodeZ)
 {
 	return EllipsoidBrush(Point, vec3(RadipodeX, RadipodeY, RadipodeZ));
 }
@@ -43,7 +43,7 @@ float BoxBrush(vec3 Point, vec3 Extent)
 
 
 // This exists to simplify parameter generation.
-float UnwrappedBoxBrush(vec3 Point, float ExtentX, float ExtentY, float ExtentZ)
+float BoxBrush(vec3 Point, float ExtentX, float ExtentY, float ExtentZ)
 {
 	return BoxBrush(Point, vec3(ExtentX, ExtentY, ExtentZ));
 }
@@ -68,13 +68,13 @@ float UnionOp(float LHS, float RHS)
 }
 
 
-float IntersectionOp(float LHS, float RHS)
+float InterOp(float LHS, float RHS)
 {
 	return max(LHS, RHS);
 }
 
 
-float CutOp(float LHS, float RHS)
+float DiffOp(float LHS, float RHS)
 {
 	return max(LHS, -RHS);
 }
@@ -87,14 +87,15 @@ float SmoothUnionOp(float LHS, float RHS, float Threshold)
 }
 
 
-float SmoothIntersectionOp(float LHS, float RHS, float Threshold)
+
+float SmoothInterOp(float LHS, float RHS, float Threshold)
 {
 	float H = max(Threshold - abs(LHS - RHS), 0.0);
 	return max(LHS, RHS) + H * H * 0.25 / Threshold;
 }
 
 
-float SmoothCutOp(float LHS, float RHS, float Threshold)
+float SmoothDiffOp(float LHS, float RHS, float Threshold)
 {
 	float H = max(Threshold - abs(LHS + RHS), 0.0);
 	return max(LHS, -RHS) + H * H * 0.25 / Threshold;
@@ -136,14 +137,14 @@ BINARY_OP_ROUTES(Function)
 
 
 BINARY_OP_VARIANTS(UnionOp)
-BINARY_OP_VARIANTS(IntersectionOp)
+BINARY_OP_VARIANTS(InterOp)
 
 
-MaterialDist CutOp(MaterialDist LHS, MaterialDist RHS)
+MaterialDist DiffOp(MaterialDist LHS, MaterialDist RHS)
 {
 	return MaterialDist(LHS.Color, max(LHS.Dist, -RHS.Dist));
 }
-BINARY_OP_ROUTES(CutOp)
+BINARY_OP_ROUTES(DiffOp)
 
 
 #define BLEND_OP_ROUTES(Function) \
@@ -172,16 +173,16 @@ BLEND_OP_ROUTES(Function)
 
 
 BLEND_OP_VARIANTS(SmoothUnionOp)
-BLEND_OP_VARIANTS(SmoothIntersectionOp)
+BLEND_OP_VARIANTS(SmoothInterOp)
 
 
-MaterialDist SmoothCutOp(MaterialDist LHS, MaterialDist RHS, float Threshold)
+MaterialDist SmoothDiffOp(MaterialDist LHS, MaterialDist RHS, float Threshold)
 {
 	float H = max(Threshold - abs(LHS.Dist + RHS.Dist), 0.0);
 	float Dist = max(LHS.Dist, -RHS.Dist) + H * H * 0.25 / Threshold;
 	return MaterialDist(LHS.Color, Dist);
 }
-BLEND_OP_ROUTES(SmoothCutOp)
+BLEND_OP_ROUTES(SmoothDiffOp)
 
 
 MaterialDist TreeRoot(MaterialDist Dist)

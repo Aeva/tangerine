@@ -610,11 +610,11 @@ struct SetNode : public SDFNode
 			}
 			else if (Family == SetFamily::Diff)
 			{
-				return fmt::format("SmoothCutOp({}, {}, PARAMS[{}])", CompiledLHS, CompiledRHS, Offset);
+				return fmt::format("SmoothDiffOp({}, {}, PARAMS[{}])", CompiledLHS, CompiledRHS, Offset);
 			}
 			else if (Family == SetFamily::Inter)
 			{
-				return fmt::format("SmoothIntersectionOp({}, {}, PARAMS[{}])", CompiledLHS, CompiledRHS, Offset);
+				return fmt::format("SmoothInterOp({}, {}, PARAMS[{}])", CompiledLHS, CompiledRHS, Offset);
 			}
 		}
 		else
@@ -625,11 +625,11 @@ struct SetNode : public SDFNode
 			}
 			else if (Family == SetFamily::Diff)
 			{
-				return fmt::format("CutOp({}, {})", CompiledLHS, CompiledRHS);
+				return fmt::format("DiffOp({}, {})", CompiledLHS, CompiledRHS);
 			}
 			else if (Family == SetFamily::Inter)
 			{
-				return fmt::format("IntersectionOp({}, {})", CompiledLHS, CompiledRHS);
+				return fmt::format("InterOp({}, {})", CompiledLHS, CompiledRHS);
 			}
 		}
 	}
@@ -909,20 +909,22 @@ extern "C" TANGERINE_API void* MakeEllipsoidBrush(float RadipodeX, float Radipod
 {
 	std::array<float, 3> Params = { RadipodeX, RadipodeY, RadipodeZ };
 
-	BrushMixin Eval = std::bind(SDF::EllipsoidBrush, _1, vec3(RadipodeX, RadipodeY, RadipodeZ));
+	using EllipsoidBrushPtr = float(*)(vec3, vec3);
+	BrushMixin Eval = std::bind((EllipsoidBrushPtr)SDF::EllipsoidBrush, _1, vec3(RadipodeX, RadipodeY, RadipodeZ));
 
 	AABB Bounds = SymmetricalBounds(vec3(RadipodeX, RadipodeY, RadipodeZ));
-	return new BrushNode("UnwrappedEllipsoidBrush", Params, Eval, Bounds);
+	return new BrushNode("EllipsoidBrush", Params, Eval, Bounds);
 }
 
 extern "C" TANGERINE_API void* MakeBoxBrush(float ExtentX, float ExtentY, float ExtentZ)
 {
 	std::array<float, 3> Params = { ExtentX, ExtentY, ExtentZ };
 
-	BrushMixin Eval = std::bind(SDF::BoxBrush, _1, vec3(ExtentX, ExtentY, ExtentZ));
+	using BoxBrushPtr = float(*)(vec3, vec3);
+	BrushMixin Eval = std::bind((BoxBrushPtr)SDF::BoxBrush, _1, vec3(ExtentX, ExtentY, ExtentZ));
 
 	AABB Bounds = SymmetricalBounds(vec3(ExtentX, ExtentY, ExtentZ));
-	return new BrushNode("UnwrappedBoxBrush", Params, Eval, Bounds);
+	return new BrushNode("BoxBrush", Params, Eval, Bounds);
 }
 
 extern "C" TANGERINE_API void* MakeTorusBrush(float MajorRadius, float MinorRadius)
@@ -957,13 +959,13 @@ extern "C" TANGERINE_API void* MakeUnionOp(void* LHS, void* RHS)
 
 extern "C" TANGERINE_API void* MakeDiffOp(void* LHS, void* RHS)
 {
-	SetMixin Eval = std::bind(SDF::CutOp, _1, _2);
+	SetMixin Eval = std::bind(SDF::DiffOp, _1, _2);
 	return new SetNode<SetFamily::Diff, false>(Eval, (SDFNode*)LHS, (SDFNode*)RHS, 0.0);
 }
 
 extern "C" TANGERINE_API void* MakeInterOp(void* LHS, void* RHS)
 {
-	SetMixin Eval = std::bind(SDF::IntersectionOp, _1, _2);
+	SetMixin Eval = std::bind(SDF::InterOp, _1, _2);
 	return new SetNode<SetFamily::Inter, false>(Eval, (SDFNode*)LHS, (SDFNode*)RHS, 0.0);
 }
 
@@ -975,13 +977,13 @@ extern "C" TANGERINE_API void* MakeBlendUnionOp(float Threshold, void* LHS, void
 
 extern "C" TANGERINE_API void* MakeBlendDiffOp(float Threshold, void* LHS, void* RHS)
 {
-	SetMixin Eval = std::bind(SDF::SmoothCutOp, _1, _2, Threshold);
+	SetMixin Eval = std::bind(SDF::SmoothDiffOp, _1, _2, Threshold);
 	return new SetNode<SetFamily::Diff, true>(Eval, (SDFNode*)LHS, (SDFNode*)RHS, Threshold);
 }
 
 extern "C" TANGERINE_API void* MakeBlendInterOp(float Threshold, void* LHS, void* RHS)
 {
-	SetMixin Eval = std::bind(SDF::SmoothIntersectionOp, _1, _2, Threshold);
+	SetMixin Eval = std::bind(SDF::SmoothInterOp, _1, _2, Threshold);
 	return new SetNode<SetFamily::Inter, true>(Eval, (SDFNode*)LHS, (SDFNode*)RHS, Threshold);
 }
 
