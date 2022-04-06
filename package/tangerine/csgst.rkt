@@ -25,6 +25,8 @@
 
 
 (provide brush?
+         unbound?
+         shape?
          blend-operator?
          binary-operator?
          operator?
@@ -43,6 +45,7 @@
          cube
          torus
          cylinder
+         plane
          union
          diff
          inter
@@ -66,6 +69,18 @@
       torus
       cylinder) #t]
     [else #f]))
+
+
+; Returns #t if the expression is an unbound CSG shape.
+(define (unbound? expr)
+  (case (car expr)
+    [(plane) #t]
+    [else #f]))
+
+
+; Returns #t if the expression is a CSG shape.
+(define (shape? expr)
+  (or (brush? expr) (unbound? expr)))
 
 
 ; Returns #t if the expression is a simple CSG operator, like diff.
@@ -119,7 +134,7 @@
 ; Returns #t if the expression is a CSG expression.
 (define (csg? expr)
   (or (paint? expr)
-      (brush? expr)
+      (shape? expr)
       (operator? expr)
       (transform? expr)))
 
@@ -179,7 +194,7 @@
 
 ; Provides the common functionality to paint and paint-over.
 (define (paint-propagate red green blue mode csgst)
-  (cond [(brush? csgst)
+  (cond [(shape? csgst)
          `(paint ,red ,green ,blue ,csgst)]
 
         [(paint? csgst)
@@ -286,6 +301,11 @@
   (let ([radius (/ (fl diameter) 2.)]
         [extent (/ (fl height) 2.)])
     `(cylinder ,radius ,extent)))
+
+
+; Plane unbound shape.
+(define (plane normal-x normal-y normal-z)
+  `(plane ,(fl normal-x) ,(fl normal-y) ,(fl normal-z)))
 
 
 ; Union CSG operator.

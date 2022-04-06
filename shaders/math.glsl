@@ -62,6 +62,18 @@ float CylinderBrush(vec3 Point, float Radius, float Extent)
 }
 
 
+float Plane(vec3 Point, vec3 Normal)
+{
+	return dot(Point, Normal);
+}
+
+
+float Plane(vec3 Point, float NormalX, float NormalY, float NormalZ)
+{
+	return Plane(Point, vec3(NormalX, NormalY, NormalZ));
+}
+
+
 float UnionOp(float LHS, float RHS)
 {
 	return min(LHS, RHS);

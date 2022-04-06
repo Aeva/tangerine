@@ -406,6 +406,11 @@ struct BrushNode : public SDFNode
 		return false;
 	}
 
+	virtual bool HasFiniteBounds()
+	{
+		return !(any(isinf(BrushAABB.Min)) || any(isinf(BrushAABB.Max)));
+	}
+
 	virtual vec4 Sample(vec3 Point)
 	{
 		return NullColor;
@@ -679,6 +684,11 @@ struct SetNode : public SDFNode
 		return LHS->HasPaint() || RHS->HasPaint();
 	}
 
+	virtual bool HasFiniteBounds()
+	{
+		return LHS->HasFiniteBounds() || RHS->HasFiniteBounds();
+	}
+
 	virtual vec4 Sample(vec3 Point)
 	{
 		if (Family == SetFamily::Diff)
@@ -793,6 +803,11 @@ struct PaintNode : public SDFNode
 		return true;
 	}
 
+	virtual bool HasFiniteBounds()
+	{
+		return Child->HasFiniteBounds();
+	}
+
 	virtual vec4 Sample(vec3 Point)
 	{
 		return vec4(Color, 1.0);
@@ -857,6 +872,12 @@ extern "C" TANGERINE_API void DiscardTree(void* Handle)
 {
 	ProfileScope("DiscardTree");
 	delete (SDFNode*)Handle;
+}
+
+// Returns true if the evaluator has a finite boundary.
+extern "C" TANGERINE_API bool TreeHasFiniteBounds(void* Handle)
+{
+	return ((SDFNode*)Handle)->HasFiniteBounds();
 }
 
 
@@ -949,6 +970,42 @@ extern "C" TANGERINE_API void* MakeCylinderBrush(float Radius, float Extent)
 	return new BrushNode("CylinderBrush", Params, Eval, Bounds);
 }
 
+extern "C" TANGERINE_API void* MakePlaneOperand(float NormalX, float NormalY, float NormalZ)
+{
+	vec3 Normal = normalize(vec3(NormalX, NormalY, NormalZ));
+	std::array<float, 3> Params = { Normal.x, Normal.y, Normal.z };
+
+	using PlanePtr = float(*)(vec3, vec3);
+	BrushMixin Eval = std::bind((PlanePtr)SDF::Plane, _1, Normal);
+
+	AABB Unbound = SymmetricalBounds(vec3(INFINITY, INFINITY, INFINITY));
+	if (Normal.x == -1.0)
+	{
+		Unbound.Min.x = 0.0;
+	}
+	else if (Normal.x == 1.0)
+	{
+		Unbound.Max.x = 0.0;
+	}
+	else if (Normal.y == -1.0)
+	{
+		Unbound.Min.y = 0.0;
+	}
+	else if (Normal.y == 1.0)
+	{
+		Unbound.Max.y = 0.0;
+	}
+	else if (Normal.z == -1.0)
+	{
+		Unbound.Min.z = 0.0;
+	}
+	else if (Normal.z == 1.0)
+	{
+		Unbound.Max.z = 0.0;
+	}
+	return new BrushNode("Plane", Params, Eval, Unbound);
+}
+
 
 // The following functions construct CSG set operator nodes.
 extern "C" TANGERINE_API void* MakeUnionOp(void* LHS, void* RHS)
@@ -998,22 +1055,30 @@ extern "C" TANGERINE_API void* MakePaint(float Red, float Green, float Blue, voi
 // SDFOctree function implementations
 SDFOctree* SDFOctree::Create(SDFNode* Evaluator, float TargetSize)
 {
-	// Determine the octree's bounding cube from the evaluator's bounding box.
-	AABB Bounds = Evaluator->Bounds();
-	vec3 Extent = Bounds.Max - Bounds.Min;
-	float Span = max(max(Extent.x, Extent.y), Extent.z);
-	vec3 Padding = (vec3(Span) - Extent) * vec3(0.5);
-	Bounds.Min -= Padding;
-	Bounds.Max += Padding;
-
-	SDFOctree* Tree = new SDFOctree(nullptr, Evaluator, TargetSize, Bounds, 1);
-	if (Tree->Evaluator)
+	if (Evaluator->HasFiniteBounds())
 	{
-		return Tree;
+		// Determine the octree's bounding cube from the evaluator's bounding box.
+		AABB Bounds = Evaluator->Bounds();
+		vec3 Extent = Bounds.Max - Bounds.Min;
+		float Span = max(max(Extent.x, Extent.y), Extent.z);
+		vec3 Padding = (vec3(Span) - Extent) * vec3(0.5);
+		Bounds.Min -= Padding;
+		Bounds.Max += Padding;
+
+		SDFOctree* Tree = new SDFOctree(nullptr, Evaluator, TargetSize, Bounds, 1);
+		if (Tree->Evaluator)
+		{
+			return Tree;
+		}
+		else
+		{
+			delete Tree;
+			return nullptr;
+		}
 	}
 	else
 	{
-		delete Tree;
+		fmt::print("Unable to construct SDF octree for infinite area evaluator.");
 		return nullptr;
 	}
 }

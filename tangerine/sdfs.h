@@ -75,6 +75,8 @@ struct SDFNode
 
 	virtual bool HasPaint() = 0;
 
+	virtual bool HasFiniteBounds() = 0;
+
 	virtual glm::vec4 Sample(glm::vec3 Point) = 0;
 
 	virtual int LeafCount() = 0;

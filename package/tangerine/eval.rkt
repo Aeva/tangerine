@@ -36,6 +36,8 @@
 (define-backend ClipTree (_fun _HANDLE _float _float _float _float -> _HANDLE))
 (define-backend DiscardTree (_fun _HANDLE -> _void))
 
+(define-backend TreeHasFiniteBounds (_fun _HANDLE -> _bool))
+
 (define-backend MoveTree (_fun _HANDLE _float _float _float -> _void))
 (define-backend RotateTree (_fun _HANDLE _float _float _float _float -> _void))
 (define-backend AlignTree (_fun _HANDLE _float _float _float -> _void))
@@ -45,6 +47,8 @@
 (define-backend MakeBoxBrush (_fun _float _float _float -> _HANDLE))
 (define-backend MakeTorusBrush (_fun _float _float -> _HANDLE))
 (define-backend MakeCylinderBrush (_fun _float _float -> _HANDLE))
+
+(define-backend MakePlaneOperand (_fun _float _float _float -> _HANDLE))
 
 (define-backend MakeUnionOp (_fun _HANDLE _HANDLE -> _HANDLE))
 (define-backend MakeDiffOp (_fun _HANDLE _HANDLE -> _HANDLE))
@@ -105,6 +109,10 @@
      (let-values ([(radius extent) (splat (cdr csgst))])
        (MakeCylinderBrush radius extent))]
 
+    [(plane)
+     (let-values ([(normal-x normal-y normal-z) (splat (cdr csgst))])
+       (MakePlaneOperand normal-x normal-y normal-z))]
+
     [(union)
      (let ([lhs (translate (cadr csgst))]
            [rhs (translate (caddr csgst))])
@@ -159,7 +167,13 @@
   (cons 'sdf-handle
         (if (not (ffi-obj-ref 'MakeSphereBrush (ffi-lib #f) (λ () #f)))
             null
-            (translate csgst))))
+            (let ([evaluator (translate csgst)])
+              (if (TreeHasFiniteBounds evaluator)
+                  evaluator
+                  (begin
+                    (DiscardTree evaluator)
+                    (error "Cannot compile CSG tree with infinite area.")
+                    null))))))
 
 
 ; Delete the tree associated with the provided SDF handle.  This will crash if

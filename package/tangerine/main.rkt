@@ -32,6 +32,7 @@
          cube
          torus
          cylinder
+         plane
          union
          diff
          inter
