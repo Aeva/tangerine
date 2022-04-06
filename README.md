@@ -78,6 +78,18 @@ Brush functions draw shapes.
 
  * `(cylinder diameter height)`
 
+## The Infinite Plane Function
+
+This function can be used like the brush functions above, but it results in a shape with an infinite bounding box.
+
+Tangerine is not able to compile models with an infinite bounding volume.  This limitation restricts where it is valid to use the `plane` function.
+
+This function can always be safely used as a right-hand operand to a `diff` operator.
+
+This function can be safely combined with other shapes using all available operators, provided that result is eventually combined with a finite shape via the `inter` operator.
+
+ * `(plane normal-x normal-y normal-z)`
+
 ## Basic Operators
 
  Operators are used to construct complex models.
