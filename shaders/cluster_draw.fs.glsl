@@ -103,6 +103,9 @@ void main()
 			else
 			{
 				Dist = ClusterDist(Position);
+#if VISUALIZE_INTERIOR_ISOLINES
+				Dist.Dist = DiffOp(Dist.Dist, Plane(Position, 0.0, 0.0, -1.0));
+#endif
 				if (Dist.Dist <= 0.001)
 				{
 					Hit = true;
@@ -114,6 +117,15 @@ void main()
 				}
 			}
 		}
+
+#if VISUALIZE_INTERIOR_ISOLINES
+		if (Position.z >= -0.001)
+		{
+			float Scale = 8.0;
+			float Alpha = fract(abs(ClusterDist(Position).Dist) * Scale);
+			Dist.Color = mix(vec3(0.0), vec3(1.0), Alpha);
+		}
+#endif
 	}
 
 	if (Hit)
@@ -123,6 +135,12 @@ void main()
 
 		OutPosition = WorldPosition.xyz;
 		OutNormal.xyz = normalize(mat3(LocalToWorld) * Gradient(Position));
+#if VISUALIZE_INTERIOR_ISOLINES
+		if (Position.z >= -0.001)
+		{
+			OutNormal.xyz = vec3(0.0, 0.0, 1.0);
+		}
+#endif
 #if VISUALIZE_TRACING_ERROR
 		OutNormal.a = abs(clamp(Dist.Dist, -0.005, 0.005) / 0.005);
 #endif
