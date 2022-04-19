@@ -145,9 +145,28 @@ std::string GetEndianName()
 }
 
 
-std::string MonochromePlyHeader(size_t VertexCount, size_t TriangleCount)
+std::string PlyHeader(size_t VertexCount, size_t TriangleCount, bool ExportColor)
 {
 	static const std::string EndianName = GetEndianName();
+
+	std::string ColorPart = "";
+	if (ExportColor)
+	{
+		ColorPart = \
+			"property uchar red\n"
+			"property uchar green\n"
+			"property uchar blue\n";
+	}
+
+	std::string TrianglePart = "";
+	if (TriangleCount > 0)
+	{
+		TrianglePart = fmt::format(
+			"element face {}\n"
+			"property list uchar uint vertex_indices\n",
+			TriangleCount);
+	}
+
 	return fmt::format(
 		"ply\n"
 		"format binary_{}_endian 1.0\n"
@@ -159,38 +178,13 @@ std::string MonochromePlyHeader(size_t VertexCount, size_t TriangleCount)
 		"property float nx\n"
 		"property float ny\n"
 		"property float nz\n"
-		"element face {}\n"
-		"property list uchar uint vertex_indices\n"
+		"{}"
+		"{}"
 		"end_header\n",
 		EndianName,
 		VertexCount,
-		TriangleCount);
-}
-
-
-std::string ColorPlyHeader(size_t VertexCount, size_t TriangleCount)
-{
-	static const std::string EndianName = GetEndianName();
-	return fmt::format(
-		"ply\n"
-		"format binary_{}_endian 1.0\n"
-		"comment Created by Tangerine\n"
-		"element vertex {}\n"
-		"property float x\n"
-		"property float y\n"
-		"property float z\n"
-		"property float nx\n"
-		"property float ny\n"
-		"property float nz\n"
-		"property float red\n"
-		"property float green\n"
-		"property float blue\n"
-		"element face {}\n"
-		"property list uchar uint vertex_indices\n"
-		"end_header\n",
-		EndianName,
-		VertexCount,
-		TriangleCount);
+		ColorPart,
+		TrianglePart);
 }
 
 
@@ -201,30 +195,29 @@ void WritePLY(SDFOctree* Octree, std::string Path, std::vector<vec3> Vertices, s
 	{
 		size_t VertexCount = Vertices.size();
 		size_t TriangleCount = Quads.size() * 2;
-
-		if (ExportColor)
-		{
-			Header = ColorPlyHeader(VertexCount, TriangleCount);
-		}
-		else
-		{
-			Header = MonochromePlyHeader(VertexCount, TriangleCount);
-		}
+		Header = PlyHeader(VertexCount, TriangleCount, ExportColor);
 	}
 
 	// Populate vertex attributes.
 	SecondaryCount.store(Vertices.size());
 	std::vector<glm::vec3> Normals;
-	std::vector<glm::vec3> Colors;
+	std::vector<uint8_t> Colors;
 	Normals.reserve(Vertices.size());
-	Colors.reserve(Vertices.size());
+	if (ExportColor)
+	{
+		Colors.reserve(Vertices.size() * 3);
+	}
+
 	for (int v = 0; v < Vertices.size(); ++v)
 	{
 		SecondaryProgress.fetch_add(1);
 		Normals.push_back(Octree->Gradient(Vertices[v]));
 		if (ExportColor)
 		{
-			Colors.push_back(Octree->Sample(Vertices[v]));
+			vec3 Color = Octree->Sample(Vertices[v]);
+			Colors.push_back(0xFF * Color.r);
+			Colors.push_back(0xFF * Color.g);
+			Colors.push_back(0xFF * Color.b);
 		}
 	}
 
@@ -240,7 +233,7 @@ void WritePLY(SDFOctree* Octree, std::string Path, std::vector<vec3> Vertices, s
 		OutFile.write(reinterpret_cast<char*>(&Normals[v]), 12);
 		if (ExportColor)
 		{
-			OutFile.write(reinterpret_cast<char*>(&Colors[v]), 12);
+			OutFile.write(reinterpret_cast<char*>(&Colors[v * 3]), 3);
 		}
 	}
 
