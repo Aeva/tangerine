@@ -945,6 +945,7 @@ void RenderUI(SDL_Window* Window, bool& Live)
 	static bool ExportSkipRefine;
 	static int ExportRefinementSteps;
 	static ExportFormat ExportMeshFormat;
+	static bool ExportPointCloud;
 
 	const bool DefaultExportSkipRefine = false;
 	const float DefaultExportStepSize = 0.01;
@@ -967,11 +968,13 @@ void RenderUI(SDL_Window* Window, bool& Live)
 			{
 				AnyExport = true;
 				ExportMeshFormat = ExportFormat::PLY;
+				ExportPointCloud = true;
 			}
 			if (ImGui::MenuItem("Export STL", nullptr, false, TreeEvaluator != nullptr))
 			{
 				AnyExport = true;
 				ExportMeshFormat = ExportFormat::STL;
+				ExportPointCloud = false;
 			}
 			if (AnyExport)
 			{
@@ -1207,7 +1210,7 @@ void RenderUI(SDL_Window* Window, bool& Live)
 		{
 			static bool AdvancedOptions = false;
 			ImVec2 MaxSize = ImGui::GetMainViewport()->WorkSize;
-			ImGui::SetNextWindowSizeConstraints(ImVec2(250, 150), MaxSize);
+			ImGui::SetNextWindowSizeConstraints(ImVec2(250, 165), MaxSize);
 			ImGui::OpenPopup("Export Options");
 			if (ImGui::BeginPopupModal("Export Options", nullptr, ImGuiWindowFlags_NoSavedSettings))
 			{
@@ -1224,6 +1227,10 @@ void RenderUI(SDL_Window* Window, bool& Live)
 				{
 					ImGui::InputFloat("Voxel Size", &ExportStepSize);
 				}
+				if (ExportMeshFormat == ExportFormat::PLY)
+				{
+					ImGui::Checkbox("Point Cloud Only", &ExportPointCloud);
+				}
 				if (ImGui::Button("Start"))
 				{
 					if (AdvancedOptions)
@@ -1233,12 +1240,12 @@ void RenderUI(SDL_Window* Window, bool& Live)
 							ExportSplitStep[1],
 							ExportSplitStep[2]);
 						int RefinementSteps = ExportSkipRefine ? 0 : ExportRefinementSteps;
-						MeshExport(TreeEvaluator, ModelBounds.Min, ModelBounds.Max, VoxelSize, RefinementSteps, ExportMeshFormat);
+						MeshExport(TreeEvaluator, ModelBounds.Min, ModelBounds.Max, VoxelSize, RefinementSteps, ExportMeshFormat, ExportPointCloud);
 					}
 					else
 					{
 						glm::vec3 VoxelSize = glm::vec3(ExportStepSize);
-						MeshExport(TreeEvaluator, ModelBounds.Min, ModelBounds.Max, VoxelSize, DefaultExportRefinementSteps, ExportMeshFormat);
+						MeshExport(TreeEvaluator, ModelBounds.Min, ModelBounds.Max, VoxelSize, DefaultExportRefinementSteps, ExportMeshFormat, ExportPointCloud);
 					}
 					ShowExportOptions = false;
 				}

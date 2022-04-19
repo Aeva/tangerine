@@ -396,12 +396,6 @@ void MeshExportThread(SDFNode* Evaluator, vec3 ModelMin, vec3 ModelMax, vec3 Ste
 					vec3 Low = Vertex - vec3(Half);
 					vec3 High = Vertex + vec3(Half);
 
-					float Coarse = Octree->Eval(Vertex);
-					if (Diagonal > Diagonal)
-					{
-						continue;
-					}
-
 					vec3 Cursor = Vertex;
 					for (int r = 0; r < RefineIterations; ++r)
 					{
@@ -443,6 +437,106 @@ void MeshExportThread(SDFNode* Evaluator, vec3 ModelMin, vec3 ModelMax, vec3 Ste
 }
 
 
+void PointCloudExportThread(SDFNode* Evaluator, vec3 ModelMin, vec3 ModelMax, vec3 Step, int RefineIterations, std::string Path, ExportFormat Format)
+{
+	const vec3 Half = Step / vec3(2.0);
+	const float Diagonal = length(Half);
+	SDFOctree* Octree = SDFOctree::Create(Evaluator, 0.25);
+
+	std::vector<glm::vec3> Vertices;
+	std::mutex VerticesCS;
+
+	{
+		const vec3 Start = ModelMin;
+		const vec3 Stop = ModelMax;
+		const ivec3 Iterations = ivec3(ceil((Stop - Start) / Step));
+		const int Slice = Iterations.x * Iterations.y;
+		const int TotalCells = Iterations.x * Iterations.y * Iterations.z;
+		VoxelCount.store(TotalCells);
+
+		Pool([&]() \
+		{
+			while (ExportState.load() == 1 && ExportActive.load())
+			{
+				int i = GenerationProgress.fetch_add(1);
+				if (i < TotalCells)
+				{
+					float Z = float(i / Slice) * Step.z + Start.z;
+					float Y = float((i % Slice) / Iterations.x) * Step.y + Start.y;
+					float X = float(i % Iterations.x) * Step.x + Start.x;
+
+					vec3 Cursor = vec3(X, Y, Z) + Half;
+
+					float Dist = Octree->Eval(Cursor);
+					if (abs(Dist) < Diagonal)
+					{
+						VerticesCS.lock();
+						Vertices.push_back(Cursor);
+						VerticesCS.unlock();
+					}
+				}
+				else
+				{
+					break;
+				}
+			}
+		});
+	}
+
+	ExportState.store(2);
+	VertexCount.store(Vertices.size());
+
+	if (RefineIterations > 0)
+	{
+		Pool([&]() \
+		{
+			while (ExportState.load() == 2 && ExportActive.load())
+			{
+				int i = RefinementProgress.fetch_add(1);
+				if (i < Vertices.size())
+				{
+					vec3& Vertex = Vertices[i];
+					vec3 Low = Vertex - vec3(Half);
+					vec3 High = Vertex + vec3(Half);
+
+					vec3 Cursor = Vertex;
+					for (int r = 0; r < RefineIterations; ++r)
+					{
+						vec3 RayDir = Octree->Gradient(Cursor);
+						float Dist = Octree->Eval(Cursor) * -1.0;
+						Cursor += RayDir * Dist;
+					}
+					Cursor = clamp(Cursor, Low, High);
+
+					if (distance(Cursor, Vertex) <= Diagonal)
+					{
+						// TODO: despite the above clamp, some times the Cursor will end up on 0,0,0 when it would be
+						// well outside a half voxel distance.  This branch should at least prevent that, but there is
+						// probably a problem with the Gradient function that is causing this.
+						Vertex = Cursor;
+					}
+				}
+				else
+				{
+					break;
+				}
+			}
+		});
+	}
+
+	ExportState.store(3);
+
+	if (Format == ExportFormat::PLY)
+	{
+		std::vector<ivec4> NoQuads;
+		WritePLY(Octree, Path, Vertices, NoQuads);
+	}
+
+	ExportState.store(0);
+	delete Octree;
+}
+
+
 #ifndef MINIMAL_DLL
 ExportProgress GetExportProgress()
 {
@@ -456,7 +550,7 @@ ExportProgress GetExportProgress()
 }
 
 
-void MeshExport(SDFNode* Evaluator, vec3 ModelMin, vec3 ModelMax, vec3 Step, int RefineIterations, ExportFormat Format)
+void MeshExport(SDFNode* Evaluator, vec3 ModelMin, vec3 ModelMax, vec3 Step, int RefineIterations, ExportFormat Format, bool ExportPointCloud)
 {
 	if (ExportState.load() == 0)
 	{
@@ -465,6 +559,7 @@ void MeshExport(SDFNode* Evaluator, vec3 ModelMin, vec3 ModelMax, vec3 Step, int
 		if (Format == ExportFormat::STL)
 		{
 			Result = NFD_SaveDialog("stl", "model.stl", &Path);
+			ExportPointCloud = false;
 		}
 		else if (Format == ExportFormat::PLY)
 		{
@@ -480,7 +575,8 @@ void MeshExport(SDFNode* Evaluator, vec3 ModelMin, vec3 ModelMax, vec3 Step, int
 			WriteProgress.store(0);
 			ExportState.store(1);
 
-			std::thread ExportThread(MeshExportThread, Evaluator, ModelMin, ModelMax, Step, RefineIterations, std::string(Path), Format);
+			auto Thunk = ExportPointCloud ? PointCloudExportThread : MeshExportThread;
+			std::thread ExportThread(Thunk, Evaluator, ModelMin, ModelMax, Step, RefineIterations, std::string(Path), Format);
 			ExportThread.detach();
 		}
 	}
