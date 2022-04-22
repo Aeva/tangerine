@@ -65,6 +65,23 @@ vec3 SDFNode::Gradient(vec3 Point)
 }
 
 
+RayHit SDFNode::RayMarch(glm::vec3 RayStart, glm::vec3 RayDir, int MaxIterations, float Epsilon)
+{
+	RayDir = normalize(RayDir);
+	vec3 Position = RayStart;
+	for (int i = 0; i < MaxIterations; ++i)
+	{
+		float Dist = Eval(Position);
+		if (Dist <= Epsilon)
+		{
+			return { true, Position };
+		}
+		Position += RayDir * Dist;
+	}
+	return { false, Position };
+}
+
+
 using BrushMixin = std::function<float(vec3)>;
 using SetMixin = std::function<float(float, float)>;
 
@@ -864,6 +881,20 @@ extern "C" TANGERINE_API void* ClipTree(void* Handle, float X, float Y, float Z,
 	{
 		return Clipped;
 	}
+}
+
+// Performs a ray hit query against the SDF evaluator.
+extern "C" TANGERINE_API RayHit RayMarchTree(
+	void* Handle,
+	float RayStartX, float RayStartY, float RayStartZ,
+	float RayDirX, float RayDirY, float RayDirZ,
+	int MaxIterations, float Epsilon)
+{
+	ProfileScope("RayMarchTree");
+	vec3 RayStart = vec3(RayStartX, RayStartY, RayStartZ);
+	vec3 RayDir = vec3(RayDirX, RayDirY, RayDirZ);
+	vec3 Position;
+	return ((SDFNode*)Handle)->RayMarch(RayStart, RayDir, MaxIterations, Epsilon);
 }
 
 

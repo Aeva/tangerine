@@ -53,6 +53,13 @@ struct AABB
 };
 
 
+struct RayHit
+{
+	bool Hit;
+	glm::vec3 Position;
+};
+
+
 struct SDFNode
 {
 	virtual float Eval(glm::vec3 Point) = 0;
@@ -82,6 +89,8 @@ struct SDFNode
 	virtual int LeafCount() = 0;
 
 	virtual bool operator==(SDFNode& Other) = 0;
+
+	RayHit RayMarch(glm::vec3 RayStart, glm::vec3 RayDir, int MaxIterations = 100, float Epsilon = 0.001);
 
 	bool operator!=(SDFNode& Other)
 	{

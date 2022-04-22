@@ -24,16 +24,23 @@
          sdf-free
          sdf-eval
          sdf-clip
+         sdf-ray-march
          _HANDLE
          SetTreeEvaluator)
 
 
 (define _HANDLE (_cpointer/null 'void))
 
+(define-cstruct _RayHit ([hit _bool]
+                          [x _float]
+                          [y _float]
+                          [z _float]))
+
 (define-backend SetTreeEvaluator (_fun _HANDLE -> _void))
 
 (define-backend EvalTree (_fun _HANDLE _float _float _float -> _float))
 (define-backend ClipTree (_fun _HANDLE _float _float _float _float -> _HANDLE))
+(define-backend RayMarchTree (_fun _HANDLE _float _float _float _float _float _float _int _float -> _RayHit))
 (define-backend DiscardTree (_fun _HANDLE -> _void))
 
 (define-backend TreeHasFiniteBounds (_fun _HANDLE -> _bool))
@@ -218,3 +225,15 @@
          [new-handle (cons 'sdf-handle (or clip-ptr null))])
     (lazy-sdf-free new-handle)
     new-handle))
+
+
+; Evaluate a ray hit query against the SDF tree.  If the handle is null, then this will throw an error.
+(define (sdf-ray-march handle start-x start-y start-z dir-x dir-y dir-z [max-iterations 100] [epsilon 0.001])
+  (unless (sdf-handle-is-valid? handle)
+    (error "Expected valid SDF handle."))
+  (let ([result (RayMarchTree (cdr handle) start-x start-y start-z dir-x dir-y dir-z max-iterations epsilon)])
+    (values
+     (RayHit-hit result)
+     (RayHit-x result)
+     (RayHit-y result)
+     (RayHit-z result))))
