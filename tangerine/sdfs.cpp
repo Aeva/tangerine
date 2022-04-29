@@ -193,7 +193,7 @@ struct TransformMachine
 		{
 			FoldOffset();
 		}
-		RotateRun *= Rotation;
+		RotateRun = Rotation * RotateRun;
 		RotatePending = true;
 	}
 
