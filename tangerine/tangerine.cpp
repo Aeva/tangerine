@@ -55,6 +55,9 @@
 using Clock = std::chrono::high_resolution_clock;
 
 
+bool HeadlessMode;
+
+
 struct SectionUpload
 {
 	glm::mat4 LocalToWorld;
@@ -269,7 +272,7 @@ Buffer OctreeDebugOptions("Octree Debug Options Buffer");
 Buffer DepthTimeBuffer("Subtree Heatmap Buffer");
 GLuint DepthPass;
 GLuint ColorPass;
-const GLuint FinalPass = 0;
+GLuint FinalPass = 0;
 
 GLuint DepthBuffer;
 GLuint PositionBuffer;
@@ -277,6 +280,7 @@ GLuint NormalBuffer;
 GLuint SubtreeBuffer;
 GLuint MaterialBuffer;
 GLuint ColorBuffer;
+GLuint FinalBuffer;
 
 TimingQuery DepthTimeQuery;
 TimingQuery GridBgTimeQuery;
@@ -297,6 +301,11 @@ void AllocateRenderTargets(int ScreenWidth, int ScreenHeight)
 		glDeleteTextures(1, &SubtreeBuffer);
 		glDeleteTextures(1, &MaterialBuffer);
 		glDeleteTextures(1, &ColorBuffer);
+		if (HeadlessMode)
+		{
+			glDeleteFramebuffers(1, &FinalPass);
+			glDeleteTextures(1, &FinalBuffer);
+		}
 	}
 	else
 	{
@@ -376,6 +385,33 @@ void AllocateRenderTargets(int ScreenWidth, int ScreenHeight)
 		GLenum ColorAttachments[1] = { GL_COLOR_ATTACHMENT0 };
 		glNamedFramebufferDrawBuffers(ColorPass, 1, ColorAttachments);
 	}
+
+	// Final pass
+	if (HeadlessMode)
+	{
+		glCreateTextures(GL_TEXTURE_2D, 1, &FinalBuffer);
+		glTextureStorage2D(FinalBuffer, 1, GL_RGB8, int(ScreenWidth), int(ScreenHeight));
+		glTextureParameteri(FinalBuffer, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+		glTextureParameteri(FinalBuffer, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+		glTextureParameteri(FinalBuffer, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+		glTextureParameteri(FinalBuffer, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+		glObjectLabel(GL_TEXTURE, FinalBuffer, -1, "FinalBuffer");
+
+		glCreateFramebuffers(1, &FinalPass);
+		glObjectLabel(GL_FRAMEBUFFER, FinalPass, -1, "FinalPass");
+		glNamedFramebufferTexture(FinalPass, GL_COLOR_ATTACHMENT0, FinalBuffer, 0);
+		GLenum ColorAttachments[1] = { GL_COLOR_ATTACHMENT0 };
+		glNamedFramebufferDrawBuffers(FinalPass, 1, ColorAttachments);
+	}
+}
+
+
+void DumpFrameBuffer(int ScreenWidth, int ScreenHeight, std::vector<char>& PixelData)
+{
+	const size_t Channels = 3;
+	PixelData.resize(size_t(ScreenWidth) * size_t(ScreenHeight) * Channels);
+	glNamedFramebufferReadBuffer(FinalPass, GL_COLOR_ATTACHMENT0);
+	glReadPixels(0, 0, GLsizei(ScreenWidth), GLsizei(ScreenHeight), GL_RGB, GL_UNSIGNED_BYTE, PixelData.data());
 }
 
 
@@ -1316,6 +1352,28 @@ void RenderUI(SDL_Window* Window, bool& Live)
 
 int main(int argc, char* argv[])
 {
+	std::string ExePath(argv[0]);
+	std::vector<std::string> Args;
+	for (int i = 1; i < argc; ++i)
+	{
+		Args.push_back(argv[i]);
+	}
+
+	int WindowWidth = 900;
+	int WindowHeight = 900;
+	HeadlessMode = false;
+	if (Args.size() == 3 && Args[0] == "-s")
+	{
+		HeadlessMode = true;
+		WindowWidth = atoi(Args[1].c_str());
+		WindowHeight = atoi(Args[2].c_str());
+	}
+	else if (Args.size() > 0)
+	{
+		std::cout << "Invalid commandline arg(s).\n";
+		return 0;
+	}
+
 	SDL_Window* Window = nullptr;
 	SDL_GLContext Context = nullptr;
 	{
@@ -1330,12 +1388,21 @@ int main(int argc, char* argv[])
 #if ENABLE_DEBUG_CONTEXTS
 			SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_DEBUG_FLAG);
 #endif
+			Uint32 WindowFlags = SDL_WINDOW_OPENGL;
+			if (HeadlessMode)
+			{
+				WindowFlags |= SDL_WINDOW_HIDDEN;
+			}
+			else
+			{
+				WindowFlags |= SDL_WINDOW_RESIZABLE;
+			}
 			Window = SDL_CreateWindow(
 				"Tangerine",
 				SDL_WINDOWPOS_CENTERED,
 				SDL_WINDOWPOS_CENTERED,
-				900, 900,
-				SDL_WINDOW_RESIZABLE | SDL_WINDOW_OPENGL);
+				WindowWidth, WindowHeight,
+				WindowFlags);
 		}
 		if (Window == nullptr)
 		{
@@ -1382,6 +1449,8 @@ int main(int argc, char* argv[])
 		racket_embedded_load_file("./racket/modules", 1);
 		std::cout << "Done!\n";
 	}
+
+	if (!HeadlessMode)
 	{
 		std::cout << "Setting up Dear ImGui... ";
 		IMGUI_CHECKVERSION();
@@ -1413,195 +1482,221 @@ int main(int argc, char* argv[])
 	{
 		StartWorkerThreads();
 	}
-	bool Live = true;
-	{
-		ImGuiIO& io = ImGui::GetIO();
-		while (Live)
-		{
-			BeginEvent("Frame");
-			SDL_Event Event;
-			MouseMotionX = 0;
-			MouseMotionY = 0;
-			MouseMotionZ = 0;
-			BeginEvent("Process Input");
-			while (SDL_PollEvent(&Event))
-			{
-				ImGui_ImplSDL2_ProcessEvent(&Event);
-				if (Event.type == SDL_QUIT ||
-					(Event.type == SDL_WINDOWEVENT && Event.window.event == SDL_WINDOWEVENT_CLOSE && Event.window.windowID == SDL_GetWindowID(Window)))
-				{
-					Live = false;
-					break;
-				}
-				static bool Dragging = false;
-				if (!io.WantCaptureMouse)
-				{
-					switch (Event.type)
-					{
-					case SDL_MOUSEMOTION:
-						if (Dragging)
-						{
-							MouseMotionX = Event.motion.xrel;
-							MouseMotionY = Event.motion.yrel;
-						}
-						break;
-					case SDL_MOUSEBUTTONDOWN:
-						Dragging = true;
-						SDL_SetRelativeMouseMode(SDL_TRUE);
-						break;
-					case SDL_MOUSEBUTTONUP:
-						Dragging = false;
-						SDL_SetRelativeMouseMode(SDL_FALSE);
-						break;
-					case SDL_MOUSEWHEEL:
-						MouseMotionZ = Event.wheel.y;
-						break;
-					}
-				}
-				else if (Dragging && RacketErrors.size() > 0)
-				{
-					Dragging = false;
-					SDL_SetRelativeMouseMode(SDL_FALSE);
-				}
-				if (!io.WantCaptureKeyboard && Event.type == SDL_KEYDOWN)
-				{
-					const int SHIFT_FLAG = 1 << 9;
-					const int CTRL_FLAG = 1 << 10;
-					const int ALT_FLAG = 1 << 11;
-					const int OPEN_MODEL = CTRL_FLAG | SDLK_o;
-					const int RELOAD_MODEL = CTRL_FLAG | SDLK_r;
-					const int TOGGLE_FULLSCREEN = CTRL_FLAG | SDLK_f;
-					int Key = Event.key.keysym.sym;
-					int Mod = Event.key.keysym.mod;
-					if ((Mod & KMOD_SHIFT) != 0)
-					{
-						Key |= SHIFT_FLAG;
-					}
-					if ((Mod & KMOD_CTRL) != 0)
-					{
-						Key |= CTRL_FLAG;
-					}
-					if ((Mod & KMOD_ALT) != 0)
-					{
-						Key |= ALT_FLAG;
-					}
-					switch (Key)
-					{
-					case OPEN_MODEL:
-						OpenModel();
-						break;
-					case RELOAD_MODEL:
-						LoadModel(nullptr);
-						break;
-					case TOGGLE_FULLSCREEN:
-						ToggleFullScreen(Window);
-						break;
-					case SDLK_KP_MULTIPLY:
-						MouseMotionZ += 5;
-						break;
-					case SDLK_KP_DIVIDE:
-						MouseMotionZ -= 5;
-						break;
-					case SDLK_KP_1: // ⭩
-						MouseMotionX += 45;
-						MouseMotionY -= 45;
-						break;
-					case SDLK_KP_2: // ⭣
-						MouseMotionY -= 45;
-						break;
-					case SDLK_KP_3: // ⭨
-						MouseMotionX -= 45;
-						MouseMotionY -= 45;
-						break;
-					case SDLK_KP_4: // ⭠
-						MouseMotionX += 45;
-						break;
-					case SDLK_KP_6: // ⭢
-						MouseMotionX -= 45;
-						break;
-					case SDLK_KP_7: // ⭦
-						MouseMotionX += 45;
-						MouseMotionY += 45;
-						break;
-					case SDLK_KP_8: // ⭡
-						MouseMotionY += 45;
-						break;
-					case SDLK_KP_9: // ⭧
-						MouseMotionX -= 45;
-						MouseMotionY += 45;
-						break;
-					}
-				}
-			}
-			EndEvent();
-			{
-				BeginEvent("Update UI");
-				RenderUI(Window, Live);
-				ImGui::Render();
-				EndEvent();
-			}
-			{
-				int ScreenWidth;
-				int ScreenHeight;
-				SDL_GetWindowSize(Window, &ScreenWidth, &ScreenHeight);
-				RenderFrame(ScreenWidth, ScreenHeight);
-			}
-			{
-				BeginEvent("Dear ImGui Draw");
-				glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Dear ImGui");
-				UiTimeQuery.Start();
-				ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-				UiTimeQuery.Stop();
-				glPopDebugGroup();
-				EndEvent();
-			}
-			{
-				BeginEvent("Present");
-				SDL_GL_SwapWindow(Window);
-				EndEvent();
-			}
-			{
-				BeginEvent("Query Results");
-				DepthElapsedTimeMs = DepthTimeQuery.ReadMs();
-				GridBgElapsedTimeMs = GridBgTimeQuery.ReadMs();
-				OutlinerElapsedTimeMs = OutlinerTimeQuery.ReadMs();
-				UiElapsedTimeMs = UiTimeQuery.ReadMs();
 
-				if (ShowHeatmap)
-				{
-					const size_t QueryCount = Drawables.size();
-					float Range = 0.0;
-					std::vector<float> Upload(QueryCount, 0.0);
-					for (int i = 0; i < QueryCount; ++i)
-					{
-						double ElapsedTimeMs = Drawables[i]->DepthQuery.ReadMs();
-						Upload[i] = float(ElapsedTimeMs);
-						DepthElapsedTimeMs += ElapsedTimeMs;
-						Range = fmax(Range, float(ElapsedTimeMs));
-					}
-					for (int i = 0; i < QueryCount; ++i)
-					{
-						Upload[i] /= Range;
-					}
-					DepthTimeBuffer.Upload(Upload.data(), QueryCount * sizeof(float));
-				}
-				EndEvent();
+	if (HeadlessMode)
+	{
+		//LoadModel(Path);
+		if (RacketErrors.size() > 0)
+		{
+		}
+		else
+		{
+			RenderFrame(WindowWidth, WindowHeight);
+
+			std::vector<char> PixelData;
+			DumpFrameBuffer(WindowWidth, WindowHeight, PixelData);
+
+			std::cout << "BEGIN RAW IMAGE";
+			size_t i = 0;
+			for (char& Byte : PixelData)
+			{
+				std::cout << Byte;
 			}
-			EndEvent();
 		}
 	}
+	else
 	{
-		std::cout << "Shutting down...\n";
+		bool Live = true;
 		{
-			JoinWorkerThreads();
+			ImGuiIO& io = ImGui::GetIO();
+			while (Live)
+			{
+				BeginEvent("Frame");
+				SDL_Event Event;
+				MouseMotionX = 0;
+				MouseMotionY = 0;
+				MouseMotionZ = 0;
+				BeginEvent("Process Input");
+				while (SDL_PollEvent(&Event))
+				{
+					ImGui_ImplSDL2_ProcessEvent(&Event);
+					if (Event.type == SDL_QUIT ||
+						(Event.type == SDL_WINDOWEVENT && Event.window.event == SDL_WINDOWEVENT_CLOSE && Event.window.windowID == SDL_GetWindowID(Window)))
+					{
+						Live = false;
+						break;
+					}
+					static bool Dragging = false;
+					if (!io.WantCaptureMouse)
+					{
+						switch (Event.type)
+						{
+						case SDL_MOUSEMOTION:
+							if (Dragging)
+							{
+								MouseMotionX = Event.motion.xrel;
+								MouseMotionY = Event.motion.yrel;
+							}
+							break;
+						case SDL_MOUSEBUTTONDOWN:
+							Dragging = true;
+							SDL_SetRelativeMouseMode(SDL_TRUE);
+							break;
+						case SDL_MOUSEBUTTONUP:
+							Dragging = false;
+							SDL_SetRelativeMouseMode(SDL_FALSE);
+							break;
+						case SDL_MOUSEWHEEL:
+							MouseMotionZ = Event.wheel.y;
+							break;
+						}
+					}
+					else if (Dragging && RacketErrors.size() > 0)
+					{
+						Dragging = false;
+						SDL_SetRelativeMouseMode(SDL_FALSE);
+					}
+					if (!io.WantCaptureKeyboard && Event.type == SDL_KEYDOWN)
+					{
+						const int SHIFT_FLAG = 1 << 9;
+						const int CTRL_FLAG = 1 << 10;
+						const int ALT_FLAG = 1 << 11;
+						const int OPEN_MODEL = CTRL_FLAG | SDLK_o;
+						const int RELOAD_MODEL = CTRL_FLAG | SDLK_r;
+						const int TOGGLE_FULLSCREEN = CTRL_FLAG | SDLK_f;
+						int Key = Event.key.keysym.sym;
+						int Mod = Event.key.keysym.mod;
+						if ((Mod & KMOD_SHIFT) != 0)
+						{
+							Key |= SHIFT_FLAG;
+						}
+						if ((Mod & KMOD_CTRL) != 0)
+						{
+							Key |= CTRL_FLAG;
+						}
+						if ((Mod & KMOD_ALT) != 0)
+						{
+							Key |= ALT_FLAG;
+						}
+						switch (Key)
+						{
+						case OPEN_MODEL:
+							OpenModel();
+							break;
+						case RELOAD_MODEL:
+							LoadModel(nullptr);
+							break;
+						case TOGGLE_FULLSCREEN:
+							ToggleFullScreen(Window);
+							break;
+						case SDLK_KP_MULTIPLY:
+							MouseMotionZ += 5;
+							break;
+						case SDLK_KP_DIVIDE:
+							MouseMotionZ -= 5;
+							break;
+						case SDLK_KP_1: // ⭩
+							MouseMotionX += 45;
+							MouseMotionY -= 45;
+							break;
+						case SDLK_KP_2: // ⭣
+							MouseMotionY -= 45;
+							break;
+						case SDLK_KP_3: // ⭨
+							MouseMotionX -= 45;
+							MouseMotionY -= 45;
+							break;
+						case SDLK_KP_4: // ⭠
+							MouseMotionX += 45;
+							break;
+						case SDLK_KP_6: // ⭢
+							MouseMotionX -= 45;
+							break;
+						case SDLK_KP_7: // ⭦
+							MouseMotionX += 45;
+							MouseMotionY += 45;
+							break;
+						case SDLK_KP_8: // ⭡
+							MouseMotionY += 45;
+							break;
+						case SDLK_KP_9: // ⭧
+							MouseMotionX -= 45;
+							MouseMotionY += 45;
+							break;
+						}
+					}
+				}
+				EndEvent();
+				{
+					BeginEvent("Update UI");
+					RenderUI(Window, Live);
+					ImGui::Render();
+					EndEvent();
+				}
+				{
+					int ScreenWidth;
+					int ScreenHeight;
+					SDL_GetWindowSize(Window, &ScreenWidth, &ScreenHeight);
+					RenderFrame(ScreenWidth, ScreenHeight);
+				}
+				{
+					BeginEvent("Dear ImGui Draw");
+					glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Dear ImGui");
+					UiTimeQuery.Start();
+					ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+					UiTimeQuery.Stop();
+					glPopDebugGroup();
+					EndEvent();
+				}
+				{
+					BeginEvent("Present");
+					SDL_GL_SwapWindow(Window);
+					EndEvent();
+				}
+				{
+					BeginEvent("Query Results");
+					DepthElapsedTimeMs = DepthTimeQuery.ReadMs();
+					GridBgElapsedTimeMs = GridBgTimeQuery.ReadMs();
+					OutlinerElapsedTimeMs = OutlinerTimeQuery.ReadMs();
+					UiElapsedTimeMs = UiTimeQuery.ReadMs();
+
+					if (ShowHeatmap)
+					{
+						const size_t QueryCount = Drawables.size();
+						float Range = 0.0;
+						std::vector<float> Upload(QueryCount, 0.0);
+						for (int i = 0; i < QueryCount; ++i)
+						{
+							double ElapsedTimeMs = Drawables[i]->DepthQuery.ReadMs();
+							Upload[i] = float(ElapsedTimeMs);
+							DepthElapsedTimeMs += ElapsedTimeMs;
+							Range = fmax(Range, float(ElapsedTimeMs));
+						}
+						for (int i = 0; i < QueryCount; ++i)
+						{
+							Upload[i] /= Range;
+						}
+						DepthTimeBuffer.Upload(Upload.data(), QueryCount * sizeof(float));
+					}
+					EndEvent();
+				}
+				EndEvent();
+			}
 		}
+		std::cout << "Shutting down...\n";
+	}
+	{
+		JoinWorkerThreads();
 		for (SubtreeShader& Shader : SubtreeShaders)
 		{
 			Shader.Release();
 		}
-		ImGui_ImplOpenGL3_Shutdown();
-		ImGui_ImplSDL2_Shutdown();
-		ImGui::DestroyContext();
+		if (!HeadlessMode)
+		{
+			ImGui_ImplOpenGL3_Shutdown();
+			ImGui_ImplSDL2_Shutdown();
+			ImGui::DestroyContext();
+		}
 		SDL_GL_DeleteContext(Context);
 		SDL_DestroyWindow(Window);
 	}
