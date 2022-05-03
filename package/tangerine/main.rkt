@@ -105,8 +105,11 @@
    (with-handlers ([exn:fail? (λ (err) (RacketErrorCallback (exn->string err)))])
      (let ([path (string->path path-str)])
        (dynamic-rerequire path)
-       (let* ([compiler (dynamic-require path 'emit-glsl)])
-         (compiler)))))
+       (let ([emit-glsl (dynamic-require path 'emit-glsl (λ () #f))]
+             [model (dynamic-require path 'model (λ () #f))])
+         (cond [emit-glsl (emit-glsl)]
+               [model (compile model)]
+               [else (error "Module must provide either function 'emit-glsl' or a csgst tree called 'model'.")])))))
 
   (profile-scope
    "GC"
