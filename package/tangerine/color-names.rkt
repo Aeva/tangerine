@@ -15,7 +15,8 @@
 ; limitations under the License.
 
 (require racket/match)
-(provide color-by-name)
+(provide color-by-name
+         color-name?)
 
 
 (define (color-hex c)
@@ -25,41 +26,48 @@
     (values r g b)))
 
 
-(define (color-by-name name)
+(define (lookup-hex name)
   (cond
-    [(number? name)
-     (color-hex name)]
-
-    [(string? name)
-     (color-by-name (string->symbol name))]
-
+    [(string? name) (lookup-hex (string->symbol name))]
     [(symbol? name)
      (match name
        ; The color name definitions below are from this page:
        ; https://developer.mozilla.org/en-US/docs/Web/CSS/color_value
 
        ; CSS Level 1
-       ['black (color-hex #x000000)]
-       ['silver (color-hex #xc0c0c0)]
-       ['gray (color-hex #x808080)]
-       ['white (color-hex #xffffff)]
-       ['maroon (color-hex #x800000)]
-       ['red (color-hex #xff0000)]
-       ['purple (color-hex #x800080)]
-       ['fuchsia (color-hex #xff00ff)]
-       ['green (color-hex #x008000)]
-       ['lime (color-hex #x00ff00)]
-       ['olive (color-hex #x808000)]
-       ['yellow (color-hex #xffff00)]
-       ['navy (color-hex #x000080)]
-       ['blue (color-hex #x0000ff)]
-       ['teal (color-hex #x008080)]
-       ['aqua (color-hex #x00ffff)]
+       ['black #x000000]
+       ['silver #xc0c0c0]
+       ['gray #x808080]
+       ['white #xffffff]
+       ['maroon #x800000]
+       ['red #xff0000]
+       ['purple #x800080]
+       ['fuchsia #xff00ff]
+       ['green #x008000]
+       ['lime #x00ff00]
+       ['olive #x808000]
+       ['yellow #xffff00]
+       ['navy #x000080]
+       ['blue #x0000ff]
+       ['teal #x008080]
+       ['aqua #x00ffff]
 
        ; CSS Level 2 (Revision 1)
-       ['orange (color-hex #xffa500)]
+       ['orange #xffa500]
 
        ; TODO: CSS Color Module Level 3
 
        ; CSS Color Module Level 4
-       ['rebeccapurple (color-hex #x663399)])]))
+       ['rebeccapurple #x663399]
+       [_ -1])]
+    [else -1]))
+
+
+(define (color-by-name name)
+  (if (number? name)
+     (color-hex name)
+     (color-hex (lookup-hex name))))
+
+
+(define (color-name? name)
+  (> (lookup-hex name) -1))
