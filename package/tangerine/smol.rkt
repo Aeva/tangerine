@@ -37,8 +37,7 @@
 (define-syntax-rule (module-begin expr ...)
   (#%module-begin
    (define model (provide-model expr ...))
-   (provide model)
-   model))
+   (provide model)))
 
 
 ; Stuff from Tangerine.  These should be limited to simple validated transformations on the input data.

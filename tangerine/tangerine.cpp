@@ -28,6 +28,7 @@
 #include "extern.h"
 
 #include <iostream>
+#include <iterator>
 #include <cstring>
 #include <map>
 #include <vector>
@@ -406,12 +407,52 @@ void AllocateRenderTargets(int ScreenWidth, int ScreenHeight)
 }
 
 
-void DumpFrameBuffer(int ScreenWidth, int ScreenHeight, std::vector<char>& PixelData)
+void DumpFrameBuffer(int ScreenWidth, int ScreenHeight, std::vector<unsigned char>& PixelData)
 {
 	const size_t Channels = 3;
 	PixelData.resize(size_t(ScreenWidth) * size_t(ScreenHeight) * Channels);
 	glNamedFramebufferReadBuffer(FinalPass, GL_COLOR_ATTACHMENT0);
 	glReadPixels(0, 0, GLsizei(ScreenWidth), GLsizei(ScreenHeight), GL_RGB, GL_UNSIGNED_BYTE, PixelData.data());
+}
+
+
+void EncodeBase64(std::vector<unsigned char>& Bytes, std::vector<char>& Encoded)
+{
+	const std::string Base64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
+	// Every three input bytes produces 4 output characters.  To keep things simple,
+	// if we are short a few, the input sequence will be 0-padded to fill out the remainder.
+
+	const size_t Words = (Bytes.size() + 2) / 3; // Divide by 3, rounding up.
+	const size_t BytesPerWord = 3;
+	const size_t GlyphsPerWord = 4;
+	const size_t BitsPerGlyph = 6;
+
+	Encoded.reserve(Words * GlyphsPerWord);
+	for (int w = 0; w < Words; ++w)
+	{
+		uint32_t Chunk = 0;
+		for (int b = 0; b < BytesPerWord; ++b)
+		{
+			Chunk <<= 8;
+			const int i = BytesPerWord * w + b;
+			if (i < Bytes.size())
+			{
+				Chunk |= Bytes[i];
+			}
+		}
+
+		int Shift = GlyphsPerWord * BitsPerGlyph;
+		for (int g = 0; g < GlyphsPerWord; ++g)
+		{
+			const int Inverse = (GlyphsPerWord - 1) - g;
+			const size_t Glyph = (Chunk >> (Inverse * BitsPerGlyph)) & 63;
+			if (Glyph < Base64.size())
+			{
+				Encoded.push_back(Base64[Glyph]);
+			}
+		}
+	}
 }
 
 
@@ -882,9 +923,39 @@ extern "C" TANGERINE_API void RacketErrorCallback(const char* ErrorMessage)
 
 
 double ModelProcessingStallMs = 0.0;
-void LoadModel(nfdchar_t* Path)
+template<typename T>
+void LoadModelCommon(T& LoadingCallback)
 {
 	BeginEvent("Load Model");
+	for (SubtreeShader& Shader : SubtreeShaders)
+	{
+		Shader.Release();
+	}
+	SubtreeShaders.clear();
+	SubtreeMap.clear();
+	PendingShaders.clear();
+	Drawables.clear();
+	ClearTreeEvaluator();
+
+	Clock::time_point StartTimePoint = Clock::now();
+
+	LoadingCallback();
+
+	Clock::time_point EndTimePoint = Clock::now();
+	std::chrono::duration<double, std::milli> Delta = EndTimePoint - StartTimePoint;
+	ModelProcessingStallMs = Delta.count();
+
+	PendingSubtree = nullptr;
+
+	Drawables.reserve(PendingShaders.size());
+	ShaderCompilerConvergenceMs = 0.0;
+	ShaderCompilerStart = Clock::now();
+	EndEvent();
+}
+
+
+void LoadModel(nfdchar_t* Path)
+{
 	static nfdchar_t* LastPath = nullptr;
 	if (!Path)
 	{
@@ -897,38 +968,52 @@ void LoadModel(nfdchar_t* Path)
 	}
 	if (Path)
 	{
-		for (SubtreeShader& Shader : SubtreeShaders)
+		auto LoadAndProcess = [&]()
 		{
-			Shader.Release();
-		}
-		SubtreeShaders.clear();
-		SubtreeMap.clear();
-		PendingShaders.clear();
-		Drawables.clear();
-		ClearTreeEvaluator();
+			Sactivate_thread();
+			ptr ModuleSymbol = Sstring_to_symbol("tangerine");
+			ptr ProcSymbol = Sstring_to_symbol("renderer-load-and-process-model");
+			ptr Proc = Scar(racket_dynamic_require(ModuleSymbol, ProcSymbol));
+			ptr Args = Scons(Sstring(Path), Snil);
+			racket_apply(Proc, Args);
+			Sdeactivate_thread();
+		};
 
-		Clock::time_point StartTimePoint = Clock::now();
-
-		Sactivate_thread();
-		ptr ModuleSymbol = Sstring_to_symbol("tangerine");
-		ptr ProcSymbol = Sstring_to_symbol("renderer-load-and-process-model");
-		ptr Proc = Scar(racket_dynamic_require(ModuleSymbol, ProcSymbol));
-		ptr Args = Scons(Sstring(Path), Snil);
-		racket_apply(Proc, Args);
-		Sdeactivate_thread();
-
-		Clock::time_point EndTimePoint = Clock::now();
-		std::chrono::duration<double, std::milli> Delta = EndTimePoint - StartTimePoint;
-		ModelProcessingStallMs = Delta.count();
+		LoadModelCommon(LoadAndProcess);
 
 		LastPath = Path;
-		PendingSubtree = nullptr;
-
-		Drawables.reserve(PendingShaders.size());
-		ShaderCompilerConvergenceMs = 0.0;
-		ShaderCompilerStart = Clock::now();
 	}
-	EndEvent();
+}
+
+
+void ReadInputModel()
+{
+#if 1
+	std::istreambuf_iterator<char> begin(std::cin), end;
+	std::string ModelSource(begin, end);
+#else
+	std::string ModelSource = "#lang s-exp tangerine/smol\n(sphere 1)\n";
+#endif
+	if (ModelSource.size() > 0)
+	{
+		std::cout << "Evaluating data from stdin.\n";
+		auto EvalUntrusted = [&]()
+		{
+			Sactivate_thread();
+			ptr ModuleSymbol = Sstring_to_symbol("tangerine");
+			ptr ProcSymbol = Sstring_to_symbol("renderer-load-untrusted-model");
+			ptr Proc = Scar(racket_dynamic_require(ModuleSymbol, ProcSymbol));
+			ptr Args = Scons(Sstring_utf8(ModelSource.c_str(), ModelSource.size()), Snil);
+			racket_apply(Proc, Args);
+			Sdeactivate_thread();
+		};
+		LoadModelCommon(EvalUntrusted);
+		std::cout << "Done!\n";
+	}
+	else
+	{
+		std::cout << "No data provided.\n";
+	}
 }
 
 
@@ -987,7 +1072,7 @@ void RenderUI(SDL_Window* Window, bool& Live)
 	const float DefaultExportStepSize = 0.01;
 	const int DefaultExportRefinementSteps = 5;
 
-	if (ImGui::BeginMainMenuBar())
+	if (!HeadlessMode && ImGui::BeginMainMenuBar())
 	{
 		if (ImGui::BeginMenu("File"))
 		{
@@ -1362,16 +1447,31 @@ int main(int argc, char* argv[])
 	int WindowWidth = 900;
 	int WindowHeight = 900;
 	HeadlessMode = false;
-	if (Args.size() == 3 && Args[0] == "-s")
+	bool LoadFromStandardIn = false;
 	{
-		HeadlessMode = true;
-		WindowWidth = atoi(Args[1].c_str());
-		WindowHeight = atoi(Args[2].c_str());
-	}
-	else if (Args.size() > 0)
-	{
-		std::cout << "Invalid commandline arg(s).\n";
-		return 0;
+		int Cursor = 0;
+		while (Cursor < Args.size())
+		{
+			if (Args[Cursor] == "--headless" && (Cursor + 2) < Args.size())
+			{
+				HeadlessMode = true;
+				WindowWidth = atoi(Args[Cursor + 1].c_str());
+				WindowHeight = atoi(Args[Cursor + 2].c_str());
+				Cursor += 3;
+				continue;
+			}
+			else if (Args[Cursor] == "--cin")
+			{
+				LoadFromStandardIn = true;
+				Cursor += 1;
+				continue;
+			}
+			else
+			{
+				std::cout << "Invalid commandline arg(s).\n";
+				return 0;
+			}
+		}
 	}
 
 	SDL_Window* Window = nullptr;
@@ -1445,12 +1545,11 @@ int main(int argc, char* argv[])
 		BootArgs.boot2_path = "./racket/scheme.boot";
 		BootArgs.boot3_path = "./racket/racket.boot";
 		BootArgs.exec_file = "tangerine.exe";
+		BootArgs.collects_dir = "./racket/collects";
+		BootArgs.config_dir = "./racket/etc";
 		racket_boot(&BootArgs);
-		racket_embedded_load_file("./racket/modules", 1);
 		std::cout << "Done!\n";
 	}
-
-	if (!HeadlessMode)
 	{
 		std::cout << "Setting up Dear ImGui... ";
 		IMGUI_CHECKVERSION();
@@ -1475,33 +1574,50 @@ int main(int argc, char* argv[])
 		std::cout << "Done!\n";
 	}
 	std::cout << "Using device: " << glGetString(GL_RENDERER) << " " << glGetString(GL_VERSION) << "\n";
+
 	if (SetupRenderer() == StatusCode::FAIL)
 	{
+		std::cout << "Failed to initialize the renderer.\n";
 		return 0;
 	}
 	{
 		StartWorkerThreads();
 	}
 
+	if (LoadFromStandardIn)
+	{
+		ReadInputModel();
+	}
+
 	if (HeadlessMode)
 	{
-		//LoadModel(Path);
-		if (RacketErrors.size() > 0)
+		bool Ignore = true;
+		SDL_Event Event;
+
+		MouseMotionX = 45;
+		MouseMotionY = 45;
+
 		{
-		}
-		else
-		{
+			SDL_PollEvent(&Event);
+			ImGui_ImplSDL2_ProcessEvent(&Event);
+			RenderUI(Window, Ignore);
+			ImGui::Render();
 			RenderFrame(WindowWidth, WindowHeight);
+			glFinish();
+			SDL_GL_SwapWindow(Window);
+		}
 
-			std::vector<char> PixelData;
-			DumpFrameBuffer(WindowWidth, WindowHeight, PixelData);
+		std::vector<unsigned char> PixelData;
+		DumpFrameBuffer(WindowWidth, WindowHeight, PixelData);
 
-			std::cout << "BEGIN RAW IMAGE";
-			size_t i = 0;
-			for (char& Byte : PixelData)
-			{
-				std::cout << Byte;
-			}
+		std::vector<char> Encoded;
+		EncodeBase64(PixelData, Encoded);
+
+		std::cout << "BEGIN RAW IMAGE";
+		size_t i = 0;
+		for (char& Byte : Encoded)
+		{
+			std::cout << Byte;
 		}
 	}
 	else

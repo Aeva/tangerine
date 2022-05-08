@@ -4,6 +4,7 @@ declare_modules
 Scons
 Sstring_to_symbol
 Sstring
+Sstring_utf8
 Snil
 Sflonum
 Sinteger

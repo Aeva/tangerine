@@ -1,5 +1,7 @@
 mkdir distrib
 xcopy racket distrib\racket /i
+xcopy racket\etc distrib\racket\etc /i
+xcopy racket\collects distrib\racket\collects /i /S
 xcopy models distrib\models /i
 xcopy shaders distrib\shaders /i
 xcopy materials distrib\materials /i

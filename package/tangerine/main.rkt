@@ -17,6 +17,9 @@
 (require racket/exn)
 (require racket/rerequire)
 (require ffi/unsafe)
+(require racket/sandbox)
+(require (only-in syntax/modread with-module-reading-parameterization))
+
 (require "ffi.rkt")
 (require "csgst.rkt")
 (require "voxel-compiler.rkt")
@@ -44,7 +47,8 @@
          rotate-x
          rotate-y
          rotate-z
-         renderer-load-and-process-model)
+         renderer-load-and-process-model
+         renderer-load-untrusted-model)
 
 
 (define-backend RacketErrorCallback (_fun _string/utf-8 -> _void))
@@ -110,6 +114,30 @@
          (cond [emit-glsl (emit-glsl)]
                [model (compile model)]
                [else (error "Module must provide either function 'emit-glsl' or a csgst tree called 'model'.")])))))
+
+  (profile-scope
+   "GC"
+   (collect-garbage))
+  (void))
+
+
+; Similar to renderer-load-and-process-model, but evaluates the source for a tangerine/smol model in a sandbox.
+(define (renderer-load-untrusted-model source)
+  (profile-scope
+   "renderer-load-untrusted-model"
+
+   (error-print-context-length 0)
+
+   (with-handlers ([exn:fail? (λ (err) (RacketErrorCallback (exn->string err)))])
+     (let* ([port (open-input-string source)]
+         [stx (begin (port-count-lines! port)
+                     (with-module-reading-parameterization
+                       (λ () (read-syntax "sandbox" port))))]
+         [sandbox (make-module-evaluator stx #:language 'tangerine/smol)]
+         [model (call-in-sandbox-context sandbox (λ () (dynamic-require ''anonymous-module 'model (λ () #f))))])
+       (if model
+           (compile model)
+           (error "Invalid model provided.")))))
 
   (profile-scope
    "GC"
