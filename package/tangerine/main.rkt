@@ -128,7 +128,7 @@
 
    (error-print-context-length 0)
 
-   (with-handlers ([exn:fail? (λ (err) (RacketErrorCallback (exn->string err)))])
+   (with-handlers ([exn? (λ (err) (RacketErrorCallback (exn->string err)))])
      (let* ([port (open-input-string source)]
          [stx (begin (port-count-lines! port)
                      (with-module-reading-parameterization

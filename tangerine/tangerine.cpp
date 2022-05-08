@@ -587,7 +587,7 @@ void CompileNewShaders(const double LastInnerFrameDeltaMs)
 		}
 
 		std::chrono::duration<double, std::milli> Delta = Clock::now() - ProcessingStart;
-		if (Delta.count() > Budget)
+		if (!HeadlessMode && Delta.count() > Budget)
 		{
 			break;
 		}
@@ -1591,33 +1591,37 @@ int main(int argc, char* argv[])
 
 	if (HeadlessMode)
 	{
-		bool Ignore = true;
-		SDL_Event Event;
-
-		MouseMotionX = 45;
-		MouseMotionY = 45;
-
+		// There's a frame of delay before an error message would appear, so just process the DearImGui events twice.
+		for (int i = 0; i < 2; ++i)
 		{
-			SDL_PollEvent(&Event);
-			ImGui_ImplSDL2_ProcessEvent(&Event);
+			bool Ignore = true;
 			RenderUI(Window, Ignore);
 			ImGui::Render();
-			RenderFrame(WindowWidth, WindowHeight);
-			glFinish();
-			SDL_GL_SwapWindow(Window);
 		}
 
-		std::vector<unsigned char> PixelData;
-		DumpFrameBuffer(WindowWidth, WindowHeight, PixelData);
-
-		std::vector<char> Encoded;
-		EncodeBase64(PixelData, Encoded);
-
-		std::cout << "BEGIN RAW IMAGE";
-		size_t i = 0;
-		for (char& Byte : Encoded)
+		// Draw the requested frame or relevant error message.
 		{
-			std::cout << Byte;
+			MouseMotionX = 45;
+			MouseMotionY = 45;
+			RenderFrame(WindowWidth, WindowHeight);
+			ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+			glFinish();
+		}
+
+		// Base64 encode the rendered image and dump it to stdout.
+		{
+			std::vector<unsigned char> PixelData;
+			DumpFrameBuffer(WindowWidth, WindowHeight, PixelData);
+
+			std::vector<char> Encoded;
+			EncodeBase64(PixelData, Encoded);
+
+			std::cout << "BEGIN RAW IMAGE";
+			size_t i = 0;
+			for (char& Byte : Encoded)
+			{
+				std::cout << Byte;
+			}
 		}
 	}
 	else

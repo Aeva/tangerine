@@ -52,7 +52,26 @@ void Compile(std::unique_ptr<ShaderProgram>& NewProgram, std::shared_ptr<ShaderE
 }
 
 
-#ifdef ENABLE_ASYNC_SHADER_COMPILE
+ShaderProgram* ShaderEnvelope::Access()
+{
+	if (Ready.load())
+	{
+		return Shader.get();
+	}
+	return nullptr;
+}
+
+
+ShaderEnvelope::~ShaderEnvelope()
+{
+	if (Shader)
+	{
+		Shader->Reset();
+	}
+}
+
+
+#if ENABLE_ASYNC_SHADER_COMPILE
 
 
 #if _WIN64
@@ -127,25 +146,6 @@ struct GLContext
 	}
 };
 #endif
-
-
-ShaderProgram* ShaderEnvelope::Access()
-{
-	if (Ready.load())
-	{
-		return Shader.get();
-	}
-	return nullptr;
-}
-
-
-ShaderEnvelope::~ShaderEnvelope()
-{
-	if (Shader)
-	{
-		Shader->Reset();
-	}
-}
 
 
 inline int max(int LHS, int RHS)
@@ -274,7 +274,7 @@ void AsyncCompile(std::unique_ptr<ShaderProgram> NewProgram, std::shared_ptr<Sha
 }
 
 
-void StartWorkerThreads(SDL_Window* Window)
+void StartWorkerThreads()
 {
 }
 
