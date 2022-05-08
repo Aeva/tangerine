@@ -92,7 +92,7 @@ void main()
 
 	if (CanHit)
 	{
-		for (int i = 0; i < 50; ++i)
+		for (int i = 0; i < MAX_ITERATIONS; ++i)
 		{
 			Position = EyeRay * Travel + RayStart;
 			if (any(lessThan(Position, LocalMin)) || any(greaterThan(Position, LocalMax)))

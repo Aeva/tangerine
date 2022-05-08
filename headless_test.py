@@ -6,11 +6,12 @@ from PIL import Image
 if __name__ == "__main__":
     width = 900
     height = 900
+    max_iter = 1000
 
     with open("models/step-pyramid.rkt", "rb") as infile:
         model_source = infile.read()
 
-    proc = subprocess.run(f"./tangerine.exe --cin --headless {width} {height}", capture_output=True, input=model_source)
+    proc = subprocess.run(f"./tangerine.exe --cin --headless {width} {height} --iterations {max_iter}", capture_output=True, input=model_source)
     img_header = b"BEGIN RAW IMAGE"
     if proc.stdout.count(img_header) == 0:
         print(proc.stdout.decode("utf-8"))

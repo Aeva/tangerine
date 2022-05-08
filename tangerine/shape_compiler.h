@@ -17,6 +17,7 @@
 
 #include "sdfs.h"
 
+void OverrideMaxIterations(int MaxIterationsOverride);
 size_t EmitShader(std::string Source, std::string Pretty, int LeafCount);
 void EmitParameters(size_t ShaderIndex, std::vector<float> Params);
 void EmitVoxel(AABB Bounds);

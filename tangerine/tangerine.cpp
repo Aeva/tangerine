@@ -1466,6 +1466,12 @@ int main(int argc, char* argv[])
 				Cursor += 1;
 				continue;
 			}
+			else if (Args[Cursor] == "--iterations" && (Cursor + 1) < Args.size())
+			{
+				const int MaxIterations = atoi(Args[Cursor + 1].c_str());
+				OverrideMaxIterations(MaxIterations);
+				Cursor += 2;
+			}
 			else
 			{
 				std::cout << "Invalid commandline arg(s).\n";

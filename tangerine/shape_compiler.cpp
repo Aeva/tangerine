@@ -39,6 +39,16 @@ struct ShaderInfo
 using VariantsMap = std::unordered_map<std::string, ShaderInfo>;
 
 
+int MaxIterations = 50;
+void OverrideMaxIterations(int MaxIterationsOverride)
+{
+	if (MaxIterationsOverride > 1)
+	{
+		MaxIterations = MaxIterationsOverride;
+	}
+}
+
+
 // Iterate over a voxel grid and return bounded subtrees.
 extern "C" TANGERINE_API void VoxelCompiler(void* Handle, const float VoxelSize)
 {
@@ -88,6 +98,7 @@ extern "C" TANGERINE_API void VoxelCompiler(void* Handle, const float VoxelSize)
 	for (auto& [Source, VariantInfo] : Voxels)
 	{
 		std::string BoilerPlate = fmt::format(
+			"#define MAX_ITERATIONS {}\n"
 			"layout(std430, binding = 0)\n"
 			"restrict readonly buffer SubtreeParameterBlock\n"
 			"{{\n"
@@ -98,6 +109,7 @@ extern "C" TANGERINE_API void VoxelCompiler(void* Handle, const float VoxelSize)
 			"{{\n"
 			"\treturn TreeRoot({});\n"
 			"}}\n",
+			MaxIterations,
 			SubtreeIndex++,
 			Source);
 
