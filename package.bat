@@ -8,4 +8,4 @@ xcopy materials distrib\materials /i
 copy tangerine.exe distrib\tangerine.exe
 copy LICENSE.txt distrib\LICENSE.txt
 copy SDL2.dll distrib\SDL2.dll
-copy libracketcs_da32rk.dll distrib\libracketcs_da32rk.dll
+copy libracketcs_db9xz4.dll distrib\libracketcs_db9xz4.dll
