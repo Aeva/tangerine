@@ -124,68 +124,68 @@ struct MaterialDist
 
 
 #define BINARY_OP_ROUTES(Function) \
-MaterialDist Function##(float LHS, MaterialDist RHS) \
+MaterialDist Function##Op(float LHS, MaterialDist RHS) \
 { \
 	MaterialDist NewLHS = MaterialDist(vec3(1.0), LHS); \
-	return Function##(NewLHS, RHS); \
+	return Function##Op(NewLHS, RHS); \
 } \
 \
 \
-MaterialDist Function##(MaterialDist LHS, float RHS) \
+MaterialDist Function##Op(MaterialDist LHS, float RHS) \
 { \
 	MaterialDist NewRHS = MaterialDist(vec3(1.0), RHS); \
-	return Function##(LHS, NewRHS); \
+	return Function##Op(LHS, NewRHS); \
 }
 
 
 #define BINARY_OP_VARIANTS(Function) \
-MaterialDist Function##(MaterialDist LHS, MaterialDist RHS) \
+MaterialDist Function##Op(MaterialDist LHS, MaterialDist RHS) \
 { \
-	float Dist = Function##(LHS.Dist, RHS.Dist); \
+	float Dist = Function##Op(LHS.Dist, RHS.Dist); \
 	vec3 Color = (Dist == LHS.Dist) ? LHS.Color : RHS.Color; \
 	return MaterialDist(Color, Dist); \
 } \
 BINARY_OP_ROUTES(Function)
 
 
-BINARY_OP_VARIANTS(UnionOp)
-BINARY_OP_VARIANTS(InterOp)
+BINARY_OP_VARIANTS(Union)
+BINARY_OP_VARIANTS(Inter)
 
 
 MaterialDist DiffOp(MaterialDist LHS, MaterialDist RHS)
 {
 	return MaterialDist(LHS.Color, max(LHS.Dist, -RHS.Dist));
 }
-BINARY_OP_ROUTES(DiffOp)
+BINARY_OP_ROUTES(Diff)
 
 
 #define BLEND_OP_ROUTES(Function) \
-MaterialDist Function##(float LHS, MaterialDist RHS, float Threshold) \
+MaterialDist Function##Op(float LHS, MaterialDist RHS, float Threshold) \
 { \
 	MaterialDist NewLHS = MaterialDist(vec3(1.0), LHS); \
-	return Function##(NewLHS, RHS, Threshold); \
+	return Function##Op(NewLHS, RHS, Threshold); \
 } \
 \
 \
-MaterialDist Function##(MaterialDist LHS, float RHS, float Threshold) \
+MaterialDist Function##Op(MaterialDist LHS, float RHS, float Threshold) \
 { \
 	MaterialDist NewRHS = MaterialDist(vec3(1.0), RHS); \
-	return Function##(LHS, NewRHS, Threshold); \
+	return Function##Op(LHS, NewRHS, Threshold); \
 }
 
 
 #define BLEND_OP_VARIANTS(Function) \
-MaterialDist Function##(MaterialDist LHS, MaterialDist RHS, float Threshold) \
+MaterialDist Function##Op(MaterialDist LHS, MaterialDist RHS, float Threshold) \
 { \
-	float Dist = Function(LHS.Dist, RHS.Dist, Threshold); \
+	float Dist = Function##Op(LHS.Dist, RHS.Dist, Threshold); \
 	vec3 Color = (abs(LHS.Dist - Dist) <= abs(RHS.Dist - Dist)) ? LHS.Color : RHS.Color; \
 	return MaterialDist(Color, Dist); \
 } \
 BLEND_OP_ROUTES(Function)
 
 
-BLEND_OP_VARIANTS(SmoothUnionOp)
-BLEND_OP_VARIANTS(SmoothInterOp)
+BLEND_OP_VARIANTS(SmoothUnion)
+BLEND_OP_VARIANTS(SmoothInter)
 
 
 MaterialDist SmoothDiffOp(MaterialDist LHS, MaterialDist RHS, float Threshold)
@@ -194,7 +194,7 @@ MaterialDist SmoothDiffOp(MaterialDist LHS, MaterialDist RHS, float Threshold)
 	float Dist = max(LHS.Dist, -RHS.Dist) + H * H * 0.25 / Threshold;
 	return MaterialDist(LHS.Color, Dist);
 }
-BLEND_OP_ROUTES(SmoothDiffOp)
+BLEND_OP_ROUTES(SmoothDiff)
 
 
 MaterialDist TreeRoot(MaterialDist Dist)
