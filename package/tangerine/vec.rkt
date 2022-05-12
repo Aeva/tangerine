@@ -40,6 +40,7 @@
          vec-floor
          vec-ceil
          vec-round
+         dot
          vec-len
          normalize
          distance
