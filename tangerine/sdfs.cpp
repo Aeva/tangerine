@@ -65,6 +65,12 @@ vec3 SDFNode::Gradient(vec3 Point)
 }
 
 
+void SDFNode::AddTerminus(std::vector<float>& TreeParams)
+{
+	TreeParams.push_back(AsFloat(OPCODE_RETURN));
+}
+
+
 RayHit SDFNode::RayMarch(glm::vec3 RayStart, glm::vec3 RayDir, int MaxIterations, float Epsilon)
 {
 	RayDir = normalize(RayDir);
@@ -227,7 +233,7 @@ struct TransformMachine
 		}
 	}
 
-	std::string Compile(std::vector<float>& TreeParams, std::string Point)
+	std::string Compile(const bool WithOpcodes, std::vector<float>& TreeParams, std::string Point)
 	{
 		Fold();
 		switch (FoldState)
@@ -236,10 +242,10 @@ struct TransformMachine
 			return Point;
 
 		case State::Offset:
-			return CompileOffset(TreeParams, Point);
+			return CompileOffset(WithOpcodes, TreeParams, Point);
 
 		case State::Matrix:
-			return CompileMatrix(TreeParams, Point);
+			return CompileMatrix(WithOpcodes, TreeParams, Point);
 		}
 	}
 
@@ -318,8 +324,12 @@ private:
 		return Bounds;
 	}
 
-	std::string CompileOffset(std::vector<float>& TreeParams, std::string Point)
+	std::string CompileOffset(const bool WithOpcodes, std::vector<float>& TreeParams, std::string Point)
 	{
+		if (WithOpcodes)
+		{
+			TreeParams.push_back(AsFloat(OPCODE_OFFSET));
+		}
 		const int Offset = TreeParams.size();
 		TreeParams.push_back(LastFold[3].x);
 		TreeParams.push_back(LastFold[3].y);
@@ -328,8 +338,12 @@ private:
 		return fmt::format("({} - vec3({}))", Point, Params);
 	}
 
-	std::string CompileMatrix(std::vector<float>& TreeParams, std::string Point)
+	std::string CompileMatrix(const bool WithOpcodes, std::vector<float>& TreeParams, std::string Point)
 	{
+		if (WithOpcodes)
+		{
+			TreeParams.push_back(AsFloat(OPCODE_MATRIX));
+		}
 		const int Offset = TreeParams.size();
 		for (int i = 0; i < 16; ++i)
 		{
@@ -345,22 +359,25 @@ private:
 template<typename ParamsT>
 struct BrushNode : public SDFNode
 {
+	uint32_t Opcode;
 	std::string BrushFnName;
 	ParamsT NodeParams;
 	BrushMixin BrushFn;
 	AABB BrushAABB;
 	TransformMachine Transform;
 
-	BrushNode(const std::string& InBrushFnName, const ParamsT& InNodeParams, BrushMixin& InBrushFn, AABB& InBrushAABB)
-		: BrushFnName(InBrushFnName)
+	BrushNode(uint32_t InOpcode, const std::string& InBrushFnName, const ParamsT& InNodeParams, BrushMixin& InBrushFn, AABB& InBrushAABB)
+		: Opcode(InOpcode)
+		, BrushFnName(InBrushFnName)
 		, NodeParams(InNodeParams)
 		, BrushFn(InBrushFn)
 		, BrushAABB(InBrushAABB)
 	{
 	}
 
-	BrushNode(const std::string& InBrushFnName, const ParamsT& InNodeParams, BrushMixin& InBrushFn, AABB& InBrushAABB, TransformMachine& InTransform)
-		: BrushFnName(InBrushFnName)
+	BrushNode(uint32_t InOpcode, const std::string& InBrushFnName, const ParamsT& InNodeParams, BrushMixin& InBrushFn, AABB& InBrushAABB, TransformMachine& InTransform)
+		: Opcode(InOpcode)
+		, BrushFnName(InBrushFnName)
 		, NodeParams(InNodeParams)
 		, BrushFn(InBrushFn)
 		, BrushAABB(InBrushAABB)
@@ -377,7 +394,7 @@ struct BrushNode : public SDFNode
 	{
 		if (Eval(Point) <= Radius)
 		{
-			return new BrushNode(BrushFnName, NodeParams, BrushFn, BrushAABB, Transform);
+			return new BrushNode(Opcode, BrushFnName, NodeParams, BrushFn, BrushAABB, Transform);
 		}
 		else
 		{
@@ -395,9 +412,14 @@ struct BrushNode : public SDFNode
 		return Bounds();
 	}
 
-	virtual std::string Compile(std::vector<float>& TreeParams, std::string& Point)
+	virtual std::string Compile(const bool WithOpcodes, std::vector<float>& TreeParams, std::string& Point)
 	{
-		std::string TransformedPoint = Transform.Compile(TreeParams, Point);
+		std::string TransformedPoint = Transform.Compile(WithOpcodes, TreeParams, Point);
+
+		if (WithOpcodes)
+		{
+			TreeParams.push_back(AsFloat(Opcode));
+		}
 		const int Offset = StoreParams(TreeParams, NodeParams);
 		std::string Params = MakeParamList(Offset, (int)NodeParams.size());
 		return fmt::format("{}({}, {})", BrushFnName, TransformedPoint, Params);
@@ -457,17 +479,18 @@ struct BrushNode : public SDFNode
 };
 
 
-enum class SetFamily
+enum class SetFamily : uint32_t
 {
-	Union,
-	Diff,
-	Inter
+	Union = OPCODE_UNION,
+	Inter = OPCODE_INTER,
+	Diff = OPCODE_DIFF
 };
 
 
 template<SetFamily Family, bool BlendMode>
 struct SetNode : public SDFNode
 {
+	uint32_t Opcode;
 	SetMixin SetFn;
 	SDFNode* LHS;
 	SDFNode* RHS;
@@ -479,6 +502,11 @@ struct SetNode : public SDFNode
 		, RHS(InRHS)
 		, Threshold(InThreshold)
 	{
+		Opcode = (uint32_t)Family;
+		if (BlendMode)
+		{
+			Opcode += OPCODE_SMOOTH;
+		}
 	}
 
 	virtual float Eval(vec3 Point)
@@ -616,11 +644,18 @@ struct SetNode : public SDFNode
 		return Combined;
 	}
 
-	virtual std::string Compile(std::vector<float>& TreeParams, std::string& Point)
+	virtual std::string Compile(const bool WithOpcodes, std::vector<float>& TreeParams, std::string& Point)
 	{
-		const std::string CompiledLHS = LHS->Compile(TreeParams, Point);
-		const std::string CompiledRHS = RHS->Compile(TreeParams, Point);
-
+		const std::string CompiledLHS = LHS->Compile(WithOpcodes, TreeParams, Point);
+		if (WithOpcodes)
+		{
+			TreeParams.push_back(AsFloat(OPCODE_PUSH));
+		}
+		const std::string CompiledRHS = RHS->Compile(WithOpcodes, TreeParams, Point);
+		if (WithOpcodes)
+		{
+			TreeParams.push_back(AsFloat(Opcode));
+		}
 		if (BlendMode)
 		{
 			const int Offset = (int)TreeParams.size();
@@ -790,14 +825,18 @@ struct PaintNode : public SDFNode
 		return Child->InnerBounds();
 	}
 
-	virtual std::string Compile(std::vector<float>& TreeParams, std::string& Point)
+	virtual std::string Compile(const bool WithOpcodes, std::vector<float>& TreeParams, std::string& Point)
 	{
+		if (WithOpcodes)
+		{
+			TreeParams.push_back(AsFloat(OPCODE_PAINT));
+		}
 		const int Offset = (int)TreeParams.size();
 		TreeParams.push_back(Color.r);
 		TreeParams.push_back(Color.g);
 		TreeParams.push_back(Color.b);
 		std::string ColorParams = MakeParamList(Offset, 3);
-		return fmt::format("MaterialDist(vec3({}), {})", ColorParams, Child->Compile(TreeParams, Point));
+		return fmt::format("MaterialDist(vec3({}), {})", ColorParams, Child->Compile(WithOpcodes, TreeParams, Point));
 	}
 
 	virtual std::string Pretty()
@@ -954,7 +993,7 @@ extern "C" TANGERINE_API void* MakeSphereBrush(float Radius)
 	BrushMixin Eval = std::bind(SDF::SphereBrush, _1, Radius);
 
 	AABB Bounds = SymmetricalBounds(vec3(Radius));
-	return new BrushNode("SphereBrush", Params, Eval, Bounds);
+	return new BrushNode(OPCODE_SPHERE, "SphereBrush", Params, Eval, Bounds);
 }
 
 extern "C" TANGERINE_API void* MakeEllipsoidBrush(float RadipodeX, float RadipodeY, float RadipodeZ)
@@ -965,7 +1004,7 @@ extern "C" TANGERINE_API void* MakeEllipsoidBrush(float RadipodeX, float Radipod
 	BrushMixin Eval = std::bind((EllipsoidBrushPtr)SDF::EllipsoidBrush, _1, vec3(RadipodeX, RadipodeY, RadipodeZ));
 
 	AABB Bounds = SymmetricalBounds(vec3(RadipodeX, RadipodeY, RadipodeZ));
-	return new BrushNode("EllipsoidBrush", Params, Eval, Bounds);
+	return new BrushNode(OPCODE_ELLIPSOID, "EllipsoidBrush", Params, Eval, Bounds);
 }
 
 extern "C" TANGERINE_API void* MakeBoxBrush(float ExtentX, float ExtentY, float ExtentZ)
@@ -976,7 +1015,7 @@ extern "C" TANGERINE_API void* MakeBoxBrush(float ExtentX, float ExtentY, float 
 	BrushMixin Eval = std::bind((BoxBrushPtr)SDF::BoxBrush, _1, vec3(ExtentX, ExtentY, ExtentZ));
 
 	AABB Bounds = SymmetricalBounds(vec3(ExtentX, ExtentY, ExtentZ));
-	return new BrushNode("BoxBrush", Params, Eval, Bounds);
+	return new BrushNode(OPCODE_BOX, "BoxBrush", Params, Eval, Bounds);
 }
 
 extern "C" TANGERINE_API void* MakeTorusBrush(float MajorRadius, float MinorRadius)
@@ -988,7 +1027,7 @@ extern "C" TANGERINE_API void* MakeTorusBrush(float MajorRadius, float MinorRadi
 	float Radius = MajorRadius + MinorRadius;
 	AABB Bounds = SymmetricalBounds(vec3(Radius, Radius, MinorRadius));
 
-	return new BrushNode("TorusBrush", Params, Eval, Bounds);
+	return new BrushNode(OPCODE_TORUS, "TorusBrush", Params, Eval, Bounds);
 }
 
 extern "C" TANGERINE_API void* MakeCylinderBrush(float Radius, float Extent)
@@ -998,7 +1037,7 @@ extern "C" TANGERINE_API void* MakeCylinderBrush(float Radius, float Extent)
 	BrushMixin Eval = std::bind(SDF::CylinderBrush, _1, Radius, Extent);
 
 	AABB Bounds = SymmetricalBounds(vec3(Radius, Radius, Extent));
-	return new BrushNode("CylinderBrush", Params, Eval, Bounds);
+	return new BrushNode(OPCODE_CYLINDER, "CylinderBrush", Params, Eval, Bounds);
 }
 
 extern "C" TANGERINE_API void* MakePlaneOperand(float NormalX, float NormalY, float NormalZ)
@@ -1034,7 +1073,7 @@ extern "C" TANGERINE_API void* MakePlaneOperand(float NormalX, float NormalY, fl
 	{
 		Unbound.Max.z = 0.0;
 	}
-	return new BrushNode("Plane", Params, Eval, Unbound);
+	return new BrushNode(OPCODE_PLANE, "Plane", Params, Eval, Unbound);
 }
 
 

@@ -33,6 +33,14 @@
 #define ENABLE_OCTREE_COALESCENCE 1
 
 
+template<typename T>
+inline float AsFloat(T Word)
+{
+	static_assert(sizeof(T) == sizeof(float));
+	return *((float*)(&Word));
+}
+
+
 struct AABB
 {
 	glm::vec3 Min;
@@ -70,7 +78,9 @@ struct SDFNode
 
 	virtual AABB InnerBounds() = 0;
 
-	virtual std::string Compile(std::vector<float>& TreeParams, std::string& Point) = 0;
+	virtual std::string Compile(const bool WithOpcodes, std::vector<float>& TreeParams, std::string& Point) = 0;
+
+	void AddTerminus(std::vector<float>& TreeParams);
 
 	virtual std::string Pretty() = 0;
 

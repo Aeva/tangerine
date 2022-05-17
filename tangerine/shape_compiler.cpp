@@ -49,6 +49,13 @@ void OverrideMaxIterations(int MaxIterationsOverride)
 }
 
 
+bool Interpreted = false;
+void UseInterpreter()
+{
+	Interpreted = true;
+}
+
+
 // Iterate over a voxel grid and return bounded subtrees.
 extern "C" TANGERINE_API void VoxelCompiler(void* Handle, const float VoxelSize)
 {
@@ -58,6 +65,7 @@ extern "C" TANGERINE_API void VoxelCompiler(void* Handle, const float VoxelSize)
 	SetTreeEvaluator(Evaluator, Limits);
 
 	VariantsMap Voxels;
+	uint32_t SubtreeIndex = 0;
 
 	{
 		BeginEvent("Build Octree");
@@ -68,8 +76,17 @@ extern "C" TANGERINE_API void VoxelCompiler(void* Handle, const float VoxelSize)
 		{
 			std::vector<float> Params;
 			std::string Point = "Point";
-			std::string GLSL = Leaf.Evaluator->Compile(Params, Point);
-			std::string Pretty = Leaf.Evaluator->Pretty();
+			std::string GLSL = Leaf.Evaluator->Compile(Interpreted, Params, Point);
+			std::string Pretty;
+			if (Interpreted)
+			{
+				Leaf.Evaluator->AddTerminus(Params);
+				Pretty = "[SDF Interpreter]";
+			}
+			else
+			{
+				Pretty = Leaf.Evaluator->Pretty();
+			}
 
 			ShaderInfo VariantInfo = { ParamsMap(), Pretty, Leaf.LeafCount };
 			auto VariantsInsert = Voxels.insert({ GLSL, VariantInfo });
@@ -94,29 +111,46 @@ extern "C" TANGERINE_API void VoxelCompiler(void* Handle, const float VoxelSize)
 	}
 
 	BeginEvent("Emit GLSL");
-	int SubtreeIndex = 0;
 	for (auto& [Source, VariantInfo] : Voxels)
 	{
-		std::string BoilerPlate = fmt::format(
-			"#define MAX_ITERATIONS {}\n"
-			"layout(std430, binding = 0)\n"
-			"restrict readonly buffer SubtreeParameterBlock\n"
-			"{{\n"
-			"\tfloat PARAMS[];\n"
-			"}};\n\n"
-			"const uint SubtreeIndex = {};\n\n"
-			"MaterialDist ClusterDist(vec3 Point)\n"
-			"{{\n"
-			"\treturn TreeRoot({});\n"
-			"}}\n",
-			MaxIterations,
-			SubtreeIndex++,
-			Source);
+		std::string BoilerPlate;
+		if (Interpreted)
+		{
+			BoilerPlate = fmt::format(
+				"#define MAX_ITERATIONS {}\n"
+				"#define INTERPRETED 1\n"
+				"#define ClusterDist Interpret\n"
+				"layout(std430, binding = 0)\n"
+				"restrict readonly buffer SubtreeParameterBlock\n"
+				"{{\n"
+				"\tuint SubtreeIndex;\n"
+				"\tfloat PARAMS[];\n"
+				"}};\n\n"
+				"MaterialDist Interpret(const vec3 EvalPoint);\n",
+				MaxIterations);
+		}
+		else
+		{
+			BoilerPlate = fmt::format(
+				"#define MAX_ITERATIONS {}\n"
+				"layout(std430, binding = 0)\n"
+				"restrict readonly buffer SubtreeParameterBlock\n"
+				"{{\n"
+				"\tuint SubtreeIndex;\n"
+				"\tfloat PARAMS[];\n"
+				"}};\n\n"
+				"MaterialDist ClusterDist(vec3 Point)\n"
+				"{{\n"
+				"\treturn TreeRoot({});\n"
+				"}}\n",
+				MaxIterations,
+				Source);
+		}
 
 		size_t ShaderIndex = EmitShader(BoilerPlate, VariantInfo.Pretty, VariantInfo.LeafCount);
 		for (auto& [Params, Instances] : VariantInfo.Params)
 		{
-			EmitParameters(ShaderIndex, Params);
+			EmitParameters(ShaderIndex, SubtreeIndex++, Params);
 			for (const AABB& Bounds : Instances)
 			{
 				EmitVoxel(Bounds);

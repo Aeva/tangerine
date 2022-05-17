@@ -18,7 +18,8 @@
 #include "sdfs.h"
 
 void OverrideMaxIterations(int MaxIterationsOverride);
+void UseInterpreter();
 size_t EmitShader(std::string Source, std::string Pretty, int LeafCount);
-void EmitParameters(size_t ShaderIndex, std::vector<float> Params);
+void EmitParameters(size_t ShaderIndex, uint32_t SubtreeIndex, std::vector<float> Params);
 void EmitVoxel(AABB Bounds);
 void SetTreeEvaluator(SDFNode* InTreeEvaluator, AABB Limits);

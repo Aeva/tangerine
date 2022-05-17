@@ -91,11 +91,13 @@ struct SubtreeSection
 
 struct ModelSubtree
 {
-	ModelSubtree(size_t ParamCount, float* InParams)
+	ModelSubtree(uint32_t SubtreeIndex, size_t ParamCount, float* InParams)
 	{
+		++ParamCount;
 		size_t Padding = DIV_UP(ParamCount, 4) * 4 - ParamCount;
 		size_t UploadSize = ParamCount + Padding;
 		Params.reserve(UploadSize);
+		Params.push_back(AsFloat(SubtreeIndex));
 		for (int i = 0; i < ParamCount; ++i)
 		{
 			Params.push_back(InParams[i]);
@@ -222,10 +224,10 @@ size_t EmitShader(std::string InSource, std::string InPretty, int LeafCount)
 	return ShaderIndex;
 }
 
-void EmitParameters(size_t ShaderIndex, std::vector<float> Params)
+void EmitParameters(size_t ShaderIndex, uint32_t SubtreeIndex, std::vector<float> Params)
 {
 	// TODO: Instances is currently a vector, but should it be a map...?
-	SubtreeShaders[ShaderIndex].Instances.emplace_back(Params.size(), Params.data());
+	SubtreeShaders[ShaderIndex].Instances.emplace_back(SubtreeIndex, Params.size(), Params.data());
 	PendingSubtree = &(SubtreeShaders[ShaderIndex].Instances.back());
 }
 
@@ -1496,6 +1498,13 @@ int main(int argc, char* argv[])
 				const int MaxIterations = atoi(Args[Cursor + 1].c_str());
 				OverrideMaxIterations(MaxIterations);
 				Cursor += 2;
+				continue;
+			}
+			else if (Args[Cursor] == "--interpreted")
+			{
+				UseInterpreter();
+				Cursor += 1;
+				continue;
 			}
 			else
 			{

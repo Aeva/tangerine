@@ -1,3 +1,4 @@
+prepend: shaders/interpreter.glsl
 --------------------------------------------------------------------------------
 
 // Copyright 2022 Aeva Palecek
