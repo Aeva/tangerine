@@ -604,7 +604,8 @@ void CompileNewShaders(const double LastInnerFrameDeltaMs)
 int MouseMotionX = 0;
 int MouseMotionY = 0;
 int MouseMotionZ = 0;
-int ShowBackground = 0;
+int BackgroundMode = 0;
+int ForegroundMode = 0;
 bool ShowSubtrees = false;
 bool ShowHeatmap = false;
 bool HighlightEdges = true;
@@ -735,6 +736,14 @@ void RenderFrame(int ScreenWidth, int ScreenHeight)
 		{
 			OutlinerFlags |= 1 << 4;
 		}
+		if (ForegroundMode == 1)
+		{
+			OutlinerFlags |= 1 << 5;
+		}
+		if (ForegroundMode == 2)
+		{
+			OutlinerFlags |= 1 << 6;
+		}
 		OutlinerOptionsUpload BufferData = {
 			OutlinerFlags,
 			0,
@@ -847,14 +856,14 @@ void RenderFrame(int ScreenWidth, int ScreenHeight)
 			GridBgTimeQuery.Start();
 			glDepthMask(GL_FALSE);
 			glDepthFunc(GL_EQUAL);
-			switch (ShowBackground)
+			switch (BackgroundMode)
 			{
 			case 0:
 				BgShader.Activate();
 				glDrawArrays(GL_TRIANGLES, 0, 3);
 				break;
 			default:
-				ShowBackground = -1;
+				BackgroundMode = -1;
 				glClearColor(0.6f, 0.6f, 0.6f, 1.0f);
 				glClear(GL_COLOR_BUFFER_BIT);
 			}
@@ -1119,13 +1128,29 @@ void RenderUI(SDL_Window* Window, bool& Live)
 		{
 			if (ImGui::BeginMenu("Background"))
 			{
-				if (ImGui::MenuItem("Solid Color", nullptr, ShowBackground == -1))
+				if (ImGui::MenuItem("Solid Color", nullptr, BackgroundMode == -1))
 				{
-					ShowBackground = -1;
+					BackgroundMode = -1;
 				}
-				if (ImGui::MenuItem("Test Grid", nullptr, ShowBackground == 0))
+				if (ImGui::MenuItem("Test Grid", nullptr, BackgroundMode == 0))
 				{
-					ShowBackground = 0;
+					BackgroundMode = 0;
+				}
+				ImGui::EndMenu();
+			}
+			if (ImGui::BeginMenu("Foreground"))
+			{
+				if (ImGui::MenuItem("PBRBR", nullptr, ForegroundMode == 0))
+				{
+					ForegroundMode = 0;
+				}
+				if (ImGui::MenuItem("Metalic", nullptr, ForegroundMode == 1))
+				{
+					ForegroundMode = 1;
+				}
+				if (ImGui::MenuItem("Vaporwave", nullptr, ForegroundMode == 2))
+				{
+					ForegroundMode = 2;
 				}
 				ImGui::EndMenu();
 			}

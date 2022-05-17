@@ -78,6 +78,48 @@ vec3 HSV(float Hue, float Sat, float Value)
 }
 
 
+vec3 Vaporwave(vec3 CenterPosition, bool Color, vec3 BaseColor)
+{
+	vec3 Ray = vec3(0.0);
+	const float Span = 1.0;
+	const float Step = 1.0;
+	for (float y = -Span; y <= Span; y += Step)
+	{
+		for (float x = -Span; x <= Span; x += Step)
+		{
+			if (y != 0.0 || x != 0.0)
+			{
+				vec2 Coord = gl_FragCoord.xy + vec2(x, y);
+				bool DepthMask;
+				vec3 OtherPosition;
+				vec3 OtherNormal;
+				SampleAt(Coord, DepthMask, OtherPosition, OtherNormal);
+
+				if (DepthMask)
+				{
+					Ray = abs(normalize(OtherPosition - CenterPosition));
+					break;
+				}
+			}
+		}
+	}
+
+	if (Color)
+	{
+		// Has a sort of pop art / vapor wave feel.  I love it.
+		return Ray;
+	}
+	else
+	{
+		// Gray scale version that kinda gives things a more natural lighting.
+		// Colorizes well, too.
+		float RayMin = min(min(Ray.x, Ray.y), Ray.z);
+		float RayMax = max(max(Ray.x, Ray.y), Ray.z);
+		return vec3(RayMax - RayMin) * BaseColor;
+	}
+}
+
+
 void main()
 {
 	bool DepthMask;
@@ -174,6 +216,13 @@ void main()
 					float F = 1.0 - max(dot(N, V), 0.0);
 					float BSDF = D + F * 0.25;
 					OutColor = vec4(BaseColor * BSDF, 1.0);
+
+					const bool MetallicMode = (OutlinerFlags & 32) == 32;
+					const bool VaporwaveMode = (OutlinerFlags & 64) == 64;
+					if (MetallicMode || VaporwaveMode)
+					{
+						OutColor.rgb = Vaporwave(CenterPosition, VaporwaveMode, OutColor.rgb);
+					}
 				}
 			}
 			if (Angle > -0.707)
