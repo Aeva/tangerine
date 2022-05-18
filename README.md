@@ -12,7 +12,7 @@ signed distance functions.  There are two versions:
  0. If using Windows, install the [latest x64 Microsoft Visual C++ Redistributable for Visual Studio 2019](https://aka.ms/vs/17/release/vc_redist.x64.exe).
     For some remarkable reason this is not installed by default.
 
- 1. Install [Racket CS 8.3](https://download.racket-lang.org/all-versions.html),
+ 1. Install [Racket CS 8.5](https://download.racket-lang.org/all-versions.html),
     and ensure that `raco` and `racket` are in your system path environment variable.  Newer versions might be fine.
 
  2. Open the command line, and run `raco pkg install tangerine`.
@@ -178,7 +178,7 @@ simply ignoring all of the stuff I have not explained yet.
 
 This will build both the "*Miniscule*" and "*Majuscule*" versions of Tangerine.
 
- 1. Install Racket CS 8.3, and ensure that `raco` is in your system path variable.
+ 1. Install Racket CS 8.5, and ensure that `raco` is in your system path variable.
 
  2. Install Visual Studio 2019 or newer with at least the C++ stuff.
 
@@ -198,7 +198,7 @@ This will build both the "*Miniscule*" and "*Majuscule*" versions of Tangerine.
 
 This will only build the "*Miniscule*" version of Tangerine.
 
- 1. Install Racket CS 8.3, and ensure that `raco` is in your system path variable.
+ 1. Install Racket CS 8.5, and ensure that `raco` is in your system path variable.
 
  2. Install Clang 13 or so.
 
