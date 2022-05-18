@@ -507,6 +507,13 @@ struct SetNode : public SDFNode
 		{
 			Opcode += OPCODE_SMOOTH;
 		}
+		if (Family != SetFamily::Diff && RHS->LeafCount() > LHS->LeafCount())
+		{
+			// When possible, swap the left and right operands to ensure the tree is left leaning.
+			// This can reduce the total stack size needed to render the model in interpreted mode,
+			// which both improves loading time and the interpreter's steady state performance.
+			std::swap(LHS, RHS);
+		}
 	}
 
 	virtual float Eval(vec3 Point)
