@@ -25,16 +25,22 @@ MaterialDist Interpret(const vec3 EvalPoint)
 		Stack[i] = MaterialDist(vec3(1.0), 0.0);
 	}
 
-	int StackPointer = 0;
-	int ProgramCounter = 0;
+	uint StackPointer = 0;
+	uint ProgramCounter = 0;
 	vec3 Point = EvalPoint;
 
 	while (true)
 	{
 		const uint Opcode = floatBitsToUint(PARAMS[ProgramCounter++]);
 
+		if (StackPointer >= INTERPRETER_STACK)
+		{
+			// The stack pointer is out of bounds.  Halt and catch fire.
+			return MaterialDist(vec3(1.0, 1.0, 0.0), 0.0);
+		}
+
 		// Set operators
-		if (Opcode < OPCODE_SPHERE)
+		else if (Opcode < OPCODE_SPHERE)
 		{
 			--StackPointer;
 
@@ -176,6 +182,7 @@ MaterialDist Interpret(const vec3 EvalPoint)
 			else if (Opcode == OPCODE_PUSH)
 			{
 				++StackPointer;
+				Stack[StackPointer].Color = vec3(1.0);
 				continue;
 			}
 			else if (Opcode == OPCODE_RETURN)
