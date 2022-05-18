@@ -84,8 +84,9 @@ extern "C" TANGERINE_API void VoxelCompiler(void* Handle, const float VoxelSize)
 		{
 			std::vector<float> Params;
 			std::string Point = "Point";
-			uint32_t StackSize = 1;
-			std::string GLSL = Leaf.Evaluator->Compile(Interpreted, Params, StackSize, Point, 1);
+			std::string GLSL = Leaf.Evaluator->Compile(Interpreted, Params, Point);
+
+			uint32_t StackSize = Leaf.Evaluator->StackSize();
 			if (RoundStackSize)
 			{
 				// Align the stack size to 8 to reduce the number interpreter variants that

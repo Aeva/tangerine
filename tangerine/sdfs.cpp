@@ -412,7 +412,7 @@ struct BrushNode : public SDFNode
 		return Bounds();
 	}
 
-	virtual std::string Compile(const bool WithOpcodes, std::vector<float>& TreeParams, uint32_t& StackSize, std::string& Point, const uint32_t Scratch)
+	virtual std::string Compile(const bool WithOpcodes, std::vector<float>& TreeParams, std::string& Point)
 	{
 		std::string TransformedPoint = Transform.Compile(WithOpcodes, TreeParams, Point);
 
@@ -423,6 +423,11 @@ struct BrushNode : public SDFNode
 		const int Offset = StoreParams(TreeParams, NodeParams);
 		std::string Params = MakeParamList(Offset, (int)NodeParams.size());
 		return fmt::format("{}({}, {})", BrushFnName, TransformedPoint, Params);
+	}
+
+	virtual uint32_t StackSize(const uint32_t Depth)
+	{
+		return Depth;
 	}
 
 	virtual std::string Pretty()
@@ -507,11 +512,13 @@ struct SetNode : public SDFNode
 		{
 			Opcode += OPCODE_SMOOTH;
 		}
-		if (Family != SetFamily::Diff && RHS->LeafCount() > LHS->LeafCount())
+		if (Family != SetFamily::Diff && RHS->StackSize() > LHS->StackSize())
 		{
 			// When possible, swap the left and right operands to ensure the tree is left leaning.
 			// This can reduce the total stack size needed to render the model in interpreted mode,
 			// which both improves loading time and the interpreter's steady state performance.
+			// This also reduces the number of shader variants compiled for the non-interpreted
+			// mode by ensuring equivalent trees have the same form more often.
 			std::swap(LHS, RHS);
 		}
 	}
@@ -651,15 +658,14 @@ struct SetNode : public SDFNode
 		return Combined;
 	}
 
-	virtual std::string Compile(const bool WithOpcodes, std::vector<float>& TreeParams, uint32_t& StackSize, std::string& Point, const uint32_t Scratch)
+	virtual std::string Compile(const bool WithOpcodes, std::vector<float>& TreeParams, std::string& Point)
 	{
-		const std::string CompiledLHS = LHS->Compile(WithOpcodes, TreeParams, StackSize, Point, Scratch);
+		const std::string CompiledLHS = LHS->Compile(WithOpcodes, TreeParams, Point);
 		if (WithOpcodes)
 		{
 			TreeParams.push_back(AsFloat(OPCODE_PUSH));
-			StackSize = max(StackSize, Scratch + 1);
 		}
-		const std::string CompiledRHS = RHS->Compile(WithOpcodes, TreeParams, StackSize, Point, Scratch + 1);
+		const std::string CompiledRHS = RHS->Compile(WithOpcodes, TreeParams, Point);
 		if (WithOpcodes)
 		{
 			TreeParams.push_back(AsFloat(Opcode));
@@ -697,6 +703,11 @@ struct SetNode : public SDFNode
 				return fmt::format("InterOp({}, {})", CompiledLHS, CompiledRHS);
 			}
 		}
+	}
+
+	virtual uint32_t StackSize(const uint32_t Depth)
+	{
+		return max(max(Depth + 1, LHS->StackSize(Depth)), RHS->StackSize(Depth + 1));
 	}
 
 	virtual std::string Pretty()
@@ -833,7 +844,7 @@ struct PaintNode : public SDFNode
 		return Child->InnerBounds();
 	}
 
-	virtual std::string Compile(const bool WithOpcodes, std::vector<float>& TreeParams, uint32_t& StackSize, std::string& Point, const uint32_t Scratch)
+	virtual std::string Compile(const bool WithOpcodes, std::vector<float>& TreeParams, std::string& Point)
 	{
 		if (WithOpcodes)
 		{
@@ -844,7 +855,12 @@ struct PaintNode : public SDFNode
 		TreeParams.push_back(Color.g);
 		TreeParams.push_back(Color.b);
 		std::string ColorParams = MakeParamList(Offset, 3);
-		return fmt::format("MaterialDist(vec3({}), {})", ColorParams, Child->Compile(WithOpcodes, TreeParams, StackSize, Point, Scratch));
+		return fmt::format("MaterialDist(vec3({}), {})", ColorParams, Child->Compile(WithOpcodes, TreeParams, Point));
+	}
+
+	virtual uint32_t StackSize(const uint32_t Depth)
+	{
+		return Child->StackSize(Depth);
 	}
 
 	virtual std::string Pretty()
