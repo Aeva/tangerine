@@ -34,6 +34,7 @@ struct ShaderInfo
 	ParamsMap Params;
 	std::string Pretty;
 	int LeafCount;
+	uint32_t StackSize;
 };
 
 using VariantsMap = std::unordered_map<std::string, ShaderInfo>;
@@ -53,6 +54,13 @@ bool Interpreted = false;
 void UseInterpreter()
 {
 	Interpreted = true;
+}
+
+
+bool RoundStackSize = false;
+void UseRoundedStackSize()
+{
+	RoundStackSize = true;
 }
 
 
@@ -76,19 +84,27 @@ extern "C" TANGERINE_API void VoxelCompiler(void* Handle, const float VoxelSize)
 		{
 			std::vector<float> Params;
 			std::string Point = "Point";
-			std::string GLSL = Leaf.Evaluator->Compile(Interpreted, Params, Point);
+			uint32_t StackSize = 1;
+			std::string GLSL = Leaf.Evaluator->Compile(Interpreted, Params, StackSize, Point, 1);
+			if (RoundStackSize)
+			{
+				// Align the stack size to 8 to reduce the number interpreter variants that
+				// need to be compiled.  This degrades performance significantly however.
+				StackSize = ((StackSize + 7) / 8) * 8;
+			}
+
 			std::string Pretty;
 			if (Interpreted)
 			{
 				Leaf.Evaluator->AddTerminus(Params);
-				Pretty = "[SDF Interpreter]";
+				Pretty = fmt::format("[SDF Interpreter {}]", StackSize);
 			}
 			else
 			{
 				Pretty = Leaf.Evaluator->Pretty();
 			}
 
-			ShaderInfo VariantInfo = { ParamsMap(), Pretty, Leaf.LeafCount };
+			ShaderInfo VariantInfo = { ParamsMap(), Pretty, Leaf.LeafCount, StackSize };
 			auto VariantsInsert = Voxels.insert({ GLSL, VariantInfo });
 			ParamsMap& Variant = (*(VariantsInsert.first)).second.Params;
 
@@ -119,6 +135,7 @@ extern "C" TANGERINE_API void VoxelCompiler(void* Handle, const float VoxelSize)
 			BoilerPlate = fmt::format(
 				"#define MAX_ITERATIONS {}\n"
 				"#define INTERPRETED 1\n"
+				"#define INTERPRETER_STACK {}\n"
 				"#define ClusterDist Interpret\n"
 				"layout(std430, binding = 0)\n"
 				"restrict readonly buffer SubtreeParameterBlock\n"
@@ -127,7 +144,8 @@ extern "C" TANGERINE_API void VoxelCompiler(void* Handle, const float VoxelSize)
 				"\tfloat PARAMS[];\n"
 				"}};\n\n"
 				"MaterialDist Interpret(const vec3 EvalPoint);\n",
-				MaxIterations);
+				MaxIterations,
+				VariantInfo.StackSize);
 		}
 		else
 		{

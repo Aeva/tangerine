@@ -16,7 +16,11 @@
 
 
 #ifdef INTERPRETED
-#define INTERPRETER_STACK 20
+
+#ifndef INTERPRETER_STACK
+#error "Missing required define: INTERPRETER_STACK"
+#endif
+
 MaterialDist Interpret(const vec3 EvalPoint)
 {
 	MaterialDist Stack[INTERPRETER_STACK];

@@ -1506,6 +1506,14 @@ int main(int argc, char* argv[])
 				Cursor += 1;
 				continue;
 			}
+			else if (Args[Cursor] == "--use-rounded-stack")
+			{
+				// Implies "--interpreted"
+				UseInterpreter();
+				UseRoundedStackSize();
+				Cursor += 1;
+				continue;
+			}
 			else
 			{
 				std::cout << "Invalid commandline arg(s).\n";

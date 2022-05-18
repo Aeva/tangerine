@@ -78,7 +78,7 @@ struct SDFNode
 
 	virtual AABB InnerBounds() = 0;
 
-	virtual std::string Compile(const bool WithOpcodes, std::vector<float>& TreeParams, std::string& Point) = 0;
+	virtual std::string Compile(const bool WithOpcodes, std::vector<float>& TreeParams, uint32_t& StackSize, std::string& Point, const uint32_t Scratch) = 0;
 
 	void AddTerminus(std::vector<float>& TreeParams);
 

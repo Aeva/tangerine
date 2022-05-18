@@ -412,7 +412,7 @@ struct BrushNode : public SDFNode
 		return Bounds();
 	}
 
-	virtual std::string Compile(const bool WithOpcodes, std::vector<float>& TreeParams, std::string& Point)
+	virtual std::string Compile(const bool WithOpcodes, std::vector<float>& TreeParams, uint32_t& StackSize, std::string& Point, const uint32_t Scratch)
 	{
 		std::string TransformedPoint = Transform.Compile(WithOpcodes, TreeParams, Point);
 
@@ -644,14 +644,15 @@ struct SetNode : public SDFNode
 		return Combined;
 	}
 
-	virtual std::string Compile(const bool WithOpcodes, std::vector<float>& TreeParams, std::string& Point)
+	virtual std::string Compile(const bool WithOpcodes, std::vector<float>& TreeParams, uint32_t& StackSize, std::string& Point, const uint32_t Scratch)
 	{
-		const std::string CompiledLHS = LHS->Compile(WithOpcodes, TreeParams, Point);
+		const std::string CompiledLHS = LHS->Compile(WithOpcodes, TreeParams, StackSize, Point, Scratch);
 		if (WithOpcodes)
 		{
 			TreeParams.push_back(AsFloat(OPCODE_PUSH));
+			StackSize = max(StackSize, Scratch + 1);
 		}
-		const std::string CompiledRHS = RHS->Compile(WithOpcodes, TreeParams, Point);
+		const std::string CompiledRHS = RHS->Compile(WithOpcodes, TreeParams, StackSize, Point, Scratch + 1);
 		if (WithOpcodes)
 		{
 			TreeParams.push_back(AsFloat(Opcode));
@@ -825,7 +826,7 @@ struct PaintNode : public SDFNode
 		return Child->InnerBounds();
 	}
 
-	virtual std::string Compile(const bool WithOpcodes, std::vector<float>& TreeParams, std::string& Point)
+	virtual std::string Compile(const bool WithOpcodes, std::vector<float>& TreeParams, uint32_t& StackSize, std::string& Point, const uint32_t Scratch)
 	{
 		if (WithOpcodes)
 		{
@@ -836,7 +837,7 @@ struct PaintNode : public SDFNode
 		TreeParams.push_back(Color.g);
 		TreeParams.push_back(Color.b);
 		std::string ColorParams = MakeParamList(Offset, 3);
-		return fmt::format("MaterialDist(vec3({}), {})", ColorParams, Child->Compile(WithOpcodes, TreeParams, Point));
+		return fmt::format("MaterialDist(vec3({}), {})", ColorParams, Child->Compile(WithOpcodes, TreeParams, StackSize, Point, Scratch));
 	}
 
 	virtual std::string Pretty()
