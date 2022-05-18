@@ -1,5 +1,6 @@
 import base64
 import subprocess
+import time
 from PIL import Image
 
 
@@ -7,6 +8,8 @@ if __name__ == "__main__":
     width = 900
     height = 900
     max_iter = 1000
+
+    start = time.time()
 
     with open("models/step-pyramid.rkt", "rb") as infile:
         model_source = infile.read()
@@ -28,3 +31,7 @@ if __name__ == "__main__":
     orientation = -1
     fnord = Image.frombytes("RGB", (width, height), image_bytes, "raw", raw_mode, stride, orientation)
     fnord.save("test_render.png")
+
+    delta = time.time() - start
+    delta = round(delta * 100) / 100
+    print("elapsed time: {} seconds", delta)
