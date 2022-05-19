@@ -37,7 +37,12 @@
 #include <chezscheme.h>
 #include <racketcs.h>
 
+#if _WIN64
 #include <nfd.h>
+#else
+#include <gtk/gtk.h>
+#endif
+
 #include <fmt/format.h>
 
 #include "profiling.h"
@@ -826,7 +831,7 @@ void RenderFrame(int ScreenWidth, int ScreenHeight)
 								UploadValue = Drawable->LeafCount;
 							}
 							OctreeDebugOptionsUpload BufferData = {
-								UploadValue,
+								(GLuint)UploadValue,
 								0,
 								0,
 								0
@@ -965,10 +970,10 @@ void LoadModelCommon(T& LoadingCallback)
 }
 
 
-void LoadModel(nfdchar_t* Path)
+void LoadModel(std::string Path)
 {
-	static nfdchar_t* LastPath = nullptr;
-	if (!Path)
+	static std::string LastPath = "";
+	if (Path.size() == 0)
 	{
 		// Reload
 		Path = LastPath;
@@ -977,7 +982,7 @@ void LoadModel(nfdchar_t* Path)
 	{
 		ResetCamera = true;
 	}
-	if (Path)
+	if (Path.size() > 0)
 	{
 		auto LoadAndProcess = [&]()
 		{
@@ -985,7 +990,7 @@ void LoadModel(nfdchar_t* Path)
 			ptr ModuleSymbol = Sstring_to_symbol("tangerine");
 			ptr ProcSymbol = Sstring_to_symbol("renderer-load-and-process-model");
 			ptr Proc = Scar(racket_dynamic_require(ModuleSymbol, ProcSymbol));
-			ptr Args = Scons(Sstring(Path), Snil);
+			ptr Args = Scons(Sstring(Path.c_str()), Snil);
 			racket_apply(Proc, Args);
 			Sdeactivate_thread();
 		};
@@ -1030,14 +1035,38 @@ void ReadInputModel()
 
 void OpenModel()
 {
+#if _WIN64
 	nfdchar_t* Path = nullptr;
 	BeginEvent("NFD_OpenDialog");
 	nfdresult_t Result = NFD_OpenDialog("rkt", "models", &Path);
 	EndEvent();
 	if (Result == NFD_OKAY)
 	{
-		LoadModel(Path);
+		LoadModel(std::string(Path));
 	}
+	if (Path)
+	{
+		free(Path);
+	}
+#else
+	GtkWidget* Dialog = gtk_file_chooser_dialog_new("Open File",
+		nullptr,
+		GTK_FILE_CHOOSER_ACTION_OPEN,
+		"_Cancel",
+		GTK_RESPONSE_CANCEL,
+		"_Open",
+		GTK_RESPONSE_ACCEPT,
+		nullptr);
+	gint Result = gtk_dialog_run(GTK_DIALOG(Dialog));
+	if (Result == GTK_RESPONSE_ACCEPT)
+	{
+		GtkFileChooser* FileChooser = GTK_FILE_CHOOSER(Dialog);
+		char* Path = gtk_file_chooser_get_filename(FileChooser);
+		LoadModel(std::string(Path));
+		g_free(Path);
+	}
+	gtk_widget_destroy(Dialog);
+#endif
 }
 
 
@@ -1093,7 +1122,7 @@ void RenderUI(SDL_Window* Window, bool& Live)
 			}
 			if (ImGui::MenuItem("Reload", "Ctrl+R"))
 			{
-				LoadModel(nullptr);
+				LoadModel("");
 			}
 			bool AnyExport = false;
 			if (ImGui::MenuItem("Export PLY", nullptr, false, TreeEvaluator != nullptr))
@@ -1609,6 +1638,7 @@ int main(int argc, char* argv[])
 		Style.FrameBorderSize = 1.0f;
 		ImGui_ImplSDL2_InitForOpenGL(Window, Context);
 		ImGui_ImplOpenGL3_Init("#version 130");
+#if _WIN64
 		{
 			io.Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\segoeui.ttf", 16.0);
 			static ImWchar Ranges[] = { 0x1, 0x1FFFF, 0 };
@@ -1619,6 +1649,7 @@ int main(int argc, char* argv[])
 			Config.FontBuilderFlags = 0;
 			io.Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\seguisym.ttf", 16.0, &Config, Ranges);
 		}
+#endif
 		std::cout << "Done!\n";
 	}
 	std::cout << "Using device: " << glGetString(GL_RENDERER) << " " << glGetString(GL_VERSION) << "\n";
@@ -1752,7 +1783,7 @@ int main(int argc, char* argv[])
 							OpenModel();
 							break;
 						case RELOAD_MODEL:
-							LoadModel(nullptr);
+							LoadModel("");
 							break;
 						case TOGGLE_FULLSCREEN:
 							ToggleFullScreen(Window);
