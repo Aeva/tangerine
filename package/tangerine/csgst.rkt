@@ -21,7 +21,7 @@
 (require racket/match)
 (require racket/contract)
 (require math/flonum)
-(require "vec.rkt")
+(require vec)
 (require "color-names.rkt")
 
 
