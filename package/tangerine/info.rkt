@@ -5,4 +5,5 @@
 (define primary-file "main.rkt")
 (define deps '("base"
                "math-lib"
-               "sandbox-lib"))
+               "sandbox-lib"
+               "vec"))
