@@ -24,7 +24,7 @@
 #include <thread>
 #include <string>
 #ifndef MINIMAL_DLL
-#include <nfd.h>
+#include <shobjidl.h>
 #endif
 #include <fmt/format.h>
 #include "threadpool.h"
@@ -552,34 +552,42 @@ ExportProgress GetExportProgress()
 
 void MeshExport(SDFNode* Evaluator, vec3 ModelMin, vec3 ModelMax, vec3 Step, int RefineIterations, ExportFormat Format, bool ExportPointCloud)
 {
-	if (ExportState.load() == 0)
-	{
-		nfdchar_t* Path = nullptr;
-		nfdresult_t Result;
-		if (Format == ExportFormat::STL)
-		{
-			Result = NFD_SaveDialog("stl", "model.stl", &Path);
-			ExportPointCloud = false;
-		}
-		else if (Format == ExportFormat::PLY)
-		{
-			Result = NFD_SaveDialog("ply", "model.ply", &Path);
-		}
-		if (Result == NFD_OKAY)
-		{
-			ExportActive.store(true);
-			ExportState.store(0);
-			GenerationProgress.store(0);
-			RefinementProgress.store(0);
-			SecondaryProgress.store(0);
-			WriteProgress.store(0);
-			ExportState.store(1);
+#if _WIN64
+	char Path[MAX_PATH] = {};
 
-			auto Thunk = ExportPointCloud ? PointCloudExportThread : MeshExportThread;
-			std::thread ExportThread(Thunk, Evaluator, ModelMin, ModelMax, Step, RefineIterations, std::string(Path), Format);
-			ExportThread.detach();
-		}
+	OPENFILENAMEA Dialog = { sizeof(Dialog) };
+	Dialog.hwndOwner = 0;
+	if (Format == ExportFormat::STL)
+	{
+		Dialog.lpstrFilter = "STL Files\0*.stl\0";
 	}
+	else if (Format == ExportFormat::PLY)
+	{
+		Dialog.lpstrFilter = "PLY Files\0*.ply\0";
+	}
+	else
+	{
+		return;
+	}
+	Dialog.lpstrFile = Path;
+	Dialog.nMaxFile = ARRAYSIZE(Path);
+	Dialog.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST | OFN_NOCHANGEDIR;
+
+	if (GetSaveFileNameA(&Dialog))
+	{
+		ExportActive.store(true);
+		ExportState.store(0);
+		GenerationProgress.store(0);
+		RefinementProgress.store(0);
+		SecondaryProgress.store(0);
+		WriteProgress.store(0);
+		ExportState.store(1);
+
+		auto Thunk = ExportPointCloud ? PointCloudExportThread : MeshExportThread;
+		std::thread ExportThread(Thunk, Evaluator, ModelMin, ModelMax, Step, RefineIterations, std::string(Path), Format);
+		ExportThread.detach();
+	}
+#endif
 }
 
 

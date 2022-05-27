@@ -38,7 +38,7 @@
 #include <racketcs.h>
 
 #if _WIN64
-#include <nfd.h>
+#include <shobjidl.h>
 #else
 #include <gtk/gtk.h>
 #endif
@@ -1036,17 +1036,18 @@ void ReadInputModel()
 void OpenModel()
 {
 #if _WIN64
-	nfdchar_t* Path = nullptr;
-	BeginEvent("NFD_OpenDialog");
-	nfdresult_t Result = NFD_OpenDialog("rkt", "models", &Path);
-	EndEvent();
-	if (Result == NFD_OKAY)
+	char Path[MAX_PATH] = {};
+
+	OPENFILENAMEA Dialog = { sizeof(Dialog) };
+	Dialog.hwndOwner = 0;
+	Dialog.lpstrFilter = "Racket Sources\0*.rkt\0All Files\0*.*\0";
+	Dialog.lpstrFile = Path;
+	Dialog.nMaxFile = ARRAYSIZE(Path);
+	Dialog.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST | OFN_NOCHANGEDIR;
+
+	if (GetOpenFileNameA(&Dialog))
 	{
 		LoadModel(std::string(Path));
-	}
-	if (Path)
-	{
-		free(Path);
 	}
 #else
 	GtkWidget* Dialog = gtk_file_chooser_dialog_new("Open File",
