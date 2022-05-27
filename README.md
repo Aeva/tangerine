@@ -9,9 +9,6 @@ signed distance functions.  There are two versions:
 
 # Installing Tangerine "*Miniscule*" (x64 Windows and Linux)
 
- 0. If using Windows, install the [latest x64 Microsoft Visual C++ Redistributable for Visual Studio 2019](https://aka.ms/vs/17/release/vc_redist.x64.exe).
-    For some remarkable reason this is not installed by default.
-
  1. Install [Racket CS 8.5](https://download.racket-lang.org/all-versions.html),
     and ensure that `raco` and `racket` are in your system path environment variable.  Newer versions might be fine.
 
