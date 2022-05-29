@@ -40,17 +40,17 @@ struct ShaderInfo
 using VariantsMap = std::unordered_map<std::string, ShaderInfo>;
 
 
-int MaxIterations = 50;
+int MaxIterations = 100;
 void OverrideMaxIterations(int MaxIterationsOverride)
 {
-	if (MaxIterationsOverride > 1)
+	if (MaxIterationsOverride > 0)
 	{
 		MaxIterations = MaxIterationsOverride;
 	}
 }
 
 
-bool Interpreted = false;
+bool Interpreted = true;
 void UseInterpreter()
 {
 	Interpreted = true;

@@ -603,6 +603,7 @@ void CompileNewShaders(const double LastInnerFrameDeltaMs)
 		}
 
 		std::chrono::duration<double, std::milli> Delta = Clock::now() - ProcessingStart;
+		ShaderCompilerConvergenceMs += Delta.count();
 		if (!HeadlessMode && Delta.count() > Budget)
 		{
 			break;
@@ -795,11 +796,6 @@ void RenderFrame(int ScreenWidth, int ScreenHeight)
 				ShaderProgram* Shader = Drawable->GetCompiledShader();
 				if (!Shader)
 				{
-					if (!Drawable->Compiled->Failed.load())
-					{
-						std::chrono::duration<double, std::milli> Delta = Clock::now() - ShaderCompilerStart;
-						ShaderCompilerConvergenceMs = Delta.count();
-					}
 					if (!ShowOctree || !ShowLeafCount)
 					{
 						continue;
@@ -1118,6 +1114,9 @@ void RenderUI(SDL_Window* Window, bool& Live)
 	static ExportFormat ExportMeshFormat;
 	static bool ExportPointCloud;
 
+	static bool ShowChangeIterations = false;
+	static int NewMaxIterations = 0;
+
 	const bool DefaultExportSkipRefine = false;
 	const float DefaultExportStepSize = 0.01;
 	const int DefaultExportRefinementSteps = 5;
@@ -1257,7 +1256,60 @@ void RenderUI(SDL_Window* Window, bool& Live)
 			}
 			ImGui::EndMenu();
 		}
+
+		bool ToggleInterpreted = false;
+		if (Interpreted)
+		{
+			if (ImGui::MenuItem("[Interpreted Shaders]", nullptr, &ToggleInterpreted))
+			{
+				Interpreted = false;
+				LoadModel("");
+			}
+		}
+		else
+		{
+			if (ImGui::MenuItem("[Compiled Shaders]", nullptr, &ToggleInterpreted))
+			{
+				Interpreted = true;
+				LoadModel("");
+			}
+		}
+
+		bool ChangeIterations = false;
+		std::string IterationsLabel = fmt::format("[Max Iterations: {}]", MaxIterations);
+		if (ImGui::MenuItem(IterationsLabel.c_str(), nullptr, &ChangeIterations))
+		{
+			ShowChangeIterations = true;
+			NewMaxIterations = MaxIterations;
+		}
+
 		ImGui::EndMainMenuBar();
+	}
+
+	if (ShowChangeIterations)
+	{
+		ImGuiWindowFlags WindowFlags = \
+			ImGuiWindowFlags_AlwaysAutoResize |
+			ImGuiWindowFlags_NoSavedSettings |
+			ImGuiWindowFlags_NoFocusOnAppearing;
+
+		if (ImGui::Begin("Change Ray Marching Iterations", &ShowChangeIterations, WindowFlags))
+		{
+			ImGui::Text("MaxIterations");
+			ImGui::SameLine();
+			ImGui::InputInt("##MaxIterations", &NewMaxIterations, 10);
+			if (NewMaxIterations < 1)
+			{
+				NewMaxIterations = 1;
+			}
+			if (ImGui::Button("Apply"))
+			{
+				ShowChangeIterations = false;
+				OverrideMaxIterations(NewMaxIterations);
+				LoadModel("");
+			}
+		}
+		ImGui::End();
 	}
 
 	if (ShowLeafCount)
@@ -1361,7 +1413,7 @@ void RenderUI(SDL_Window* Window, bool& Live)
 		ImGui::SetNextWindowPos(ImVec2(10.0, 32.0), ImGuiCond_Appearing, ImVec2(0.0, 0.0));
 		ImGui::SetNextWindowSize(ImVec2(256, 512), ImGuiCond_Appearing);
 
-		if (ImGui::Begin("CSG Subtrees", &ShowPrettyTrees, WindowFlags))
+		if (ImGui::Begin("Shader Permutations", &ShowPrettyTrees, WindowFlags))
 		{
 			std::string Message = fmt::format("Shader Count: {}", SubtreeShaders.size());
 			ImGui::TextUnformatted(Message.c_str(), nullptr);
@@ -1545,12 +1597,6 @@ int main(int argc, char* argv[])
 				const int MaxIterations = atoi(Args[Cursor + 1].c_str());
 				OverrideMaxIterations(MaxIterations);
 				Cursor += 2;
-				continue;
-			}
-			else if (Args[Cursor] == "--interpreted")
-			{
-				UseInterpreter();
-				Cursor += 1;
 				continue;
 			}
 			else if (Args[Cursor] == "--use-rounded-stack")

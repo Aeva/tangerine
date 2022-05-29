@@ -17,6 +17,9 @@
 
 #include "sdfs.h"
 
+extern int MaxIterations;
+extern bool Interpreted;
+
 void OverrideMaxIterations(int MaxIterationsOverride);
 void UseInterpreter();
 void UseRoundedStackSize();
