@@ -16,7 +16,7 @@
 
 
 (require tangerine)
-(require tangerine/vec)
+(require vec)
 (require "bricks.rkt")
 (provide emit-glsl)
 

@@ -16,7 +16,7 @@
 
 
 (require tangerine)
-(require tangerine/vec)
+(require vec)
 (provide emit-glsl)
 
 (define (bezier brush steps ctrl-a ctrl-b ctrl-c)
