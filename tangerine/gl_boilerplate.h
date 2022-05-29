@@ -96,9 +96,12 @@ struct TimingQuery
 {
 	bool Pending = false;
 	GLuint QueryID = 0;
-	void Create();
+	void Create(size_t SampleCount = 10);
 	void Release();
 	void Start();
 	void Stop();
 	double ReadMs();
+private:
+	std::vector<double> Samples;
+	size_t Cursor = 0;
 };

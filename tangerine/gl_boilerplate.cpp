@@ -563,10 +563,15 @@ void Buffer::Bind(GLenum Target)
 }
 
 
-void TimingQuery::Create()
+void TimingQuery::Create(size_t SampleCount)
 {
 	Release();
 	glGenQueries(1, &QueryID);
+	Samples.resize(SampleCount);
+	for (double& Sample : Samples)
+	{
+		Sample = 0.0;
+	}
 }
 
 
@@ -602,8 +607,14 @@ double TimingQuery::ReadMs()
 		Pending = false;
 		GLint TimeNs = 0;
 		glGetQueryObjectiv(QueryID, GL_QUERY_RESULT, &TimeNs);
-		TimeMs = double(TimeNs) / 1000000.0;
+		Samples[Cursor] = double(TimeNs) / 1000000.0;
+		Cursor = ++Cursor % Samples.size();
 	}
 
-	return TimeMs;
+	for (const double& Sample : Samples)
+	{
+		TimeMs += Sample;
+	}
+
+	return TimeMs / double(Samples.size());
 }

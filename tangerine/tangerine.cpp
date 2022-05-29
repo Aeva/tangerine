@@ -169,7 +169,8 @@ struct SubtreeShader
 			DebugName.c_str());
 		AsyncCompile(std::move(NewShader), Compiled);
 
-		DepthQuery.Create();
+		// Use a very long average window for draw time queries to reduce the likelihood of strobing in the heatmap view.
+		DepthQuery.Create(1000);
 	}
 
 	ShaderProgram* GetCompiledShader()
