@@ -16,16 +16,16 @@
 
 ; CSGST = Constructive Solid Geometry Syntax Tree
 
-(require racket/math)
 (require racket/list)
 (require racket/match)
 (require racket/contract)
-(require math/flonum)
 (require vec)
 (require "color-names.rkt")
 
 
-(provide brush?
+(provide pi
+         degrees->radians
+         brush?
          unbound?
          shape?
          blend-operator?
@@ -58,6 +58,14 @@
          rotate-x
          rotate-y
          rotate-z)
+
+
+(define pi 3.1415926535897932384626433832795028841971693993751058209749445923078164)
+(define degrees-to-radians (/ pi 180))
+
+
+(define (degrees->radians degrees)
+  (* (exact->inexact degrees) degrees-to-radians))
 
 
 ; Returns #t if the expression is a CSG brush shape.
@@ -191,7 +199,7 @@
 ; of the inner bounding box is aligned with the origin.
 (define/contract (align x y z csgst)
   (number? number? number? csg? . -> . (list/c 'align flonum? flonum? flonum? csg?))
-  `(align ,(fl x) ,(fl y) ,(fl z) ,csgst))
+  `(align ,(exact->inexact x) ,(exact->inexact y) ,(exact->inexact z) ,csgst))
 
 
 ; Provides the common functionality to paint and paint-over.
@@ -233,7 +241,7 @@
 
   (define/contract (scrub number)
     (number? . -> . number?)
-    (max (min (fl number) 255.0) 0.0))
+    (max (min (exact->inexact number) 255.0) 0.0))
 
   (let*-values
       ([(csgst) (values (last params))]
@@ -270,25 +278,25 @@
 ; Spherice brush shape.
 (define/contract (sphere diameter)
   (number? . -> . (list/c 'sphere flonum?))
-  (let ([radius (/ (fl diameter) 2.)])
+  (let ([radius (/ (exact->inexact diameter) 2.)])
     `(sphere ,radius)))
 
 
 ; Ellipsoid brush shape.
 (define/contract (ellipsoid diameter-x diameter-y diameter-z)
   (number? number? number? . -> . (list/c 'ellipsoid flonum? flonum? flonum?))
-  (let ([radius-x (/ (fl diameter-x) 2.)]
-        [radius-y (/ (fl diameter-y) 2.)]
-        [radius-z (/ (fl diameter-z) 2.)])
+  (let ([radius-x (/ (exact->inexact diameter-x) 2.)]
+        [radius-y (/ (exact->inexact diameter-y) 2.)]
+        [radius-z (/ (exact->inexact diameter-z) 2.)])
     `(ellipsoid ,radius-x ,radius-y ,radius-z)))
 
 
 ; Box brush shape.
 (define/contract (box width depth height)
   (number? number? number? . -> . (list/c 'box flonum? flonum? flonum?))
-  (let ([extent-x (/ (fl width) 2.)]
-        [extent-y (/ (fl depth) 2.)]
-        [extent-z (/ (fl height) 2.)])
+  (let ([extent-x (/ (exact->inexact width) 2.)]
+        [extent-y (/ (exact->inexact depth) 2.)]
+        [extent-z (/ (exact->inexact height) 2.)])
     `(box ,extent-x ,extent-y ,extent-z)))
 
 
@@ -301,23 +309,23 @@
 ; Torus brush shape.
 (define/contract (torus major-diameter minor-diameter)
   (number? number? . -> . (list/c 'torus flonum? flonum?))
-  (let* ([minor-radius (/ (fl minor-diameter) 2.)]
-         [major-radius (- (/ (fl major-diameter) 2.) minor-radius)])
+  (let* ([minor-radius (/ (exact->inexact minor-diameter) 2.)]
+         [major-radius (- (/ (exact->inexact major-diameter) 2.) minor-radius)])
     `(torus ,major-radius ,minor-radius)))
 
 
 ; Cylinder brush shape.
 (define/contract (cylinder diameter height)
   (number? number? . -> . (list/c 'cylinder flonum? flonum?))
-  (let ([radius (/ (fl diameter) 2.)]
-        [extent (/ (fl height) 2.)])
+  (let ([radius (/ (exact->inexact diameter) 2.)]
+        [extent (/ (exact->inexact height) 2.)])
     `(cylinder ,radius ,extent)))
 
 
 ; Plane unbound shape.
 (define/contract (plane normal-x normal-y normal-z)
   (number? number? number? . -> . (list/c 'plane flonum? flonum? flonum?))
-  `(plane ,(fl normal-x) ,(fl normal-y) ,(fl normal-z)))
+  `(plane ,(exact->inexact normal-x) ,(exact->inexact normal-y) ,(exact->inexact normal-z)))
 
 
 ; Union CSG operator.
@@ -371,7 +379,7 @@
                [(inter? operator) 'blend-inter]))
   (define (inner lhs rhs . etc)
     (if (null? etc)
-        `(,op ,(fl threshold) ,lhs ,rhs)
+        `(,op ,(exact->inexact threshold) ,lhs ,rhs)
         (apply inner (cons (inner lhs rhs) etc))))
   (apply inner (append (list lhs rhs) etc)))
 
@@ -380,7 +388,7 @@
 (define/contract (move x y z child)
   (number? number? number? csg? . -> . (list/c 'move flonum? flonum? flonum? csg?))
   (assert-csg child)
-  `(move ,(fl x) ,(fl y) ,(fl z) ,child))
+  `(move ,(exact->inexact x) ,(exact->inexact y) ,(exact->inexact z) ,child))
 
 
 ; Translation transform.
@@ -404,7 +412,7 @@
 ; Convert from degrees to radians.
 (define/contract (radians degrees)
   (number? . -> . flonum?)
-  (fl (degrees->radians degrees)))
+  (exact->inexact (degrees->radians degrees)))
 
 
 ; Rotation transform.

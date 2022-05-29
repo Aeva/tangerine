@@ -25,7 +25,9 @@
 (require "voxel-compiler.rkt")
 (require "profiling.rkt")
 
-(provide compile
+(provide pi
+         degrees->radians
+         compile
          align
          paint
          paint-over
