@@ -96,13 +96,21 @@ struct SubtreeSection
 
 struct ModelSubtree
 {
-	ModelSubtree(uint32_t SubtreeIndex, size_t ParamCount, float* InParams)
+	ModelSubtree(uint32_t ShaderIndex, uint32_t SubtreeIndex, size_t ParamCount, float* InParams)
 	{
 		++ParamCount;
 		size_t Padding = DIV_UP(ParamCount, 4) * 4 - ParamCount;
 		size_t UploadSize = ParamCount + Padding;
 		Params.reserve(UploadSize);
+#if 1
+		// This gives a different ID per shader permutation, which is more useful for debug views.
+		Params.push_back(AsFloat(ShaderIndex));
+#else
+		// This should give a different ID per unique GLSL generated, but for some reason this doesn't
+		// produce quite the right results.  May or may not be useful for other purposes with some work,
+		// but I am unsure.
 		Params.push_back(AsFloat(SubtreeIndex));
+#endif
 		for (int i = 0; i < ParamCount; ++i)
 		{
 			Params.push_back(InParams[i]);
@@ -232,7 +240,7 @@ size_t EmitShader(std::string InSource, std::string InPretty, int LeafCount)
 void EmitParameters(size_t ShaderIndex, uint32_t SubtreeIndex, std::vector<float> Params)
 {
 	// TODO: Instances is currently a vector, but should it be a map...?
-	SubtreeShaders[ShaderIndex].Instances.emplace_back(SubtreeIndex, Params.size(), Params.data());
+	SubtreeShaders[ShaderIndex].Instances.emplace_back(ShaderIndex, SubtreeIndex, Params.size(), Params.data());
 	PendingSubtree = &(SubtreeShaders[ShaderIndex].Instances.back());
 }
 
@@ -1186,34 +1194,6 @@ void RenderUI(SDL_Window* Window, bool& Live)
 				}
 				ImGui::EndMenu();
 			}
-			if (ImGui::BeginMenu("Debug"))
-			{
-				if (ImGui::MenuItem("Subtrees", nullptr, &ShowSubtrees))
-				{
-					ShowOctree = false;
-					ShowHeatmap = false;
-					ShowLeafCount = false;
-				}
-				if (ImGui::MenuItem("Heatmap", nullptr, &ShowHeatmap))
-				{
-					ShowOctree = false;
-					ShowSubtrees = false;
-					ShowLeafCount = false;
-				}
-				if (ImGui::MenuItem("Octree", nullptr, &ShowOctree))
-				{
-					ShowHeatmap = false;
-					ShowSubtrees = false;
-					ShowLeafCount = false;
-				}
-				if (ImGui::MenuItem("CSG Leaf Count", nullptr, &ShowLeafCount))
-				{
-					ShowOctree = false;
-					ShowHeatmap = false;
-					ShowSubtrees = false;
-				}
-				ImGui::EndMenu();
-			}
 			if (ImGui::MenuItem("Highlight Edges", nullptr, &HighlightEdges))
 			{
 			}
@@ -1224,6 +1204,42 @@ void RenderUI(SDL_Window* Window, bool& Live)
 			if (ImGui::MenuItem("Full Screen", "Ctrl+F"))
 			{
 				ToggleFullScreen(Window);
+			}
+			ImGui::EndMenu();
+		}
+		if (ImGui::BeginMenu("Debug"))
+		{
+			bool DebugOff = !(ShowSubtrees || ShowHeatmap || ShowOctree || ShowLeafCount);
+			if (ImGui::MenuItem("Off", nullptr, &DebugOff))
+			{
+				ShowSubtrees = false;
+				ShowOctree = false;
+				ShowHeatmap = false;
+				ShowLeafCount = false;
+			}
+			if (ImGui::MenuItem("Shader Groups", nullptr, &ShowSubtrees))
+			{
+				ShowOctree = false;
+				ShowHeatmap = false;
+				ShowLeafCount = false;
+			}
+			if (ImGui::MenuItem("Shader Heatmap", nullptr, &ShowHeatmap))
+			{
+				ShowOctree = false;
+				ShowSubtrees = false;
+				ShowLeafCount = false;
+			}
+			if (ImGui::MenuItem("Octree", nullptr, &ShowOctree))
+			{
+				ShowHeatmap = false;
+				ShowSubtrees = false;
+				ShowLeafCount = false;
+			}
+			if (ImGui::MenuItem("CSG Leaf Count", nullptr, &ShowLeafCount))
+			{
+				ShowOctree = false;
+				ShowHeatmap = false;
+				ShowSubtrees = false;
 			}
 			ImGui::EndMenu();
 		}
