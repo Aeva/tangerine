@@ -29,26 +29,26 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>v142</PlatformToolset>
+    <PlatformToolset>v143</PlatformToolset>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>v142</PlatformToolset>
+    <PlatformToolset>v143</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>v142</PlatformToolset>
+    <PlatformToolset>v143</PlatformToolset>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>v142</PlatformToolset>
+    <PlatformToolset>v143</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
@@ -152,7 +152,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;IMGUI_USE_WCHAR32;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>$(SolutionDir)..\third_party\fmt\include;$(SolutionDir)..\third_party\imgui;$(SolutionDir)..\third_party\imgui\backends;$(SolutionDir)..\third_party\sdl2\include;$(SolutionDir)..\third_party\racket\include;$(SolutionDir)..\third_party;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)..\third_party\fmt\include;$(SolutionDir)..\third_party\imgui;$(SolutionDir)..\third_party\imgui\backends;$(SolutionDir)..\third_party\sdl2\include;$(SolutionDir)..\third_party\racket\include;$(SolutionDir)..\third_party\lua-5.4.4\lua;$(SolutionDir)..\third_party;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
     </ClCompile>
@@ -192,6 +192,38 @@
     <ClCompile Include="..\third_party\imgui\imgui_draw.cpp" />
     <ClCompile Include="..\third_party\imgui\imgui_tables.cpp" />
     <ClCompile Include="..\third_party\imgui\imgui_widgets.cpp" />
+    <ClCompile Include="..\third_party\lua-5.4.4\lua\lapi.c" />
+    <ClCompile Include="..\third_party\lua-5.4.4\lua\lauxlib.c" />
+    <ClCompile Include="..\third_party\lua-5.4.4\lua\lbaselib.c" />
+    <ClCompile Include="..\third_party\lua-5.4.4\lua\lcode.c" />
+    <ClCompile Include="..\third_party\lua-5.4.4\lua\lcorolib.c" />
+    <ClCompile Include="..\third_party\lua-5.4.4\lua\lctype.c" />
+    <ClCompile Include="..\third_party\lua-5.4.4\lua\ldblib.c" />
+    <ClCompile Include="..\third_party\lua-5.4.4\lua\ldebug.c" />
+    <ClCompile Include="..\third_party\lua-5.4.4\lua\ldo.c" />
+    <ClCompile Include="..\third_party\lua-5.4.4\lua\ldump.c" />
+    <ClCompile Include="..\third_party\lua-5.4.4\lua\lfunc.c" />
+    <ClCompile Include="..\third_party\lua-5.4.4\lua\lgc.c" />
+    <ClCompile Include="..\third_party\lua-5.4.4\lua\linit.c" />
+    <ClCompile Include="..\third_party\lua-5.4.4\lua\liolib.c" />
+    <ClCompile Include="..\third_party\lua-5.4.4\lua\llex.c" />
+    <ClCompile Include="..\third_party\lua-5.4.4\lua\lmathlib.c" />
+    <ClCompile Include="..\third_party\lua-5.4.4\lua\lmem.c" />
+    <ClCompile Include="..\third_party\lua-5.4.4\lua\loadlib.c" />
+    <ClCompile Include="..\third_party\lua-5.4.4\lua\lobject.c" />
+    <ClCompile Include="..\third_party\lua-5.4.4\lua\lopcodes.c" />
+    <ClCompile Include="..\third_party\lua-5.4.4\lua\loslib.c" />
+    <ClCompile Include="..\third_party\lua-5.4.4\lua\lparser.c" />
+    <ClCompile Include="..\third_party\lua-5.4.4\lua\lstate.c" />
+    <ClCompile Include="..\third_party\lua-5.4.4\lua\lstring.c" />
+    <ClCompile Include="..\third_party\lua-5.4.4\lua\lstrlib.c" />
+    <ClCompile Include="..\third_party\lua-5.4.4\lua\ltable.c" />
+    <ClCompile Include="..\third_party\lua-5.4.4\lua\ltablib.c" />
+    <ClCompile Include="..\third_party\lua-5.4.4\lua\ltm.c" />
+    <ClCompile Include="..\third_party\lua-5.4.4\lua\lundump.c" />
+    <ClCompile Include="..\third_party\lua-5.4.4\lua\lutf8lib.c" />
+    <ClCompile Include="..\third_party\lua-5.4.4\lua\lvm.c" />
+    <ClCompile Include="..\third_party\lua-5.4.4\lua\lzio.c" />
     <ClCompile Include="..\third_party\voxwriter\VoxWriter.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -220,6 +252,33 @@
     <ClInclude Include="..\third_party\imgui\imstb_rectpack.h" />
     <ClInclude Include="..\third_party\imgui\imstb_textedit.h" />
     <ClInclude Include="..\third_party\imgui\imstb_truetype.h" />
+    <ClInclude Include="..\third_party\lua-5.4.4\lua\lapi.h" />
+    <ClInclude Include="..\third_party\lua-5.4.4\lua\lauxlib.h" />
+    <ClInclude Include="..\third_party\lua-5.4.4\lua\lcode.h" />
+    <ClInclude Include="..\third_party\lua-5.4.4\lua\lctype.h" />
+    <ClInclude Include="..\third_party\lua-5.4.4\lua\ldebug.h" />
+    <ClInclude Include="..\third_party\lua-5.4.4\lua\ldo.h" />
+    <ClInclude Include="..\third_party\lua-5.4.4\lua\lfunc.h" />
+    <ClInclude Include="..\third_party\lua-5.4.4\lua\lgc.h" />
+    <ClInclude Include="..\third_party\lua-5.4.4\lua\ljumptab.h" />
+    <ClInclude Include="..\third_party\lua-5.4.4\lua\llex.h" />
+    <ClInclude Include="..\third_party\lua-5.4.4\lua\llimits.h" />
+    <ClInclude Include="..\third_party\lua-5.4.4\lua\lmem.h" />
+    <ClInclude Include="..\third_party\lua-5.4.4\lua\lobject.h" />
+    <ClInclude Include="..\third_party\lua-5.4.4\lua\lopcodes.h" />
+    <ClInclude Include="..\third_party\lua-5.4.4\lua\lopnames.h" />
+    <ClInclude Include="..\third_party\lua-5.4.4\lua\lparser.h" />
+    <ClInclude Include="..\third_party\lua-5.4.4\lua\lprefix.h" />
+    <ClInclude Include="..\third_party\lua-5.4.4\lua\lstate.h" />
+    <ClInclude Include="..\third_party\lua-5.4.4\lua\lstring.h" />
+    <ClInclude Include="..\third_party\lua-5.4.4\lua\ltable.h" />
+    <ClInclude Include="..\third_party\lua-5.4.4\lua\ltm.h" />
+    <ClInclude Include="..\third_party\lua-5.4.4\lua\lua.h" />
+    <ClInclude Include="..\third_party\lua-5.4.4\lua\luaconf.h" />
+    <ClInclude Include="..\third_party\lua-5.4.4\lua\lualib.h" />
+    <ClInclude Include="..\third_party\lua-5.4.4\lua\lundump.h" />
+    <ClInclude Include="..\third_party\lua-5.4.4\lua\lvm.h" />
+    <ClInclude Include="..\third_party\lua-5.4.4\lua\lzio.h" />
     <ClInclude Include="..\third_party\voxwriter\VoxWriter.h" />
     <ClInclude Include="resource.h" />
   </ItemGroup>
