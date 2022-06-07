@@ -177,7 +177,7 @@ This will build both the "*Miniscule*" and "*Majuscule*" versions of Tangerine.
 
  1. Install Racket CS 8.5, and ensure that `raco` is in your system path variable.
 
- 2. Install Visual Studio 2019 or newer with at least the C++ stuff.
+ 2. Install Visual Studio 2022 or newer with at least the C++ stuff.
 
  3. Clone this project somewhere.
 
