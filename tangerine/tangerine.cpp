@@ -34,8 +34,19 @@
 #include <vector>
 #include <chrono>
 
+#define EMBED_RACKET 0
+#define EMBED_LUA 1
+
+#if EMBED_RACKET
 #include <chezscheme.h>
 #include <racketcs.h>
+#endif
+
+#if EMBED_LUA
+#include <lua/lua.hpp>
+
+lua_State* LuaStack = nullptr;
+#endif
 
 #if _WIN64
 #include <shobjidl.h>
@@ -991,6 +1002,7 @@ void LoadModel(std::string Path)
 	{
 		auto LoadAndProcess = [&]()
 		{
+#if EMBED_RACKET
 			Sactivate_thread();
 			ptr ModuleSymbol = Sstring_to_symbol("tangerine");
 			ptr ProcSymbol = Sstring_to_symbol("renderer-load-and-process-model");
@@ -998,6 +1010,16 @@ void LoadModel(std::string Path)
 			ptr Args = Scons(Sstring(Path.c_str()), Snil);
 			racket_apply(Proc, Args);
 			Sdeactivate_thread();
+#endif
+#if EMBED_LUA
+			int Error = luaL_loadfile(LuaStack, Path.c_str()) || lua_pcall(LuaStack, 0, 0, 0);
+			if (Error)
+			{
+				std::string ErrorMessage = fmt::format("{}\n", lua_tostring(LuaStack, -1));
+				RacketErrors.push_back(std::string(ErrorMessage));
+				lua_pop(LuaStack, 1);
+			}
+#endif
 		};
 
 		LoadModelCommon(LoadAndProcess);
@@ -1020,6 +1042,7 @@ void ReadInputModel()
 		std::cout << "Evaluating data from stdin.\n";
 		auto EvalUntrusted = [&]()
 		{
+#if EMBED_RACKET
 			Sactivate_thread();
 			ptr ModuleSymbol = Sstring_to_symbol("tangerine");
 			ptr ProcSymbol = Sstring_to_symbol("renderer-load-untrusted-model");
@@ -1027,6 +1050,16 @@ void ReadInputModel()
 			ptr Args = Scons(Sstring_utf8(ModelSource.c_str(), ModelSource.size()), Snil);
 			racket_apply(Proc, Args);
 			Sdeactivate_thread();
+#endif
+#if EMBED_LUA
+			int Error = luaL_loadstring(LuaStack, ModelSource.c_str()) || lua_pcall(LuaStack, 0, 0, 0);
+			if (Error)
+			{
+				std::string ErrorMessage = fmt::format("{}\n", lua_tostring(LuaStack, -1));
+				RacketErrors.push_back(std::string(ErrorMessage));
+				lua_pop(LuaStack, 1);
+			}
+#endif
 		};
 		LoadModelCommon(EvalUntrusted);
 		std::cout << "Done!\n";
@@ -1045,7 +1078,13 @@ void OpenModel()
 
 	OPENFILENAMEA Dialog = { sizeof(Dialog) };
 	Dialog.hwndOwner = 0;
+#if EMBED_RACKET
 	Dialog.lpstrFilter = "Racket Sources\0*.rkt\0All Files\0*.*\0";
+#elif EMBED_LUA
+	Dialog.lpstrFilter = "Lua Sources\0*.lua\0All Files\0*.*\0";
+#else
+	Dialog.lpstrFilter = "All Files\0*.*\0";
+#endif
 	Dialog.lpstrFile = Path;
 	Dialog.nMaxFile = ARRAYSIZE(Path);
 	Dialog.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST | OFN_NOCHANGEDIR;
@@ -1679,6 +1718,7 @@ int main(int argc, char* argv[])
 	}
 	ConnectDebugCallback(0);
 	{
+#if EMBED_RACKET
 		std::cout << "Setting up Racket CS... ";
 		racket_boot_arguments_t BootArgs;
 		memset(&BootArgs, 0, sizeof(BootArgs));
@@ -1690,6 +1730,11 @@ int main(int argc, char* argv[])
 		BootArgs.config_dir = "./racket/etc";
 		racket_boot(&BootArgs);
 		std::cout << "Done!\n";
+#endif
+#if EMBED_LUA
+		LuaStack = luaL_newstate();
+		luaL_openlibs(LuaStack);
+#endif
 	}
 	{
 		std::cout << "Setting up Dear ImGui... ";
@@ -1948,6 +1993,11 @@ int main(int argc, char* argv[])
 		}
 		std::cout << "Shutting down...\n";
 	}
+#if EMBED_LUA
+	{
+		lua_close(LuaStack);
+	}
+#endif
 	{
 		JoinWorkerThreads();
 		for (SubtreeShader& Shader : SubtreeShaders)

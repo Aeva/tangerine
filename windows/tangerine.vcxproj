@@ -152,7 +152,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;IMGUI_USE_WCHAR32;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>$(SolutionDir)..\third_party\fmt\include;$(SolutionDir)..\third_party\imgui;$(SolutionDir)..\third_party\imgui\backends;$(SolutionDir)..\third_party\sdl2\include;$(SolutionDir)..\third_party\racket\include;$(SolutionDir)..\third_party\lua-5.4.4\lua;$(SolutionDir)..\third_party;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)..\third_party\fmt\include;$(SolutionDir)..\third_party\imgui;$(SolutionDir)..\third_party\imgui\backends;$(SolutionDir)..\third_party\sdl2\include;$(SolutionDir)..\third_party\racket\include;$(SolutionDir)..\third_party\lua-5.4.4\;$(SolutionDir)..\third_party;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
     </ClCompile>
@@ -274,6 +274,7 @@
     <ClInclude Include="..\third_party\lua-5.4.4\lua\ltable.h" />
     <ClInclude Include="..\third_party\lua-5.4.4\lua\ltm.h" />
     <ClInclude Include="..\third_party\lua-5.4.4\lua\lua.h" />
+    <ClInclude Include="..\third_party\lua-5.4.4\lua\lua.hpp" />
     <ClInclude Include="..\third_party\lua-5.4.4\lua\luaconf.h" />
     <ClInclude Include="..\third_party\lua-5.4.4\lua\lualib.h" />
     <ClInclude Include="..\third_party\lua-5.4.4\lua\lundump.h" />

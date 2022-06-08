@@ -357,6 +357,9 @@
     <ClInclude Include="..\third_party\lua-5.4.4\lua\lzio.h">
       <Filter>Third Party\Lua</Filter>
     </ClInclude>
+    <ClInclude Include="..\third_party\lua-5.4.4\lua\lua.hpp">
+      <Filter>Third Party\Lua</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="..\shaders\math.glsl">
