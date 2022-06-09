@@ -23,6 +23,12 @@
 #include "sdfs.h"
 #include <glm/gtc/type_ptr.hpp>
 
+#define EMBED_LUA 1
+
+#if EMBED_LUA
+#include <lua/lua.hpp>
+#endif
+
 
 using namespace glm;
 using namespace std::placeholders;
@@ -1143,6 +1149,61 @@ extern "C" TANGERINE_API void* MakeBlendInterOp(float Threshold, void* LHS, void
 extern "C" TANGERINE_API void* MakePaint(float Red, float Green, float Blue, void* Child)
 {
 	return new PaintNode(vec3(Red, Green, Blue), (SDFNode*)Child);
+}
+
+
+int LuaMoveX(lua_State* L)
+{
+	SDFNode** Self = (SDFNode**)luaL_checkudata(L, 1, "tangerine.sdf");
+	lua_Number X = luaL_checknumber(L, 2);
+	MoveTree(*Self, X, 0.0, 0.0);
+	return 1;
+}
+
+int LuaSphere(lua_State* L)
+{
+	lua_Number Radius = luaL_checknumber(L, 1);
+	SDFNode** Node = (SDFNode**)lua_newuserdata(L, sizeof(SDFNode*));
+	luaL_getmetatable(L, "tangerine.sdf");
+	lua_setmetatable(L, -2);
+
+	*Node = (SDFNode*)MakeSphereBrush((float)Radius);
+	return 1;
+}
+
+
+int LuaGC(lua_State* L)
+{
+	SDFNode** Self = (SDFNode**)luaL_checkudata(L, 1, "tangerine.sdf");
+	if (Self)
+	{
+		delete* Self;
+	}
+	return 0;
+}
+
+
+const luaL_Reg LuaSDFType[] = \
+{
+	{"sphere", LuaSphere},
+	{"move_x", LuaMoveX},
+	{NULL, NULL}
+};
+
+
+const luaL_Reg LuaSDFMeta[] = \
+{
+	{"__gc", LuaGC},
+	{NULL, NULL}
+};
+
+
+int LuaOpenSDF(lua_State* L)
+{
+	luaL_newmetatable(L, "tangerine.sdf");
+	luaL_setfuncs(L, LuaSDFMeta, 0);
+	luaL_newlib(L, LuaSDFType);
+	return 1;
 }
 
 

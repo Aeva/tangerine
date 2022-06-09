@@ -1019,6 +1019,19 @@ void LoadModel(std::string Path)
 				RacketErrors.push_back(std::string(ErrorMessage));
 				lua_pop(LuaStack, 1);
 			}
+			else
+			{
+				lua_getglobal(LuaStack, "model");
+				SDFNode** Model = (SDFNode**)luaL_checkudata(LuaStack, -1, "tangerine.sdf");
+				if (Model)
+				{
+					CompileEvaluator(*Model);
+				}
+				else
+				{
+					std::cout << "Invalid model.\n";
+				}
+			}
 #endif
 		};
 
@@ -1734,6 +1747,7 @@ int main(int argc, char* argv[])
 #if EMBED_LUA
 		LuaStack = luaL_newstate();
 		luaL_openlibs(LuaStack);
+		luaL_requiref(LuaStack, "tangerine", LuaOpenSDF, 1);
 #endif
 	}
 	{

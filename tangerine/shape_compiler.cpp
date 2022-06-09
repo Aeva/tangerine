@@ -180,3 +180,8 @@ extern "C" TANGERINE_API void VoxelCompiler(void* Handle, const float VoxelSize)
 
 	EndEvent();
 }
+
+void CompileEvaluator(SDFNode* Evaluator, const float VoxelSize)
+{
+	VoxelCompiler(Evaluator, VoxelSize);
+}

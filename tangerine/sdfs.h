@@ -113,6 +113,9 @@ struct SDFNode
 };
 
 
+int LuaOpenSDF(struct lua_State* L);
+
+
 struct SDFOctree
 {
 	AABB Bounds;

@@ -27,3 +27,4 @@ size_t EmitShader(std::string Source, std::string Pretty, int LeafCount);
 void EmitParameters(size_t ShaderIndex, uint32_t SubtreeIndex, std::vector<float> Params);
 void EmitVoxel(AABB Bounds);
 void SetTreeEvaluator(SDFNode* InTreeEvaluator, AABB Limits);
+void CompileEvaluator(SDFNode* Evaluator, const float VoxelSize = 0.25);
