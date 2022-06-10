@@ -35,12 +35,20 @@
 #include <chrono>
 
 #ifndef EMBED_RACKET
-#define EMBED_RACKET 1
+#define EMBED_RACKET 0
 #endif
 
 #if EMBED_RACKET
 #include <chezscheme.h>
 #include <racketcs.h>
+#endif
+
+#ifndef EMBED_WREN
+#define EMBED_WREN 1
+#endif
+
+#if EMBED_WREN
+#include <wren.h>
 #endif
 
 #if _WIN64

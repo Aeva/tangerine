@@ -31,6 +31,18 @@
     <Filter Include="Third Party\FMT">
       <UniqueIdentifier>{fae911b0-7d59-411a-abf8-7769cd85e687}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Third Party\Wren">
+      <UniqueIdentifier>{8f42d10d-6c05-448e-b52e-cd0ac8090871}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Third Party\Wren\Include">
+      <UniqueIdentifier>{ef119760-b43b-45d3-ad7e-c6fde97ee3e9}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Third Party\Wren\VM">
+      <UniqueIdentifier>{4731aea3-c6c8-4239-89ec-060ef5526fe5}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Third Party\Wren\Optional">
+      <UniqueIdentifier>{ef0cdd9e-1581-41b8-a48d-89a554a2dfef}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\third_party\glad\glad.c">
@@ -95,6 +107,33 @@
     </ClCompile>
     <ClCompile Include="..\tangerine\gl_debug.cpp">
       <Filter>Tangerine</Filter>
+    </ClCompile>
+    <ClCompile Include="..\third_party\wren\src\optional\wren_opt_meta.c">
+      <Filter>Third Party\Wren\Optional</Filter>
+    </ClCompile>
+    <ClCompile Include="..\third_party\wren\src\optional\wren_opt_random.c">
+      <Filter>Third Party\Wren\Optional</Filter>
+    </ClCompile>
+    <ClCompile Include="..\third_party\wren\src\vm\wren_compiler.c">
+      <Filter>Third Party\Wren\VM</Filter>
+    </ClCompile>
+    <ClCompile Include="..\third_party\wren\src\vm\wren_core.c">
+      <Filter>Third Party\Wren\VM</Filter>
+    </ClCompile>
+    <ClCompile Include="..\third_party\wren\src\vm\wren_debug.c">
+      <Filter>Third Party\Wren\VM</Filter>
+    </ClCompile>
+    <ClCompile Include="..\third_party\wren\src\vm\wren_primitive.c">
+      <Filter>Third Party\Wren\VM</Filter>
+    </ClCompile>
+    <ClCompile Include="..\third_party\wren\src\vm\wren_utils.c">
+      <Filter>Third Party\Wren\VM</Filter>
+    </ClCompile>
+    <ClCompile Include="..\third_party\wren\src\vm\wren_value.c">
+      <Filter>Third Party\Wren\VM</Filter>
+    </ClCompile>
+    <ClCompile Include="..\third_party\wren\src\vm\wren_vm.c">
+      <Filter>Third Party\Wren\VM</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -177,6 +216,48 @@
     <ClInclude Include="..\tangerine\gl_debug.h">
       <Filter>Tangerine</Filter>
     </ClInclude>
+    <ClInclude Include="..\third_party\wren\src\include\wren.h">
+      <Filter>Third Party\Wren\Include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\third_party\wren\src\include\wren.hpp">
+      <Filter>Third Party\Wren\Include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\third_party\wren\src\optional\wren_opt_meta.h">
+      <Filter>Third Party\Wren\Optional</Filter>
+    </ClInclude>
+    <ClInclude Include="..\third_party\wren\src\optional\wren_opt_random.h">
+      <Filter>Third Party\Wren\Optional</Filter>
+    </ClInclude>
+    <ClInclude Include="..\third_party\wren\src\vm\wren_common.h">
+      <Filter>Third Party\Wren\VM</Filter>
+    </ClInclude>
+    <ClInclude Include="..\third_party\wren\src\vm\wren_compiler.h">
+      <Filter>Third Party\Wren\VM</Filter>
+    </ClInclude>
+    <ClInclude Include="..\third_party\wren\src\vm\wren_core.h">
+      <Filter>Third Party\Wren\VM</Filter>
+    </ClInclude>
+    <ClInclude Include="..\third_party\wren\src\vm\wren_debug.h">
+      <Filter>Third Party\Wren\VM</Filter>
+    </ClInclude>
+    <ClInclude Include="..\third_party\wren\src\vm\wren_math.h">
+      <Filter>Third Party\Wren\VM</Filter>
+    </ClInclude>
+    <ClInclude Include="..\third_party\wren\src\vm\wren_opcodes.h">
+      <Filter>Third Party\Wren\VM</Filter>
+    </ClInclude>
+    <ClInclude Include="..\third_party\wren\src\vm\wren_primitive.h">
+      <Filter>Third Party\Wren\VM</Filter>
+    </ClInclude>
+    <ClInclude Include="..\third_party\wren\src\vm\wren_utils.h">
+      <Filter>Third Party\Wren\VM</Filter>
+    </ClInclude>
+    <ClInclude Include="..\third_party\wren\src\vm\wren_value.h">
+      <Filter>Third Party\Wren\VM</Filter>
+    </ClInclude>
+    <ClInclude Include="..\third_party\wren\src\vm\wren_vm.h">
+      <Filter>Third Party\Wren\VM</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="..\shaders\math.glsl">
@@ -240,6 +321,24 @@
       <Filter>Racket Stuff</Filter>
     </None>
     <None Include="packages.config" />
+    <None Include="..\third_party\wren\src\optional\wren_opt_meta.wren">
+      <Filter>Third Party\Wren\Optional</Filter>
+    </None>
+    <None Include="..\third_party\wren\src\optional\wren_opt_meta.wren.inc">
+      <Filter>Third Party\Wren\Optional</Filter>
+    </None>
+    <None Include="..\third_party\wren\src\optional\wren_opt_random.wren">
+      <Filter>Third Party\Wren\Optional</Filter>
+    </None>
+    <None Include="..\third_party\wren\src\optional\wren_opt_random.wren.inc">
+      <Filter>Third Party\Wren\Optional</Filter>
+    </None>
+    <None Include="..\third_party\wren\src\vm\wren_core.wren">
+      <Filter>Third Party\Wren\VM</Filter>
+    </None>
+    <None Include="..\third_party\wren\src\vm\wren_core.wren.inc">
+      <Filter>Third Party\Wren\VM</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="tangerine.rc" />

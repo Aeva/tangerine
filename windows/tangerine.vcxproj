@@ -152,7 +152,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;IMGUI_USE_WCHAR32;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>$(SolutionDir)..\third_party\fmt\include;$(SolutionDir)..\third_party\imgui;$(SolutionDir)..\third_party\imgui\backends;$(SolutionDir)..\third_party\sdl2\include;$(SolutionDir)..\third_party\racket\include;$(SolutionDir)..\third_party;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)..\third_party\fmt\include;$(SolutionDir)..\third_party\imgui;$(SolutionDir)..\third_party\imgui\backends;$(SolutionDir)..\third_party\sdl2\include;$(SolutionDir)..\third_party\racket\include;$(SolutionDir)..\third_party\wren\src\include;$(SolutionDir)..\third_party\wren\src\vm;$(SolutionDir)..\third_party\wren\src\optional;$(SolutionDir)..\third_party;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
     </ClCompile>
@@ -193,6 +193,15 @@
     <ClCompile Include="..\third_party\imgui\imgui_tables.cpp" />
     <ClCompile Include="..\third_party\imgui\imgui_widgets.cpp" />
     <ClCompile Include="..\third_party\voxwriter\VoxWriter.cpp" />
+    <ClCompile Include="..\third_party\wren\src\optional\wren_opt_meta.c" />
+    <ClCompile Include="..\third_party\wren\src\optional\wren_opt_random.c" />
+    <ClCompile Include="..\third_party\wren\src\vm\wren_compiler.c" />
+    <ClCompile Include="..\third_party\wren\src\vm\wren_core.c" />
+    <ClCompile Include="..\third_party\wren\src\vm\wren_debug.c" />
+    <ClCompile Include="..\third_party\wren\src\vm\wren_primitive.c" />
+    <ClCompile Include="..\third_party\wren\src\vm\wren_utils.c" />
+    <ClCompile Include="..\third_party\wren\src\vm\wren_value.c" />
+    <ClCompile Include="..\third_party\wren\src\vm\wren_vm.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\shaders\defines.h" />
@@ -221,6 +230,20 @@
     <ClInclude Include="..\third_party\imgui\imstb_textedit.h" />
     <ClInclude Include="..\third_party\imgui\imstb_truetype.h" />
     <ClInclude Include="..\third_party\voxwriter\VoxWriter.h" />
+    <ClInclude Include="..\third_party\wren\src\include\wren.h" />
+    <ClInclude Include="..\third_party\wren\src\include\wren.hpp" />
+    <ClInclude Include="..\third_party\wren\src\optional\wren_opt_meta.h" />
+    <ClInclude Include="..\third_party\wren\src\optional\wren_opt_random.h" />
+    <ClInclude Include="..\third_party\wren\src\vm\wren_common.h" />
+    <ClInclude Include="..\third_party\wren\src\vm\wren_compiler.h" />
+    <ClInclude Include="..\third_party\wren\src\vm\wren_core.h" />
+    <ClInclude Include="..\third_party\wren\src\vm\wren_debug.h" />
+    <ClInclude Include="..\third_party\wren\src\vm\wren_math.h" />
+    <ClInclude Include="..\third_party\wren\src\vm\wren_opcodes.h" />
+    <ClInclude Include="..\third_party\wren\src\vm\wren_primitive.h" />
+    <ClInclude Include="..\third_party\wren\src\vm\wren_utils.h" />
+    <ClInclude Include="..\third_party\wren\src\vm\wren_value.h" />
+    <ClInclude Include="..\third_party\wren\src\vm\wren_vm.h" />
     <ClInclude Include="resource.h" />
   </ItemGroup>
   <ItemGroup>
@@ -244,6 +267,12 @@
     <None Include="..\shaders\splat.vs.glsl" />
     <None Include="..\shaders\tile_heap.glsl" />
     <None Include="..\third_party\racket\lib\libracketcs_da32rk.def" />
+    <None Include="..\third_party\wren\src\optional\wren_opt_meta.wren" />
+    <None Include="..\third_party\wren\src\optional\wren_opt_meta.wren.inc" />
+    <None Include="..\third_party\wren\src\optional\wren_opt_random.wren" />
+    <None Include="..\third_party\wren\src\optional\wren_opt_random.wren.inc" />
+    <None Include="..\third_party\wren\src\vm\wren_core.wren" />
+    <None Include="..\third_party\wren\src\vm\wren_core.wren.inc" />
     <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
