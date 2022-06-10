@@ -34,8 +34,14 @@
 #include <vector>
 #include <chrono>
 
+#ifndef EMBED_RACKET
+#define EMBED_RACKET 1
+#endif
+
+#if EMBED_RACKET
 #include <chezscheme.h>
 #include <racketcs.h>
+#endif
 
 #if _WIN64
 #include <shobjidl.h>
@@ -57,6 +63,7 @@
 #define MINIMUM_VERSION_MINOR 2
 
 #define ASYNC_SHADER_COMPILE 0
+
 
 using Clock = std::chrono::high_resolution_clock;
 
@@ -935,12 +942,14 @@ void ToggleFullScreen(SDL_Window* Window)
 }
 
 
-std::vector<std::string> RacketErrors;
+std::vector<std::string> ScriptErrors;
+#if EMBED_RACKET
 extern "C" TANGERINE_API void RacketErrorCallback(const char* ErrorMessage)
 {
 	std::cout << ErrorMessage << "\n";
-	RacketErrors.push_back(std::string(ErrorMessage));
+	ScriptErrors.push_back(std::string(ErrorMessage));
 }
+#endif
 
 
 double ModelProcessingStallMs = 0.0;
@@ -991,6 +1000,7 @@ void LoadModel(std::string Path)
 	{
 		auto LoadAndProcess = [&]()
 		{
+#if EMBED_RACKET
 			Sactivate_thread();
 			ptr ModuleSymbol = Sstring_to_symbol("tangerine");
 			ptr ProcSymbol = Sstring_to_symbol("renderer-load-and-process-model");
@@ -998,6 +1008,7 @@ void LoadModel(std::string Path)
 			ptr Args = Scons(Sstring(Path.c_str()), Snil);
 			racket_apply(Proc, Args);
 			Sdeactivate_thread();
+#endif
 		};
 
 		LoadModelCommon(LoadAndProcess);
@@ -1020,6 +1031,7 @@ void ReadInputModel()
 		std::cout << "Evaluating data from stdin.\n";
 		auto EvalUntrusted = [&]()
 		{
+#if EMBED_RACKET
 			Sactivate_thread();
 			ptr ModuleSymbol = Sstring_to_symbol("tangerine");
 			ptr ProcSymbol = Sstring_to_symbol("renderer-load-untrusted-model");
@@ -1027,6 +1039,7 @@ void ReadInputModel()
 			ptr Args = Scons(Sstring_utf8(ModelSource.c_str(), ModelSource.size()), Snil);
 			racket_apply(Proc, Args);
 			Sdeactivate_thread();
+#endif
 		};
 		LoadModelCommon(EvalUntrusted);
 		std::cout << "Done!\n";
@@ -1045,7 +1058,11 @@ void OpenModel()
 
 	OPENFILENAMEA Dialog = { sizeof(Dialog) };
 	Dialog.hwndOwner = 0;
+#if EMBED_RACKET
 	Dialog.lpstrFilter = "Racket Sources\0*.rkt\0All Files\0*.*\0";
+#else
+	Dialog.lpstrFilter = "All Files\0*.*\0";
+#endif
 	Dialog.lpstrFile = Path;
 	Dialog.nMaxFile = ARRAYSIZE(Path);
 	Dialog.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST | OFN_NOCHANGEDIR;
@@ -1514,11 +1531,11 @@ void RenderUI(SDL_Window* Window, bool& Live)
 		}
 	}
 
-	if (RacketErrors.size() > 0)
+	if (ScriptErrors.size() > 0)
 	{
-		std::string RacketError = RacketErrors[RacketErrors.size() - 1];
+		std::string ScriptError = ScriptErrors[ScriptErrors.size() - 1];
 		{
-			ImVec2 TextSize = ImGui::CalcTextSize(RacketError.c_str(), nullptr);
+			ImVec2 TextSize = ImGui::CalcTextSize(ScriptError.c_str(), nullptr);
 			TextSize.x += 40.0;
 			TextSize.y += 100.0;
 			ImVec2 MaxSize = ImGui::GetMainViewport()->WorkSize;
@@ -1539,7 +1556,7 @@ void RenderUI(SDL_Window* Window, bool& Live)
 				Size.y -= 24.0f;
 				if (ImGui::BeginChild("ErrorText", Size, false, ImGuiWindowFlags_HorizontalScrollbar))
 				{
-					ImGui::TextUnformatted(RacketError.c_str(), nullptr);
+					ImGui::TextUnformatted(ScriptError.c_str(), nullptr);
 				}
 				ImGui::EndChild();
 			}
@@ -1547,12 +1564,12 @@ void RenderUI(SDL_Window* Window, bool& Live)
 			if (ImGui::Button("OK", ImVec2(120, 0)))
 			{
 				ImGui::CloseCurrentPopup();
-				RacketErrors.pop_back();
+				ScriptErrors.pop_back();
 			}
 			ImGui::SameLine();
 			if (ImGui::Button("Copy Error", ImVec2(120, 0)))
 			{
-				SDL_SetClipboardText(RacketError.c_str());
+				SDL_SetClipboardText(ScriptError.c_str());
 			}
 
 			ImGui::EndPopup();
@@ -1679,6 +1696,7 @@ int main(int argc, char* argv[])
 	}
 	ConnectDebugCallback(0);
 	{
+#if EMBED_RACKET
 		std::cout << "Setting up Racket CS... ";
 		racket_boot_arguments_t BootArgs;
 		memset(&BootArgs, 0, sizeof(BootArgs));
@@ -1690,6 +1708,7 @@ int main(int argc, char* argv[])
 		BootArgs.config_dir = "./racket/etc";
 		racket_boot(&BootArgs);
 		std::cout << "Done!\n";
+#endif
 	}
 	{
 		std::cout << "Setting up Dear ImGui... ";
@@ -1814,7 +1833,7 @@ int main(int argc, char* argv[])
 							break;
 						}
 					}
-					else if (Dragging && RacketErrors.size() > 0)
+					else if (Dragging && ScriptErrors.size() > 0)
 					{
 						Dragging = false;
 						SDL_SetRelativeMouseMode(SDL_FALSE);
