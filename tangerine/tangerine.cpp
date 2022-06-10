@@ -48,7 +48,8 @@
 #endif
 
 #if EMBED_WREN
-#include <wren.h>
+#include <wren.hpp>
+WrenVM* MainWrenVM = nullptr;
 #endif
 
 #if _WIN64
@@ -960,6 +961,30 @@ extern "C" TANGERINE_API void RacketErrorCallback(const char* ErrorMessage)
 #endif
 
 
+#if EMBED_WREN
+void WrenPrint(WrenVM* VM, const char* Text)
+{
+	std::cout << Text;
+}
+
+void WrenError(WrenVM* VM, WrenErrorType ErrorType, const char* Module, const int Line, const char* Message)
+{
+	if (ErrorType == WREN_ERROR_COMPILE)
+	{
+		fmt::print("[{} line {}] [Error] {}\n", Module, Line, Message);
+	}
+	else if (ErrorType == WREN_ERROR_STACK_TRACE)
+	{
+		fmt::print("[{} line {}] {}\n", Module, Line, Message);
+	}
+	else
+	{
+		fmt::print("[Runtime Error] {}\n", Message);
+	}
+}
+#endif
+
+
 double ModelProcessingStallMs = 0.0;
 template<typename T>
 void LoadModelCommon(T& LoadingCallback)
@@ -1645,7 +1670,7 @@ int main(int argc, char* argv[])
 	{
 		std::cout << "Setting up SDL2... ";
 		SDL_SetMainReady();
-		if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER ) == 0)
+		if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER) == 0)
 		{
 			SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
 			SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, MINIMUM_VERSION_MAJOR);
@@ -1703,8 +1728,8 @@ int main(int argc, char* argv[])
 		}
 	}
 	ConnectDebugCallback(0);
-	{
 #if EMBED_RACKET
+	{
 		std::cout << "Setting up Racket CS... ";
 		racket_boot_arguments_t BootArgs;
 		memset(&BootArgs, 0, sizeof(BootArgs));
@@ -1716,8 +1741,27 @@ int main(int argc, char* argv[])
 		BootArgs.config_dir = "./racket/etc";
 		racket_boot(&BootArgs);
 		std::cout << "Done!\n";
-#endif
 	}
+#endif
+#if EMBED_WREN
+	{
+		std::cout << "Setting up Wren... ";
+		WrenConfiguration Config;
+		wrenInitConfiguration(&Config);
+		Config.writeFn = &WrenPrint;
+		Config.errorFn = &WrenError;
+		MainWrenVM = wrenNewVM(&Config);
+
+		const char* TestModule = "main";
+		const char* TestScript = "System.print(\"Done!\")";
+		WrenInterpretResult Result = wrenInterpret(MainWrenVM, TestModule, TestScript);
+		if (Result != WREN_RESULT_SUCCESS)
+		{
+			std::cout << "Failed to initialize Wren.\n";
+			return 0;
+		}
+	}
+#endif
 	{
 		std::cout << "Setting up Dear ImGui... ";
 		IMGUI_CHECKVERSION();
@@ -1975,6 +2019,9 @@ int main(int argc, char* argv[])
 		}
 		std::cout << "Shutting down...\n";
 	}
+#if EMBED_WREN
+	wrenFreeVM(MainWrenVM);
+#endif
 	{
 		JoinWorkerThreads();
 		for (SubtreeShader& Shader : SubtreeShaders)
