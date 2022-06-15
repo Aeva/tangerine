@@ -26,7 +26,7 @@ MaterialDist Interpret(const vec3 EvalPoint)
 	MaterialDist Stack[INTERPRETER_STACK];
 	for (int i = 0; i < INTERPRETER_STACK; ++i)
 	{
-		Stack[i] = MaterialDist(vec3(1.0), 0.0);
+		Stack[i] = MaterialDist(vec3(-1.0), 0.0);
 	}
 
 	uint StackPointer = 0;
@@ -57,7 +57,7 @@ MaterialDist Interpret(const vec3 EvalPoint)
 				}
 				else if (Opcode == OPCODE_INTER)
 				{
-					Stack[StackPointer] = InterOp(Stack[StackPointer], Stack[StackPointer + 1]);
+					Stack[StackPointer] = InterpretedInterOp(Stack[StackPointer], Stack[StackPointer + 1]);
 					continue;
 				}
 				else if (Opcode == OPCODE_DIFF)
@@ -76,7 +76,7 @@ MaterialDist Interpret(const vec3 EvalPoint)
 				}
 				else if (Opcode == OPCODE_SMOOTH_INTER)
 				{
-					Stack[StackPointer] = SmoothInterOp(Stack[StackPointer], Stack[StackPointer + 1], Threshold);
+					Stack[StackPointer] = InterpretedSmoothInterOp(Stack[StackPointer], Stack[StackPointer + 1], Threshold);
 					continue;
 				}
 				else if (Opcode == OPCODE_SMOOTH_DIFF)
@@ -186,11 +186,12 @@ MaterialDist Interpret(const vec3 EvalPoint)
 			else if (Opcode == OPCODE_PUSH)
 			{
 				++StackPointer;
-				Stack[StackPointer].Color = vec3(1.0);
+				Stack[StackPointer].Color = vec3(-1.0);
 				continue;
 			}
 			else if (Opcode == OPCODE_RETURN)
 			{
+				Stack[0].Color = abs(Stack[0].Color);
 				return Stack[0];
 			}
 			else

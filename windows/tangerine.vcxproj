@@ -235,6 +235,7 @@
     <None Include="..\shaders\cluster_draw.fs.glsl" />
     <None Include="..\shaders\cluster_draw.vs.glsl" />
     <None Include="..\shaders\gather_depth.cs.glsl" />
+    <None Include="..\shaders\interpreter.glsl" />
     <None Include="..\shaders\masked.vs.glsl" />
     <None Include="..\shaders\math.glsl" />
     <None Include="..\shaders\noise.fs.glsl" />
