@@ -16,49 +16,43 @@ prepend: shaders/defines.h
 // limitations under the License.
 
 
-layout(std140, binding = 0)
-uniform ViewInfoBlock
+layout(std140, binding = 2)
+uniform DepthLevelBlock
 {
-	mat4 WorldToView;
-	mat4 ViewToWorld;
-	mat4 ViewToClip;
-	mat4 ClipToView;
-	vec4 CameraOrigin;
-	vec4 ScreenSize;
-	vec4 ModelMin;
-	vec4 ModelMax;
-	float CurrentTime;
+	ivec2 Size;
+	int Level; // Mip levels to produce
 };
 
 
 layout(binding = 3) uniform sampler2D DepthBuffer;
-layout(binding = 4, r32f) uniform writeonly image2D DepthRange;
-
-
-shared float[64] TileCache;
+layout(binding = 4, r32f) uniform readonly image2D LastSlice;
+layout(binding = 5, r32f) uniform writeonly image2D NextSlice;
 
 
 layout(local_size_x = TILE_SIZE_X, local_size_y = TILE_SIZE_Y, local_size_z = 1) in;
 void main()
 {
-	// Lanes correspond to pixels in the depth buffer, in an 2x2 tile.
-	// The thread group corresponds to a pixel in a lower mip level.
+	// Lanes correspond to pixels in the output buffer.
+	ivec2 Position = ivec2(gl_GlobalInvocationID.xy);
+	ivec2 Texel = Position * 2;
 
-	uint Lane = TILE_SIZE_X * gl_LocalInvocationID.y + gl_LocalInvocationID.x;
-	TileCache[Lane] = 0.0;
-	ivec2 TexelCoord = min(ivec2(gl_GlobalInvocationID.xy), ivec2(ScreenSize.xy) - 1);
-	TileCache[Lane] = texelFetch(DepthBuffer, TexelCoord, 0).r;
-
-	barrier();
-	groupMemoryBarrier();
-
-	if (Lane == 0)
+	float Depth = 0.0;
+	if (Level == 0)
 	{
-		float DepthMin = TileCache[0];
-		for (int i = 1; i < 64; ++i)
-		{
-			DepthMin = min(DepthMin, TileCache[i]);
-		}
-		imageStore(DepthRange, ivec2(gl_WorkGroupID.xy), vec4(DepthMin));
+		Depth = texelFetch(DepthBuffer, Texel, 0).r;
+		Depth = min(Depth, texelFetch(DepthBuffer, Texel + ivec2(1, 0), 0).r);
+		Depth = min(Depth, texelFetch(DepthBuffer, Texel + ivec2(0, 1), 0).r);
+		Depth = min(Depth, texelFetch(DepthBuffer, Texel + ivec2(1, 1), 0).r);
+	}
+	else
+	{
+		Depth = imageLoad(LastSlice, Texel).r;
+		Depth = min(Depth, imageLoad(LastSlice, Texel + ivec2(1, 0)).r);
+		Depth = min(Depth, imageLoad(LastSlice, Texel + ivec2(0, 1)).r);
+		Depth = min(Depth, imageLoad(LastSlice, Texel + ivec2(1, 1)).r);
+	}
+	if (all(lessThan(Position, Size)))
+	{
+		imageStore(NextSlice, Position, vec4(Depth));
 	}
 }

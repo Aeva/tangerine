@@ -209,9 +209,6 @@
     <None Include="..\shaders\gather_depth.cs.glsl">
       <Filter>Shaders</Filter>
     </None>
-    <None Include="..\shaders\resolve_stencil.fs.glsl">
-      <Filter>Shaders</Filter>
-    </None>
     <None Include="..\shaders\resolve.fs.glsl">
       <Filter>Shaders</Filter>
     </None>

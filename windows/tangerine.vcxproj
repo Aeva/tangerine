@@ -241,7 +241,6 @@
     <None Include="..\shaders\noise.fs.glsl" />
     <None Include="..\shaders\outliner.fs.glsl" />
     <None Include="..\shaders\resolve.fs.glsl" />
-    <None Include="..\shaders\resolve_stencil.fs.glsl" />
     <None Include="..\shaders\splat.vs.glsl" />
     <None Include="..\shaders\tile_heap.glsl" />
     <None Include="..\third_party\racket\lib\libracketcs_da32rk.def" />

@@ -286,6 +286,7 @@ void SetTreeEvaluator(SDFNode* InTreeEvaluator, AABB Limits)
 ShaderProgram PaintShader;
 ShaderProgram NoiseShader;
 ShaderProgram BgShader;
+ShaderProgram GatherDepthShader;
 ShaderProgram ResolveOutputShader;
 ShaderProgram OctreeDebugShader;
 
@@ -306,10 +307,50 @@ GLuint MaterialBuffer;
 GLuint ColorBuffer;
 GLuint FinalBuffer;
 
+struct DepthPyramidSliceUpload
+{
+	int Width;
+	int Height;
+	int Level;
+	int Unused;
+};
+
+GLuint DepthPyramidBuffer;
+std::vector<Buffer> DepthPyramidSlices;
+
 TimingQuery DepthTimeQuery;
 TimingQuery GridBgTimeQuery;
 TimingQuery OutlinerTimeQuery;
 TimingQuery UiTimeQuery;
+
+
+void UpdateDepthPyramid(int ScreenWidth, int ScreenHeight)
+{
+	glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Depth Pyramid");
+	glDisable(GL_DEPTH_TEST);
+	GatherDepthShader.Activate();
+	glBindTextureUnit(3, DepthBuffer);
+
+	int Level = 0;
+	int LevelWidth = DIV_UP(ScreenWidth, 2);
+	int LevelHeight = DIV_UP(ScreenHeight, 2);
+	for (Buffer& DepthPyramidSlice : DepthPyramidSlices)
+	{
+		DepthPyramidSlice.Bind(GL_UNIFORM_BUFFER, 2);
+		if (Level > 0)
+		{
+			glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
+			glBindImageTexture(4, DepthPyramidBuffer, Level - 1, false, 0, GL_READ_ONLY, GL_R32F);
+		}
+		glBindImageTexture(5, DepthPyramidBuffer, Level, false, 0, GL_WRITE_ONLY, GL_R32F);
+		glDispatchCompute(DIV_UP(LevelWidth, TILE_SIZE_X), DIV_UP(LevelHeight, TILE_SIZE_Y), 1);
+
+		LevelWidth = max(LevelWidth / 2, 1);
+		LevelHeight = max(LevelHeight / 2, 1);
+		++Level;
+	}
+	glPopDebugGroup();
+}
 
 
 void AllocateRenderTargets(int ScreenWidth, int ScreenHeight)
@@ -329,6 +370,14 @@ void AllocateRenderTargets(int ScreenWidth, int ScreenHeight)
 		{
 			glDeleteFramebuffers(1, &FinalPass);
 			glDeleteTextures(1, &FinalBuffer);
+		}
+		{
+			glDeleteTextures(1, &DepthPyramidBuffer);
+			for (Buffer& Slice : DepthPyramidSlices)
+			{
+				Slice.Release();
+			}
+			DepthPyramidSlices.clear();
 		}
 	}
 	else
@@ -391,6 +440,46 @@ void AllocateRenderTargets(int ScreenWidth, int ScreenHeight)
 		glNamedFramebufferTexture(DepthPass, GL_COLOR_ATTACHMENT3, MaterialBuffer, 0);
 		GLenum ColorAttachments[4] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1, GL_COLOR_ATTACHMENT2, GL_COLOR_ATTACHMENT3 };
 		glNamedFramebufferDrawBuffers(DepthPass, 4, ColorAttachments);
+	}
+
+	// Depth pyramid.
+	{
+		const int BaseWidth = DIV_UP(ScreenWidth, 2);
+		const int BaseHeight = DIV_UP(ScreenHeight, 2);
+
+		const int Levels = (int)min(
+			max(floor(log2(double(BaseWidth))), 1.0),
+			max(floor(log2(double(BaseHeight))), 1.0));
+
+		glCreateTextures(GL_TEXTURE_2D, 1, &DepthPyramidBuffer);
+		glTextureStorage2D(DepthPyramidBuffer, Levels, GL_R32F, BaseWidth, BaseHeight);
+		glTextureParameteri(DepthPyramidBuffer, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+		glTextureParameteri(DepthPyramidBuffer, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+		glTextureParameteri(DepthPyramidBuffer, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+		glTextureParameteri(DepthPyramidBuffer, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+		glObjectLabel(GL_TEXTURE, DepthPyramidBuffer, -1, "Depth Pyramid");
+
+		DepthPyramidSlices.resize(Levels);
+
+		DepthPyramidSliceUpload BufferData = \
+		{
+			BaseWidth,
+			BaseHeight,
+			0,
+			0
+		};
+
+		for (int Level = 0; Level < Levels; ++Level)
+		{
+			DepthPyramidSlices[Level].Upload((void*)&BufferData, sizeof(BufferData));
+			BufferData.Width = max(BufferData.Width / 2, 1);
+			BufferData.Height = max(BufferData.Height / 2, 1);
+			BufferData.Level++;
+		}
+
+		glBindFramebuffer(GL_FRAMEBUFFER, DepthPass);
+		glClear(GL_DEPTH_BUFFER_BIT);
+		UpdateDepthPyramid(ScreenWidth, ScreenHeight);
 	}
 
 	// Color passes.
@@ -552,6 +641,10 @@ StatusCode SetupRenderer()
 		  {GL_FRAGMENT_SHADER, ShaderSource("shaders/bg.fs.glsl", true)} },
 		"Background Shader"));
 #endif
+
+	RETURN_ON_FAIL(GatherDepthShader.Setup(
+		{ {GL_COMPUTE_SHADER, ShaderSource("shaders/gather_depth.cs.glsl", true)} },
+		"Depth Pyramid Shader"));
 
 	RETURN_ON_FAIL(ResolveOutputShader.Setup(
 		{ {GL_VERTEX_SHADER, ShaderSource("shaders/splat.vs.glsl", true)},
@@ -869,10 +962,12 @@ void RenderFrame(int ScreenWidth, int ScreenHeight)
 			glPopDebugGroup();
 			EndEvent();
 		}
+		UpdateDepthPyramid(ScreenWidth, ScreenHeight);
 		{
 			glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Background");
 			glBindFramebuffer(GL_FRAMEBUFFER, ColorPass);
 			GridBgTimeQuery.Start();
+			glEnable(GL_DEPTH_TEST);
 			glDepthMask(GL_FALSE);
 			glDepthFunc(GL_EQUAL);
 			switch (BackgroundMode)
