@@ -307,6 +307,13 @@ GLuint MaterialBuffer;
 GLuint ColorBuffer;
 GLuint FinalBuffer;
 
+TimingQuery DepthTimeQuery;
+TimingQuery GridBgTimeQuery;
+TimingQuery OutlinerTimeQuery;
+TimingQuery UiTimeQuery;
+
+
+#if ENABLE_OCCLUSION_CULLING
 struct DepthPyramidSliceUpload
 {
 	int Width;
@@ -317,12 +324,6 @@ struct DepthPyramidSliceUpload
 
 GLuint DepthPyramidBuffer;
 std::vector<Buffer> DepthPyramidSlices;
-
-TimingQuery DepthTimeQuery;
-TimingQuery GridBgTimeQuery;
-TimingQuery OutlinerTimeQuery;
-TimingQuery UiTimeQuery;
-
 
 void UpdateDepthPyramid(int ScreenWidth, int ScreenHeight)
 {
@@ -351,6 +352,7 @@ void UpdateDepthPyramid(int ScreenWidth, int ScreenHeight)
 	}
 	glPopDebugGroup();
 }
+#endif
 
 
 void AllocateRenderTargets(int ScreenWidth, int ScreenHeight)
@@ -371,6 +373,7 @@ void AllocateRenderTargets(int ScreenWidth, int ScreenHeight)
 			glDeleteFramebuffers(1, &FinalPass);
 			glDeleteTextures(1, &FinalBuffer);
 		}
+#if ENABLE_OCCLUSION_CULLING
 		{
 			glDeleteTextures(1, &DepthPyramidBuffer);
 			for (Buffer& Slice : DepthPyramidSlices)
@@ -379,6 +382,7 @@ void AllocateRenderTargets(int ScreenWidth, int ScreenHeight)
 			}
 			DepthPyramidSlices.clear();
 		}
+#endif
 	}
 	else
 	{
@@ -443,6 +447,7 @@ void AllocateRenderTargets(int ScreenWidth, int ScreenHeight)
 	}
 
 	// Depth pyramid.
+#if ENABLE_OCCLUSION_CULLING
 	{
 		const int BaseWidth = DIV_UP(ScreenWidth, 2);
 		const int BaseHeight = DIV_UP(ScreenHeight, 2);
@@ -481,6 +486,7 @@ void AllocateRenderTargets(int ScreenWidth, int ScreenHeight)
 		glClear(GL_DEPTH_BUFFER_BIT);
 		UpdateDepthPyramid(ScreenWidth, ScreenHeight);
 	}
+#endif
 
 	// Color passes.
 	{
@@ -962,7 +968,9 @@ void RenderFrame(int ScreenWidth, int ScreenHeight)
 			glPopDebugGroup();
 			EndEvent();
 		}
+#if ENABLE_OCCLUSION_CULLING
 		UpdateDepthPyramid(ScreenWidth, ScreenHeight);
+#endif
 		{
 			glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Background");
 			glBindFramebuffer(GL_FRAMEBUFFER, ColorPass);

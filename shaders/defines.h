@@ -15,6 +15,8 @@
 
 // This file is imported by GLSL and C++ sources.
 
+#define ENABLE_OCCLUSION_CULLING 1
+
 #define DIV_UP(X, Y) ((X + Y - 1) / Y)
 #define TILE_SIZE_X 8
 #define TILE_SIZE_Y 8
