@@ -333,8 +333,8 @@ void UpdateDepthPyramid(int ScreenWidth, int ScreenHeight)
 	glBindTextureUnit(3, DepthBuffer);
 
 	int Level = 0;
-	int LevelWidth = DIV_UP(ScreenWidth, 2);
-	int LevelHeight = DIV_UP(ScreenHeight, 2);
+	int LevelWidth = ScreenWidth;
+	int LevelHeight = ScreenHeight;
 	for (Buffer& DepthPyramidSlice : DepthPyramidSlices)
 	{
 		DepthPyramidSlice.Bind(GL_UNIFORM_BUFFER, 2);
@@ -449,15 +449,12 @@ void AllocateRenderTargets(int ScreenWidth, int ScreenHeight)
 	// Depth pyramid.
 #if ENABLE_OCCLUSION_CULLING
 	{
-		const int BaseWidth = DIV_UP(ScreenWidth, 2);
-		const int BaseHeight = DIV_UP(ScreenHeight, 2);
-
 		const int Levels = (int)min(
-			max(floor(log2(double(BaseWidth))), 1.0),
-			max(floor(log2(double(BaseHeight))), 1.0));
+			max(floor(log2(double(ScreenWidth))), 1.0),
+			max(floor(log2(double(ScreenHeight))), 1.0)) + 1;
 
 		glCreateTextures(GL_TEXTURE_2D, 1, &DepthPyramidBuffer);
-		glTextureStorage2D(DepthPyramidBuffer, Levels, GL_R32F, BaseWidth, BaseHeight);
+		glTextureStorage2D(DepthPyramidBuffer, Levels, GL_R32F, ScreenWidth, ScreenHeight);
 		glTextureParameteri(DepthPyramidBuffer, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
 		glTextureParameteri(DepthPyramidBuffer, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 		glTextureParameteri(DepthPyramidBuffer, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
@@ -468,8 +465,8 @@ void AllocateRenderTargets(int ScreenWidth, int ScreenHeight)
 
 		DepthPyramidSliceUpload BufferData = \
 		{
-			BaseWidth,
-			BaseHeight,
+			ScreenWidth,
+			ScreenHeight,
 			0,
 			0
 		};
@@ -883,6 +880,9 @@ void RenderFrame(int ScreenWidth, int ScreenHeight)
 			glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Depth");
 			DepthTimeQuery.Start();
 			glBindFramebuffer(GL_FRAMEBUFFER, DepthPass);
+#if ENABLE_OCCLUSION_CULLING
+			glBindTextureUnit(1, DepthPyramidBuffer);
+#endif
 			glDepthMask(GL_TRUE);
 			glEnable(GL_DEPTH_TEST);
 			glDepthFunc(GL_GREATER);

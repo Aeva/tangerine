@@ -34,22 +34,25 @@ void main()
 {
 	// Lanes correspond to pixels in the output buffer.
 	ivec2 Position = ivec2(gl_GlobalInvocationID.xy);
-	ivec2 Texel = Position * 2;
+	ivec2 Texel = Position;
 
 	float Depth = 0.0;
 	if (Level == 0)
 	{
 		Depth = texelFetch(DepthBuffer, Texel, 0).r;
-		Depth = min(Depth, texelFetch(DepthBuffer, Texel + ivec2(1, 0), 0).r);
-		Depth = min(Depth, texelFetch(DepthBuffer, Texel + ivec2(0, 1), 0).r);
-		Depth = min(Depth, texelFetch(DepthBuffer, Texel + ivec2(1, 1), 0).r);
 	}
 	else
 	{
-		Depth = imageLoad(LastSlice, Texel).r;
-		Depth = min(Depth, imageLoad(LastSlice, Texel + ivec2(1, 0)).r);
-		Depth = min(Depth, imageLoad(LastSlice, Texel + ivec2(0, 1)).r);
-		Depth = min(Depth, imageLoad(LastSlice, Texel + ivec2(1, 1)).r);
+		Texel *= 2;
+		Depth = 1.0 / 0.0;
+		ivec2 Span = ivec2(2) + ivec2(Size % 2);
+		for (int y = 0; y < Span.y; ++y)
+		{
+			for (int x = 0; x < Span.x; ++x)
+			{
+				Depth = min(Depth, imageLoad(LastSlice, Texel + ivec2(x, y)).r);
+			}
+		}
 	}
 	if (all(lessThan(Position, Size)))
 	{

@@ -35,6 +35,11 @@ uniform ViewInfoBlock
 // NOTE: SSBO binding 0 is reserved for generated parameters.
 
 
+#if ENABLE_OCCLUSION_CULLING
+layout(binding = 1) uniform sampler2D DepthPyramid;
+#endif
+
+
 layout(std140, binding = 2)
 uniform InstanceDataBlock
 {
@@ -120,4 +125,50 @@ void main()
 		LocalPosition = Verts[Index] * Bounds.Extent + Bounds.Center;
 		gl_Position = ViewToClip * WorldToView * LocalToWorld * vec4(LocalPosition, 1.0);
 	}
+#if ENABLE_OCCLUSION_CULLING
+	// Ideally this would go in a mesh shader or a compute shader.
+
+	vec4 NDCBounds = gl_Position.xyxy / gl_Position.w;
+	float MaxDepth = 0.0;
+	for (int i = 0; i < 24; ++i)
+	{
+		vec3 Local = Verts[i] * Bounds.Extent + Bounds.Center;
+		vec4 Clip = ViewToClip * WorldToView * LocalToWorld * vec4(Local, 1.0);
+		vec3 NDC = Clip.xyz / Clip.w;
+
+		float Depth = 1.0 - NDC.z;
+		MaxDepth = max(MaxDepth, Depth);
+
+		NDCBounds.xy = min(NDCBounds.xy, NDC.xy);
+		NDCBounds.zw = max(NDCBounds.zw, NDC.xy);
+	}
+	NDCBounds = NDCBounds * 0.5 + 0.5;
+	vec2 Span = (NDCBounds.zw - NDCBounds.xy) * ScreenSize.xy;
+	float MaxSpan = max(max(Span.x, Span.y), 1.0);
+
+	float Mip = ceil(log2(MaxSpan));
+
+	bool AnyPass = false;
+	for (float y = 0.0; y <= 1.0; ++y)
+	{
+		if (AnyPass)
+		{
+			break;
+		}
+		for (float x = 0.0; x <= 1.0; ++x)
+		{
+			vec2 UV = mix(NDCBounds.xy, NDCBounds.zw, vec2(x, y));
+			float CullDepth = textureLod(DepthPyramid, UV, Mip).r;
+			if (CullDepth <= MaxDepth)
+			{
+				AnyPass = true;
+				break;
+			}
+		}
+	}
+	if (!AnyPass)
+	{
+		gl_Position /= 0.0;
+	}
+#endif
 }
