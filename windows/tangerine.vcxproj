@@ -295,12 +295,12 @@
     <None Include="..\shaders\cluster_draw.fs.glsl" />
     <None Include="..\shaders\cluster_draw.vs.glsl" />
     <None Include="..\shaders\gather_depth.cs.glsl" />
+    <None Include="..\shaders\interpreter.glsl" />
     <None Include="..\shaders\masked.vs.glsl" />
     <None Include="..\shaders\math.glsl" />
     <None Include="..\shaders\noise.fs.glsl" />
     <None Include="..\shaders\outliner.fs.glsl" />
     <None Include="..\shaders\resolve.fs.glsl" />
-    <None Include="..\shaders\resolve_stencil.fs.glsl" />
     <None Include="..\shaders\splat.vs.glsl" />
     <None Include="..\shaders\tile_heap.glsl" />
     <None Include="..\third_party\racket\lib\libracketcs_da32rk.def" />

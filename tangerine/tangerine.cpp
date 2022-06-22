@@ -290,6 +290,7 @@ void SetTreeEvaluator(SDFNode* InTreeEvaluator, AABB Limits)
 ShaderProgram PaintShader;
 ShaderProgram NoiseShader;
 ShaderProgram BgShader;
+ShaderProgram GatherDepthShader;
 ShaderProgram ResolveOutputShader;
 ShaderProgram OctreeDebugShader;
 
@@ -316,6 +317,52 @@ TimingQuery OutlinerTimeQuery;
 TimingQuery UiTimeQuery;
 
 
+#if ENABLE_OCCLUSION_CULLING
+struct DepthPyramidSliceUpload
+{
+	int Width;
+	int Height;
+	int Level;
+	int Unused;
+};
+
+GLuint DepthPyramidBuffer;
+std::vector<Buffer> DepthPyramidSlices;
+
+#if DEBUG_OCCLUSION_CULLING
+GLuint OcclusionDebugBuffer;
+#endif
+
+void UpdateDepthPyramid(int ScreenWidth, int ScreenHeight)
+{
+	glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Depth Pyramid");
+	glDisable(GL_DEPTH_TEST);
+	GatherDepthShader.Activate();
+	glBindTextureUnit(3, DepthBuffer);
+
+	int Level = 0;
+	int LevelWidth = ScreenWidth;
+	int LevelHeight = ScreenHeight;
+	for (Buffer& DepthPyramidSlice : DepthPyramidSlices)
+	{
+		DepthPyramidSlice.Bind(GL_UNIFORM_BUFFER, 2);
+		if (Level > 0)
+		{
+			glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
+			glBindImageTexture(4, DepthPyramidBuffer, Level - 1, false, 0, GL_READ_ONLY, GL_R32F);
+		}
+		glBindImageTexture(5, DepthPyramidBuffer, Level, false, 0, GL_WRITE_ONLY, GL_R32F);
+		glDispatchCompute(DIV_UP(LevelWidth, TILE_SIZE_X), DIV_UP(LevelHeight, TILE_SIZE_Y), 1);
+
+		LevelWidth = max(LevelWidth / 2, 1);
+		LevelHeight = max(LevelHeight / 2, 1);
+		++Level;
+	}
+	glPopDebugGroup();
+}
+#endif
+
+
 void AllocateRenderTargets(int ScreenWidth, int ScreenHeight)
 {
 	static bool Initialized = false;
@@ -334,6 +381,19 @@ void AllocateRenderTargets(int ScreenWidth, int ScreenHeight)
 			glDeleteFramebuffers(1, &FinalPass);
 			glDeleteTextures(1, &FinalBuffer);
 		}
+#if ENABLE_OCCLUSION_CULLING
+		{
+			glDeleteTextures(1, &DepthPyramidBuffer);
+			for (Buffer& Slice : DepthPyramidSlices)
+			{
+				Slice.Release();
+			}
+			DepthPyramidSlices.clear();
+		}
+#if DEBUG_OCCLUSION_CULLING
+		glDeleteTextures(1, &OcclusionDebugBuffer);
+#endif
+#endif
 	}
 	else
 	{
@@ -386,6 +446,16 @@ void AllocateRenderTargets(int ScreenWidth, int ScreenHeight)
 		glTextureParameteri(MaterialBuffer, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 		glObjectLabel(GL_TEXTURE, MaterialBuffer, -1, "Material ID");
 
+#if DEBUG_OCCLUSION_CULLING
+		glCreateTextures(GL_TEXTURE_2D, 1, &OcclusionDebugBuffer);
+		glTextureStorage2D(OcclusionDebugBuffer, 1, GL_RGBA32F, ScreenWidth, ScreenHeight);
+		glTextureParameteri(OcclusionDebugBuffer, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+		glTextureParameteri(OcclusionDebugBuffer, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+		glTextureParameteri(OcclusionDebugBuffer, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+		glTextureParameteri(OcclusionDebugBuffer, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+		glObjectLabel(GL_TEXTURE, OcclusionDebugBuffer, -1, "Occlusion Debug");
+#endif
+
 		glCreateFramebuffers(1, &DepthPass);
 		glObjectLabel(GL_FRAMEBUFFER, DepthPass, -1, "Depth Pass");
 		glNamedFramebufferTexture(DepthPass, GL_DEPTH_ATTACHMENT, DepthBuffer, 0);
@@ -393,9 +463,54 @@ void AllocateRenderTargets(int ScreenWidth, int ScreenHeight)
 		glNamedFramebufferTexture(DepthPass, GL_COLOR_ATTACHMENT1, NormalBuffer, 0);
 		glNamedFramebufferTexture(DepthPass, GL_COLOR_ATTACHMENT2, SubtreeBuffer, 0);
 		glNamedFramebufferTexture(DepthPass, GL_COLOR_ATTACHMENT3, MaterialBuffer, 0);
+#if DEBUG_OCCLUSION_CULLING
+		glNamedFramebufferTexture(DepthPass, GL_COLOR_ATTACHMENT4, OcclusionDebugBuffer, 0);
+		GLenum ColorAttachments[5] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1, GL_COLOR_ATTACHMENT2, GL_COLOR_ATTACHMENT3, GL_COLOR_ATTACHMENT4 };
+		glNamedFramebufferDrawBuffers(DepthPass, 5, ColorAttachments);
+#else
 		GLenum ColorAttachments[4] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1, GL_COLOR_ATTACHMENT2, GL_COLOR_ATTACHMENT3 };
 		glNamedFramebufferDrawBuffers(DepthPass, 4, ColorAttachments);
+#endif
 	}
+
+	// Depth pyramid.
+#if ENABLE_OCCLUSION_CULLING
+	{
+		const int Levels = (int)min(
+			max(floor(log2(double(ScreenWidth))), 1.0),
+			max(floor(log2(double(ScreenHeight))), 1.0)) + 1;
+
+		glCreateTextures(GL_TEXTURE_2D, 1, &DepthPyramidBuffer);
+		glTextureStorage2D(DepthPyramidBuffer, Levels, GL_R32F, ScreenWidth, ScreenHeight);
+		glTextureParameteri(DepthPyramidBuffer, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+		glTextureParameteri(DepthPyramidBuffer, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+		glTextureParameteri(DepthPyramidBuffer, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+		glTextureParameteri(DepthPyramidBuffer, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+		glObjectLabel(GL_TEXTURE, DepthPyramidBuffer, -1, "Depth Pyramid");
+
+		DepthPyramidSlices.resize(Levels);
+
+		DepthPyramidSliceUpload BufferData = \
+		{
+			ScreenWidth,
+			ScreenHeight,
+			0,
+			0
+		};
+
+		for (int Level = 0; Level < Levels; ++Level)
+		{
+			DepthPyramidSlices[Level].Upload((void*)&BufferData, sizeof(BufferData));
+			BufferData.Width = max(BufferData.Width / 2, 1);
+			BufferData.Height = max(BufferData.Height / 2, 1);
+			BufferData.Level++;
+		}
+
+		glBindFramebuffer(GL_FRAMEBUFFER, DepthPass);
+		glClear(GL_DEPTH_BUFFER_BIT);
+		UpdateDepthPyramid(ScreenWidth, ScreenHeight);
+	}
+#endif
 
 	// Color passes.
 	{
@@ -557,6 +672,10 @@ StatusCode SetupRenderer()
 		"Background Shader"));
 #endif
 
+	RETURN_ON_FAIL(GatherDepthShader.Setup(
+		{ {GL_COMPUTE_SHADER, ShaderSource("shaders/gather_depth.cs.glsl", true)} },
+		"Depth Pyramid Shader"));
+
 	RETURN_ON_FAIL(ResolveOutputShader.Setup(
 		{ {GL_VERTEX_SHADER, ShaderSource("shaders/splat.vs.glsl", true)},
 		  {GL_FRAGMENT_SHADER, ShaderSource("shaders/resolve.fs.glsl", true)} },
@@ -640,6 +759,8 @@ bool HighlightEdges = true;
 bool ResetCamera = true;
 bool ShowOctree = false;
 bool ShowLeafCount = false;
+bool RealtimeMode = false;
+bool ShowStatsOverlay = false;
 float PresentFrequency = 0.0;
 float PresentDeltaMs = 0.0;
 glm::vec3 CameraFocus = glm::vec3(0.0, 0.0, 0.0);
@@ -788,6 +909,9 @@ void RenderFrame(int ScreenWidth, int ScreenHeight)
 			glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Depth");
 			DepthTimeQuery.Start();
 			glBindFramebuffer(GL_FRAMEBUFFER, DepthPass);
+#if ENABLE_OCCLUSION_CULLING
+			glBindTextureUnit(1, DepthPyramidBuffer);
+#endif
 			glDepthMask(GL_TRUE);
 			glEnable(GL_DEPTH_TEST);
 			glDepthFunc(GL_GREATER);
@@ -873,10 +997,14 @@ void RenderFrame(int ScreenWidth, int ScreenHeight)
 			glPopDebugGroup();
 			EndEvent();
 		}
+#if ENABLE_OCCLUSION_CULLING
+		UpdateDepthPyramid(ScreenWidth, ScreenHeight);
+#endif
 		{
 			glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Background");
 			glBindFramebuffer(GL_FRAMEBUFFER, ColorPass);
 			GridBgTimeQuery.Start();
+			glEnable(GL_DEPTH_TEST);
 			glDepthMask(GL_FALSE);
 			glDepthFunc(GL_EQUAL);
 			switch (BackgroundMode)
@@ -946,12 +1074,14 @@ void ToggleFullScreen(SDL_Window* Window)
 }
 
 
-std::vector<std::string> RacketErrors;
+std::vector<std::string> ScriptErrors;
+#if EMBED_RACKET
 extern "C" TANGERINE_API void RacketErrorCallback(const char* ErrorMessage)
 {
 	std::cout << ErrorMessage << "\n";
-	RacketErrors.push_back(std::string(ErrorMessage));
+	ScriptErrors.push_back(std::string(ErrorMessage));
 }
+#endif
 
 
 double ModelProcessingStallMs = 0.0;
@@ -1155,7 +1285,6 @@ void RenderUI(SDL_Window* Window, bool& Live)
 #endif
 
 	static bool ShowFocusOverlay = false;
-	static bool ShowStatsOverlay = false;
 	static bool ShowPrettyTrees = false;
 
 	static bool ShowExportOptions = false;
@@ -1292,6 +1421,9 @@ void RenderUI(SDL_Window* Window, bool& Live)
 				ShowOctree = false;
 				ShowHeatmap = false;
 				ShowSubtrees = false;
+			}
+			if (ImGui::MenuItem("Force Redraw", nullptr, &RealtimeMode))
+			{
 			}
 			ImGui::EndMenu();
 		}
@@ -1566,11 +1698,11 @@ void RenderUI(SDL_Window* Window, bool& Live)
 		}
 	}
 
-	if (RacketErrors.size() > 0)
+	if (ScriptErrors.size() > 0)
 	{
-		std::string RacketError = RacketErrors[RacketErrors.size() - 1];
+		std::string ScriptError = ScriptErrors[ScriptErrors.size() - 1];
 		{
-			ImVec2 TextSize = ImGui::CalcTextSize(RacketError.c_str(), nullptr);
+			ImVec2 TextSize = ImGui::CalcTextSize(ScriptError.c_str(), nullptr);
 			TextSize.x += 40.0;
 			TextSize.y += 100.0;
 			ImVec2 MaxSize = ImGui::GetMainViewport()->WorkSize;
@@ -1591,7 +1723,7 @@ void RenderUI(SDL_Window* Window, bool& Live)
 				Size.y -= 24.0f;
 				if (ImGui::BeginChild("ErrorText", Size, false, ImGuiWindowFlags_HorizontalScrollbar))
 				{
-					ImGui::TextUnformatted(RacketError.c_str(), nullptr);
+					ImGui::TextUnformatted(ScriptError.c_str(), nullptr);
 				}
 				ImGui::EndChild();
 			}
@@ -1599,12 +1731,12 @@ void RenderUI(SDL_Window* Window, bool& Live)
 			if (ImGui::Button("OK", ImVec2(120, 0)))
 			{
 				ImGui::CloseCurrentPopup();
-				RacketErrors.pop_back();
+				ScriptErrors.pop_back();
 			}
 			ImGui::SameLine();
 			if (ImGui::Button("Copy Error", ImVec2(120, 0)))
 			{
-				SDL_SetClipboardText(RacketError.c_str());
+				SDL_SetClipboardText(ScriptError.c_str());
 			}
 
 			ImGui::EndPopup();
@@ -1838,6 +1970,7 @@ int main(int argc, char* argv[])
 				MouseMotionX = 0;
 				MouseMotionY = 0;
 				MouseMotionZ = 0;
+				bool RequestDraw = RealtimeMode || ShowStatsOverlay || Drawables.size() == 0;
 				BeginEvent("Process Input");
 				while (SDL_PollEvent(&Event))
 				{
@@ -1847,6 +1980,10 @@ int main(int argc, char* argv[])
 					{
 						Live = false;
 						break;
+					}
+					else
+					{
+						RequestDraw = true;
 					}
 					static bool Dragging = false;
 					if (!io.WantCaptureMouse)
@@ -1873,7 +2010,7 @@ int main(int argc, char* argv[])
 							break;
 						}
 					}
-					else if (Dragging && RacketErrors.size() > 0)
+					else if (Dragging && ScriptErrors.size() > 0)
 					{
 						Dragging = false;
 						SDL_SetRelativeMouseMode(SDL_FALSE);
@@ -1949,58 +2086,61 @@ int main(int argc, char* argv[])
 					}
 				}
 				EndEvent();
+				if (RequestDraw)
 				{
-					BeginEvent("Update UI");
-					RenderUI(Window, Live);
-					ImGui::Render();
-					EndEvent();
-				}
-				{
-					int ScreenWidth;
-					int ScreenHeight;
-					SDL_GetWindowSize(Window, &ScreenWidth, &ScreenHeight);
-					RenderFrame(ScreenWidth, ScreenHeight);
-				}
-				{
-					BeginEvent("Dear ImGui Draw");
-					glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Dear ImGui");
-					UiTimeQuery.Start();
-					ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-					UiTimeQuery.Stop();
-					glPopDebugGroup();
-					EndEvent();
-				}
-				{
-					BeginEvent("Present");
-					SDL_GL_SwapWindow(Window);
-					EndEvent();
-				}
-				{
-					BeginEvent("Query Results");
-					DepthElapsedTimeMs = DepthTimeQuery.ReadMs();
-					GridBgElapsedTimeMs = GridBgTimeQuery.ReadMs();
-					OutlinerElapsedTimeMs = OutlinerTimeQuery.ReadMs();
-					UiElapsedTimeMs = UiTimeQuery.ReadMs();
-
-					if (ShowHeatmap)
 					{
-						const size_t QueryCount = Drawables.size();
-						float Range = 0.0;
-						std::vector<float> Upload(QueryCount, 0.0);
-						for (int i = 0; i < QueryCount; ++i)
-						{
-							double ElapsedTimeMs = Drawables[i]->DepthQuery.ReadMs();
-							Upload[i] = float(ElapsedTimeMs);
-							DepthElapsedTimeMs += ElapsedTimeMs;
-							Range = fmax(Range, float(ElapsedTimeMs));
-						}
-						for (int i = 0; i < QueryCount; ++i)
-						{
-							Upload[i] /= Range;
-						}
-						DepthTimeBuffer.Upload(Upload.data(), QueryCount * sizeof(float));
+						BeginEvent("Update UI");
+						RenderUI(Window, Live);
+						ImGui::Render();
+						EndEvent();
 					}
-					EndEvent();
+					{
+						int ScreenWidth;
+						int ScreenHeight;
+						SDL_GetWindowSize(Window, &ScreenWidth, &ScreenHeight);
+						RenderFrame(ScreenWidth, ScreenHeight);
+					}
+					{
+						BeginEvent("Dear ImGui Draw");
+						glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Dear ImGui");
+						UiTimeQuery.Start();
+						ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+						UiTimeQuery.Stop();
+						glPopDebugGroup();
+						EndEvent();
+					}
+					{
+						BeginEvent("Present");
+						SDL_GL_SwapWindow(Window);
+						EndEvent();
+					}
+					{
+						BeginEvent("Query Results");
+						DepthElapsedTimeMs = DepthTimeQuery.ReadMs();
+						GridBgElapsedTimeMs = GridBgTimeQuery.ReadMs();
+						OutlinerElapsedTimeMs = OutlinerTimeQuery.ReadMs();
+						UiElapsedTimeMs = UiTimeQuery.ReadMs();
+
+						if (ShowHeatmap)
+						{
+							const size_t QueryCount = Drawables.size();
+							float Range = 0.0;
+							std::vector<float> Upload(QueryCount, 0.0);
+							for (int i = 0; i < QueryCount; ++i)
+							{
+								double ElapsedTimeMs = Drawables[i]->DepthQuery.ReadMs();
+								Upload[i] = float(ElapsedTimeMs);
+								DepthElapsedTimeMs += ElapsedTimeMs;
+								Range = fmax(Range, float(ElapsedTimeMs));
+							}
+							for (int i = 0; i < QueryCount; ++i)
+							{
+								Upload[i] /= Range;
+							}
+							DepthTimeBuffer.Upload(Upload.data(), QueryCount * sizeof(float));
+						}
+						EndEvent();
+					}
 				}
 				EndEvent();
 			}
