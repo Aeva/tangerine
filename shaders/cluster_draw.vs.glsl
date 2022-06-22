@@ -62,6 +62,9 @@ out flat vec3 LocalMin;
 out flat vec3 LocalMax;
 out flat vec3 LocalCamera;
 
+#if DEBUG_OCCLUSION_CULLING
+out vec4 OcclusionDebug;
+#endif
 
 vec3 Verts[24] = \
 {
@@ -149,6 +152,7 @@ void main()
 	float Mip = ceil(log2(MaxSpan));
 
 	bool AnyPass = false;
+	vec2 CullDepthRange = vec2(1.0 / 0.0, 0.0);
 	for (float y = 0.0; y <= 1.0; ++y)
 	{
 		if (AnyPass)
@@ -159,6 +163,8 @@ void main()
 		{
 			vec2 UV = mix(NDCBounds.xy, NDCBounds.zw, vec2(x, y));
 			float CullDepth = textureLod(DepthPyramid, UV, Mip).r;
+			CullDepthRange.x = min(CullDepthRange.x, CullDepth);
+			CullDepthRange.y = max(CullDepthRange.y, CullDepth);
 			if (CullDepth <= MaxDepth)
 			{
 				AnyPass = true;
@@ -166,9 +172,14 @@ void main()
 			}
 		}
 	}
+
+#if DEBUG_OCCLUSION_CULLING
+	OcclusionDebug = vec4(MaxDepth, CullDepthRange.x, Mip, AnyPass ? 0.0 : 1.0);
+#else
 	if (!AnyPass)
 	{
 		gl_Position /= 0.0;
 	}
+#endif
 #endif
 }
