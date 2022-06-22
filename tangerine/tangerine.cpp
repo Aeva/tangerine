@@ -1146,7 +1146,7 @@ void LoadModel(std::string Path)
 			if (Error)
 			{
 				std::string ErrorMessage = fmt::format("{}\n", lua_tostring(LuaStack, -1));
-				RacketErrors.push_back(std::string(ErrorMessage));
+				ScriptErrors.push_back(std::string(ErrorMessage));
 				lua_pop(LuaStack, 1);
 			}
 			else
@@ -1199,7 +1199,7 @@ void ReadInputModel()
 			if (Error)
 			{
 				std::string ErrorMessage = fmt::format("{}\n", lua_tostring(LuaStack, -1));
-				RacketErrors.push_back(std::string(ErrorMessage));
+				ScriptErrors.push_back(std::string(ErrorMessage));
 				lua_pop(LuaStack, 1);
 			}
 #endif
