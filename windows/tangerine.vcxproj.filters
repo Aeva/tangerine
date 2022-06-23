@@ -195,6 +195,12 @@
     <ClCompile Include="..\third_party\lua-5.4.4\lua\lzio.c">
       <Filter>Third Party\Lua</Filter>
     </ClCompile>
+    <ClCompile Include="..\tangerine\lua_sdf.cpp">
+      <Filter>Tangerine</Filter>
+    </ClCompile>
+    <ClCompile Include="..\tangerine\c_sdf.cpp">
+      <Filter>Tangerine</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\third_party\glad\glad.h">
@@ -359,6 +365,9 @@
     </ClInclude>
     <ClInclude Include="..\third_party\lua-5.4.4\lua\lua.hpp">
       <Filter>Third Party\Lua</Filter>
+    </ClInclude>
+    <ClInclude Include="..\tangerine\lua_sdf.h">
+      <Filter>Tangerine</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

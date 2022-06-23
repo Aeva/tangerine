@@ -23,12 +23,6 @@
 #include "sdfs.h"
 #include <glm/gtc/type_ptr.hpp>
 
-#define EMBED_LUA 1
-
-#if EMBED_LUA
-#include <lua/lua.hpp>
-#endif
-
 
 using namespace glm;
 using namespace std::placeholders;
@@ -400,12 +394,17 @@ struct BrushNode : public SDFNode
 	{
 		if (Eval(Point) <= Radius)
 		{
-			return new BrushNode(Opcode, BrushFnName, NodeParams, BrushFn, BrushAABB, Transform);
+			return Copy();
 		}
 		else
 		{
 			return nullptr;
 		}
+	}
+
+	virtual SDFNode* Copy()
+	{
+		return new BrushNode(Opcode, BrushFnName, NodeParams, BrushFn, BrushAABB, Transform);
 	}
 
 	virtual AABB Bounds()
@@ -604,6 +603,11 @@ struct SetNode : public SDFNode
 			}
 		}
 		return nullptr;
+	}
+
+	virtual SDFNode* Copy()
+	{
+		return new SetNode<Family, BlendMode>(SetFn, LHS->Copy(), RHS->Copy(), Threshold);
 	}
 
 	virtual AABB Bounds()
@@ -840,6 +844,11 @@ struct PaintNode : public SDFNode
 		}
 	}
 
+	virtual SDFNode* Copy()
+	{
+		return new PaintNode(Color, Child->Copy());
+	}
+
 	virtual AABB Bounds()
 	{
 		return Child->Bounds();
@@ -921,289 +930,149 @@ struct PaintNode : public SDFNode
 };
 
 
-// The following API functions provide a means for Racket to compose executable
-// signed distance functions.  These are intended for tasks like calculating
-// voxel membership and mesh generation, where the frequency of evaluating the
-// distance field would be prohibetively slow to perform from racket.
-
-// Evaluate a SDF tree.
-extern "C" TANGERINE_API float EvalTree(void* Handle, float X, float Y, float Z)
-{
-	ProfileScope("EvalTree");
-	return ((SDFNode*)Handle)->Eval(vec3(X, Y, Z));
-}
-
-// Returns a clipped SDF tree.  This will need to be freed separately from the
-// original SDF tree.
-extern "C" TANGERINE_API void* ClipTree(void* Handle, float X, float Y, float Z, float Radius)
-{
-	ProfileScope("ClipTree");
-	vec3 Point = vec3(X, Y, Z);
-
-	SDFNode* Clipped = ((SDFNode*)Handle)->Clip(Point, Radius);
-	if (Clipped && abs(Clipped->Eval(Point)) > Radius)
-	{
-		delete Clipped;
-		return nullptr;
-	}
-	else
-	{
-		return Clipped;
-	}
-}
-
-// Performs a ray hit query against the SDF evaluator.
-extern "C" TANGERINE_API RayHit RayMarchTree(
-	void* Handle,
-	float RayStartX, float RayStartY, float RayStartZ,
-	float RayDirX, float RayDirY, float RayDirZ,
-	int MaxIterations, float Epsilon)
-{
-	ProfileScope("RayMarchTree");
-	vec3 RayStart = vec3(RayStartX, RayStartY, RayStartZ);
-	vec3 RayDir = vec3(RayDirX, RayDirY, RayDirZ);
-	vec3 Position;
-	return ((SDFNode*)Handle)->RayMarch(RayStart, RayDir, MaxIterations, Epsilon);
-}
-
-
-// Delete a CSG operator tree that was constructed with the functions below.
-extern "C" TANGERINE_API void DiscardTree(void* Handle)
-{
-	ProfileScope("DiscardTree");
-	delete (SDFNode*)Handle;
-}
-
-// Returns true if the evaluator has a finite boundary.
-extern "C" TANGERINE_API bool TreeHasFiniteBounds(void* Handle)
-{
-	return ((SDFNode*)Handle)->HasFiniteBounds();
-}
-
-
-// The following functions apply transforms to the evaluator tree.  These will return
-// a new handle if the tree root was a brush with no transforms applied, otherwise these
-// will return the original tree handle.
-extern "C" TANGERINE_API void MoveTree(void* Handle, float X, float Y, float Z)
-{
-	ProfileScope("Move");
-	SDFNode* Tree = ((SDFNode*)Handle);
-	Tree->Move(vec3(X, Y, Z));
-}
-
-extern "C" TANGERINE_API void RotateTree(void* Handle, float X, float Y, float Z, float W)
-{
-	ProfileScope("RotateTree");
-	SDFNode* Tree = ((SDFNode*)Handle);
-	Tree->Rotate(quat(W, X, Y, Z));
-}
-
-extern "C" TANGERINE_API void AlignTree(void* Handle, float X, float Y, float Z)
-{
-	ProfileScope("AlignTree");
-	SDFNode* Tree = ((SDFNode*)Handle);
-	const vec3 Alignment = vec3(X, Y, Z) * vec3(0.5) + vec3(0.5);
-	const AABB Bounds = Tree->InnerBounds();
-	const vec3 Offset = mix(Bounds.Min, Bounds.Max, Alignment) * vec3(-1.0);
-	Tree->Move(Offset);
-}
-
-
 AABB SymmetricalBounds(vec3 High)
 {
 	return { High * vec3(-1), High };
 }
 
 
-// The following functions construct Brush nodes.
-extern "C" TANGERINE_API void* MakeSphereBrush(float Radius)
+namespace SDF
 {
-	std::array<float, 1> Params = { Radius };
-
-	BrushMixin Eval = std::bind(SDF::SphereBrush, _1, Radius);
-
-	AABB Bounds = SymmetricalBounds(vec3(Radius));
-	return new BrushNode(OPCODE_SPHERE, "SphereBrush", Params, Eval, Bounds);
-}
-
-extern "C" TANGERINE_API void* MakeEllipsoidBrush(float RadipodeX, float RadipodeY, float RadipodeZ)
-{
-	std::array<float, 3> Params = { RadipodeX, RadipodeY, RadipodeZ };
-
-	using EllipsoidBrushPtr = float(*)(vec3, vec3);
-	BrushMixin Eval = std::bind((EllipsoidBrushPtr)SDF::EllipsoidBrush, _1, vec3(RadipodeX, RadipodeY, RadipodeZ));
-
-	AABB Bounds = SymmetricalBounds(vec3(RadipodeX, RadipodeY, RadipodeZ));
-	return new BrushNode(OPCODE_ELLIPSOID, "EllipsoidBrush", Params, Eval, Bounds);
-}
-
-extern "C" TANGERINE_API void* MakeBoxBrush(float ExtentX, float ExtentY, float ExtentZ)
-{
-	std::array<float, 3> Params = { ExtentX, ExtentY, ExtentZ };
-
-	using BoxBrushPtr = float(*)(vec3, vec3);
-	BrushMixin Eval = std::bind((BoxBrushPtr)SDF::BoxBrush, _1, vec3(ExtentX, ExtentY, ExtentZ));
-
-	AABB Bounds = SymmetricalBounds(vec3(ExtentX, ExtentY, ExtentZ));
-	return new BrushNode(OPCODE_BOX, "BoxBrush", Params, Eval, Bounds);
-}
-
-extern "C" TANGERINE_API void* MakeTorusBrush(float MajorRadius, float MinorRadius)
-{
-	std::array<float, 2> Params = { MajorRadius, MinorRadius };
-
-	BrushMixin Eval = std::bind(SDF::TorusBrush, _1, MajorRadius, MinorRadius);
-
-	float Radius = MajorRadius + MinorRadius;
-	AABB Bounds = SymmetricalBounds(vec3(Radius, Radius, MinorRadius));
-
-	return new BrushNode(OPCODE_TORUS, "TorusBrush", Params, Eval, Bounds);
-}
-
-extern "C" TANGERINE_API void* MakeCylinderBrush(float Radius, float Extent)
-{
-	std::array<float, 2> Params = { Radius, Extent };
-
-	BrushMixin Eval = std::bind(SDF::CylinderBrush, _1, Radius, Extent);
-
-	AABB Bounds = SymmetricalBounds(vec3(Radius, Radius, Extent));
-	return new BrushNode(OPCODE_CYLINDER, "CylinderBrush", Params, Eval, Bounds);
-}
-
-extern "C" TANGERINE_API void* MakePlaneOperand(float NormalX, float NormalY, float NormalZ)
-{
-	vec3 Normal = normalize(vec3(NormalX, NormalY, NormalZ));
-	std::array<float, 3> Params = { Normal.x, Normal.y, Normal.z };
-
-	using PlanePtr = float(*)(vec3, vec3);
-	BrushMixin Eval = std::bind((PlanePtr)SDF::Plane, _1, Normal);
-
-	AABB Unbound = SymmetricalBounds(vec3(INFINITY, INFINITY, INFINITY));
-	if (Normal.x == -1.0)
+	// The following functions construct Brush nodes.
+	SDFNode* Sphere(float Radius)
 	{
-		Unbound.Min.x = 0.0;
+		std::array<float, 1> Params = { Radius };
+
+		BrushMixin Eval = std::bind(SDF::SphereBrush, _1, Radius);
+
+		AABB Bounds = SymmetricalBounds(vec3(Radius));
+		return new BrushNode(OPCODE_SPHERE, "SphereBrush", Params, Eval, Bounds);
 	}
-	else if (Normal.x == 1.0)
+
+	SDFNode* Ellipsoid(float RadipodeX, float RadipodeY, float RadipodeZ)
 	{
-		Unbound.Max.x = 0.0;
+		std::array<float, 3> Params = { RadipodeX, RadipodeY, RadipodeZ };
+
+		using EllipsoidBrushPtr = float(*)(vec3, vec3);
+		BrushMixin Eval = std::bind((EllipsoidBrushPtr)SDF::EllipsoidBrush, _1, vec3(RadipodeX, RadipodeY, RadipodeZ));
+
+		AABB Bounds = SymmetricalBounds(vec3(RadipodeX, RadipodeY, RadipodeZ));
+		return new BrushNode(OPCODE_ELLIPSOID, "EllipsoidBrush", Params, Eval, Bounds);
 	}
-	else if (Normal.y == -1.0)
+
+	SDFNode* Box(float ExtentX, float ExtentY, float ExtentZ)
 	{
-		Unbound.Min.y = 0.0;
+		std::array<float, 3> Params = { ExtentX, ExtentY, ExtentZ };
+
+		using BoxBrushPtr = float(*)(vec3, vec3);
+		BrushMixin Eval = std::bind((BoxBrushPtr)SDF::BoxBrush, _1, vec3(ExtentX, ExtentY, ExtentZ));
+
+		AABB Bounds = SymmetricalBounds(vec3(ExtentX, ExtentY, ExtentZ));
+		return new BrushNode(OPCODE_BOX, "BoxBrush", Params, Eval, Bounds);
 	}
-	else if (Normal.y == 1.0)
+
+	SDFNode* Torus(float MajorRadius, float MinorRadius)
 	{
-		Unbound.Max.y = 0.0;
+		std::array<float, 2> Params = { MajorRadius, MinorRadius };
+
+		BrushMixin Eval = std::bind(SDF::TorusBrush, _1, MajorRadius, MinorRadius);
+
+		float Radius = MajorRadius + MinorRadius;
+		AABB Bounds = SymmetricalBounds(vec3(Radius, Radius, MinorRadius));
+
+		return new BrushNode(OPCODE_TORUS, "TorusBrush", Params, Eval, Bounds);
 	}
-	else if (Normal.z == -1.0)
+
+	SDFNode* Cylinder(float Radius, float Extent)
 	{
-		Unbound.Min.z = 0.0;
+		std::array<float, 2> Params = { Radius, Extent };
+
+		BrushMixin Eval = std::bind(SDF::CylinderBrush, _1, Radius, Extent);
+
+		AABB Bounds = SymmetricalBounds(vec3(Radius, Radius, Extent));
+		return new BrushNode(OPCODE_CYLINDER, "CylinderBrush", Params, Eval, Bounds);
 	}
-	else if (Normal.z == 1.0)
+
+	SDFNode* Plane(float NormalX, float NormalY, float NormalZ)
 	{
-		Unbound.Max.z = 0.0;
+		vec3 Normal = normalize(vec3(NormalX, NormalY, NormalZ));
+		std::array<float, 3> Params = { Normal.x, Normal.y, Normal.z };
+
+		using PlanePtr = float(*)(vec3, vec3);
+		BrushMixin Eval = std::bind((PlanePtr)SDF::Plane, _1, Normal);
+
+		AABB Unbound = SymmetricalBounds(vec3(INFINITY, INFINITY, INFINITY));
+		if (Normal.x == -1.0)
+		{
+			Unbound.Min.x = 0.0;
+		}
+		else if (Normal.x == 1.0)
+		{
+			Unbound.Max.x = 0.0;
+		}
+		else if (Normal.y == -1.0)
+		{
+			Unbound.Min.y = 0.0;
+		}
+		else if (Normal.y == 1.0)
+		{
+			Unbound.Max.y = 0.0;
+		}
+		else if (Normal.z == -1.0)
+		{
+			Unbound.Min.z = 0.0;
+		}
+		else if (Normal.z == 1.0)
+		{
+			Unbound.Max.z = 0.0;
+		}
+		return new BrushNode(OPCODE_PLANE, "Plane", Params, Eval, Unbound);
 	}
-	return new BrushNode(OPCODE_PLANE, "Plane", Params, Eval, Unbound);
-}
 
 
-// The following functions construct CSG set operator nodes.
-extern "C" TANGERINE_API void* MakeUnionOp(void* LHS, void* RHS)
-{
-	SetMixin Eval = std::bind(SDF::UnionOp, _1, _2);
-	return new SetNode<SetFamily::Union, false>(Eval, (SDFNode*)LHS, (SDFNode*)RHS, 0.0);
-}
-
-extern "C" TANGERINE_API void* MakeDiffOp(void* LHS, void* RHS)
-{
-	SetMixin Eval = std::bind(SDF::DiffOp, _1, _2);
-	return new SetNode<SetFamily::Diff, false>(Eval, (SDFNode*)LHS, (SDFNode*)RHS, 0.0);
-}
-
-extern "C" TANGERINE_API void* MakeInterOp(void* LHS, void* RHS)
-{
-	SetMixin Eval = std::bind(SDF::InterOp, _1, _2);
-	return new SetNode<SetFamily::Inter, false>(Eval, (SDFNode*)LHS, (SDFNode*)RHS, 0.0);
-}
-
-extern "C" TANGERINE_API void* MakeBlendUnionOp(float Threshold, void* LHS, void* RHS)
-{
-	SetMixin Eval = std::bind(SDF::SmoothUnionOp, _1, _2, Threshold);
-	return new SetNode<SetFamily::Union, true>(Eval, (SDFNode*)LHS, (SDFNode*)RHS, Threshold);
-}
-
-extern "C" TANGERINE_API void* MakeBlendDiffOp(float Threshold, void* LHS, void* RHS)
-{
-	SetMixin Eval = std::bind(SDF::SmoothDiffOp, _1, _2, Threshold);
-	return new SetNode<SetFamily::Diff, true>(Eval, (SDFNode*)LHS, (SDFNode*)RHS, Threshold);
-}
-
-extern "C" TANGERINE_API void* MakeBlendInterOp(float Threshold, void* LHS, void* RHS)
-{
-	SetMixin Eval = std::bind(SDF::SmoothInterOp, _1, _2, Threshold);
-	return new SetNode<SetFamily::Inter, true>(Eval, (SDFNode*)LHS, (SDFNode*)RHS, Threshold);
-}
-
-
-// Misc nodes
-extern "C" TANGERINE_API void* MakePaint(float Red, float Green, float Blue, void* Child)
-{
-	return new PaintNode(vec3(Red, Green, Blue), (SDFNode*)Child);
-}
-
-
-int LuaMoveX(lua_State* L)
-{
-	SDFNode** Self = (SDFNode**)luaL_checkudata(L, 1, "tangerine.sdf");
-	lua_Number X = luaL_checknumber(L, 2);
-	MoveTree(*Self, X, 0.0, 0.0);
-	return 1;
-}
-
-int LuaSphere(lua_State* L)
-{
-	lua_Number Radius = luaL_checknumber(L, 1);
-	SDFNode** Node = (SDFNode**)lua_newuserdata(L, sizeof(SDFNode*));
-	luaL_getmetatable(L, "tangerine.sdf");
-	lua_setmetatable(L, -2);
-
-	*Node = (SDFNode*)MakeSphereBrush((float)Radius);
-	return 1;
-}
-
-
-int LuaGC(lua_State* L)
-{
-	SDFNode** Self = (SDFNode**)luaL_checkudata(L, 1, "tangerine.sdf");
-	if (Self)
+	// The following functions construct CSG set operator nodes.
+	SDFNode* Union(SDFNode* LHS, SDFNode* RHS)
 	{
-		delete* Self;
+		SetMixin Eval = std::bind(SDF::UnionOp, _1, _2);
+		return new SetNode<SetFamily::Union, false>(Eval, LHS, RHS, 0.0);
 	}
-	return 0;
-}
+
+	SDFNode* Diff(SDFNode* LHS, SDFNode* RHS)
+	{
+		SetMixin Eval = std::bind(SDF::DiffOp, _1, _2);
+		return new SetNode<SetFamily::Diff, false>(Eval, LHS, RHS, 0.0);
+	}
+
+	SDFNode* Inter(SDFNode* LHS, SDFNode* RHS)
+	{
+		SetMixin Eval = std::bind(SDF::InterOp, _1, _2);
+		return new SetNode<SetFamily::Inter, false>(Eval, LHS, RHS, 0.0);
+	}
+
+	SDFNode* BlendUnion(float Threshold, SDFNode* LHS, SDFNode* RHS)
+	{
+		SetMixin Eval = std::bind(SDF::SmoothUnionOp, _1, _2, Threshold);
+		return new SetNode<SetFamily::Union, true>(Eval, (SDFNode*)LHS, (SDFNode*)RHS, Threshold);
+	}
+
+	SDFNode* BlendDiff(float Threshold, SDFNode* LHS, SDFNode* RHS)
+	{
+		SetMixin Eval = std::bind(SDF::SmoothDiffOp, _1, _2, Threshold);
+		return new SetNode<SetFamily::Diff, true>(Eval, (SDFNode*)LHS, (SDFNode*)RHS, Threshold);
+	}
+
+	SDFNode* BlendInter(float Threshold, SDFNode* LHS, SDFNode* RHS)
+	{
+		SetMixin Eval = std::bind(SDF::SmoothInterOp, _1, _2, Threshold);
+		return new SetNode<SetFamily::Inter, true>(Eval, (SDFNode*)LHS, (SDFNode*)RHS, Threshold);
+	}
 
 
-const luaL_Reg LuaSDFType[] = \
-{
-	{"sphere", LuaSphere},
-	{"move_x", LuaMoveX},
-	{NULL, NULL}
-};
-
-
-const luaL_Reg LuaSDFMeta[] = \
-{
-	{"__gc", LuaGC},
-	{NULL, NULL}
-};
-
-
-int LuaOpenSDF(lua_State* L)
-{
-	luaL_newmetatable(L, "tangerine.sdf");
-	luaL_setfuncs(L, LuaSDFMeta, 0);
-	luaL_newlib(L, LuaSDFType);
-	return 1;
+	// Misc nodes
+	SDFNode* Paint(float Red, float Green, float Blue, SDFNode* Child)
+	{
+		return new PaintNode(vec3(Red, Green, Blue), Child);
+	}
 }
 
 

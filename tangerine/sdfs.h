@@ -74,6 +74,8 @@ struct SDFNode
 
 	virtual SDFNode* Clip(glm::vec3 Point, float Radius) = 0;
 
+	virtual SDFNode* Copy() = 0;
+
 	virtual AABB Bounds() = 0;
 
 	virtual AABB InnerBounds() = 0;
@@ -113,7 +115,34 @@ struct SDFNode
 };
 
 
-int LuaOpenSDF(struct lua_State* L);
+namespace SDF
+{
+	SDFNode* Sphere(float Radius);
+
+	SDFNode* Ellipsoid(float RadipodeX, float RadipodeY, float RadipodeZ);
+
+	SDFNode* Box(float ExtentX, float ExtentY, float ExtentZ);
+
+	SDFNode* Torus(float MajorRadius, float MinorRadius);
+
+	SDFNode* Cylinder(float Radius, float Extent);
+
+	SDFNode* Plane(float NormalX, float NormalY, float NormalZ);
+
+	SDFNode* Union(SDFNode* LHS, SDFNode* RHS);
+
+	SDFNode* Diff(SDFNode* LHS, SDFNode* RHS);
+
+	SDFNode* Inter(SDFNode* LHS, SDFNode* RHS);
+
+	SDFNode* BlendUnion(float Threshold, SDFNode* LHS, SDFNode* RHS);
+
+	SDFNode* BlendDiff(float Threshold, SDFNode* LHS, SDFNode* RHS);
+
+	SDFNode* BlendInter(float Threshold, SDFNode* LHS, SDFNode* RHS);
+
+	SDFNode* Paint(float Red, float Green, float Blue, SDFNode* Child);
+}
 
 
 struct SDFOctree

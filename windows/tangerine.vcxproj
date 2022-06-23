@@ -126,7 +126,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;IMGUI_USE_WCHAR32;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>$(SolutionDir)..\third_party\fmt\include;$(SolutionDir)..\third_party\imgui;$(SolutionDir)..\third_party\imgui\backends;$(SolutionDir)..\third_party\sdl2\include;$(SolutionDir)..\third_party\racket\include;$(SolutionDir)..\third_party;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)..\third_party\fmt\include;$(SolutionDir)..\third_party\imgui;$(SolutionDir)..\third_party\imgui\backends;$(SolutionDir)..\third_party\sdl2\include;$(SolutionDir)..\third_party\racket\include;$(SolutionDir)..\third_party\lua-5.4.4;$(SolutionDir)..\third_party</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
     </ClCompile>
@@ -152,7 +152,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;IMGUI_USE_WCHAR32;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>$(SolutionDir)..\third_party\fmt\include;$(SolutionDir)..\third_party\imgui;$(SolutionDir)..\third_party\imgui\backends;$(SolutionDir)..\third_party\sdl2\include;$(SolutionDir)..\third_party\racket\include;$(SolutionDir)..\third_party\lua-5.4.4\;$(SolutionDir)..\third_party;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)..\third_party\fmt\include;$(SolutionDir)..\third_party\imgui;$(SolutionDir)..\third_party\imgui\backends;$(SolutionDir)..\third_party\sdl2\include;$(SolutionDir)..\third_party\racket\include;$(SolutionDir)..\third_party\lua-5.4.4;$(SolutionDir)..\third_party</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
     </ClCompile>
@@ -172,10 +172,12 @@
     </CustomBuildStep>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="..\tangerine\c_sdf.cpp" />
     <ClCompile Include="..\tangerine\export.cpp" />
     <ClCompile Include="..\tangerine\gl_async.cpp" />
     <ClCompile Include="..\tangerine\gl_boilerplate.cpp" />
     <ClCompile Include="..\tangerine\gl_debug.cpp" />
+    <ClCompile Include="..\tangerine\lua_sdf.cpp" />
     <ClCompile Include="..\tangerine\magica.cpp" />
     <ClCompile Include="..\tangerine\profiling.cpp" />
     <ClCompile Include="..\tangerine\sdfs.cpp" />
@@ -234,6 +236,7 @@
     <ClInclude Include="..\tangerine\gl_async.h" />
     <ClInclude Include="..\tangerine\gl_boilerplate.h" />
     <ClInclude Include="..\tangerine\gl_debug.h" />
+    <ClInclude Include="..\tangerine\lua_sdf.h" />
     <ClInclude Include="..\tangerine\magica.h" />
     <ClInclude Include="..\tangerine\profiling.h" />
     <ClInclude Include="..\tangerine\sdfs.h" />

@@ -44,8 +44,22 @@
 
 #if EMBED_LUA
 #include <lua/lua.hpp>
+#include "lua_sdf.h"
 
 lua_State* LuaStack = nullptr;
+
+void CreateLuaEnv()
+{
+	LuaStack = luaL_newstate();
+	luaL_openlibs(LuaStack);
+	luaL_requiref(LuaStack, "tangerine", LuaOpenSDF, 1);
+}
+
+void ResetLuaEnv()
+{
+	lua_close(LuaStack);
+	CreateLuaEnv();
+}
 #endif
 
 #if _WIN64
@@ -1116,6 +1130,39 @@ void LoadModelCommon(T& LoadingCallback)
 }
 
 
+#if EMBED_LUA
+void LoadLuaModelCommon(int Error)
+{
+	if (Error)
+	{
+		std::string ErrorMessage = fmt::format("{}\n", lua_tostring(LuaStack, -1));
+		ScriptErrors.push_back(std::string(ErrorMessage));
+		lua_pop(LuaStack, 1);
+	}
+	else
+	{
+		lua_getglobal(LuaStack, "model");
+		void* LuaData = luaL_testudata(LuaStack, -1, "tangerine.sdf");
+		if (LuaData)
+		{
+			SDFNode* Model = *(SDFNode**)LuaData;
+
+			// TODO: LuaGC / __gc will delete SDFNodes created by Lua scripts, whereas
+			// ClearTreeEvaluator will delete the evaluator tree that is saved by CompileEvaluator.
+			// To prevent a double free, Model is copied before passing it into CompileEvaluator.
+
+			CompileEvaluator(Model->Copy());
+		}
+		else
+		{
+			ScriptErrors.push_back(std::string("Invalid Model"));
+		}
+		lua_pop(LuaStack, 1);
+	}
+}
+#endif
+
+
 void LoadModel(std::string Path)
 {
 	static std::string LastPath = "";
@@ -1142,26 +1189,9 @@ void LoadModel(std::string Path)
 			Sdeactivate_thread();
 #endif
 #if EMBED_LUA
-			int Error = luaL_loadfile(LuaStack, Path.c_str()) || lua_pcall(LuaStack, 0, 0, 0);
-			if (Error)
-			{
-				std::string ErrorMessage = fmt::format("{}\n", lua_tostring(LuaStack, -1));
-				ScriptErrors.push_back(std::string(ErrorMessage));
-				lua_pop(LuaStack, 1);
-			}
-			else
-			{
-				lua_getglobal(LuaStack, "model");
-				SDFNode** Model = (SDFNode**)luaL_checkudata(LuaStack, -1, "tangerine.sdf");
-				if (Model)
-				{
-					CompileEvaluator(*Model);
-				}
-				else
-				{
-					std::cout << "Invalid model.\n";
-				}
-			}
+			ResetLuaEnv();
+			int Error = luaL_dofile(LuaStack, Path.c_str());
+			LoadLuaModelCommon(Error);
 #endif
 		};
 
@@ -1195,13 +1225,9 @@ void ReadInputModel()
 			Sdeactivate_thread();
 #endif
 #if EMBED_LUA
-			int Error = luaL_loadstring(LuaStack, ModelSource.c_str()) || lua_pcall(LuaStack, 0, 0, 0);
-			if (Error)
-			{
-				std::string ErrorMessage = fmt::format("{}\n", lua_tostring(LuaStack, -1));
-				ScriptErrors.push_back(std::string(ErrorMessage));
-				lua_pop(LuaStack, 1);
-			}
+			ResetLuaEnv();
+			int Error = luaL_dostring(LuaStack, ModelSource.c_str());
+			LoadLuaModelCommon(Error);
 #endif
 		};
 		LoadModelCommon(EvalUntrusted);
@@ -1877,9 +1903,7 @@ int main(int argc, char* argv[])
 		std::cout << "Done!\n";
 #endif
 #if EMBED_LUA
-		LuaStack = luaL_newstate();
-		luaL_openlibs(LuaStack);
-		luaL_requiref(LuaStack, "tangerine", LuaOpenSDF, 1);
+		CreateLuaEnv();
 #endif
 	}
 	{
