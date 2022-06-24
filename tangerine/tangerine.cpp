@@ -286,7 +286,7 @@ void ClearTreeEvaluator()
 {
 	if (TreeEvaluator != nullptr)
 	{
-		delete TreeEvaluator;
+		TreeEvaluator->Release();
 		TreeEvaluator = nullptr;
 	}
 }
@@ -297,6 +297,7 @@ void SetTreeEvaluator(SDFNode* InTreeEvaluator, AABB Limits)
 {
 	ClearTreeEvaluator();
 	TreeEvaluator = InTreeEvaluator;
+	TreeEvaluator->Hold();
 	ModelBounds = Limits;// TreeEvaluator->Bounds();
 }
 
@@ -1146,12 +1147,7 @@ void LoadLuaModelCommon(int Error)
 		if (LuaData)
 		{
 			SDFNode* Model = *(SDFNode**)LuaData;
-
-			// TODO: LuaGC / __gc will delete SDFNodes created by Lua scripts, whereas
-			// ClearTreeEvaluator will delete the evaluator tree that is saved by CompileEvaluator.
-			// To prevent a double free, Model is copied before passing it into CompileEvaluator.
-
-			CompileEvaluator(Model->Copy());
+			CompileEvaluator(Model);
 		}
 		else
 		{

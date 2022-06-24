@@ -28,6 +28,7 @@
 #include <glm/ext/matrix_clip_space.hpp>
 #include <glm/gtx/extended_min_max.hpp>
 #include <glm/gtx/quaternion.hpp>
+#include "errors.h"
 
 
 #define ENABLE_OCTREE_COALESCENCE 1
@@ -111,7 +112,28 @@ struct SDFNode
 		return !(*this == Other);
 	}
 
-	virtual ~SDFNode() {};
+	void Hold()
+	{
+		++RefCount;
+	}
+
+	void Release()
+	{
+		Assert(RefCount > 0);
+		--RefCount;
+		if (RefCount == 0)
+		{
+			delete this;
+		}
+	}
+
+	virtual ~SDFNode()
+	{
+		Assert(RefCount == 0);
+	};
+
+protected:
+	size_t RefCount = 0;
 };
 
 

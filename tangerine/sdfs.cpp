@@ -512,6 +512,8 @@ struct SetNode : public SDFNode
 		, RHS(InRHS)
 		, Threshold(InThreshold)
 	{
+		LHS->Hold();
+		RHS->Hold();
 		Opcode = (uint32_t)Family;
 		if (BlendMode)
 		{
@@ -809,8 +811,9 @@ struct SetNode : public SDFNode
 
 	virtual ~SetNode()
 	{
-		delete LHS;
-		delete RHS;
+		Assert(RefCount == 0);
+		LHS->Release();
+		RHS->Release();
 	}
 };
 
@@ -824,6 +827,7 @@ struct PaintNode : public SDFNode
 		: Color(InColor)
 		, Child(InChild)
 	{
+		Child->Hold();
 	}
 
 	virtual float Eval(vec3 Point)
@@ -925,7 +929,8 @@ struct PaintNode : public SDFNode
 
 	virtual ~PaintNode()
 	{
-		delete Child;
+		Assert(RefCount == 0);
+		Child->Release();
 	}
 };
 
@@ -1118,7 +1123,15 @@ SDFOctree::SDFOctree(SDFOctree* InParent, SDFNode* InEvaluator, float InTargetSi
 
 	float Radius = length(vec3(Span)) * 0.5;
 	Evaluator = InEvaluator->Clip(Pivot, Radius);
-	LeafCount = Evaluator ? Evaluator->LeafCount() : 0;
+	if (Evaluator)
+	{
+		Evaluator->Hold();
+		LeafCount = Evaluator->LeafCount();
+	}
+	else
+	{
+		LeafCount = 0;
+	}
 
 	Terminus = Span <= TargetSize || Evaluator == nullptr;
 	if (Terminus)
@@ -1183,7 +1196,7 @@ void SDFOctree::Populate(int Depth)
 
 	if (Live.size() == 0)
 	{
-		delete Evaluator;
+		Evaluator->Release();
 		Evaluator = nullptr;
 		Penultimate = false;
 		Terminus = true;
@@ -1226,7 +1239,7 @@ SDFOctree::~SDFOctree()
 	}
 	if (Evaluator)
 	{
-		delete Evaluator;
+		Evaluator->Release();
 		Evaluator = nullptr;
 	}
 }

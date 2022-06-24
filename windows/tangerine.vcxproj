@@ -173,6 +173,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="..\tangerine\c_sdf.cpp" />
+    <ClCompile Include="..\tangerine\errors.cpp" />
     <ClCompile Include="..\tangerine\export.cpp" />
     <ClCompile Include="..\tangerine\gl_async.cpp" />
     <ClCompile Include="..\tangerine\gl_boilerplate.cpp" />

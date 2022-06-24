@@ -13,29 +13,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#pragma once
-
-
-enum class StatusCode
-{
-	PASS,
-	FAIL
-};
-
-
 #if _DEBUG
-void Assert(bool Condition);
-#else
-#define Assert(...)
+#include <cstdlib>
+#include <iostream>
+#include "errors.h"
+
+void Assert(bool Condition)
+{
+	if (!Condition)
+	{
+		std::cout << "ASSERTION FAILURE\n";
+		BreakPoint();
+		std::abort();
+	}
+}
+
 #endif
-
-
-#if _WIN64
-#define BreakPoint() __debugbreak()
-#else
-#define BreakPoint()
-#endif
-
-
-#define FAILED(Expr) (Expr == StatusCode::FAIL)
-#define RETURN_ON_FAIL(Expr) { StatusCode Result = Expr; if (Result == StatusCode::FAIL) return Result; }

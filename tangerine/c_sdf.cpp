@@ -38,7 +38,7 @@ extern "C" TANGERINE_API void* ClipTree(void* Handle, float X, float Y, float Z,
 	SDFNode* Clipped = ((SDFNode*)Handle)->Clip(Point, Radius);
 	if (Clipped && abs(Clipped->Eval(Point)) > Radius)
 	{
-		delete Clipped;
+		Clipped->Release();
 		return nullptr;
 	}
 	else
@@ -57,7 +57,6 @@ extern "C" TANGERINE_API RayHit RayMarchTree(
 	ProfileScope("RayMarchTree");
 	vec3 RayStart = vec3(RayStartX, RayStartY, RayStartZ);
 	vec3 RayDir = vec3(RayDirX, RayDirY, RayDirZ);
-	vec3 Position;
 	return ((SDFNode*)Handle)->RayMarch(RayStart, RayDir, MaxIterations, Epsilon);
 }
 
@@ -66,7 +65,7 @@ extern "C" TANGERINE_API RayHit RayMarchTree(
 extern "C" TANGERINE_API void DiscardTree(void* Handle)
 {
 	ProfileScope("DiscardTree");
-	delete (SDFNode*)Handle;
+	((SDFNode*)Handle)->Release();;
 }
 
 // Returns true if the evaluator has a finite boundary.
