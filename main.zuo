@@ -1,0 +1,46 @@
+#lang zuo
+
+(provide-targets targets-at)
+
+;; in a shell, we may need "./" for something in the same directory
+(define (ensure-path path)
+  (if (not (car (split-path path)))
+      (~a "./" path)
+      path))
+
+;; We ignore the `at-dir` argument and instead do everything
+;; relative to the source directory
+(define (targets-at at-dir-ignored [vars (hash)])
+
+  (define zuo
+    (hash-ref (runtime-env) 'exe))
+  
+  (define racket
+    (.exe (at-source "racket/racket/bin/racket")))
+  (define raco
+    (.exe (at-source "racket/racket/bin/raco")))
+
+  (define (build-racket token)
+    ;; use shell/wait instead of Zuo API
+    ;; to work around the top-level main.zuo ignoring at-dir
+    (shell/wait
+     (string->shell (ensure-path zuo)) "." "cs-in-place" "PKGS=\"racket-lib\""
+     (hash 'dir (at-source "racket")
+           'desc "child Zuo process"))
+    (shell/wait
+     (string->shell (ensure-path raco)) "pkg" "install"
+     "--skip-installed"
+     "--auto"
+     "--update-deps"
+     "--name" "tangerine"
+     (string->shell (ensure-path (at-source "package")))
+     (hash 'desc "raco pkg install"))
+    (shell/wait
+     (string->shell (ensure-path raco)) "setup"
+     (hash 'desc "raco setup")))
+    
+  
+  (make-targets
+   `([:target racket ()
+              ,build-racket])))
+
