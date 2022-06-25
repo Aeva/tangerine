@@ -943,6 +943,32 @@ AABB SymmetricalBounds(vec3 High)
 
 namespace SDF
 {
+	// The following functions perform rotations on SDFNode trees.
+	void RotateX(SDFNode* Tree, float Degrees)
+	{
+		float R = radians(Degrees) * .5;
+		float S = sin(R);
+		float C = cos(R);
+		Tree->Rotate(quat(C, S, 0, 0));
+	}
+
+	void RotateY(SDFNode* Tree, float Degrees)
+	{
+		float R = radians(Degrees) * .5;
+		float S = sin(R);
+		float C = cos(R);
+		Tree->Rotate(quat(C, 0, S, 0));
+	}
+
+	void RotateZ(SDFNode* Tree, float Degrees)
+	{
+		float R = radians(Degrees) * .5;
+		float S = sin(R);
+		float C = cos(R);
+		Tree->Rotate(quat(C, 0, 0, S));
+	}
+
+
 	// The following functions construct Brush nodes.
 	SDFNode* Sphere(float Radius)
 	{

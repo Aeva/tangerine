@@ -139,6 +139,12 @@ protected:
 
 namespace SDF
 {
+	void RotateX(SDFNode* Tree, float Degrees);
+
+	void RotateY(SDFNode* Tree, float Degrees);
+
+	void RotateZ(SDFNode* Tree, float Degrees);
+
 	SDFNode* Sphere(float Radius);
 
 	SDFNode* Ellipsoid(float RadipodeX, float RadipodeY, float RadipodeZ);

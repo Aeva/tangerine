@@ -77,6 +77,45 @@ int LuaMove(lua_State* L)
 }
 
 
+int LuaRotateInner(lua_State* L, float X, float Y, float Z, float W = 1.0)
+{
+	SDFNode* Node = GetSDFNode(L, 1);
+	SDFNode* NewNode = Node->Copy();
+	NewNode->Rotate(glm::quat(W, X, Y, Z));
+	return WrapSDFNode(L, NewNode);
+}
+
+
+int LuaRotateX(lua_State* L)
+{
+	float Degrees = (float)luaL_checknumber(L, 2);
+	SDFNode* Node = GetSDFNode(L, 1);
+	SDFNode* NewNode = Node->Copy();
+	SDF::RotateX(NewNode, Degrees);
+	return WrapSDFNode(L, NewNode);
+}
+
+
+int LuaRotateY(lua_State* L)
+{
+	float Degrees = (float)luaL_checknumber(L, 2);
+	SDFNode* Node = GetSDFNode(L, 1);
+	SDFNode* NewNode = Node->Copy();
+	SDF::RotateY(NewNode, Degrees);
+	return WrapSDFNode(L, NewNode);
+}
+
+
+int LuaRotateZ(lua_State* L)
+{
+	float Degrees = (float)luaL_checknumber(L, 2);
+	SDFNode* Node = GetSDFNode(L, 1);
+	SDFNode* NewNode = Node->Copy();
+	SDF::RotateZ(NewNode, Degrees);
+	return WrapSDFNode(L, NewNode);
+}
+
+
 int LuaSphere(lua_State* L)
 {
 	float Radius = luaL_checknumber(L, 1);
@@ -222,6 +261,9 @@ const luaL_Reg LuaSDFType[] = \
 	{ "move_x", LuaMoveX },
 	{ "move_y", LuaMoveY },
 	{ "move_z", LuaMoveZ },
+	{ "rotate_x", LuaRotateX },
+	{ "rotate_y", LuaRotateY },
+	{ "rotate_z", LuaRotateZ },
 	{ "sphere", LuaSphere },
 	{ "ellipsoid", LuaEllipsoid },
 	{ "box", LuaBox },
