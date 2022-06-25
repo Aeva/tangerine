@@ -15,7 +15,9 @@
 
 #pragma once
 #define EMBED_LUA 1
-#define EMBED_RACKET 0
+#define EMBED_RACKET 1
+
+#define EMBED_MULTI (EMBED_LUA + EMBED_RACKET) > 1
 
 
 enum class Language

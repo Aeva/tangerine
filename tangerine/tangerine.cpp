@@ -1203,7 +1203,7 @@ void LoadRacketFromString(std::string Source)
 		ptr ModuleSymbol = Sstring_to_symbol("tangerine");
 		ptr ProcSymbol = Sstring_to_symbol("renderer-load-untrusted-model");
 		ptr Proc = Scar(racket_dynamic_require(ModuleSymbol, ProcSymbol));
-		ptr Args = Scons(Sstring_utf8(ModelSource.c_str(), ModelSource.size()), Snil);
+		ptr Args = Scons(Sstring_utf8(Source.c_str(), Source.size()), Snil);
 		racket_apply(Proc, Args);
 		Sdeactivate_thread();
 	};
@@ -1304,8 +1304,8 @@ void ReadInputModel(Language Runtime)
 
 Language LanguageForPath(const char* Path)
 {
-	const std::regex LuaFile(".*?\\.(lua)$");
-	const std::regex RacketFile(".*?\\.(rkt)$");
+	const std::regex LuaFile(".*?\\.(lua)$", std::regex::icase);
+	const std::regex RacketFile(".*?\\.(rkt)$", std::regex::icase);
 
 	if (std::regex_match(Path, LuaFile))
 	{
@@ -1330,9 +1330,32 @@ void OpenModel()
 	OPENFILENAMEA Dialog = { sizeof(Dialog) };
 	Dialog.hwndOwner = 0;
 	Dialog.lpstrFilter = ""
+
+#if EMBED_MULTI
+		"Tangerines\0"
+
+	#if EMBED_LUA
+		"*.lua"
+		#define ADD_SEPARATOR
+	#endif
+
+	#ifdef ADD_SEPARATOR
+		";"
+	#endif
+
+	#if EMBED_RACKET
+		"*.rkt"
+		#define ADD_SEPARATOR
+	#endif
+
+	#undef ADD_SEPARATOR
+		"\0"
+#endif
+
 #if EMBED_LUA
 		"Lua Sources\0*.lua\0"
 #endif
+
 #if EMBED_RACKET
 		"Racket Sources\0*.rkt\0"
 #endif

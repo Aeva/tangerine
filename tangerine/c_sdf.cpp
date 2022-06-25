@@ -65,7 +65,7 @@ extern "C" TANGERINE_API RayHit RayMarchTree(
 extern "C" TANGERINE_API void DiscardTree(void* Handle)
 {
 	ProfileScope("DiscardTree");
-	((SDFNode*)Handle)->Release();;
+	delete ((SDFNode*)Handle);
 }
 
 // Returns true if the evaluator has a finite boundary.
