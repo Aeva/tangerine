@@ -7,6 +7,7 @@ clang++ \
 	-Ithird_party/fmt/include \
 	-Ithird_party \
 	-DMINIMAL_DLL \
+	tangerine/c_sdf.cpp \
 	tangerine/sdfs.cpp \
 	tangerine/profiling.cpp \
 	tangerine/export.cpp \
