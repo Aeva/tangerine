@@ -178,9 +178,11 @@
     <ClCompile Include="..\tangerine\gl_async.cpp" />
     <ClCompile Include="..\tangerine\gl_boilerplate.cpp" />
     <ClCompile Include="..\tangerine\gl_debug.cpp" />
+    <ClCompile Include="..\tangerine\lua_env.cpp" />
     <ClCompile Include="..\tangerine\lua_sdf.cpp" />
     <ClCompile Include="..\tangerine\magica.cpp" />
     <ClCompile Include="..\tangerine\profiling.cpp" />
+    <ClCompile Include="..\tangerine\racket_env.cpp" />
     <ClCompile Include="..\tangerine\sdfs.cpp" />
     <ClCompile Include="..\tangerine\shape_compiler.cpp" />
     <ClCompile Include="..\tangerine\tangerine.cpp" />
@@ -238,11 +240,14 @@
     <ClInclude Include="..\tangerine\gl_async.h" />
     <ClInclude Include="..\tangerine\gl_boilerplate.h" />
     <ClInclude Include="..\tangerine\gl_debug.h" />
+    <ClInclude Include="..\tangerine\lua_env.h" />
     <ClInclude Include="..\tangerine\lua_sdf.h" />
     <ClInclude Include="..\tangerine\magica.h" />
     <ClInclude Include="..\tangerine\profiling.h" />
+    <ClInclude Include="..\tangerine\racket_env.h" />
     <ClInclude Include="..\tangerine\sdfs.h" />
     <ClInclude Include="..\tangerine\shape_compiler.h" />
+    <ClInclude Include="..\tangerine\tangerine.h" />
     <ClInclude Include="..\tangerine\threadpool.h" />
     <ClInclude Include="..\third_party\glad\glad.h" />
     <ClInclude Include="..\third_party\glad\glad_wgl.h" />

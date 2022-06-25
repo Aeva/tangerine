@@ -34,6 +34,9 @@
     <Filter Include="Third Party\Lua">
       <UniqueIdentifier>{94671579-193f-48be-9e4a-a7e396ae50f1}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Tangerine\Runtimes">
+      <UniqueIdentifier>{7ff1cde1-a1c8-46c0-a2e2-02aab35614f1}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\third_party\glad\glad.c">
@@ -195,14 +198,20 @@
     <ClCompile Include="..\third_party\lua-5.4.4\lua\lzio.c">
       <Filter>Third Party\Lua</Filter>
     </ClCompile>
-    <ClCompile Include="..\tangerine\lua_sdf.cpp">
+    <ClCompile Include="..\tangerine\errors.cpp">
       <Filter>Tangerine</Filter>
     </ClCompile>
     <ClCompile Include="..\tangerine\c_sdf.cpp">
-      <Filter>Tangerine</Filter>
+      <Filter>Tangerine\Runtimes</Filter>
     </ClCompile>
-    <ClCompile Include="..\tangerine\errors.cpp">
-      <Filter>Tangerine</Filter>
+    <ClCompile Include="..\tangerine\lua_env.cpp">
+      <Filter>Tangerine\Runtimes</Filter>
+    </ClCompile>
+    <ClCompile Include="..\tangerine\lua_sdf.cpp">
+      <Filter>Tangerine\Runtimes</Filter>
+    </ClCompile>
+    <ClCompile Include="..\tangerine\racket_env.cpp">
+      <Filter>Tangerine\Runtimes</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -369,10 +378,19 @@
     <ClInclude Include="..\third_party\lua-5.4.4\lua\lua.hpp">
       <Filter>Third Party\Lua</Filter>
     </ClInclude>
-    <ClInclude Include="..\tangerine\lua_sdf.h">
-      <Filter>Tangerine</Filter>
-    </ClInclude>
     <ClInclude Include="..\tangerine\embedding.h">
+      <Filter>Tangerine\Runtimes</Filter>
+    </ClInclude>
+    <ClInclude Include="..\tangerine\lua_env.h">
+      <Filter>Tangerine\Runtimes</Filter>
+    </ClInclude>
+    <ClInclude Include="..\tangerine\lua_sdf.h">
+      <Filter>Tangerine\Runtimes</Filter>
+    </ClInclude>
+    <ClInclude Include="..\tangerine\racket_env.h">
+      <Filter>Tangerine\Runtimes</Filter>
+    </ClInclude>
+    <ClInclude Include="..\tangerine\tangerine.h">
       <Filter>Tangerine</Filter>
     </ClInclude>
   </ItemGroup>

@@ -26,7 +26,10 @@
 #include "shape_compiler.h"
 #include "export.h"
 #include "extern.h"
-#include "embedding.h"
+
+#include "lua_env.h"
+#include "racket_env.h"
+#include "tangerine.h"
 
 #include <iostream>
 #include <iterator>
@@ -35,30 +38,6 @@
 #include <vector>
 #include <chrono>
 #include <regex>
-
-#if EMBED_RACKET
-#include <chezscheme.h>
-#include <racketcs.h>
-#endif
-
-#if EMBED_LUA
-#include "lua_sdf.h"
-
-lua_State* LuaStack = nullptr;
-
-void CreateLuaEnv()
-{
-	LuaStack = luaL_newstate();
-	luaL_openlibs(LuaStack);
-	luaL_requiref(LuaStack, "tangerine", LuaOpenSDF, 1);
-}
-
-void ResetLuaEnv()
-{
-	lua_close(LuaStack);
-	CreateLuaEnv();
-}
-#endif
 
 #if _WIN64
 #include <shobjidl.h>
@@ -1088,18 +1067,15 @@ void ToggleFullScreen(SDL_Window* Window)
 
 
 std::vector<std::string> ScriptErrors;
-#if EMBED_RACKET
-extern "C" TANGERINE_API void RacketErrorCallback(const char* ErrorMessage)
+void PostScriptError(std::string ErrorMessage)
 {
 	std::cout << ErrorMessage << "\n";
-	ScriptErrors.push_back(std::string(ErrorMessage));
+	ScriptErrors.push_back(ErrorMessage);
 }
-#endif
 
 
 double ModelProcessingStallMs = 0.0;
-template<typename T>
-void LoadModelCommon(T& LoadingCallback)
+void LoadModelCommon(std::function<void()> LoadingCallback)
 {
 	BeginEvent("Load Model");
 	for (SubtreeShader& Shader : SubtreeShaders)
@@ -1127,89 +1103,6 @@ void LoadModelCommon(T& LoadingCallback)
 	ShaderCompilerStart = Clock::now();
 	EndEvent();
 }
-
-
-#if EMBED_LUA
-void LoadLuaModelCommon(int Error)
-{
-	if (Error)
-	{
-		std::string ErrorMessage = fmt::format("{}\n", lua_tostring(LuaStack, -1));
-		ScriptErrors.push_back(std::string(ErrorMessage));
-		lua_pop(LuaStack, 1);
-	}
-	else
-	{
-		lua_getglobal(LuaStack, "model");
-		void* LuaData = luaL_testudata(LuaStack, -1, "tangerine.sdf");
-		if (LuaData)
-		{
-			SDFNode* Model = *(SDFNode**)LuaData;
-			CompileEvaluator(Model);
-		}
-		else
-		{
-			ScriptErrors.push_back(std::string("Invalid Model"));
-		}
-		lua_pop(LuaStack, 1);
-	}
-}
-
-void LoadLuaFromPath(std::string Path)
-{
-	auto LoadAndProcess = [&]()
-	{
-		ResetLuaEnv();
-		int Error = luaL_dofile(LuaStack, Path.c_str());
-		LoadLuaModelCommon(Error);
-	};
-	LoadModelCommon(LoadAndProcess);
-}
-
-void LoadLuaFromString(std::string Source)
-{
-	auto LoadAndProcess = [&]()
-	{
-		ResetLuaEnv();
-		int Error = luaL_dostring(LuaStack, Source.c_str());
-		LoadLuaModelCommon(Error);
-	};
-	LoadModelCommon(LoadAndProcess);
-}
-#endif
-
-
-#if EMBED_RACKET
-void LoadRacketFromPath(std::string Path)
-{
-	auto LoadAndProcess = [&]()
-	{
-		Sactivate_thread();
-		ptr ModuleSymbol = Sstring_to_symbol("tangerine");
-		ptr ProcSymbol = Sstring_to_symbol("renderer-load-and-process-model");
-		ptr Proc = Scar(racket_dynamic_require(ModuleSymbol, ProcSymbol));
-		ptr Args = Scons(Sstring(Path.c_str()), Snil);
-		racket_apply(Proc, Args);
-		Sdeactivate_thread();
-	};
-	LoadModelCommon(LoadAndProcess);
-}
-
-void LoadRacketFromString(std::string Source)
-{
-	auto LoadAndProcess = [&]()
-	{
-		Sactivate_thread();
-		ptr ModuleSymbol = Sstring_to_symbol("tangerine");
-		ptr ProcSymbol = Sstring_to_symbol("renderer-load-untrusted-model");
-		ptr Proc = Scar(racket_dynamic_require(ModuleSymbol, ProcSymbol));
-		ptr Args = Scons(Sstring_utf8(Source.c_str(), Source.size()), Snil);
-		racket_apply(Proc, Args);
-		Sdeactivate_thread();
-	};
-	LoadModelCommon(LoadAndProcess);
-}
-#endif
 
 
 void LoadModel(std::string Path, Language Runtime)
@@ -2006,17 +1899,7 @@ int main(int argc, char* argv[])
 	ConnectDebugCallback(0);
 	{
 #if EMBED_RACKET
-		std::cout << "Setting up Racket CS... ";
-		racket_boot_arguments_t BootArgs;
-		memset(&BootArgs, 0, sizeof(BootArgs));
-		BootArgs.boot1_path = "./racket/petite.boot";
-		BootArgs.boot2_path = "./racket/scheme.boot";
-		BootArgs.boot3_path = "./racket/racket.boot";
-		BootArgs.exec_file = "tangerine.exe";
-		BootArgs.collects_dir = "./racket/collects";
-		BootArgs.config_dir = "./racket/etc";
-		racket_boot(&BootArgs);
-		std::cout << "Done!\n";
+		BootRacket();
 #endif
 #if EMBED_LUA
 		CreateLuaEnv();
@@ -2288,9 +2171,7 @@ int main(int argc, char* argv[])
 		std::cout << "Shutting down...\n";
 	}
 #if EMBED_LUA
-	{
-		lua_close(LuaStack);
-	}
+	LuaShutdown();
 #endif
 	{
 		JoinWorkerThreads();
