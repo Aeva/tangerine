@@ -13,10 +13,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "lua_sdf.h"
+#if EMBED_LUA
 
 #include <string.h>
-#include <lua/lua.hpp>
-#include "lua_sdf.h"
 #include "sdfs.h"
 
 
@@ -345,3 +345,5 @@ int LuaOpenSDF(lua_State* L)
 	luaL_newlib(L, LuaSDFType);
 	return 1;
 }
+
+#endif // EMBED_LUA

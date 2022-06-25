@@ -231,6 +231,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\shaders\defines.h" />
+    <ClInclude Include="..\tangerine\embedding.h" />
     <ClInclude Include="..\tangerine\errors.h" />
     <ClInclude Include="..\tangerine\export.h" />
     <ClInclude Include="..\tangerine\extern.h" />

@@ -26,6 +26,7 @@
 #include "shape_compiler.h"
 #include "export.h"
 #include "extern.h"
+#include "embedding.h"
 
 #include <iostream>
 #include <iterator>
@@ -33,9 +34,7 @@
 #include <map>
 #include <vector>
 #include <chrono>
-
-#define EMBED_RACKET 0
-#define EMBED_LUA 1
+#include <regex>
 
 #if EMBED_RACKET
 #include <chezscheme.h>
@@ -43,7 +42,6 @@
 #endif
 
 #if EMBED_LUA
-#include <lua/lua.hpp>
 #include "lua_sdf.h"
 
 lua_State* LuaStack = nullptr;
@@ -1156,16 +1154,73 @@ void LoadLuaModelCommon(int Error)
 		lua_pop(LuaStack, 1);
 	}
 }
+
+void LoadLuaFromPath(std::string Path)
+{
+	auto LoadAndProcess = [&]()
+	{
+		ResetLuaEnv();
+		int Error = luaL_dofile(LuaStack, Path.c_str());
+		LoadLuaModelCommon(Error);
+	};
+	LoadModelCommon(LoadAndProcess);
+}
+
+void LoadLuaFromString(std::string Source)
+{
+	auto LoadAndProcess = [&]()
+	{
+		ResetLuaEnv();
+		int Error = luaL_dostring(LuaStack, Source.c_str());
+		LoadLuaModelCommon(Error);
+	};
+	LoadModelCommon(LoadAndProcess);
+}
 #endif
 
 
-void LoadModel(std::string Path)
+#if EMBED_RACKET
+void LoadRacketFromPath(std::string Path)
+{
+	auto LoadAndProcess = [&]()
+	{
+		Sactivate_thread();
+		ptr ModuleSymbol = Sstring_to_symbol("tangerine");
+		ptr ProcSymbol = Sstring_to_symbol("renderer-load-and-process-model");
+		ptr Proc = Scar(racket_dynamic_require(ModuleSymbol, ProcSymbol));
+		ptr Args = Scons(Sstring(Path.c_str()), Snil);
+		racket_apply(Proc, Args);
+		Sdeactivate_thread();
+	};
+	LoadModelCommon(LoadAndProcess);
+}
+
+void LoadRacketFromString(std::string Source)
+{
+	auto LoadAndProcess = [&]()
+	{
+		Sactivate_thread();
+		ptr ModuleSymbol = Sstring_to_symbol("tangerine");
+		ptr ProcSymbol = Sstring_to_symbol("renderer-load-untrusted-model");
+		ptr Proc = Scar(racket_dynamic_require(ModuleSymbol, ProcSymbol));
+		ptr Args = Scons(Sstring_utf8(ModelSource.c_str(), ModelSource.size()), Snil);
+		racket_apply(Proc, Args);
+		Sdeactivate_thread();
+	};
+	LoadModelCommon(LoadAndProcess);
+}
+#endif
+
+
+void LoadModel(std::string Path, Language Runtime)
 {
 	static std::string LastPath = "";
+	static Language LastRuntime = Language::Unknown;
 	if (Path.size() == 0)
 	{
 		// Reload
 		Path = LastPath;
+		Runtime = LastRuntime;
 	}
 	else
 	{
@@ -1173,32 +1228,40 @@ void LoadModel(std::string Path)
 	}
 	if (Path.size() > 0)
 	{
-		auto LoadAndProcess = [&]()
+		switch (Runtime)
 		{
-#if EMBED_RACKET
-			Sactivate_thread();
-			ptr ModuleSymbol = Sstring_to_symbol("tangerine");
-			ptr ProcSymbol = Sstring_to_symbol("renderer-load-and-process-model");
-			ptr Proc = Scar(racket_dynamic_require(ModuleSymbol, ProcSymbol));
-			ptr Args = Scons(Sstring(Path.c_str()), Snil);
-			racket_apply(Proc, Args);
-			Sdeactivate_thread();
-#endif
+		case Language::Lua:
 #if EMBED_LUA
-			ResetLuaEnv();
-			int Error = luaL_dofile(LuaStack, Path.c_str());
-			LoadLuaModelCommon(Error);
+			LoadLuaFromPath(Path);
+#else
+			ScriptErrors.push_back(std::string("The Lua language runtime is not available in this build :(\n"));
 #endif
-		};
+			break;
 
-		LoadModelCommon(LoadAndProcess);
+		case Language::Racket:
+#if EMBED_RACKET
+			LoadRacketFromPath(Path);
+#else
+			ScriptErrors.push_back(std::string("The Racket language runtime is not available in this build :(\n"));
+#endif
+			break;
 
+		default:
+			ScriptErrors.push_back(std::string("Unknown source language.\n"));
+		}
 		LastPath = Path;
+		LastRuntime = Runtime;
 	}
 }
 
 
-void ReadInputModel()
+void ReloadModel()
+{
+	LoadModel("", Language::Unknown);
+}
+
+
+void ReadInputModel(Language Runtime)
 {
 #if 1
 	std::istreambuf_iterator<char> begin(std::cin), end;
@@ -1209,29 +1272,52 @@ void ReadInputModel()
 	if (ModelSource.size() > 0)
 	{
 		std::cout << "Evaluating data from stdin.\n";
-		auto EvalUntrusted = [&]()
+		switch (Runtime)
 		{
-#if EMBED_RACKET
-			Sactivate_thread();
-			ptr ModuleSymbol = Sstring_to_symbol("tangerine");
-			ptr ProcSymbol = Sstring_to_symbol("renderer-load-untrusted-model");
-			ptr Proc = Scar(racket_dynamic_require(ModuleSymbol, ProcSymbol));
-			ptr Args = Scons(Sstring_utf8(ModelSource.c_str(), ModelSource.size()), Snil);
-			racket_apply(Proc, Args);
-			Sdeactivate_thread();
-#endif
+		case Language::Lua:
 #if EMBED_LUA
-			ResetLuaEnv();
-			int Error = luaL_dostring(LuaStack, ModelSource.c_str());
-			LoadLuaModelCommon(Error);
+			LoadLuaFromString(ModelSource);
+#else
+			ScriptErrors.push_back(std::string("The Lua language runtime is not available in this build :(\n"));
 #endif
-		};
-		LoadModelCommon(EvalUntrusted);
+			break;
+
+		case Language::Racket:
+#if EMBED_RACKET
+			LoadRacketFromString(ModelSource);
+#else
+			ScriptErrors.push_back(std::string("The Racket language runtime is not available in this build :(\n"));
+#endif
+			break;
+
+		default:
+			ScriptErrors.push_back(std::string("Unknown source language.\n"));
+		}
 		std::cout << "Done!\n";
 	}
 	else
 	{
 		std::cout << "No data provided.\n";
+	}
+}
+
+
+Language LanguageForPath(const char* Path)
+{
+	const std::regex LuaFile(".*?\\.(lua)$");
+	const std::regex RacketFile(".*?\\.(rkt)$");
+
+	if (std::regex_match(Path, LuaFile))
+	{
+		return Language::Lua;
+	}
+	else if (std::regex_match(Path, RacketFile))
+	{
+		return Language::Racket;
+	}
+	else
+	{
+		return Language::Unknown;
 	}
 }
 
@@ -1243,20 +1329,22 @@ void OpenModel()
 
 	OPENFILENAMEA Dialog = { sizeof(Dialog) };
 	Dialog.hwndOwner = 0;
-#if EMBED_RACKET
-	Dialog.lpstrFilter = "Racket Sources\0*.rkt\0All Files\0*.*\0";
-#elif EMBED_LUA
-	Dialog.lpstrFilter = "Lua Sources\0*.lua\0All Files\0*.*\0";
-#else
-	Dialog.lpstrFilter = "All Files\0*.*\0";
+	Dialog.lpstrFilter = ""
+#if EMBED_LUA
+		"Lua Sources\0*.lua\0"
 #endif
+#if EMBED_RACKET
+		"Racket Sources\0*.rkt\0"
+#endif
+		"";
+
 	Dialog.lpstrFile = Path;
 	Dialog.nMaxFile = ARRAYSIZE(Path);
 	Dialog.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST | OFN_NOCHANGEDIR;
 
 	if (GetOpenFileNameA(&Dialog))
 	{
-		LoadModel(std::string(Path));
+		LoadModel(std::string(Path), LanguageForPath(Path));
 	}
 #else
 	GtkWidget* Dialog = gtk_file_chooser_dialog_new("Open File",
@@ -1272,7 +1360,7 @@ void OpenModel()
 	{
 		GtkFileChooser* FileChooser = GTK_FILE_CHOOSER(Dialog);
 		char* Path = gtk_file_chooser_get_filename(FileChooser);
-		LoadModel(std::string(Path));
+		LoadModel(std::string(Path), LanguageForPath(Path));
 		g_free(Path);
 	}
 	gtk_widget_destroy(Dialog);
@@ -1334,7 +1422,7 @@ void RenderUI(SDL_Window* Window, bool& Live)
 			}
 			if (ImGui::MenuItem("Reload", "Ctrl+R"))
 			{
-				LoadModel("");
+				ReloadModel();
 			}
 			bool AnyExport = false;
 			if (ImGui::MenuItem("Export PLY", nullptr, false, TreeEvaluator != nullptr))
@@ -1469,7 +1557,7 @@ void RenderUI(SDL_Window* Window, bool& Live)
 			if (ImGui::MenuItem("[Interpreted Shaders]", nullptr, &ToggleInterpreted))
 			{
 				Interpreted = false;
-				LoadModel("");
+				ReloadModel();
 			}
 		}
 		else
@@ -1477,7 +1565,7 @@ void RenderUI(SDL_Window* Window, bool& Live)
 			if (ImGui::MenuItem("[Compiled Shaders]", nullptr, &ToggleInterpreted))
 			{
 				Interpreted = true;
-				LoadModel("");
+				ReloadModel();
 			}
 		}
 
@@ -1512,7 +1600,7 @@ void RenderUI(SDL_Window* Window, bool& Live)
 			{
 				ShowChangeIterations = false;
 				OverrideMaxIterations(NewMaxIterations);
-				LoadModel("");
+				ReloadModel();
 			}
 		}
 		ImGui::End();
@@ -1780,6 +1868,7 @@ int main(int argc, char* argv[])
 	int WindowHeight = 900;
 	HeadlessMode = false;
 	bool LoadFromStandardIn = false;
+	Language PipeRuntime = Language::Unknown;
 	{
 		int Cursor = 0;
 		while (Cursor < Args.size())
@@ -1792,9 +1881,17 @@ int main(int argc, char* argv[])
 				Cursor += 3;
 				continue;
 			}
-			else if (Args[Cursor] == "--cin")
+			else if (Args[Cursor] == "--lua")
 			{
 				LoadFromStandardIn = true;
+				PipeRuntime = Language::Lua;
+				Cursor += 1;
+				continue;
+			}
+			else if (Args[Cursor] == "--racket")
+			{
+				LoadFromStandardIn = true;
+				PipeRuntime = Language::Racket;
 				Cursor += 1;
 				continue;
 			}
@@ -1940,7 +2037,7 @@ int main(int argc, char* argv[])
 
 	if (LoadFromStandardIn)
 	{
-		ReadInputModel();
+		ReadInputModel(PipeRuntime);
 	}
 
 	if (HeadlessMode)
@@ -2063,7 +2160,7 @@ int main(int argc, char* argv[])
 							OpenModel();
 							break;
 						case RELOAD_MODEL:
-							LoadModel("");
+							ReloadModel();
 							break;
 						case TOGGLE_FULLSCREEN:
 							ToggleFullScreen(Window);

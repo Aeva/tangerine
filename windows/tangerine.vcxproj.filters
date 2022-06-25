@@ -372,6 +372,9 @@
     <ClInclude Include="..\tangerine\lua_sdf.h">
       <Filter>Tangerine</Filter>
     </ClInclude>
+    <ClInclude Include="..\tangerine\embedding.h">
+      <Filter>Tangerine</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="..\shaders\math.glsl">

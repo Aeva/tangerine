@@ -14,13 +14,13 @@
 // limitations under the License.
 
 #pragma once
-
-#include "embedding.h"
-#if EMBED_LUA
-
-#include <lua/lua.hpp>
-
-int LuaOpenSDF(struct lua_State* L);
+#define EMBED_LUA 1
+#define EMBED_RACKET 0
 
 
-#endif // EMBED_LUA
+enum class Language
+{
+	Unknown,
+	Lua,
+	Racket
+};
