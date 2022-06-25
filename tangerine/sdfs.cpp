@@ -47,7 +47,7 @@ inline vec3 max(vec3 LHS, float RHS)
 }
 
 
-namespace SDF
+namespace SDFMath
 {
 #define SDF_MATH_ONLY
 #include "../shaders/math.glsl"
@@ -943,6 +943,14 @@ AABB SymmetricalBounds(vec3 High)
 
 namespace SDF
 {
+	void Align(SDFNode* Tree, vec3 Anchors)
+	{
+		const vec3 Alignment = Anchors * vec3(0.5) + vec3(0.5);
+		const AABB Bounds = Tree->InnerBounds();
+		const vec3 Offset = mix(Bounds.Min, Bounds.Max, Alignment) * vec3(-1.0);
+		Tree->Move(Offset);
+	}
+
 	// The following functions perform rotations on SDFNode trees.
 	void RotateX(SDFNode* Tree, float Degrees)
 	{
@@ -974,7 +982,7 @@ namespace SDF
 	{
 		std::array<float, 1> Params = { Radius };
 
-		BrushMixin Eval = std::bind(SDF::SphereBrush, _1, Radius);
+		BrushMixin Eval = std::bind(SDFMath::SphereBrush, _1, Radius);
 
 		AABB Bounds = SymmetricalBounds(vec3(Radius));
 		return new BrushNode(OPCODE_SPHERE, "SphereBrush", Params, Eval, Bounds);
@@ -985,7 +993,7 @@ namespace SDF
 		std::array<float, 3> Params = { RadipodeX, RadipodeY, RadipodeZ };
 
 		using EllipsoidBrushPtr = float(*)(vec3, vec3);
-		BrushMixin Eval = std::bind((EllipsoidBrushPtr)SDF::EllipsoidBrush, _1, vec3(RadipodeX, RadipodeY, RadipodeZ));
+		BrushMixin Eval = std::bind((EllipsoidBrushPtr)SDFMath::EllipsoidBrush, _1, vec3(RadipodeX, RadipodeY, RadipodeZ));
 
 		AABB Bounds = SymmetricalBounds(vec3(RadipodeX, RadipodeY, RadipodeZ));
 		return new BrushNode(OPCODE_ELLIPSOID, "EllipsoidBrush", Params, Eval, Bounds);
@@ -996,7 +1004,7 @@ namespace SDF
 		std::array<float, 3> Params = { ExtentX, ExtentY, ExtentZ };
 
 		using BoxBrushPtr = float(*)(vec3, vec3);
-		BrushMixin Eval = std::bind((BoxBrushPtr)SDF::BoxBrush, _1, vec3(ExtentX, ExtentY, ExtentZ));
+		BrushMixin Eval = std::bind((BoxBrushPtr)SDFMath::BoxBrush, _1, vec3(ExtentX, ExtentY, ExtentZ));
 
 		AABB Bounds = SymmetricalBounds(vec3(ExtentX, ExtentY, ExtentZ));
 		return new BrushNode(OPCODE_BOX, "BoxBrush", Params, Eval, Bounds);
@@ -1006,7 +1014,7 @@ namespace SDF
 	{
 		std::array<float, 2> Params = { MajorRadius, MinorRadius };
 
-		BrushMixin Eval = std::bind(SDF::TorusBrush, _1, MajorRadius, MinorRadius);
+		BrushMixin Eval = std::bind(SDFMath::TorusBrush, _1, MajorRadius, MinorRadius);
 
 		float Radius = MajorRadius + MinorRadius;
 		AABB Bounds = SymmetricalBounds(vec3(Radius, Radius, MinorRadius));
@@ -1018,7 +1026,7 @@ namespace SDF
 	{
 		std::array<float, 2> Params = { Radius, Extent };
 
-		BrushMixin Eval = std::bind(SDF::CylinderBrush, _1, Radius, Extent);
+		BrushMixin Eval = std::bind(SDFMath::CylinderBrush, _1, Radius, Extent);
 
 		AABB Bounds = SymmetricalBounds(vec3(Radius, Radius, Extent));
 		return new BrushNode(OPCODE_CYLINDER, "CylinderBrush", Params, Eval, Bounds);
@@ -1030,7 +1038,7 @@ namespace SDF
 		std::array<float, 3> Params = { Normal.x, Normal.y, Normal.z };
 
 		using PlanePtr = float(*)(vec3, vec3);
-		BrushMixin Eval = std::bind((PlanePtr)SDF::Plane, _1, Normal);
+		BrushMixin Eval = std::bind((PlanePtr)SDFMath::Plane, _1, Normal);
 
 		AABB Unbound = SymmetricalBounds(vec3(INFINITY, INFINITY, INFINITY));
 		if (Normal.x == -1.0)
@@ -1064,37 +1072,37 @@ namespace SDF
 	// The following functions construct CSG set operator nodes.
 	SDFNode* Union(SDFNode* LHS, SDFNode* RHS)
 	{
-		SetMixin Eval = std::bind(SDF::UnionOp, _1, _2);
+		SetMixin Eval = std::bind(SDFMath::UnionOp, _1, _2);
 		return new SetNode<SetFamily::Union, false>(Eval, LHS, RHS, 0.0);
 	}
 
 	SDFNode* Diff(SDFNode* LHS, SDFNode* RHS)
 	{
-		SetMixin Eval = std::bind(SDF::DiffOp, _1, _2);
+		SetMixin Eval = std::bind(SDFMath::DiffOp, _1, _2);
 		return new SetNode<SetFamily::Diff, false>(Eval, LHS, RHS, 0.0);
 	}
 
 	SDFNode* Inter(SDFNode* LHS, SDFNode* RHS)
 	{
-		SetMixin Eval = std::bind(SDF::InterOp, _1, _2);
+		SetMixin Eval = std::bind(SDFMath::InterOp, _1, _2);
 		return new SetNode<SetFamily::Inter, false>(Eval, LHS, RHS, 0.0);
 	}
 
 	SDFNode* BlendUnion(float Threshold, SDFNode* LHS, SDFNode* RHS)
 	{
-		SetMixin Eval = std::bind(SDF::SmoothUnionOp, _1, _2, Threshold);
+		SetMixin Eval = std::bind(SDFMath::SmoothUnionOp, _1, _2, Threshold);
 		return new SetNode<SetFamily::Union, true>(Eval, (SDFNode*)LHS, (SDFNode*)RHS, Threshold);
 	}
 
 	SDFNode* BlendDiff(float Threshold, SDFNode* LHS, SDFNode* RHS)
 	{
-		SetMixin Eval = std::bind(SDF::SmoothDiffOp, _1, _2, Threshold);
+		SetMixin Eval = std::bind(SDFMath::SmoothDiffOp, _1, _2, Threshold);
 		return new SetNode<SetFamily::Diff, true>(Eval, (SDFNode*)LHS, (SDFNode*)RHS, Threshold);
 	}
 
 	SDFNode* BlendInter(float Threshold, SDFNode* LHS, SDFNode* RHS)
 	{
-		SetMixin Eval = std::bind(SDF::SmoothInterOp, _1, _2, Threshold);
+		SetMixin Eval = std::bind(SDFMath::SmoothInterOp, _1, _2, Threshold);
 		return new SetNode<SetFamily::Inter, true>(Eval, (SDFNode*)LHS, (SDFNode*)RHS, Threshold);
 	}
 

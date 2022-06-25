@@ -139,6 +139,8 @@ protected:
 
 namespace SDF
 {
+	void Align(SDFNode* Tree, glm::vec3 Anchors);
+
 	void RotateX(SDFNode* Tree, float Degrees);
 
 	void RotateY(SDFNode* Tree, float Degrees);

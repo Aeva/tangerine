@@ -73,7 +73,23 @@ int LuaMove(lua_State* L)
 	float X = (float)luaL_checknumber(L, 2);
 	float Y = (float)luaL_checknumber(L, 3);
 	float Z = (float)luaL_checknumber(L, 4);
-	return LuaMoveInner(L, X, Y, Z);
+	SDFNode* Node = GetSDFNode(L, 1);
+	SDFNode* NewNode = Node->Copy();
+	NewNode->Move(glm::vec3(X, Y, Z));
+	return WrapSDFNode(L, NewNode);
+}
+
+
+int LuaAlign(lua_State* L)
+{
+	glm::vec3 Anchors(
+		(float)luaL_checknumber(L, 2),
+		(float)luaL_checknumber(L, 3),
+		(float)luaL_checknumber(L, 4));
+	SDFNode* Node = GetSDFNode(L, 1);
+	SDFNode* NewNode = Node->Copy();
+	SDF::Align(NewNode, Anchors);
+	return WrapSDFNode(L, NewNode);
 }
 
 
@@ -261,6 +277,7 @@ const luaL_Reg LuaSDFType[] = \
 	{ "move_x", LuaMoveX },
 	{ "move_y", LuaMoveY },
 	{ "move_z", LuaMoveZ },
+	{ "align", LuaAlign },
 	{ "rotate_x", LuaRotateX },
 	{ "rotate_y", LuaRotateY },
 	{ "rotate_z", LuaRotateZ },
