@@ -366,6 +366,8 @@ struct BrushNode : public SDFNode
 	AABB BrushAABB;
 	TransformMachine Transform;
 
+	vec3 Color = vec3(-1.0);
+
 	BrushNode(uint32_t InOpcode, const std::string& InBrushFnName, const ParamsT& InNodeParams, BrushMixin& InBrushFn, AABB& InBrushAABB)
 		: Opcode(InOpcode)
 		, BrushFnName(InBrushFnName)
@@ -375,13 +377,15 @@ struct BrushNode : public SDFNode
 	{
 	}
 
-	BrushNode(uint32_t InOpcode, const std::string& InBrushFnName, const ParamsT& InNodeParams, BrushMixin& InBrushFn, AABB& InBrushAABB, TransformMachine& InTransform)
+	BrushNode(uint32_t InOpcode, const std::string& InBrushFnName, const ParamsT& InNodeParams, BrushMixin& InBrushFn, AABB& InBrushAABB,
+		TransformMachine& InTransform, vec3& InColor)
 		: Opcode(InOpcode)
 		, BrushFnName(InBrushFnName)
 		, NodeParams(InNodeParams)
 		, BrushFn(InBrushFn)
 		, BrushAABB(InBrushAABB)
 		, Transform(InTransform)
+		, Color(InColor)
 	{
 	}
 
@@ -404,7 +408,7 @@ struct BrushNode : public SDFNode
 
 	virtual SDFNode* Copy()
 	{
-		return new BrushNode(Opcode, BrushFnName, NodeParams, BrushFn, BrushAABB, Transform);
+		return new BrushNode(Opcode, BrushFnName, NodeParams, BrushFn, BrushAABB, Transform, Color);
 	}
 
 	virtual AABB Bounds()
@@ -417,6 +421,20 @@ struct BrushNode : public SDFNode
 		return Bounds();
 	}
 
+	std::string CompilePaint(const bool WithOpcodes, std::vector<float>& TreeParams, std::string& NestedExpr)
+	{
+		if (WithOpcodes)
+		{
+			TreeParams.push_back(AsFloat(OPCODE_PAINT));
+		}
+		const int Offset = (int)TreeParams.size();
+		TreeParams.push_back(Color.r);
+		TreeParams.push_back(Color.g);
+		TreeParams.push_back(Color.b);
+		std::string ColorParams = MakeParamList(Offset, 3);
+		return fmt::format("MaterialDist(vec3({}), {})", ColorParams, NestedExpr);
+	}
+
 	virtual std::string Compile(const bool WithOpcodes, std::vector<float>& TreeParams, std::string& Point)
 	{
 		std::string TransformedPoint = Transform.Compile(WithOpcodes, TreeParams, Point);
@@ -427,7 +445,15 @@ struct BrushNode : public SDFNode
 		}
 		const int Offset = StoreParams(TreeParams, NodeParams);
 		std::string Params = MakeParamList(Offset, (int)NodeParams.size());
-		return fmt::format("{}({}, {})", BrushFnName, TransformedPoint, Params);
+		std::string CompiledShape = fmt::format("{}({}, {})", BrushFnName, TransformedPoint, Params);
+		if (HasPaint())
+		{
+			return CompilePaint(WithOpcodes, TreeParams, CompiledShape);
+		}
+		else
+		{
+			return CompiledShape;
+		}
 	}
 
 	virtual uint32_t StackSize(const uint32_t Depth)
@@ -450,9 +476,17 @@ struct BrushNode : public SDFNode
 		Transform.Rotate(Rotation);
 	}
 
+	virtual void ApplyMaterial(glm::vec3 InColor, bool Force)
+	{
+		if (!HasPaint() || Force)
+		{
+			Color = InColor;
+		}
+	}
+
 	virtual bool HasPaint()
 	{
-		return false;
+		return Color != vec3(-1.0);
 	}
 
 	virtual bool HasFiniteBounds()
@@ -462,7 +496,14 @@ struct BrushNode : public SDFNode
 
 	virtual vec4 Sample(vec3 Point)
 	{
-		return NullColor;
+		if (HasPaint())
+		{
+			return vec4(Color, 1.0);
+		}
+		else
+		{
+			return NullColor;
+		}
 	}
 
 	virtual int LeafCount()
@@ -762,6 +803,14 @@ struct SetNode : public SDFNode
 		}
 	}
 
+	virtual void ApplyMaterial(glm::vec3 Color, bool Force)
+	{
+		for (SDFNode* Child : { LHS, RHS })
+		{
+			Child->ApplyMaterial(Color, Force);
+		}
+	}
+
 	virtual bool HasPaint()
 	{
 		return LHS->HasPaint() || RHS->HasPaint();
@@ -818,6 +867,7 @@ struct SetNode : public SDFNode
 };
 
 
+#if 0
 struct PaintNode : public SDFNode
 {
 	vec3 Color;
@@ -933,6 +983,7 @@ struct PaintNode : public SDFNode
 		Child->Release();
 	}
 };
+#endif
 
 
 AABB SymmetricalBounds(vec3 High)
@@ -1104,13 +1155,6 @@ namespace SDF
 	{
 		SetMixin Eval = std::bind(SDFMath::SmoothInterOp, _1, _2, Threshold);
 		return new SetNode<SetFamily::Inter, true>(Eval, (SDFNode*)LHS, (SDFNode*)RHS, Threshold);
-	}
-
-
-	// Misc nodes
-	SDFNode* Paint(float Red, float Green, float Blue, SDFNode* Child)
-	{
-		return new PaintNode(vec3(Red, Green, Blue), Child);
 	}
 }
 

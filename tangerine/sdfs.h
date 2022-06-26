@@ -95,6 +95,8 @@ struct SDFNode
 
 	virtual void Rotate(glm::quat Rotation) = 0;
 
+	virtual void ApplyMaterial(glm::vec3 Color, bool Force) = 0;
+
 	virtual bool HasPaint() = 0;
 
 	virtual bool HasFiniteBounds() = 0;
@@ -170,8 +172,6 @@ namespace SDF
 	SDFNode* BlendDiff(float Threshold, SDFNode* LHS, SDFNode* RHS);
 
 	SDFNode* BlendInter(float Threshold, SDFNode* LHS, SDFNode* RHS);
-
-	SDFNode* Paint(float Red, float Green, float Blue, SDFNode* Child);
 }
 
 

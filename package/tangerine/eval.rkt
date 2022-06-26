@@ -65,7 +65,7 @@
 (define-backend MakeBlendDiffOp (_fun _float _HANDLE _HANDLE -> _HANDLE))
 (define-backend MakeBlendInterOp (_fun _float _HANDLE _HANDLE -> _HANDLE))
 
-(define-backend MakePaint (_fun _float _float _float _HANDLE -> _HANDLE))
+(define-backend PaintTree (_fun _float _float _float _HANDLE -> _void))
 
 
 ; Dispatch SDF creation functions from CSGST expressions.
@@ -93,8 +93,10 @@
        evaluator)]
 
     [(paint)
-     (let-values ([(red green blue subtree) (splat (cdr csgst))])
-       (MakePaint red green blue (translate subtree)))]
+     (let*-values ([(red green blue subtree) (splat (cdr csgst))]
+                   [(tree) (translate subtree)])
+         (PaintTree red green blue tree)
+         tree)]
 
     [(sphere)
      (let ([radius (cadr csgst)])

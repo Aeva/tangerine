@@ -101,6 +101,14 @@ extern "C" TANGERINE_API void AlignTree(void* Handle, float X, float Y, float Z)
 }
 
 
+// Material annotation functions
+extern "C" TANGERINE_API void PaintTree(float Red, float Green, float Blue, void* Handle)
+{
+	SDFNode* Tree = ((SDFNode*)Handle);
+	Tree->ApplyMaterial(vec3(Red, Green, Blue), false);
+}
+
+
 // The following functions construct Brush nodes.
 extern "C" TANGERINE_API void* MakeSphereBrush(float Radius)
 {
@@ -162,11 +170,4 @@ extern "C" TANGERINE_API void* MakeBlendDiffOp(float Threshold, void* LHS, void*
 extern "C" TANGERINE_API void* MakeBlendInterOp(float Threshold, void* LHS, void* RHS)
 {
 	return SDF::BlendInter(Threshold, (SDFNode*)LHS, (SDFNode*)RHS);
-}
-
-
-// Misc nodes
-extern "C" TANGERINE_API void* MakePaint(float Red, float Green, float Blue, void* Child)
-{
-	return SDF::Paint(Red, Green, Blue, (SDFNode*)Child);
 }
