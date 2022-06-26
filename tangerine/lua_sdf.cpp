@@ -18,6 +18,7 @@
 
 #include <string.h>
 #include "sdfs.h"
+#include "colors.h"
 
 
 SDFNode* GetSDFNode(lua_State* L, int Arg)
@@ -128,6 +129,26 @@ int LuaRotateZ(lua_State* L)
 	SDFNode* Node = GetSDFNode(L, 1);
 	SDFNode* NewNode = Node->Copy();
 	SDF::RotateZ(NewNode, Degrees);
+	return WrapSDFNode(L, NewNode);
+}
+
+
+template <bool Force>
+int LuaPaint(lua_State* L)
+{
+#if 0
+	glm::vec3 Color(
+		(float)luaL_checknumber(L, 2),
+		(float)luaL_checknumber(L, 3),
+		(float)luaL_checknumber(L, 4));
+#else
+	const char* ColorString = luaL_checklstring(L, 2, nullptr);
+	glm::vec3 Color;
+	StatusCode Result = ParseColor(ColorString, Color);
+#endif
+	SDFNode* Node = GetSDFNode(L, 1);
+	SDFNode* NewNode = Node->Copy();
+	NewNode->ApplyMaterial(Color, Force);
 	return WrapSDFNode(L, NewNode);
 }
 
@@ -281,6 +302,8 @@ const luaL_Reg LuaSDFType[] = \
 	{ "rotate_x", LuaRotateX },
 	{ "rotate_y", LuaRotateY },
 	{ "rotate_z", LuaRotateZ },
+	{ "paint", LuaPaint<false> },
+	{ "paint_over", LuaPaint<true> },
 	{ "sphere", LuaSphere },
 	{ "ellipsoid", LuaEllipsoid },
 	{ "box", LuaBox },

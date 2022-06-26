@@ -172,6 +172,7 @@
     </CustomBuildStep>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="..\tangerine\colors.cpp" />
     <ClCompile Include="..\tangerine\c_sdf.cpp" />
     <ClCompile Include="..\tangerine\errors.cpp" />
     <ClCompile Include="..\tangerine\export.cpp" />
@@ -233,6 +234,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\shaders\defines.h" />
+    <ClInclude Include="..\tangerine\colors.h" />
     <ClInclude Include="..\tangerine\embedding.h" />
     <ClInclude Include="..\tangerine\errors.h" />
     <ClInclude Include="..\tangerine\export.h" />
