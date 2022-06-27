@@ -295,27 +295,34 @@ int LuaBlendOperator(lua_State* L)
 const luaL_Reg LuaSDFType[] = \
 {
 	{ "move", LuaMove },
-	{ "move_x", LuaMoveX },
-	{ "move_y", LuaMoveY },
-	{ "move_z", LuaMoveZ },
+	{ "moveX", LuaMoveX },
+	{ "moveY", LuaMoveY },
+	{ "moveZ", LuaMoveZ },
+
 	{ "align", LuaAlign },
-	{ "rotate_x", LuaRotateX },
-	{ "rotate_y", LuaRotateY },
-	{ "rotate_z", LuaRotateZ },
+
+	{ "rotateX", LuaRotateX },
+	{ "rotateY", LuaRotateY },
+	{ "rotateZ", LuaRotateZ },
+
 	{ "paint", LuaPaint<false> },
-	{ "paint_over", LuaPaint<true> },
-	{ "sphere", LuaSphere },
-	{ "ellipsoid", LuaEllipsoid },
-	{ "box", LuaBox },
-	{ "torus", LuaTorus },
-	{ "cylinder", LuaCylinder },
-	{ "plane", LuaPlane },
+	{ "paintOver", LuaPaint<true> },
+
+	{ "Sphere", LuaSphere },
+	{ "Ellipsoid", LuaEllipsoid },
+	{ "Box", LuaBox },
+	{ "Torus", LuaTorus },
+	{ "Cylinder", LuaCylinder },
+	{ "Plane", LuaPlane },
+
 	{ "union", LuaOperator<SetFamily::Union> },
 	{ "inter", LuaOperator<SetFamily::Inter> },
 	{ "diff", LuaOperator<SetFamily::Diff> },
-	{ "blend_union", LuaBlendOperator<SetFamily::Union> },
-	{ "blend_inter", LuaBlendOperator<SetFamily::Inter> },
-	{ "blend_diff", LuaBlendOperator<SetFamily::Diff> },
+
+	{ "blendUnion", LuaBlendOperator<SetFamily::Union> },
+	{ "blendInter", LuaBlendOperator<SetFamily::Inter> },
+	{ "blendDiff", LuaBlendOperator<SetFamily::Diff> },
+
 	{ NULL, NULL }
 };
 
