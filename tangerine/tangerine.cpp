@@ -1547,7 +1547,7 @@ void RenderUI(SDL_Window* Window, bool& Live)
 		glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
 
 		std::string Msg = fmt::format("CSG Leaf Count: {}\n", LeafCount);
-		ImGui::SetTooltip(Msg.c_str());
+		ImGui::SetTooltip("%s", Msg.c_str());
 	}
 
 	if (ShowFocusOverlay)

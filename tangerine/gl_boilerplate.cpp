@@ -246,6 +246,8 @@ StatusCode RouteSource(std::vector<std::string>& BreadCrumbs, std::vector<std::s
 		}
 		return StatusCode::PASS;
 	}
+
+  return StatusCode::FAIL;
 }
 
 
