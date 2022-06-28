@@ -15,6 +15,8 @@
 
 #pragma once
 #include <functional>
+#include "sdfs.h"
 
 void PostScriptError(std::string ErrorMessage);
 void LoadModelCommon(std::function<void()> LoadingCallback);
+void SetClearColor(glm::vec3& Color);

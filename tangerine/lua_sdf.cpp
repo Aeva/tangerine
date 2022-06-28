@@ -19,6 +19,7 @@
 #include <string.h>
 #include "sdfs.h"
 #include "colors.h"
+#include "tangerine.h"
 
 
 SDFNode* GetSDFNode(lua_State* L, int Arg)
@@ -293,6 +294,16 @@ int LuaBlendOperator(lua_State* L)
 }
 
 
+int LuaClearColor(lua_State* L)
+{
+	const char* ColorString = luaL_checklstring(L, 1, nullptr);
+	glm::vec3 Color;
+	StatusCode Result = ParseColor(ColorString, Color);
+	SetClearColor(Color);
+	return 0;
+}
+
+
 const luaL_Reg LuaSDFType[] = \
 {
 	{ "move", LuaMove },
@@ -324,6 +335,8 @@ const luaL_Reg LuaSDFType[] = \
 	{ "blend_union", LuaBlendOperator<SetFamily::Union> },
 	{ "blend_inter", LuaBlendOperator<SetFamily::Inter> },
 	{ "blend_diff", LuaBlendOperator<SetFamily::Diff> },
+
+	{ "set_bg", LuaClearColor },
 
 	{ NULL, NULL }
 };

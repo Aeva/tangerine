@@ -308,6 +308,9 @@ TimingQuery GridBgTimeQuery;
 TimingQuery OutlinerTimeQuery;
 TimingQuery UiTimeQuery;
 
+const glm::vec3 DefaultBackgroundColor = glm::vec3(.6);
+glm::vec3 BackgroundColor = DefaultBackgroundColor;
+
 
 #if ENABLE_OCCLUSION_CULLING
 struct DepthPyramidSliceUpload
@@ -1007,7 +1010,7 @@ void RenderFrame(int ScreenWidth, int ScreenHeight)
 				break;
 			default:
 				BackgroundMode = -1;
-				glClearColor(0.6f, 0.6f, 0.6f, 1.0f);
+				glClearColor(BackgroundColor.r, BackgroundColor.g, BackgroundColor.b, 1.0f);
 				glClear(GL_COLOR_BUFFER_BIT);
 			}
 			GridBgTimeQuery.Stop();
@@ -1058,6 +1061,13 @@ void RenderFrame(int ScreenWidth, int ScreenHeight)
 }
 
 
+void SetClearColor(glm::vec3& Color)
+{
+	BackgroundMode = 1;
+	BackgroundColor = Color;
+}
+
+
 void ToggleFullScreen(SDL_Window* Window)
 {
 	static bool FullScreen = false;
@@ -1087,6 +1097,8 @@ void LoadModelCommon(std::function<void()> LoadingCallback)
 	PendingShaders.clear();
 	Drawables.clear();
 	ClearTreeEvaluator();
+
+	BackgroundColor = DefaultBackgroundColor;
 
 	Clock::time_point StartTimePoint = Clock::now();
 
