@@ -29,6 +29,14 @@ void CreateLuaEnv()
 	LuaStack = luaL_newstate();
 	luaL_openlibs(LuaStack);
 	luaL_requiref(LuaStack, "tangerine", LuaOpenSDF, 1);
+
+	const char* Source = \
+		"for key, value in next, tangerine do\n"
+		"	_ENV[key] = tangerine[key]\n"
+		"end\n";
+
+	int Error = luaL_dostring(LuaStack, Source);
+	Assert(Error == 0);
 }
 
 

@@ -136,16 +136,9 @@ int LuaRotateZ(lua_State* L)
 template <bool Force>
 int LuaPaint(lua_State* L)
 {
-#if 0
-	glm::vec3 Color(
-		(float)luaL_checknumber(L, 2),
-		(float)luaL_checknumber(L, 3),
-		(float)luaL_checknumber(L, 4));
-#else
 	const char* ColorString = luaL_checklstring(L, 2, nullptr);
 	glm::vec3 Color;
 	StatusCode Result = ParseColor(ColorString, Color);
-#endif
 	SDFNode* Node = GetSDFNode(L, 1);
 	SDFNode* NewNode = Node->Copy();
 	NewNode->ApplyMaterial(Color, Force);
@@ -155,7 +148,7 @@ int LuaPaint(lua_State* L)
 
 int LuaSphere(lua_State* L)
 {
-	float Radius = luaL_checknumber(L, 1);
+	float Radius = luaL_checknumber(L, 1) * .5;
 	SDFNode* NewNode = SDF::Sphere(Radius);
 	return WrapSDFNode(L, NewNode);
 }
@@ -163,9 +156,9 @@ int LuaSphere(lua_State* L)
 
 int LuaEllipsoid(lua_State* L)
 {
-	float RadipodeX = luaL_checknumber(L, 1);
-	float RadipodeY = luaL_checknumber(L, 2);
-	float RadipodeZ = luaL_checknumber(L, 3);
+	float RadipodeX = luaL_checknumber(L, 1) * .5;
+	float RadipodeY = luaL_checknumber(L, 2) * .5;
+	float RadipodeZ = luaL_checknumber(L, 3) * .5;
 	SDFNode* NewNode = SDF::Ellipsoid(RadipodeX, RadipodeY, RadipodeZ);
 	return WrapSDFNode(L, NewNode);
 }
@@ -173,18 +166,26 @@ int LuaEllipsoid(lua_State* L)
 
 int LuaBox(lua_State* L)
 {
-	float ExtentX = luaL_checknumber(L, 1);
-	float ExtentY = luaL_checknumber(L, 2);
-	float ExtentZ = luaL_checknumber(L, 3);
+	float ExtentX = luaL_checknumber(L, 1) * .5;
+	float ExtentY = luaL_checknumber(L, 2) * .5;
+	float ExtentZ = luaL_checknumber(L, 3) * .5;
 	SDFNode* NewNode = SDF::Box(ExtentX, ExtentY, ExtentZ);
+	return WrapSDFNode(L, NewNode);
+}
+
+
+int LuaCube(lua_State* L)
+{
+	float Extent = luaL_checknumber(L, 1) * .5;
+	SDFNode* NewNode = SDF::Box(Extent, Extent, Extent);
 	return WrapSDFNode(L, NewNode);
 }
 
 
 int LuaTorus(lua_State* L)
 {
-	float MajorRadius = luaL_checknumber(L, 1);
-	float MinorRadius = luaL_checknumber(L, 2);
+	float MajorRadius = luaL_checknumber(L, 1) * .5;
+	float MinorRadius = luaL_checknumber(L, 2) * .5;
 	SDFNode* NewNode = SDF::Torus(MajorRadius, MinorRadius);
 	return WrapSDFNode(L, NewNode);
 }
@@ -192,8 +193,8 @@ int LuaTorus(lua_State* L)
 
 int LuaCylinder(lua_State* L)
 {
-	float Radius = luaL_checknumber(L, 1);
-	float Extent = luaL_checknumber(L, 2);
+	float Radius = luaL_checknumber(L, 1) * .5;
+	float Extent = luaL_checknumber(L, 2) * .5;
 	SDFNode* NewNode = SDF::Cylinder(Radius, Extent);
 	return WrapSDFNode(L, NewNode);
 }
@@ -295,33 +296,34 @@ int LuaBlendOperator(lua_State* L)
 const luaL_Reg LuaSDFType[] = \
 {
 	{ "move", LuaMove },
-	{ "moveX", LuaMoveX },
-	{ "moveY", LuaMoveY },
-	{ "moveZ", LuaMoveZ },
+	{ "move_x", LuaMoveX },
+	{ "move_y", LuaMoveY },
+	{ "move_z", LuaMoveZ },
 
 	{ "align", LuaAlign },
 
-	{ "rotateX", LuaRotateX },
-	{ "rotateY", LuaRotateY },
-	{ "rotateZ", LuaRotateZ },
+	{ "rotate_x", LuaRotateX },
+	{ "rotate_y", LuaRotateY },
+	{ "rotate_z", LuaRotateZ },
 
 	{ "paint", LuaPaint<false> },
-	{ "paintOver", LuaPaint<true> },
+	{ "paint_over", LuaPaint<true> },
 
-	{ "Sphere", LuaSphere },
-	{ "Ellipsoid", LuaEllipsoid },
-	{ "Box", LuaBox },
-	{ "Torus", LuaTorus },
-	{ "Cylinder", LuaCylinder },
-	{ "Plane", LuaPlane },
+	{ "sphere", LuaSphere },
+	{ "ellipsoid", LuaEllipsoid },
+	{ "box", LuaBox },
+	{ "cube", LuaCube },
+	{ "torus", LuaTorus },
+	{ "cylinder", LuaCylinder },
+	{ "plane", LuaPlane },
 
 	{ "union", LuaOperator<SetFamily::Union> },
 	{ "inter", LuaOperator<SetFamily::Inter> },
 	{ "diff", LuaOperator<SetFamily::Diff> },
 
-	{ "blendUnion", LuaBlendOperator<SetFamily::Union> },
-	{ "blendInter", LuaBlendOperator<SetFamily::Inter> },
-	{ "blendDiff", LuaBlendOperator<SetFamily::Diff> },
+	{ "blend_union", LuaBlendOperator<SetFamily::Union> },
+	{ "blend_inter", LuaBlendOperator<SetFamily::Inter> },
+	{ "blend_diff", LuaBlendOperator<SetFamily::Diff> },
 
 	{ NULL, NULL }
 };

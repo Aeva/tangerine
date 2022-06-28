@@ -16,13 +16,10 @@
 
 
 (require tangerine)
-(require tangerine/eval)
-(provide emit-glsl)
+(provide model)
 
 
-(define (emit-glsl)
-  (define csgst (diff (inter (cube 4) (sphere 5.5))
-                      (cylinder 3 5)
-                      (rotate-x 90 (cylinder 3 5))
-                      (rotate-y 90 (cylinder 3 5))))
-  (compile csgst))
+(define model (diff (inter (cube 4) (sphere 5.5))
+                    (cylinder 3 5)
+                    (rotate-x 90 (cylinder 3 5))
+                    (rotate-y 90 (cylinder 3 5))))
