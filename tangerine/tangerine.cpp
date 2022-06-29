@@ -1583,7 +1583,7 @@ void RenderUI(SDL_Window* Window, bool& Live)
 		glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
 
 		std::string Msg = fmt::format("CSG Leaf Count: {}\n", LeafCount);
-		ImGui::SetTooltip(Msg.c_str());
+		ImGui::SetTooltip("%s", Msg.c_str());
 	}
 
 	if (ShowFocusOverlay)
@@ -1954,6 +1954,10 @@ int main(int argc, char* argv[])
 #endif
 	}
 	{
+		std::cout << "Initialize gtk+3.0... ";
+		gtk_init(&argc, &argv);
+	}
+	{
 		std::cout << "Setting up Dear ImGui... ";
 		IMGUI_CHECKVERSION();
 		ImGui::CreateContext();
@@ -2214,6 +2218,7 @@ int main(int argc, char* argv[])
 					}
 				}
 				EndEvent();
+				gtk_main_iteration_do(false);
 			}
 		}
 		std::cout << "Shutting down...\n";
