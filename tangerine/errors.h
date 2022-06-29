@@ -32,8 +32,10 @@ void Assert(bool Condition);
 
 #if _WIN64
 #define BreakPoint() __debugbreak()
+#define UNREACHABLE() __assume(0)
 #else
 #define BreakPoint()
+#define UNREACHABLE() __builtin_unreachable()
 #endif
 
 
