@@ -1283,6 +1283,7 @@ void OpenModel()
 		"_Open",
 		GTK_RESPONSE_ACCEPT,
 		nullptr);
+	gtk_window_present(GTK_WINDOW(Dialog));
 	gint Result = gtk_dialog_run(GTK_DIALOG(Dialog));
 	if (Result == GTK_RESPONSE_ACCEPT)
 	{
@@ -1954,6 +1955,10 @@ int main(int argc, char* argv[])
 #endif
 	}
 	{
+		std::cout << "Initialize gtk+3.0... ";
+		gtk_init(&argc, &argv);
+	}
+	{
 		std::cout << "Setting up Dear ImGui... ";
 		IMGUI_CHECKVERSION();
 		ImGui::CreateContext();
@@ -2214,6 +2219,7 @@ int main(int argc, char* argv[])
 					}
 				}
 				EndEvent();
+				gtk_main_iteration_do(false);
 			}
 		}
 		std::cout << "Shutting down...\n";
