@@ -514,7 +514,7 @@ Buffer::~Buffer()
 }
 
 
-inline void Buffer::Release()
+void Buffer::Release()
 {
 	if (BufferID != 0)
 	{
