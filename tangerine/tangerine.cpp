@@ -1283,7 +1283,6 @@ void OpenModel()
 		"_Open",
 		GTK_RESPONSE_ACCEPT,
 		nullptr);
-	gtk_window_present(GTK_WINDOW(Dialog));
 	gint Result = gtk_dialog_run(GTK_DIALOG(Dialog));
 	if (Result == GTK_RESPONSE_ACCEPT)
 	{
