@@ -4,6 +4,7 @@ windows/.vs
 windows/x64
 windows/enc_temp_folder
 windows/packages
+linux/build/
 racket/lib
 racket/modules
 third_party/racket/lib/x64
