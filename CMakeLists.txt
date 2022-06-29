@@ -1,6 +1,13 @@
 cmake_minimum_required(VERSION 3.14)
 project(tangerine)
 
+if (MSVC)
+  message(
+    FATAL_ERROR 
+    "Currently CMake is only used on the Linux platform.\
+    Visual Studio users should open the .sln file directly, instead.")
+endif()
+
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_C_STANDARD 17)
 
