@@ -1322,6 +1322,8 @@ void RenderUI(SDL_Window* Window, bool& Live)
 	ImGui::ShowDemoWindow(&ShowDemoWindow);
 #endif
 
+	static bool ShowLicenses = false;
+
 	static bool ShowFocusOverlay = false;
 	static bool ShowPrettyTrees = false;
 
@@ -1478,6 +1480,15 @@ void RenderUI(SDL_Window* Window, bool& Live)
 			}
 			ImGui::EndMenu();
 		}
+		if (ImGui::BeginMenu("Help"))
+		{
+			if (ImGui::MenuItem("Open Source Licenses", nullptr, &ShowLicenses))
+			{
+			}
+
+
+			ImGui::EndMenu();
+		}
 
 		bool ToggleInterpreted = false;
 		if (Interpreted)
@@ -1506,6 +1517,31 @@ void RenderUI(SDL_Window* Window, bool& Live)
 		}
 
 		ImGui::EndMainMenuBar();
+	}
+
+	if (ShowLicenses)
+	{
+		int Margin = 0;
+		const ImGuiViewport* MainViewport = ImGui::GetMainViewport();
+		ImGui::SetNextWindowPos(ImVec2(MainViewport->WorkPos.x + Margin, MainViewport->WorkPos.y + Margin), ImGuiCond_Always);
+		ImGui::SetNextWindowSize(ImVec2(MainViewport->WorkSize.x - Margin * 2, MainViewport->WorkSize.y - Margin * 2), ImGuiCond_Always);
+
+		ImGuiWindowFlags WindowFlags = \
+			ImGuiWindowFlags_HorizontalScrollbar |
+			ImGuiWindowFlags_AlwaysVerticalScrollbar |
+			ImGuiWindowFlags_NoSavedSettings |
+			ImGuiWindowFlags_NoResize |
+			ImGuiWindowFlags_NoMove;
+
+		if (ImGui::Begin("Open Source Licenses", &ShowLicenses, WindowFlags))
+		{
+			ImGuiTabBarFlags TabBarFlags = ImGuiTabBarFlags_None;
+			if (ImGui::BeginTabBar("Open Source Licenses", TabBarFlags))
+			{
+#include "licenses.inl"
+			}
+		}
+		ImGui::End();
 	}
 
 	if (ShowChangeIterations)
