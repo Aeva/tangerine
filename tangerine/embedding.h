@@ -14,8 +14,14 @@
 // limitations under the License.
 
 #pragma once
+
+#ifndef EMBED_LUA
 #define EMBED_LUA 1
+#endif
+
+#ifndef EMBED_RACKET
 #define EMBED_RACKET 1
+#endif
 
 #define EMBED_MULTI (EMBED_LUA + EMBED_RACKET) > 1
 

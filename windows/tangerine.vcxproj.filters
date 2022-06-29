@@ -462,6 +462,9 @@
     <None Include="..\shaders\interpreter.glsl">
       <Filter>Shaders</Filter>
     </None>
+    <None Include="..\third_party\licenses.inl">
+      <Filter>Third Party</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="tangerine.rc" />

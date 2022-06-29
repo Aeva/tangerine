@@ -231,6 +231,7 @@ struct TransformMachine
 		case State::Matrix:
 			return ApplyMatrix(InBounds);
 		}
+		UNREACHABLE();
 	}
 
 	std::string Compile(const bool WithOpcodes, std::vector<float>& TreeParams, std::string Point)
@@ -247,6 +248,7 @@ struct TransformMachine
 		case State::Matrix:
 			return CompileMatrix(WithOpcodes, TreeParams, Point);
 		}
+		UNREACHABLE();
 	}
 
 	std::string Pretty(std::string Brush)
@@ -263,6 +265,7 @@ struct TransformMachine
 		case State::Matrix:
 			return fmt::format("Matrix({})", Brush);
 		}
+		UNREACHABLE();
 	}
 
 	bool operator==(TransformMachine& Other)
