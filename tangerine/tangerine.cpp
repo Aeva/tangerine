@@ -14,6 +14,10 @@
 // limitations under the License.
 
 #include <glad/glad.h>
+
+#ifdef MINIMAL_DLL
+#define SDL_MAIN_HANDLED
+#endif
 #include <SDL.h>
 #include <SDL_opengl.h>
 #include <SDL_clipboard.h>
@@ -1819,9 +1823,11 @@ void RenderUI(SDL_Window* Window, bool& Live)
 }
 
 
-int main(int argc, char* argv[])
+SDL_Window* Window = nullptr;
+SDL_GLContext Context = nullptr;
+
+void Boot(int argc, char* argv[])
 {
-	std::string ExePath(argv[0]);
 	std::vector<std::string> Args;
 	for (int i = 1; i < argc; ++i)
 	{
@@ -1845,6 +1851,7 @@ int main(int argc, char* argv[])
 				Cursor += 3;
 				continue;
 			}
+#if EMBED_LUA
 			else if (Args[Cursor] == "--lua")
 			{
 				LoadFromStandardIn = true;
@@ -1852,6 +1859,8 @@ int main(int argc, char* argv[])
 				Cursor += 1;
 				continue;
 			}
+#endif
+#if EMBED_RACKET
 			else if (Args[Cursor] == "--racket")
 			{
 				LoadFromStandardIn = true;
@@ -1859,6 +1868,7 @@ int main(int argc, char* argv[])
 				Cursor += 1;
 				continue;
 			}
+#endif
 			else if (Args[Cursor] == "--iterations" && (Cursor + 1) < Args.size())
 			{
 				const int MaxIterations = atoi(Args[Cursor + 1].c_str());
@@ -1877,17 +1887,15 @@ int main(int argc, char* argv[])
 			else
 			{
 				std::cout << "Invalid commandline arg(s).\n";
-				return 0;
+				return;
 			}
 		}
 	}
 
-	SDL_Window* Window = nullptr;
-	SDL_GLContext Context = nullptr;
 	{
 		std::cout << "Setting up SDL2... ";
 		SDL_SetMainReady();
-		if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER ) == 0)
+		if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER) == 0)
 		{
 			SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
 			SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, MINIMUM_VERSION_MAJOR);
@@ -1915,7 +1923,7 @@ int main(int argc, char* argv[])
 		if (Window == nullptr)
 		{
 			std::cout << "Failed to create SDL2 window.\n";
-			return 0;
+			return;
 		}
 		else
 		{
@@ -1923,7 +1931,7 @@ int main(int argc, char* argv[])
 			if (Context == nullptr)
 			{
 				std::cout << "Failed to create SDL2 OpenGL Context.\n";
-				return 0;
+				return;
 			}
 			else
 			{
@@ -1983,7 +1991,7 @@ int main(int argc, char* argv[])
 	if (SetupRenderer() == StatusCode::FAIL)
 	{
 		std::cout << "Failed to initialize the renderer.\n";
-		return 0;
+		return;
 	}
 	{
 		StartWorkerThreads();
@@ -2029,7 +2037,37 @@ int main(int argc, char* argv[])
 			}
 		}
 	}
-	else
+}
+
+
+void Teardown()
+{
+	std::cout << "Shutting down...\n";
+
+#if EMBED_LUA
+	LuaShutdown();
+#endif
+	{
+		JoinWorkerThreads();
+		for (SubtreeShader& Shader : SubtreeShaders)
+		{
+			Shader.Release();
+		}
+		if (!HeadlessMode)
+		{
+			ImGui_ImplOpenGL3_Shutdown();
+			ImGui_ImplSDL2_Shutdown();
+			ImGui::DestroyContext();
+		}
+		SDL_GL_DeleteContext(Context);
+		SDL_DestroyWindow(Window);
+	}
+}
+
+
+void MainLoop()
+{
+	Assert(!HeadlessMode)
 	{
 		bool Live = true;
 		{
@@ -2216,25 +2254,16 @@ int main(int argc, char* argv[])
 				EndEvent();
 			}
 		}
-		std::cout << "Shutting down...\n";
 	}
-#if EMBED_LUA
-	LuaShutdown();
-#endif
-	{
-		JoinWorkerThreads();
-		for (SubtreeShader& Shader : SubtreeShaders)
-		{
-			Shader.Release();
-		}
-		if (!HeadlessMode)
-		{
-			ImGui_ImplOpenGL3_Shutdown();
-			ImGui_ImplSDL2_Shutdown();
-			ImGui::DestroyContext();
-		}
-		SDL_GL_DeleteContext(Context);
-		SDL_DestroyWindow(Window);
-	}
+}
+
+
+#ifndef MINIMAL_DLL
+int main(int argc, char* argv[])
+{
+	Boot(argc, argv);
+	MainLoop();
+	Teardown();
 	return 0;
 }
+#endif

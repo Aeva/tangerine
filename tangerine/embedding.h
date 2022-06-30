@@ -20,7 +20,7 @@
 #endif
 
 #ifndef EMBED_RACKET
-#define EMBED_RACKET 1
+#define EMBED_RACKET 0
 #endif
 
 #define EMBED_MULTI (EMBED_LUA + EMBED_RACKET) > 1

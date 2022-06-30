@@ -22,7 +22,6 @@ enum class ExportFormat
 	PLY
 };
 
-#ifndef MINIMAL_DLL
 struct ExportProgress
 {
 	int Stage;
@@ -35,4 +34,3 @@ struct ExportProgress
 void MeshExport(SDFNode* Evaluator, glm::vec3 ModelMin, glm::vec3 ModelMax, glm::vec3 Step, int RefineIterations, ExportFormat Format, bool ExportPointCloud);
 void CancelExport(bool Halt);
 ExportProgress GetExportProgress();
-#endif

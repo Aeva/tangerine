@@ -23,7 +23,7 @@
 #include <mutex>
 #include <thread>
 #include <string>
-#ifndef MINIMAL_DLL
+#if _WIN64
 #include <shobjidl.h>
 #endif
 #include <fmt/format.h>
@@ -537,7 +537,6 @@ void PointCloudExportThread(SDFNode* Evaluator, vec3 ModelMin, vec3 ModelMax, ve
 }
 
 
-#ifndef MINIMAL_DLL
 ExportProgress GetExportProgress()
 {
 	ExportProgress Progress;
@@ -602,7 +601,6 @@ void CancelExport(bool Halt)
 		ExportState.fetch_add(1);
 	}
 }
-#endif
 
 
 void ExportCommon(SDFNode* Evaluator, float GridSize, int RefineIterations, const char* Path, ExportFormat Format)
