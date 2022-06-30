@@ -187,7 +187,7 @@ int LuaTorus(lua_State* L)
 {
 	float MajorRadius = luaL_checknumber(L, 1) * .5;
 	float MinorRadius = luaL_checknumber(L, 2) * .5;
-	SDFNode* NewNode = SDF::Torus(MajorRadius, MinorRadius);
+	SDFNode* NewNode = SDF::Torus(MajorRadius - MinorRadius, MinorRadius);
 	return WrapSDFNode(L, NewNode);
 }
 
