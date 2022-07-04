@@ -19,12 +19,23 @@
 #if EMBED_LUA
 #include <string>
 
-void LoadLuaFromPath(std::string Path);
+struct LuaEnvironment : public ScriptEnvironment
+{
+	struct lua_State* L = nullptr;
 
-void LoadLuaFromString(std::string Source);
+	LuaEnvironment();
 
-void CreateLuaEnv();
+	virtual Language GetLanguage()
+	{
+		return Language::Lua;
+	}
 
-void LuaShutdown();
+	virtual void LoadFromPath(std::string Path);
+	virtual void LoadFromString(std::string Source);
+	virtual ~LuaEnvironment();
+
+private:
+	void LoadLuaModelCommon(int Error);
+};
 
 #endif //EMBED_LUA

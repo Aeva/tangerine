@@ -19,9 +19,19 @@
 #if EMBED_RACKET
 #include <string>
 
-void LoadRacketFromPath(std::string Path);
+struct RacketEnvironment : public ScriptEnvironment
+{
+	RacketEnvironment() {}
 
-void LoadRacketFromString(std::string Source);
+	virtual Language GetLanguage()
+	{
+		return Language::Racket;
+	}
+
+	virtual void LoadFromPath(std::string Path);
+	virtual void LoadFromString(std::string Source);
+	virtual ~RacketEnvironment() {}
+};
 
 void BootRacket();
 

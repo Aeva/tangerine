@@ -21,44 +21,41 @@
 #include "lua_sdf.h"
 #include <fmt/format.h>
 
-lua_State* LuaStack = nullptr;
 
-
-void CreateLuaEnv()
+LuaEnvironment::LuaEnvironment()
 {
-	LuaStack = luaL_newstate();
-	luaL_openlibs(LuaStack);
-	luaL_requiref(LuaStack, "tangerine", LuaOpenSDF, 1);
+	L = luaL_newstate();
+	luaL_openlibs(L);
+	luaL_requiref(L, "tangerine", LuaOpenSDF, 1);
 
 	const char* Source = \
 		"for key, value in next, tangerine do\n"
 		"	_ENV[key] = tangerine[key]\n"
 		"end\n";
 
-	int Error = luaL_dostring(LuaStack, Source);
+	int Error = luaL_dostring(L, Source);
 	Assert(Error == 0);
 }
 
 
-void ResetLuaEnv()
+LuaEnvironment::~LuaEnvironment()
 {
-	lua_close(LuaStack);
-	CreateLuaEnv();
+	lua_close(L);
 }
 
 
-void LoadLuaModelCommon(int Error)
+void LuaEnvironment::LoadLuaModelCommon(int Error)
 {
 	if (Error)
 	{
-		std::string ErrorMessage = fmt::format("{}\n", lua_tostring(LuaStack, -1));
+		std::string ErrorMessage = fmt::format("{}\n", lua_tostring(L, -1));
 		PostScriptError(ErrorMessage);
-		lua_pop(LuaStack, 1);
+		lua_pop(L, 1);
 	}
 	else
 	{
-		lua_getglobal(LuaStack, "model");
-		void* LuaData = luaL_testudata(LuaStack, -1, "tangerine.sdf");
+		lua_getglobal(L, "model");
+		void* LuaData = luaL_testudata(L, -1, "tangerine.sdf");
 		if (LuaData)
 		{
 			SDFNode* Model = *(SDFNode**)LuaData;
@@ -68,37 +65,29 @@ void LoadLuaModelCommon(int Error)
 		{
 			PostScriptError("Invalid Model");
 		}
-		lua_pop(LuaStack, 1);
+		lua_pop(L, 1);
 	}
 }
 
-void LoadLuaFromPath(std::string Path)
+void LuaEnvironment::LoadFromPath(std::string Path)
 {
 	auto LoadAndProcess = [&]()
 	{
-		ResetLuaEnv();
-		int Error = luaL_dofile(LuaStack, Path.c_str());
+		int Error = luaL_dofile(L, Path.c_str());
 		LoadLuaModelCommon(Error);
 	};
 	LoadModelCommon(LoadAndProcess);
 }
 
 
-void LoadLuaFromString(std::string Source)
+void LuaEnvironment::LoadFromString(std::string Source)
 {
 	auto LoadAndProcess = [&]()
 	{
-		ResetLuaEnv();
-		int Error = luaL_dostring(LuaStack, Source.c_str());
+		int Error = luaL_dostring(L, Source.c_str());
 		LoadLuaModelCommon(Error);
 	};
 	LoadModelCommon(LoadAndProcess);
-}
-
-
-void LuaShutdown()
-{
-	lua_close(LuaStack);
 }
 
 #endif //EMBED_LUA

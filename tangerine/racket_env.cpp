@@ -27,7 +27,7 @@ extern "C" TANGERINE_API void RacketErrorCallback(const char* ErrorMessage)
 	PostScriptError(ErrorMessage);
 }
 
-void LoadRacketFromPath(std::string Path)
+void RacketEnvironment::LoadFromPath(std::string Path)
 {
 	auto LoadAndProcess = [&]()
 	{
@@ -42,7 +42,7 @@ void LoadRacketFromPath(std::string Path)
 	LoadModelCommon(LoadAndProcess);
 }
 
-void LoadRacketFromString(std::string Source)
+void RacketEnvironment::LoadFromString(std::string Source)
 {
 	auto LoadAndProcess = [&]()
 	{

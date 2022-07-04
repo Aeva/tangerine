@@ -260,6 +260,8 @@ void EmitVoxel(AABB Bounds)
 }
 
 
+ScriptEnvironment* MainEnvironment;
+
 SDFNode* TreeEvaluator = nullptr;
 
 
@@ -1121,15 +1123,42 @@ void LoadModelCommon(std::function<void()> LoadingCallback)
 }
 
 
+void CreateScriptEnvironment(const Language Runtime)
+{
+	switch (Runtime)
+	{
+	case Language::Lua:
+#if EMBED_LUA
+		delete MainEnvironment;
+		MainEnvironment = new LuaEnvironment();
+#else
+		ScriptErrors.push_back(std::string("The Lua language runtime is not available in this build :(\n"));
+#endif
+		break;
+
+	case Language::Racket:
+#if EMBED_RACKET
+		delete MainEnvironment;
+		MainEnvironment = new RacketEnvironment();
+#else
+		ScriptErrors.push_back(std::string("The Racket language runtime is not available in this build :(\n"));
+#endif
+		break;
+
+	default:
+		ScriptErrors.push_back(std::string("Unknown source language.\n"));
+	}
+}
+
+
 void LoadModel(std::string Path, Language Runtime)
 {
 	static std::string LastPath = "";
-	static Language LastRuntime = Language::Unknown;
 	if (Path.size() == 0)
 	{
 		// Reload
 		Path = LastPath;
-		Runtime = LastRuntime;
+		Runtime = MainEnvironment->GetLanguage();
 	}
 	else
 	{
@@ -1137,29 +1166,9 @@ void LoadModel(std::string Path, Language Runtime)
 	}
 	if (Path.size() > 0)
 	{
-		switch (Runtime)
-		{
-		case Language::Lua:
-#if EMBED_LUA
-			LoadLuaFromPath(Path);
-#else
-			ScriptErrors.push_back(std::string("The Lua language runtime is not available in this build :(\n"));
-#endif
-			break;
-
-		case Language::Racket:
-#if EMBED_RACKET
-			LoadRacketFromPath(Path);
-#else
-			ScriptErrors.push_back(std::string("The Racket language runtime is not available in this build :(\n"));
-#endif
-			break;
-
-		default:
-			ScriptErrors.push_back(std::string("Unknown source language.\n"));
-		}
+		CreateScriptEnvironment(Runtime);
 		LastPath = Path;
-		LastRuntime = Runtime;
+		MainEnvironment->LoadFromPath(Path);
 	}
 }
 
@@ -1172,36 +1181,14 @@ void ReloadModel()
 
 void ReadInputModel(Language Runtime)
 {
-#if 1
 	std::istreambuf_iterator<char> begin(std::cin), end;
-	std::string ModelSource(begin, end);
-#else
-	std::string ModelSource = "#lang s-exp tangerine/smol\n(sphere 1)\n";
-#endif
-	if (ModelSource.size() > 0)
+	std::string Source(begin, end);
+
+	if (Source.size() > 0)
 	{
 		std::cout << "Evaluating data from stdin.\n";
-		switch (Runtime)
-		{
-		case Language::Lua:
-#if EMBED_LUA
-			LoadLuaFromString(ModelSource);
-#else
-			ScriptErrors.push_back(std::string("The Lua language runtime is not available in this build :(\n"));
-#endif
-			break;
-
-		case Language::Racket:
-#if EMBED_RACKET
-			LoadRacketFromString(ModelSource);
-#else
-			ScriptErrors.push_back(std::string("The Racket language runtime is not available in this build :(\n"));
-#endif
-			break;
-
-		default:
-			ScriptErrors.push_back(std::string("Unknown source language.\n"));
-		}
+		CreateScriptEnvironment(Runtime);
+		MainEnvironment->LoadFromString(Source);
 		std::cout << "Done!\n";
 	}
 	else
@@ -1954,11 +1941,9 @@ void Boot(int argc, char* argv[])
 	}
 	ConnectDebugCallback(0);
 	{
+		MainEnvironment = new NullEnvironment();
 #if EMBED_RACKET
 		BootRacket();
-#endif
-#if EMBED_LUA
-		CreateLuaEnv();
 #endif
 	}
 	{
@@ -2044,9 +2029,7 @@ void Teardown()
 {
 	std::cout << "Shutting down...\n";
 
-#if EMBED_LUA
-	LuaShutdown();
-#endif
+	delete MainEnvironment;
 	{
 		JoinWorkerThreads();
 		for (SubtreeShader& Shader : SubtreeShaders)

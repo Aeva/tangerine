@@ -15,12 +15,14 @@
 
 #pragma once
 
+#include <string>
+
 #ifndef EMBED_LUA
 #define EMBED_LUA 1
 #endif
 
 #ifndef EMBED_RACKET
-#define EMBED_RACKET 0
+#define EMBED_RACKET 1
 #endif
 
 #define EMBED_MULTI (EMBED_LUA + EMBED_RACKET) > 1
@@ -31,4 +33,24 @@ enum class Language
 	Unknown,
 	Lua,
 	Racket
+};
+
+
+struct ScriptEnvironment
+{
+	virtual Language GetLanguage() = 0;
+	virtual void LoadFromPath(std::string Path) = 0;
+	virtual void LoadFromString(std::string Source) = 0;
+	virtual ~ScriptEnvironment() {}
+};
+
+
+struct NullEnvironment : public ScriptEnvironment
+{
+	virtual Language GetLanguage()
+	{
+		return Language::Unknown;
+	}
+	virtual void LoadFromPath(std::string Path) {}
+	virtual void LoadFromString(std::string Source) {}
 };
