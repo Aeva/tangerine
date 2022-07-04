@@ -18,12 +18,12 @@
 (require ffi/unsafe/define)
 (require setup/dirs)
 (require (for-syntax racket/base))
+(require racket/runtime-path)
 
 (provide define-backend)
 
-(define-syntax (lib-dir stx)
-  (with-syntax ([path (let-values ([(dir unused-1 unused-2) (split-path (syntax-source #'here))]) dir)])
-    #'path))
+(define-runtime-path tangerine-dll
+  '(so "tangerine"))
 
 (define-ffi-definer
   define-backend
@@ -31,8 +31,7 @@
     ; If the symbols are not already available to the process, attempt to load tangerine.dll,
     ; wherever it may be.
     (unless (ffi-obj-ref "EvalTree" (ffi-lib #f) (λ () #f))
-      (ffi-lib "tangerine"
-               #:get-lib-dirs (λ () (cons (lib-dir) (get-lib-search-dirs)))))
+      (ffi-lib tangerine-dll))
 
     ; Then return the ffi-lib for the entire process either way.  If loading the dll was
     ; required (and successful), this will include those foreign symbols, along with
