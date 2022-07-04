@@ -1,0 +1,25 @@
+#!/bin/sh
+
+set -e
+
+dir=`dirname $0`
+
+mkdir -p racket
+
+case "$dir" in
+    /*)
+        upsrcdir="$dir"
+        ;;
+    *)
+        upsrcdir="../$dir"
+        ;;
+esac
+
+echo "srcdir=$dir" > Makefile
+echo "upsrcdir=$upsrcdir" >> Makefile
+cat "$dir/Makefile.in" >> Makefile
+
+cp "$dir/buildmain.zuo" main.zuo
+
+mkdir -p racket
+(cd racket && "$upsrcdir/racket/racket/src/configure" ${1+"$@"})
