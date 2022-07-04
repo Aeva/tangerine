@@ -15,3 +15,7 @@ imgui.ini
 *.exp
 *.bak
 *.stl
+*~
+\#*
+.\#*
+.DS_Store
