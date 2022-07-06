@@ -20,6 +20,7 @@
 #include "shape_compiler.h"
 #include "lua_sdf.h"
 #include <fmt/format.h>
+#include <filesystem>
 
 
 LuaEnvironment::LuaEnvironment()
@@ -73,6 +74,19 @@ void LuaEnvironment::LoadFromPath(std::string Path)
 {
 	auto LoadAndProcess = [&]()
 	{
+		std::filesystem::path FilePath(Path);
+		std::filesystem::path DirPath = FilePath.parent_path();
+		DirPath /= "?.lua";
+
+		lua_getglobal(L, "package");
+		lua_getfield(L, -1, "path");
+		std::string SearchPath = lua_tostring(L, -1);
+
+		SearchPath = fmt::format("{};{}", SearchPath, DirPath.string());
+		lua_pushstring(L, SearchPath.c_str());
+		lua_setfield(L, -3, "path");
+		lua_pop(L, 2);
+
 		int Error = luaL_dofile(L, Path.c_str());
 		LoadLuaModelCommon(Error);
 	};
