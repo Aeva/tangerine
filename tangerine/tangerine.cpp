@@ -70,39 +70,49 @@ using Clock = std::chrono::high_resolution_clock;
 bool HeadlessMode;
 
 
-struct SectionUpload
+// This object tracks a buffer containing the transforms and AABB needed to render a given octree leaf.
+struct VoxelBuffer
 {
-	glm::mat4 LocalToWorld;
-	glm::mat4 WorldToLocal;
-	glm::vec4 Center;
-	glm::vec4 Extent;
-};
+	struct VoxelUpload
+	{
+		glm::mat4 LocalToWorld;
+		glm::mat4 WorldToLocal;
+		glm::vec4 Center;
+		glm::vec4 Extent;
+	};
 
-
-struct SubtreeSection
-{
-	SubtreeSection(glm::mat4 LocalToWorld, glm::vec4 Center, glm::vec4 Extent)
+	VoxelBuffer(glm::mat4 LocalToWorld, glm::vec4 Center, glm::vec4 Extent)
 	{
 		SectionData.LocalToWorld = LocalToWorld;
 		SectionData.WorldToLocal = glm::inverse(LocalToWorld);
 		SectionData.Center = Center;
 		SectionData.Extent = Extent;
 
-		SectionBuffer.DebugName = "Subtree Section Buffer";
-		SectionBuffer.Upload((void*)&SectionData, sizeof(SectionUpload));
+		SectionBuffer.DebugName = "Voxel Buffer";
+		SectionBuffer.Upload((void*)&SectionData, sizeof(VoxelUpload));
 	}
+
+	void Bind(GLenum Target, GLuint BindingIndex)
+	{
+		SectionBuffer.Bind(Target, BindingIndex);
+	}
+
 	void Release()
 	{
 		SectionBuffer.Release();
 	}
-	SectionUpload SectionData;
+
+	VoxelUpload SectionData;
 	Buffer SectionBuffer;
 };
 
 
-struct ModelSubtree
+// This object tracks a buffer containing the bytecode that is used to render part of a model's
+// evaluator, and the voxels that will draw this program.  This bytecode buffer is used by both
+// the shader interpreter and the compiled shader.
+struct ProgramBuffer
 {
-	ModelSubtree(uint32_t ShaderIndex, uint32_t SubtreeIndex, size_t ParamCount, float* InParams)
+	ProgramBuffer(uint32_t ShaderIndex, uint32_t SubtreeIndex, size_t ParamCount, const float* InParams)
 	{
 		++ParamCount;
 		size_t Padding = DIV_UP(ParamCount, 4) * 4 - ParamCount;
@@ -126,26 +136,37 @@ struct ModelSubtree
 			Params.push_back(0.0);
 		}
 
-		ParamsBuffer.DebugName = "Subtree Parameter Buffer";
+		ParamsBuffer.DebugName = "Shape Program Buffer";
 		ParamsBuffer.Upload((void*)Params.data(), UploadSize * sizeof(float));
 	}
+
+	void Bind(GLenum Target, GLuint BindingIndex)
+	{
+		ParamsBuffer.Bind(Target, BindingIndex);
+	}
+
 	void Release()
 	{
-		for (SubtreeSection& Section : Sections)
+		for (VoxelBuffer& Voxel : Voxels)
 		{
-			Section.Release();
+			Voxel.Release();
 		}
-		Sections.clear();
+		Voxels.clear();
 	}
+
 	std::vector<float> Params;
-	std::vector<SubtreeSection> Sections;
+	std::vector<VoxelBuffer> Voxels;
 	Buffer ParamsBuffer;
 };
 
 
-struct SubtreeShader
+// This object represents all ProgramBuffers that share the same symbolic behavior.
+// This is used to access related ProgramBuffers for rendering, and is the interface
+// for accessing the shader that is needed to draw the programs when the interpreter
+// is not in use.
+struct ProgramTemplate
 {
-	SubtreeShader(SubtreeShader&& Old)
+	ProgramTemplate(ProgramTemplate&& Old)
 		: DebugName(Old.DebugName)
 		, PrettyTree(Old.PrettyTree)
 		, DistSource(Old.DistSource)
@@ -153,10 +174,10 @@ struct SubtreeShader
 	{
 		std::swap(Compiled, Old.Compiled);
 		std::swap(DepthQuery, Old.DepthQuery);
-		std::swap(Instances, Old.Instances);
+		std::swap(ProgramVariants, Old.ProgramVariants);
 	}
 
-	SubtreeShader(std::string InDebugName, std::string InPrettyTree, std::string InDistSource, int InLeafCount)
+	ProgramTemplate(std::string InDebugName, std::string InPrettyTree, std::string InDistSource, int InLeafCount)
 		: LeafCount(InLeafCount)
 	{
 		Compiled.reset(new ShaderEnvelope);
@@ -186,11 +207,11 @@ struct SubtreeShader
 
 	void Reset()
 	{
-		for (ModelSubtree& Subtree : Instances)
+		for (ProgramBuffer& ProgramVariant : ProgramVariants)
 		{
-			Subtree.Release();
+			ProgramVariant.Release();
 		}
-		Instances.clear();
+		ProgramVariants.clear();
 	}
 
 	void Release()
@@ -209,30 +230,30 @@ struct SubtreeShader
 
 	TimingQuery DepthQuery;
 
-	std::vector<ModelSubtree> Instances;
+	std::vector<ProgramBuffer> ProgramVariants;
 };
 
 
-std::map<std::string, size_t> SubtreeMap;
-std::vector<SubtreeShader> SubtreeShaders;
+std::map<std::string, size_t> ProgramTemplateSourceMap;
+std::vector<ProgramTemplate> ProgramTemplates;
 std::vector<size_t> PendingShaders;
 
 
-ModelSubtree* PendingSubtree = nullptr;
-size_t EmitShader(std::string InSource, std::string InPretty, int LeafCount)
+ProgramBuffer* PendingVoxels = nullptr;
+size_t EmitProgramTemplate(std::string InSource, std::string InPretty, int LeafCount)
 {
 	std::string& Source = InSource;
 	std::string& Pretty = InPretty;
 	std::string& DebugName = InSource; // TODO
 
-	auto Found = SubtreeMap.find(Source);
+	auto Found = ProgramTemplateSourceMap.find(Source);
 
 	size_t ShaderIndex;
-	if (Found == SubtreeMap.end())
+	if (Found == ProgramTemplateSourceMap.end())
 	{
-		size_t Index = SubtreeShaders.size();
-		SubtreeShaders.emplace_back(DebugName, Pretty, Source, LeafCount);
-		SubtreeMap[Source] = Index;
+		size_t Index = ProgramTemplates.size();
+		ProgramTemplates.emplace_back(DebugName, Pretty, Source, LeafCount);
+		ProgramTemplateSourceMap[Source] = Index;
 		PendingShaders.push_back(Index);
 		ShaderIndex = Index;
 	}
@@ -244,19 +265,18 @@ size_t EmitShader(std::string InSource, std::string InPretty, int LeafCount)
 	return ShaderIndex;
 }
 
-void EmitParameters(size_t ShaderIndex, uint32_t SubtreeIndex, std::vector<float> Params)
+void EmitProgramVariant(size_t ShaderIndex, uint32_t SubtreeIndex, const std::vector<float>& Params, const std::vector<AABB>& Voxels)
 {
-	// TODO: Instances is currently a vector, but should it be a map...?
-	SubtreeShaders[ShaderIndex].Instances.emplace_back(ShaderIndex, SubtreeIndex, Params.size(), Params.data());
-	PendingSubtree = &(SubtreeShaders[ShaderIndex].Instances.back());
-}
-
-void EmitVoxel(AABB Bounds)
-{
-	glm::mat4 LocalToWorld = glm::identity<glm::mat4>();
-	glm::vec3 Extent = (Bounds.Max - Bounds.Min) * glm::vec3(0.5);
-	glm::vec3 Center = Extent + Bounds.Min;
-	PendingSubtree->Sections.emplace_back(LocalToWorld, glm::vec4(Center, 0.0), glm::vec4(Extent, 0.0));
+	// TODO: ProgramVariants is currently a vector, but should it be a map...?
+	ProgramTemplates[ShaderIndex].ProgramVariants.emplace_back(ShaderIndex, SubtreeIndex, Params.size(), Params.data());
+	ProgramBuffer& Program = ProgramTemplates[ShaderIndex].ProgramVariants.back();
+	for (const AABB& Bounds : Voxels)
+	{
+		glm::mat4 LocalToWorld = glm::identity<glm::mat4>();
+		glm::vec3 Extent = (Bounds.Max - Bounds.Min) * glm::vec3(0.5);
+		glm::vec3 Center = Extent + Bounds.Min;
+		Program.Voxels.emplace_back(LocalToWorld, glm::vec4(Center, 0.0), glm::vec4(Extent, 0.0));
+	}
 }
 
 
@@ -703,7 +723,7 @@ StatusCode SetupRenderer()
 
 double ShaderCompilerConvergenceMs = 0.0;
 Clock::time_point ShaderCompilerStart;
-std::vector<SubtreeShader*> Drawables;
+std::vector<ProgramTemplate*> CompiledTemplates;
 void CompileNewShaders(const double LastInnerFrameDeltaMs)
 {
 	BeginEvent("Compile New Shaders");
@@ -719,14 +739,14 @@ void CompileNewShaders(const double LastInnerFrameDeltaMs)
 	{
 		{
 			BeginEvent("Compile Shader");
-			size_t SubtreeIndex = PendingShaders.back();
+			size_t TemplateIndex = PendingShaders.back();
 			PendingShaders.pop_back();
 
-			SubtreeShader& Shader = SubtreeShaders[SubtreeIndex];
-			Shader.StartCompile();
-			if (Shader.Instances.size() > 0)
+			ProgramTemplate& ProgramFamily = ProgramTemplates[TemplateIndex];
+			ProgramFamily.StartCompile();
+			if (ProgramFamily.ProgramVariants.size() > 0)
 			{
-				Drawables.push_back(&Shader);
+				CompiledTemplates.push_back(&ProgramFamily);
 			}
 			NeedBarrier = true;
 
@@ -903,7 +923,7 @@ void RenderFrame(int ScreenWidth, int ScreenHeight)
 		OutlinerOptions.Upload((void*)&BufferData, sizeof(BufferData));
 	}
 
-	if (Drawables.size() > 0)
+	if (CompiledTemplates.size() > 0)
 	{
 		{
 			BeginEvent("Depth");
@@ -927,9 +947,9 @@ void RenderFrame(int ScreenWidth, int ScreenHeight)
 				DepthTimeQuery.Stop();
 			}
 			int NextOctreeID = 0;
-			for (SubtreeShader* Drawable : Drawables)
+			for (ProgramTemplate* ProgramFamily : CompiledTemplates)
 			{
-				ShaderProgram* Shader = Drawable->GetCompiledShader();
+				ShaderProgram* Shader = ProgramFamily->GetCompiledShader();
 				if (!Shader)
 				{
 					if (!ShowOctree || !ShowLeafCount)
@@ -939,11 +959,11 @@ void RenderFrame(int ScreenWidth, int ScreenHeight)
 				}
 
 				BeginEvent("Draw Drawable");
-				GLsizei DebugNameLen = Drawable->DebugName.size() < 100 ? -1 : 100;
-				glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, DebugNameLen, Drawable->DebugName.c_str());
+				GLsizei DebugNameLen = ProgramFamily->DebugName.size() < 100 ? -1 : 100;
+				glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, DebugNameLen, ProgramFamily->DebugName.c_str());
 				if (ShowHeatmap)
 				{
-					Drawable->DepthQuery.Start();
+					ProgramFamily->DepthQuery.Start();
 				}
 
 				if (ShowOctree || ShowLeafCount)
@@ -955,10 +975,10 @@ void RenderFrame(int ScreenWidth, int ScreenHeight)
 					Shader->Activate();
 				}
 
-				for (ModelSubtree& Subtree : Drawable->Instances)
+				for (ProgramBuffer& ProgramVariant : ProgramFamily->ProgramVariants)
 				{
-					Subtree.ParamsBuffer.Bind(GL_SHADER_STORAGE_BUFFER, 0);
-					for (SubtreeSection& Section : Subtree.Sections)
+					ProgramVariant.Bind(GL_SHADER_STORAGE_BUFFER, 0);
+					for (VoxelBuffer& Voxel : ProgramVariant.Voxels)
 					{
 						if (ShowOctree || ShowLeafCount)
 						{
@@ -969,7 +989,7 @@ void RenderFrame(int ScreenWidth, int ScreenHeight)
 							}
 							else
 							{
-								UploadValue = Drawable->LeafCount;
+								UploadValue = ProgramFamily->LeafCount;
 							}
 							OctreeDebugOptionsUpload BufferData = {
 								(GLuint)UploadValue,
@@ -980,13 +1000,13 @@ void RenderFrame(int ScreenWidth, int ScreenHeight)
 							OctreeDebugOptions.Upload((void*)&BufferData, sizeof(BufferData));
 							OctreeDebugOptions.Bind(GL_UNIFORM_BUFFER, 3);
 						}
-						Section.SectionBuffer.Bind(GL_UNIFORM_BUFFER, 2);
+						Voxel.Bind(GL_UNIFORM_BUFFER, 2);
 						glDrawArrays(GL_TRIANGLES, 0, 36);
 					}
 				}
 				if (ShowHeatmap)
 				{
-					Drawable->DepthQuery.Stop();
+					ProgramFamily->DepthQuery.Stop();
 				}
 				glPopDebugGroup();
 				EndEvent();
@@ -1094,14 +1114,14 @@ double ModelProcessingStallMs = 0.0;
 void LoadModelCommon(std::function<void()> LoadingCallback)
 {
 	BeginEvent("Load Model");
-	for (SubtreeShader& Shader : SubtreeShaders)
+	for (ProgramTemplate& ProgramFamily : ProgramTemplates)
 	{
-		Shader.Release();
+		ProgramFamily.Release();
 	}
-	SubtreeShaders.clear();
-	SubtreeMap.clear();
+	ProgramTemplates.clear();
+	ProgramTemplateSourceMap.clear();
 	PendingShaders.clear();
-	Drawables.clear();
+	CompiledTemplates.clear();
 	ClearTreeEvaluator();
 
 	BackgroundColor = DefaultBackgroundColor;
@@ -1114,9 +1134,9 @@ void LoadModelCommon(std::function<void()> LoadingCallback)
 	std::chrono::duration<double, std::milli> Delta = EndTimePoint - StartTimePoint;
 	ModelProcessingStallMs = Delta.count();
 
-	PendingSubtree = nullptr;
+	PendingVoxels = nullptr;
 
-	Drawables.reserve(PendingShaders.size());
+	CompiledTemplates.reserve(PendingShaders.size());
 	ShaderCompilerConvergenceMs = 0.0;
 	ShaderCompilerStart = Clock::now();
 	EndEvent();
@@ -1652,7 +1672,7 @@ void RenderUI(SDL_Window* Window, bool& Live)
 		ImGui::End();
 	}
 
-	if (ShowPrettyTrees && SubtreeShaders.size() > 0)
+	if (ShowPrettyTrees && ProgramTemplates.size() > 0)
 	{
 		ImGuiWindowFlags WindowFlags = \
 			ImGuiWindowFlags_HorizontalScrollbar |
@@ -1664,14 +1684,14 @@ void RenderUI(SDL_Window* Window, bool& Live)
 
 		if (ImGui::Begin("Shader Permutations", &ShowPrettyTrees, WindowFlags))
 		{
-			std::string Message = fmt::format("Shader Count: {}", SubtreeShaders.size());
+			std::string Message = fmt::format("Shader Count: {}", ProgramTemplates.size());
 			ImGui::TextUnformatted(Message.c_str(), nullptr);
 
 			bool First = true;
-			for (SubtreeShader& Subtree : SubtreeShaders)
+			for (ProgramTemplate& ProgramFamily : ProgramTemplates)
 			{
 				ImGui::Separator();
-				ImGui::TextUnformatted(Subtree.PrettyTree.c_str(), nullptr);
+				ImGui::TextUnformatted(ProgramFamily.PrettyTree.c_str(), nullptr);
 			}
 		}
 		ImGui::End();
@@ -2032,9 +2052,9 @@ void Teardown()
 	delete MainEnvironment;
 	{
 		JoinWorkerThreads();
-		for (SubtreeShader& Shader : SubtreeShaders)
+		for (ProgramTemplate& ProgramFamily : ProgramTemplates)
 		{
-			Shader.Release();
+			ProgramFamily.Release();
 		}
 		if (!HeadlessMode)
 		{
@@ -2062,7 +2082,7 @@ void MainLoop()
 				MouseMotionX = 0;
 				MouseMotionY = 0;
 				MouseMotionZ = 0;
-				bool RequestDraw = RealtimeMode || ShowStatsOverlay || Drawables.size() == 0;
+				bool RequestDraw = RealtimeMode || ShowStatsOverlay || CompiledTemplates.size() == 0 || PendingShaders.size() > 0;
 				BeginEvent("Process Input");
 				while (SDL_PollEvent(&Event))
 				{
@@ -2215,12 +2235,12 @@ void MainLoop()
 
 						if (ShowHeatmap)
 						{
-							const size_t QueryCount = Drawables.size();
+							const size_t QueryCount = CompiledTemplates.size();
 							float Range = 0.0;
 							std::vector<float> Upload(QueryCount, 0.0);
 							for (int i = 0; i < QueryCount; ++i)
 							{
-								double ElapsedTimeMs = Drawables[i]->DepthQuery.ReadMs();
+								double ElapsedTimeMs = CompiledTemplates[i]->DepthQuery.ReadMs();
 								Upload[i] = float(ElapsedTimeMs);
 								DepthElapsedTimeMs += ElapsedTimeMs;
 								Range = fmax(Range, float(ElapsedTimeMs));

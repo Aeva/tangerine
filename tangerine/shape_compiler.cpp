@@ -166,14 +166,10 @@ extern "C" TANGERINE_API void VoxelCompiler(void* Handle, const float VoxelSize)
 				Source);
 		}
 
-		size_t ShaderIndex = EmitShader(BoilerPlate, VariantInfo.Pretty, VariantInfo.LeafCount);
+		size_t ShaderIndex = EmitProgramTemplate(BoilerPlate, VariantInfo.Pretty, VariantInfo.LeafCount);
 		for (auto& [Params, Instances] : VariantInfo.Params)
 		{
-			EmitParameters(ShaderIndex, SubtreeIndex++, Params);
-			for (const AABB& Bounds : Instances)
-			{
-				EmitVoxel(Bounds);
-			}
+			EmitProgramVariant(ShaderIndex, SubtreeIndex++, Params, Instances);
 		}
 	}
 	EndEvent();
