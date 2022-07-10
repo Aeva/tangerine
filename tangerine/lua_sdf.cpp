@@ -385,7 +385,7 @@ int LuaShuffleSequence(lua_State* L)
 		int i = 1;
 		for (int& Index : Deck)
 		{
-			lua_pushnumber(L, Index);
+			lua_pushinteger(L, Index);
 			lua_rawseti(L, -2, i++);
 		}
 		return 1;
