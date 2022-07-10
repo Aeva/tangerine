@@ -310,6 +310,25 @@ int LuaClearColor(lua_State* L)
 }
 
 
+int LuaFixedCamera(lua_State* L)
+{
+	glm::vec3 Origin(
+		luaL_checknumber(L, 1),
+		luaL_checknumber(L, 2),
+		luaL_checknumber(L, 3));
+	glm::vec3 Center(
+		luaL_checknumber(L, 4),
+		luaL_checknumber(L, 5),
+		luaL_checknumber(L, 6));
+	glm::vec3 Up(
+		luaL_checknumber(L, 7),
+		luaL_checknumber(L, 8),
+		luaL_checknumber(L, 9));
+	SetFixedCamera(Origin, Center, Up);
+	return 0;
+}
+
+
 int LuaRandomSeed(lua_State* L)
 {
 	lua_Integer Seed = luaL_checkinteger(L, 1);
@@ -408,6 +427,7 @@ const luaL_Reg LuaSDFType[] = \
 	{ "blend_diff", LuaBlendOperator<SetFamily::Diff> },
 
 	{ "set_bg", LuaClearColor },
+	{ "set_fixed_camera", LuaFixedCamera },
 
 	{ "random_seed", LuaRandomSeed },
 	{ "random", LuaRandom },

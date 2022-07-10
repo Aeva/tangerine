@@ -774,6 +774,12 @@ int MouseMotionY = 0;
 int MouseMotionZ = 0;
 int BackgroundMode = 0;
 int ForegroundMode = 0;
+
+bool FixedCamera = false;
+glm::vec3 FixedOrigin = glm::vec3(0, -1, 0);
+glm::vec3 FixedFocus = glm::vec3(0, 0, 0);
+glm::vec3 FixedUp = glm::vec3(0, 0, 1);
+
 bool ShowSubtrees = false;
 bool ShowHeatmap = false;
 bool HighlightEdges = true;
@@ -828,6 +834,30 @@ void RenderFrame(int ScreenWidth, int ScreenHeight)
 		}
 	}
 
+	if (FixedCamera)
+	{
+		const glm::mat4 WorldToView = glm::lookAt(FixedOrigin, FixedFocus, FixedUp);
+		const glm::mat4 ViewToWorld = glm::inverse(WorldToView);
+
+		const float AspectRatio = float(Width) / float(Height);
+		const glm::mat4 ViewToClip = glm::infinitePerspective(glm::radians(45.f), AspectRatio, 1.0f);
+		const glm::mat4 ClipToView = inverse(ViewToClip);
+
+		ViewInfoUpload BufferData = {
+			WorldToView,
+			ViewToWorld,
+			ViewToClip,
+			ClipToView,
+			glm::vec4(FixedOrigin, 1.0f),
+			glm::vec4(Width, Height, 1.0f / Width, 1.0f / Height),
+			glm::vec4(ModelBounds.Min, 1.0),
+			glm::vec4(ModelBounds.Max, 1.0),
+			float(CurrentTime),
+		};
+		ViewInfo.Upload((void*)&BufferData, sizeof(BufferData));
+		ViewInfo.Bind(GL_UNIFORM_BUFFER, 0);
+	}
+	else
 	{
 		static float RotateX;
 		static float RotateZ;
@@ -1094,6 +1124,15 @@ void SetClearColor(glm::vec3& Color)
 }
 
 
+void SetFixedCamera(glm::vec3& Origin, glm::vec3& Focus, glm::vec3& Up)
+{
+	FixedCamera = true;
+	FixedOrigin = Origin;
+	FixedFocus = Focus;
+	FixedUp = Up;
+}
+
+
 void ToggleFullScreen(SDL_Window* Window)
 {
 	static bool FullScreen = false;
@@ -1123,6 +1162,7 @@ void LoadModelCommon(std::function<void()> LoadingCallback)
 	PendingShaders.clear();
 	CompiledTemplates.clear();
 	ClearTreeEvaluator();
+	FixedCamera = false;
 
 	BackgroundColor = DefaultBackgroundColor;
 
