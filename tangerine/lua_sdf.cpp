@@ -17,9 +17,15 @@
 #if EMBED_LUA
 
 #include <string.h>
+#include <random>
+#include <algorithm>
+
 #include "sdfs.h"
 #include "colors.h"
 #include "tangerine.h"
+
+
+std::default_random_engine RNGesus;
 
 
 SDFNode* GetSDFNode(lua_State* L, int Arg)
@@ -304,6 +310,71 @@ int LuaClearColor(lua_State* L)
 }
 
 
+int LuaRandomSeed(lua_State* L)
+{
+	lua_Integer Seed = luaL_checkinteger(L, 1);
+	RNGesus.seed(Seed);
+	return 0;
+}
+
+
+int LuaRandom(lua_State* L)
+{
+	if (lua_gettop(L) == 0)
+	{
+		// Return a random float between 0.0 and 1.0, inclusive.
+		std::uniform_real_distribution<double> Dist(0.0, std::nextafter(1.0, DBL_MAX));
+		lua_Number Random = (lua_Number)Dist(RNGesus);
+		lua_pushnumber(L, Random);
+		return 1;
+	}
+	else if (lua_gettop(L) >= 2 && lua_isinteger(L, 1) && lua_isinteger(L, 2))
+	{
+		// Return a random integer between Low and High, inclusive.
+		lua_Integer Low = luaL_checkinteger(L, 1);
+		lua_Integer High = luaL_checkinteger(L, 2);
+		std::uniform_int_distribution<lua_Integer> Dist(Low, High);
+		lua_pushinteger(L, Dist(RNGesus));
+		return 1;
+	}
+	else
+	{
+		// Return a random float between Low and High, inclusive.
+		lua_Number Low = luaL_checknumber(L, 1);
+		lua_Number High = luaL_checknumber(L, 2);
+		std::uniform_real_distribution<double> Dist(Low, std::nextafter(High, DBL_MAX));
+		lua_Number Random = (lua_Number)Dist(RNGesus);
+		lua_pushnumber(L, Random);
+		return 1;
+	}
+}
+
+
+int LuaShuffleSequence(lua_State* L)
+{
+	lua_Integer Count = luaL_checkinteger(L, 1);
+	if (Count > 0)
+	{
+		std::vector<int> Deck;
+		Deck.reserve(Count);
+		for (int i = 1; i <= Count; ++i)
+		{
+			Deck.push_back(i);
+		}
+		std::shuffle(Deck.begin(), Deck.end(), RNGesus);
+		lua_createtable(L, Count, 0);
+		int i = 1;
+		for (int& Index : Deck)
+		{
+			lua_pushnumber(L, Index);
+			lua_rawseti(L, -2, i++);
+		}
+		return 1;
+	}
+	return 0;
+}
+
+
 const luaL_Reg LuaSDFType[] = \
 {
 	{ "move", LuaMove },
@@ -337,6 +408,10 @@ const luaL_Reg LuaSDFType[] = \
 	{ "blend_diff", LuaBlendOperator<SetFamily::Diff> },
 
 	{ "set_bg", LuaClearColor },
+
+	{ "random_seed", LuaRandomSeed },
+	{ "random", LuaRandom },
+	{ "shuffle_sequence", LuaShuffleSequence },
 
 	{ NULL, NULL }
 };
