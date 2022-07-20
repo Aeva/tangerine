@@ -30,9 +30,6 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\tangerine\sdfs.cpp">
-      <Filter>Tangerine</Filter>
-    </ClCompile>
     <ClCompile Include="..\tangerine\profiling.cpp">
       <Filter>Tangerine</Filter>
     </ClCompile>
@@ -204,11 +201,17 @@
     <ClCompile Include="..\third_party\lua-5.4.4\lua\lzio.c">
       <Filter>Third Party\Lua</Filter>
     </ClCompile>
+    <ClCompile Include="..\tangerine\sdf_evaluator.cpp">
+      <Filter>Tangerine</Filter>
+    </ClCompile>
+    <ClCompile Include="..\tangerine\sdf_model.cpp">
+      <Filter>Tangerine</Filter>
+    </ClCompile>
+    <ClCompile Include="..\tangerine\sdf_rendering.cpp">
+      <Filter>Tangerine</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\tangerine\sdfs.h">
-      <Filter>Tangerine</Filter>
-    </ClInclude>
     <ClInclude Include="..\tangerine\profiling.h">
       <Filter>Tangerine</Filter>
     </ClInclude>
@@ -379,6 +382,15 @@
     </ClInclude>
     <ClInclude Include="..\third_party\lua-5.4.4\lua\lzio.h">
       <Filter>Third Party\Lua</Filter>
+    </ClInclude>
+    <ClInclude Include="..\tangerine\sdf_evaluator.h">
+      <Filter>Tangerine</Filter>
+    </ClInclude>
+    <ClInclude Include="..\tangerine\sdf_model.h">
+      <Filter>Tangerine</Filter>
+    </ClInclude>
+    <ClInclude Include="..\tangerine\sdf_rendering.h">
+      <Filter>Tangerine</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

@@ -18,6 +18,7 @@
 #include "fmt/format.h"
 
 #include "extern.h"
+#include "sdf_model.h"
 #include "shape_compiler.h"
 #include "profiling.h"
 
@@ -64,13 +65,11 @@ void UseRoundedStackSize()
 }
 
 
-// Iterate over a voxel grid and return bounded subtrees.
-extern "C" TANGERINE_API void VoxelCompiler(void* Handle, const float VoxelSize)
+// Iterate over a voxel grid and generate sources and parameter buffers to populate a new model.
+void SDFModel::Compile(const float VoxelSize)
 {
 	BeginEvent("VoxelFinder");
-	SDFNode* Evaluator = (SDFNode*)Handle;
-	AABB Limits = Evaluator->Bounds();
-	SetTreeEvaluator(Evaluator, Limits);
+	SetTreeEvaluator(Evaluator);
 
 	VariantsMap Voxels;
 	uint32_t SubtreeIndex = 0;
@@ -166,18 +165,69 @@ extern "C" TANGERINE_API void VoxelCompiler(void* Handle, const float VoxelSize)
 				Source);
 		}
 
-		size_t ShaderIndex = EmitProgramTemplate(BoilerPlate, VariantInfo.Pretty, VariantInfo.LeafCount);
+		size_t ShaderIndex = AddProgramTemplate(BoilerPlate, VariantInfo.Pretty, VariantInfo.LeafCount);
 		for (auto& [Params, Instances] : VariantInfo.Params)
 		{
-			EmitProgramVariant(ShaderIndex, SubtreeIndex++, Params, Instances);
+			AddProgramVariant(ShaderIndex, SubtreeIndex++, Params, Instances);
 		}
 	}
+
+	CompiledTemplates.reserve(PendingShaders.size());
+
 	EndEvent();
 
 	EndEvent();
 }
 
+
+size_t SDFModel::AddProgramTemplate(std::string InSource, std::string InPretty, int LeafCount)
+{
+	std::string& Source = InSource;
+	std::string& Pretty = InPretty;
+	std::string& DebugName = InSource; // TODO
+
+	auto Found = ProgramTemplateSourceMap.find(Source);
+
+	size_t ShaderIndex;
+	if (Found == ProgramTemplateSourceMap.end())
+	{
+		size_t Index = ProgramTemplates.size();
+		ProgramTemplates.emplace_back(DebugName, Pretty, Source, LeafCount);
+		ProgramTemplateSourceMap[Source] = Index;
+		PendingShaders.push_back(Index);
+		ShaderIndex = Index;
+	}
+	else
+	{
+		ShaderIndex = Found->second;
+	}
+
+	return ShaderIndex;
+}
+
+
+void SDFModel::AddProgramVariant(size_t ShaderIndex, uint32_t SubtreeIndex, const std::vector<float>& Params, const std::vector<AABB>& Voxels)
+{
+	// TODO: ProgramVariants is currently a vector, but should it be a map...?
+	ProgramTemplates[ShaderIndex].ProgramVariants.emplace_back(ShaderIndex, SubtreeIndex, Params.size(), Params.data());
+	ProgramBuffer& Program = ProgramTemplates[ShaderIndex].ProgramVariants.back();
+	for (const AABB& Bounds : Voxels)
+	{
+		glm::mat4 LocalToWorld = glm::identity<glm::mat4>();
+		glm::vec3 Extent = (Bounds.Max - Bounds.Min) * glm::vec3(0.5);
+		glm::vec3 Center = Extent + Bounds.Min;
+		Program.Voxels.emplace_back(LocalToWorld, glm::vec4(Center, 0.0), glm::vec4(Extent, 0.0));
+	}
+}
+
+
 void CompileEvaluator(SDFNode* Evaluator, const float VoxelSize)
 {
-	VoxelCompiler(Evaluator, VoxelSize);
+	new SDFModel(Evaluator, VoxelSize);
+}
+
+
+extern "C" TANGERINE_API void VoxelCompiler(void* Handle, const float VoxelSize)
+{
+	CompileEvaluator((SDFNode*)Handle, VoxelSize);
 }

@@ -27,6 +27,8 @@
 #include <imgui_impl_opengl3.h>
 
 #include "sdf_evaluator.h"
+#include "sdf_rendering.h"
+#include "sdf_model.h"
 #include "shape_compiler.h"
 #include "export.h"
 #include "extern.h"
@@ -70,217 +72,8 @@ using Clock = std::chrono::high_resolution_clock;
 bool HeadlessMode;
 
 
-// This object tracks a buffer containing the transforms and AABB needed to render a given octree leaf.
-struct VoxelBuffer
-{
-	struct VoxelUpload
-	{
-		glm::mat4 LocalToWorld;
-		glm::mat4 WorldToLocal;
-		glm::vec4 Center;
-		glm::vec4 Extent;
-	};
-
-	VoxelBuffer(glm::mat4 LocalToWorld, glm::vec4 Center, glm::vec4 Extent)
-	{
-		SectionData.LocalToWorld = LocalToWorld;
-		SectionData.WorldToLocal = glm::inverse(LocalToWorld);
-		SectionData.Center = Center;
-		SectionData.Extent = Extent;
-
-		SectionBuffer.DebugName = "Voxel Buffer";
-		SectionBuffer.Upload((void*)&SectionData, sizeof(VoxelUpload));
-	}
-
-	void Bind(GLenum Target, GLuint BindingIndex)
-	{
-		SectionBuffer.Bind(Target, BindingIndex);
-	}
-
-	void Release()
-	{
-		SectionBuffer.Release();
-	}
-
-	VoxelUpload SectionData;
-	Buffer SectionBuffer;
-};
-
-
-// This object tracks a buffer containing the bytecode that is used to render part of a model's
-// evaluator, and the voxels that will draw this program.  This bytecode buffer is used by both
-// the shader interpreter and the compiled shader.
-struct ProgramBuffer
-{
-	ProgramBuffer(uint32_t ShaderIndex, uint32_t SubtreeIndex, size_t ParamCount, const float* InParams)
-	{
-		++ParamCount;
-		size_t Padding = DIV_UP(ParamCount, 4) * 4 - ParamCount;
-		size_t UploadSize = ParamCount + Padding;
-		Params.reserve(UploadSize);
-#if 1
-		// This gives a different ID per shader permutation, which is more useful for debug views.
-		Params.push_back(AsFloat(ShaderIndex));
-#else
-		// This should give a different ID per unique GLSL generated, but for some reason this doesn't
-		// produce quite the right results.  May or may not be useful for other purposes with some work,
-		// but I am unsure.
-		Params.push_back(AsFloat(SubtreeIndex));
-#endif
-		for (int i = 0; i < ParamCount; ++i)
-		{
-			Params.push_back(InParams[i]);
-		}
-		for (int i = 0; i < Padding; ++i)
-		{
-			Params.push_back(0.0);
-		}
-
-		ParamsBuffer.DebugName = "Shape Program Buffer";
-		ParamsBuffer.Upload((void*)Params.data(), UploadSize * sizeof(float));
-	}
-
-	void Bind(GLenum Target, GLuint BindingIndex)
-	{
-		ParamsBuffer.Bind(Target, BindingIndex);
-	}
-
-	void Release()
-	{
-		for (VoxelBuffer& Voxel : Voxels)
-		{
-			Voxel.Release();
-		}
-		Voxels.clear();
-	}
-
-	std::vector<float> Params;
-	std::vector<VoxelBuffer> Voxels;
-	Buffer ParamsBuffer;
-};
-
-
-// This object represents all ProgramBuffers that share the same symbolic behavior.
-// This is used to access related ProgramBuffers for rendering, and is the interface
-// for accessing the shader that is needed to draw the programs when the interpreter
-// is not in use.
-struct ProgramTemplate
-{
-	ProgramTemplate(ProgramTemplate&& Old)
-		: DebugName(Old.DebugName)
-		, PrettyTree(Old.PrettyTree)
-		, DistSource(Old.DistSource)
-		, LeafCount(Old.LeafCount)
-	{
-		std::swap(Compiled, Old.Compiled);
-		std::swap(DepthQuery, Old.DepthQuery);
-		std::swap(ProgramVariants, Old.ProgramVariants);
-	}
-
-	ProgramTemplate(std::string InDebugName, std::string InPrettyTree, std::string InDistSource, int InLeafCount)
-		: LeafCount(InLeafCount)
-	{
-		Compiled.reset(new ShaderEnvelope);
-		DebugName = InDebugName;
-		PrettyTree = InPrettyTree;
-		DistSource = InDistSource;
-	}
-
-	void StartCompile()
-	{
-		std::unique_ptr<ShaderProgram> NewShader;
-		NewShader.reset(new ShaderProgram());
-		NewShader->AsyncSetup(
-			{ {GL_VERTEX_SHADER, ShaderSource("shaders/cluster_draw.vs.glsl", true)},
-			  {GL_FRAGMENT_SHADER, GeneratedShader("shaders/math.glsl", DistSource, "shaders/cluster_draw.fs.glsl")} },
-			DebugName.c_str());
-		AsyncCompile(std::move(NewShader), Compiled);
-
-		// Use a very long average window for draw time queries to reduce the likelihood of strobing in the heatmap view.
-		DepthQuery.Create(1000);
-	}
-
-	ShaderProgram* GetCompiledShader()
-	{
-		return Compiled->Access();
-	}
-
-	void Reset()
-	{
-		for (ProgramBuffer& ProgramVariant : ProgramVariants)
-		{
-			ProgramVariant.Release();
-		}
-		ProgramVariants.clear();
-	}
-
-	void Release()
-	{
-		Reset();
-		Compiled.reset();
-		DepthQuery.Release();
-	}
-
-	int LeafCount;
-	std::string DebugName;
-	std::string PrettyTree;
-	std::string DistSource;
-
-	std::shared_ptr<ShaderEnvelope> Compiled;
-
-	TimingQuery DepthQuery;
-
-	std::vector<ProgramBuffer> ProgramVariants;
-};
-
-
-std::map<std::string, size_t> ProgramTemplateSourceMap;
-std::vector<ProgramTemplate> ProgramTemplates;
-std::vector<size_t> PendingShaders;
-
-
-ProgramBuffer* PendingVoxels = nullptr;
-size_t EmitProgramTemplate(std::string InSource, std::string InPretty, int LeafCount)
-{
-	std::string& Source = InSource;
-	std::string& Pretty = InPretty;
-	std::string& DebugName = InSource; // TODO
-
-	auto Found = ProgramTemplateSourceMap.find(Source);
-
-	size_t ShaderIndex;
-	if (Found == ProgramTemplateSourceMap.end())
-	{
-		size_t Index = ProgramTemplates.size();
-		ProgramTemplates.emplace_back(DebugName, Pretty, Source, LeafCount);
-		ProgramTemplateSourceMap[Source] = Index;
-		PendingShaders.push_back(Index);
-		ShaderIndex = Index;
-	}
-	else
-	{
-		ShaderIndex = Found->second;
-	}
-
-	return ShaderIndex;
-}
-
-void EmitProgramVariant(size_t ShaderIndex, uint32_t SubtreeIndex, const std::vector<float>& Params, const std::vector<AABB>& Voxels)
-{
-	// TODO: ProgramVariants is currently a vector, but should it be a map...?
-	ProgramTemplates[ShaderIndex].ProgramVariants.emplace_back(ShaderIndex, SubtreeIndex, Params.size(), Params.data());
-	ProgramBuffer& Program = ProgramTemplates[ShaderIndex].ProgramVariants.back();
-	for (const AABB& Bounds : Voxels)
-	{
-		glm::mat4 LocalToWorld = glm::identity<glm::mat4>();
-		glm::vec3 Extent = (Bounds.Max - Bounds.Min) * glm::vec3(0.5);
-		glm::vec3 Center = Extent + Bounds.Min;
-		Program.Voxels.emplace_back(LocalToWorld, glm::vec4(Center, 0.0), glm::vec4(Extent, 0.0));
-	}
-}
-
-
 ScriptEnvironment* MainEnvironment;
+
 
 SDFNode* TreeEvaluator = nullptr;
 
@@ -296,12 +89,12 @@ void ClearTreeEvaluator()
 
 
 AABB ModelBounds = { glm::vec3(0.0), glm::vec3(0.0) };
-void SetTreeEvaluator(SDFNode* InTreeEvaluator, AABB Limits)
+void SetTreeEvaluator(SDFNode* InTreeEvaluator)
 {
 	ClearTreeEvaluator();
 	TreeEvaluator = InTreeEvaluator;
 	TreeEvaluator->Hold();
-	ModelBounds = Limits;// TreeEvaluator->Bounds();
+	ModelBounds = TreeEvaluator->Bounds();
 }
 
 
@@ -314,7 +107,6 @@ ShaderProgram OctreeDebugShader;
 
 Buffer ViewInfo("ViewInfo Buffer");
 Buffer OutlinerOptions("Outliner Options Buffer");
-Buffer OctreeDebugOptions("Octree Debug Options Buffer");
 
 Buffer DepthTimeBuffer("Subtree Heatmap Buffer");
 GLuint DepthPass;
@@ -643,15 +435,6 @@ struct OutlinerOptionsUpload
 };
 
 
-struct OctreeDebugOptionsUpload
-{
-	GLuint OutlinerFlags;
-	GLuint Unused1;
-	GLuint Unused2;
-	GLuint Unused3;
-};
-
-
 void SetPipelineDefaults()
 {
 	// For drawing without a VBO bound.
@@ -723,8 +506,7 @@ StatusCode SetupRenderer()
 
 double ShaderCompilerConvergenceMs = 0.0;
 Clock::time_point ShaderCompilerStart;
-std::vector<ProgramTemplate*> CompiledTemplates;
-void CompileNewShaders(const double LastInnerFrameDeltaMs)
+void CompileNewShaders(std::vector<SDFModel*>& IncompleteModels, const double LastInnerFrameDeltaMs)
 {
 	BeginEvent("Compile New Shaders");
 	Clock::time_point ProcessingStart = Clock::now();
@@ -733,38 +515,23 @@ void CompileNewShaders(const double LastInnerFrameDeltaMs)
 	Budget = fmaxf(Budget, 1.0);
 	Budget = fminf(Budget, 14.0);
 
-	bool NeedBarrier = false;
-
-	while (PendingShaders.size() > 0)
+	for (SDFModel* Model : IncompleteModels)
 	{
+		while (Model->HasPendingShaders())
 		{
-			BeginEvent("Compile Shader");
-			size_t TemplateIndex = PendingShaders.back();
-			PendingShaders.pop_back();
+			Model->CompileNextShader();
 
-			ProgramTemplate& ProgramFamily = ProgramTemplates[TemplateIndex];
-			ProgramFamily.StartCompile();
-			if (ProgramFamily.ProgramVariants.size() > 0)
+			std::chrono::duration<double, std::milli> Delta = Clock::now() - ProcessingStart;
+			ShaderCompilerConvergenceMs += Delta.count();
+			if (!HeadlessMode && Delta.count() > Budget)
 			{
-				CompiledTemplates.push_back(&ProgramFamily);
+				goto timeout;
 			}
-			NeedBarrier = true;
-
-			EndEvent();
-		}
-
-		std::chrono::duration<double, std::milli> Delta = Clock::now() - ProcessingStart;
-		ShaderCompilerConvergenceMs += Delta.count();
-		if (!HeadlessMode && Delta.count() > Budget)
-		{
-			break;
 		}
 	}
+timeout:
 
-	if (NeedBarrier)
-	{
-		glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
-	}
+	glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 	EndEvent();
 }
 
@@ -790,17 +557,11 @@ bool RealtimeMode = false;
 bool ShowStatsOverlay = false;
 float PresentFrequency = 0.0;
 float PresentDeltaMs = 0.0;
+double LastInnerFrameDeltaMs = 0.0;
 glm::vec3 CameraFocus = glm::vec3(0.0, 0.0, 0.0);
-void RenderFrame(int ScreenWidth, int ScreenHeight)
+void RenderFrame(int ScreenWidth, int ScreenHeight, std::vector<SDFModel*>& RenderableModels)
 {
 	BeginEvent("RenderFrame");
-	static double LastInnerFrameDeltaMs = 0.0;
-
-	if (PendingShaders.size() > 0)
-	{
-		CompileNewShaders(LastInnerFrameDeltaMs);
-	}
-
 	Clock::time_point FrameStartTimePoint = Clock::now();
 
 	double CurrentTime;
@@ -953,7 +714,7 @@ void RenderFrame(int ScreenWidth, int ScreenHeight)
 		OutlinerOptions.Upload((void*)&BufferData, sizeof(BufferData));
 	}
 
-	if (CompiledTemplates.size() > 0)
+	if (RenderableModels.size() > 0)
 	{
 		{
 			BeginEvent("Depth");
@@ -976,71 +737,19 @@ void RenderFrame(int ScreenWidth, int ScreenHeight)
 			{
 				DepthTimeQuery.Stop();
 			}
-			int NextOctreeID = 0;
-			for (ProgramTemplate* ProgramFamily : CompiledTemplates)
+
 			{
-				ShaderProgram* Shader = ProgramFamily->GetCompiledShader();
-				if (!Shader)
-				{
-					if (!ShowOctree || !ShowLeafCount)
-					{
-						continue;
-					}
-				}
-
-				BeginEvent("Draw Drawable");
-				GLsizei DebugNameLen = ProgramFamily->DebugName.size() < 100 ? -1 : 100;
-				glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, DebugNameLen, ProgramFamily->DebugName.c_str());
-				if (ShowHeatmap)
-				{
-					ProgramFamily->DepthQuery.Start();
-				}
-
+				struct ShaderProgram* DebugShader = nullptr;
 				if (ShowOctree || ShowLeafCount)
 				{
-					OctreeDebugShader.Activate();
+					DebugShader = &OctreeDebugShader;
 				}
-				else
+				for (SDFModel* Model : RenderableModels)
 				{
-					Shader->Activate();
+					Model->Draw(ShowOctree, ShowLeafCount, ShowHeatmap, DebugShader);
 				}
-
-				for (ProgramBuffer& ProgramVariant : ProgramFamily->ProgramVariants)
-				{
-					ProgramVariant.Bind(GL_SHADER_STORAGE_BUFFER, 0);
-					for (VoxelBuffer& Voxel : ProgramVariant.Voxels)
-					{
-						if (ShowOctree || ShowLeafCount)
-						{
-							int UploadValue;
-							if (ShowOctree)
-							{
-								UploadValue = ++NextOctreeID;
-							}
-							else
-							{
-								UploadValue = ProgramFamily->LeafCount;
-							}
-							OctreeDebugOptionsUpload BufferData = {
-								(GLuint)UploadValue,
-								0,
-								0,
-								0
-							};
-							OctreeDebugOptions.Upload((void*)&BufferData, sizeof(BufferData));
-							OctreeDebugOptions.Bind(GL_UNIFORM_BUFFER, 3);
-						}
-						Voxel.Bind(GL_UNIFORM_BUFFER, 2);
-						glDrawArrays(GL_TRIANGLES, 0, 36);
-					}
-				}
-				if (ShowHeatmap)
-				{
-					ProgramFamily->DepthQuery.Stop();
-				}
-				glPopDebugGroup();
-				EndEvent();
 			}
+
 			if (!ShowHeatmap)
 			{
 				DepthTimeQuery.Stop();
@@ -1153,14 +862,8 @@ double ModelProcessingStallMs = 0.0;
 void LoadModelCommon(std::function<void()> LoadingCallback)
 {
 	BeginEvent("Load Model");
-	for (ProgramTemplate& ProgramFamily : ProgramTemplates)
-	{
-		ProgramFamily.Release();
-	}
-	ProgramTemplates.clear();
-	ProgramTemplateSourceMap.clear();
-	PendingShaders.clear();
-	CompiledTemplates.clear();
+	UnloadAllModels();
+
 	ClearTreeEvaluator();
 	FixedCamera = false;
 
@@ -1173,10 +876,6 @@ void LoadModelCommon(std::function<void()> LoadingCallback)
 	Clock::time_point EndTimePoint = Clock::now();
 	std::chrono::duration<double, std::milli> Delta = EndTimePoint - StartTimePoint;
 	ModelProcessingStallMs = Delta.count();
-
-	PendingVoxels = nullptr;
-
-	CompiledTemplates.reserve(PendingShaders.size());
 	ShaderCompilerConvergenceMs = 0.0;
 	ShaderCompilerStart = Clock::now();
 	EndEvent();
@@ -1712,7 +1411,8 @@ void RenderUI(SDL_Window* Window, bool& Live)
 		ImGui::End();
 	}
 
-	if (ShowPrettyTrees && ProgramTemplates.size() > 0)
+	std::vector<SDFModel*>& LiveModels = GetLiveModels();
+	if (ShowPrettyTrees && LiveModels.size() > 0)
 	{
 		ImGuiWindowFlags WindowFlags = \
 			ImGuiWindowFlags_HorizontalScrollbar |
@@ -1724,14 +1424,23 @@ void RenderUI(SDL_Window* Window, bool& Live)
 
 		if (ImGui::Begin("Shader Permutations", &ShowPrettyTrees, WindowFlags))
 		{
-			std::string Message = fmt::format("Shader Count: {}", ProgramTemplates.size());
+			std::vector<ProgramTemplate*> AllProgramTemplates;
+			for (SDFModel* LiveModels : LiveModels)
+			{
+				for (ProgramTemplate& ProgramFamily : LiveModels->ProgramTemplates)
+				{
+					AllProgramTemplates.push_back(&ProgramFamily);
+				}
+			}
+
+			std::string Message = fmt::format("Shader Count: {}", AllProgramTemplates.size());
 			ImGui::TextUnformatted(Message.c_str(), nullptr);
 
 			bool First = true;
-			for (ProgramTemplate& ProgramFamily : ProgramTemplates)
+			for (ProgramTemplate* ProgramFamily : AllProgramTemplates)
 			{
 				ImGui::Separator();
-				ImGui::TextUnformatted(ProgramFamily.PrettyTree.c_str(), nullptr);
+				ImGui::TextUnformatted(ProgramFamily->PrettyTree.c_str(), nullptr);
 			}
 		}
 		ImGui::End();
@@ -2061,7 +1770,17 @@ void Boot(int argc, char* argv[])
 		{
 			MouseMotionX = 45;
 			MouseMotionY = 45;
-			RenderFrame(WindowWidth, WindowHeight);
+
+			std::vector<SDFModel*> IncompleteModels;
+			GetIncompleteModels(IncompleteModels);
+			if (IncompleteModels.size() > 0)
+			{
+				CompileNewShaders(IncompleteModels, LastInnerFrameDeltaMs);
+			}
+			std::vector<SDFModel*> RenderableModels;
+			GetRenderableModels(RenderableModels);
+
+			RenderFrame(WindowWidth, WindowHeight, RenderableModels);
 			ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 			glFinish();
 		}
@@ -2092,10 +1811,7 @@ void Teardown()
 	delete MainEnvironment;
 	{
 		JoinWorkerThreads();
-		for (ProgramTemplate& ProgramFamily : ProgramTemplates)
-		{
-			ProgramFamily.Release();
-		}
+		UnloadAllModels();
 		if (!HeadlessMode)
 		{
 			ImGui_ImplOpenGL3_Shutdown();
@@ -2110,7 +1826,7 @@ void Teardown()
 
 void MainLoop()
 {
-	Assert(!HeadlessMode)
+	Assert(!HeadlessMode);
 	{
 		bool Live = true;
 		{
@@ -2122,7 +1838,11 @@ void MainLoop()
 				MouseMotionX = 0;
 				MouseMotionY = 0;
 				MouseMotionZ = 0;
-				bool RequestDraw = RealtimeMode || ShowStatsOverlay || CompiledTemplates.size() == 0 || PendingShaders.size() > 0;
+
+				static std::vector<SDFModel*> IncompleteModels;
+				static std::vector<SDFModel*> RenderableModels;
+
+				bool RequestDraw = RealtimeMode || ShowStatsOverlay || RenderableModels.size() == 0 || IncompleteModels.size() > 0;
 				BeginEvent("Process Input");
 				while (SDL_PollEvent(&Event))
 				{
@@ -2247,10 +1967,18 @@ void MainLoop()
 						EndEvent();
 					}
 					{
+						GetIncompleteModels(IncompleteModels);
+						if (IncompleteModels.size() > 0)
+						{
+							CompileNewShaders(IncompleteModels, LastInnerFrameDeltaMs);
+						}
+						GetRenderableModels(RenderableModels);
+					}
+					{
 						int ScreenWidth;
 						int ScreenHeight;
 						SDL_GetWindowSize(Window, &ScreenWidth, &ScreenHeight);
-						RenderFrame(ScreenWidth, ScreenHeight);
+						RenderFrame(ScreenWidth, ScreenHeight, RenderableModels);
 					}
 					{
 						BeginEvent("Dear ImGui Draw");
@@ -2275,21 +2003,24 @@ void MainLoop()
 
 						if (ShowHeatmap)
 						{
-							const size_t QueryCount = CompiledTemplates.size();
 							float Range = 0.0;
-							std::vector<float> Upload(QueryCount, 0.0);
-							for (int i = 0; i < QueryCount; ++i)
+							std::vector<float> Upload;
+							for (SDFModel* Model : RenderableModels)
 							{
-								double ElapsedTimeMs = CompiledTemplates[i]->DepthQuery.ReadMs();
-								Upload[i] = float(ElapsedTimeMs);
-								DepthElapsedTimeMs += ElapsedTimeMs;
-								Range = fmax(Range, float(ElapsedTimeMs));
+								for (ProgramTemplate* CompiledTemplate : Model->CompiledTemplates)
+								{
+									double ElapsedTimeMs = CompiledTemplate->DepthQuery.ReadMs();
+									Upload.push_back(float(ElapsedTimeMs));
+									DepthElapsedTimeMs += ElapsedTimeMs;
+									Range = fmax(Range, float(ElapsedTimeMs));
+								}
 							}
-							for (int i = 0; i < QueryCount; ++i)
+							for (float& ElapsedTimeMs : Upload)
 							{
-								Upload[i] /= Range;
+								ElapsedTimeMs /= Range;
 							}
-							DepthTimeBuffer.Upload(Upload.data(), QueryCount * sizeof(float));
+
+							DepthTimeBuffer.Upload(Upload.data(), Upload.size() * sizeof(float));
 						}
 						EndEvent();
 					}

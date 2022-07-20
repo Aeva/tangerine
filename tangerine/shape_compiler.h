@@ -23,7 +23,5 @@ extern bool Interpreted;
 void OverrideMaxIterations(int MaxIterationsOverride);
 void UseInterpreter();
 void UseRoundedStackSize();
-size_t EmitProgramTemplate(std::string Source, std::string Pretty, int LeafCount);
-void EmitProgramVariant(size_t ShaderIndex, uint32_t SubtreeIndex, const std::vector<float>& Params, const std::vector<AABB>& Voxels);
-void SetTreeEvaluator(SDFNode* InTreeEvaluator, AABB Limits);
+
 void CompileEvaluator(SDFNode* Evaluator, const float VoxelSize = 0.25);
