@@ -184,7 +184,7 @@
     <ClCompile Include="..\tangerine\magica.cpp" />
     <ClCompile Include="..\tangerine\profiling.cpp" />
     <ClCompile Include="..\tangerine\racket_env.cpp" />
-    <ClCompile Include="..\tangerine\sdfs.cpp" />
+    <ClCompile Include="..\tangerine\sdf_evaluator.cpp" />
     <ClCompile Include="..\tangerine\shape_compiler.cpp" />
     <ClCompile Include="..\tangerine\tangerine.cpp" />
     <ClCompile Include="..\tangerine\threadpool.cpp" />
@@ -247,7 +247,7 @@
     <ClInclude Include="..\tangerine\magica.h" />
     <ClInclude Include="..\tangerine\profiling.h" />
     <ClInclude Include="..\tangerine\racket_env.h" />
-    <ClInclude Include="..\tangerine\sdfs.h" />
+    <ClInclude Include="..\tangerine\sdf_evaluator.h" />
     <ClInclude Include="..\tangerine\shape_compiler.h" />
     <ClInclude Include="..\tangerine\tangerine.h" />
     <ClInclude Include="..\tangerine\threadpool.h" />

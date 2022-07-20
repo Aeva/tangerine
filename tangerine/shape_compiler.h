@@ -15,7 +15,7 @@
 
 #pragma once
 
-#include "sdfs.h"
+#include "sdf_evaluator.h"
 
 extern int MaxIterations;
 extern bool Interpreted;

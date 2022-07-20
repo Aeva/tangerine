@@ -20,7 +20,7 @@
 #include "extern.h"
 #include "profiling.h"
 
-#include "sdfs.h"
+#include "sdf_evaluator.h"
 #include <glm/gtc/type_ptr.hpp>
 
 

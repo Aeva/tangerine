@@ -72,9 +72,6 @@
     <ClCompile Include="..\third_party\imgui\imgui_widgets.cpp">
       <Filter>Third Party\Dear ImGui</Filter>
     </ClCompile>
-    <ClCompile Include="..\tangerine\sdfs.cpp">
-      <Filter>Tangerine</Filter>
-    </ClCompile>
     <ClCompile Include="..\tangerine\export.cpp">
       <Filter>Tangerine</Filter>
     </ClCompile>
@@ -216,6 +213,9 @@
     <ClCompile Include="..\tangerine\colors.cpp">
       <Filter>Tangerine</Filter>
     </ClCompile>
+    <ClCompile Include="..\tangerine\sdf_evaluator.cpp">
+      <Filter>Tangerine</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\third_party\glad\glad.h">
@@ -267,9 +267,6 @@
       <Filter>Third Party\Dear ImGui</Filter>
     </ClInclude>
     <ClInclude Include="resource.h" />
-    <ClInclude Include="..\tangerine\sdfs.h">
-      <Filter>Tangerine</Filter>
-    </ClInclude>
     <ClInclude Include="..\tangerine\export.h">
       <Filter>Tangerine</Filter>
     </ClInclude>
@@ -397,6 +394,9 @@
       <Filter>Tangerine</Filter>
     </ClInclude>
     <ClInclude Include="..\tangerine\colors.h">
+      <Filter>Tangerine</Filter>
+    </ClInclude>
+    <ClInclude Include="..\tangerine\sdf_evaluator.h">
       <Filter>Tangerine</Filter>
     </ClInclude>
   </ItemGroup>

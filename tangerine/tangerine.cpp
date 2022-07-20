@@ -26,7 +26,7 @@
 #include <imgui_impl_sdl.h>
 #include <imgui_impl_opengl3.h>
 
-#include "sdfs.h"
+#include "sdf_evaluator.h"
 #include "shape_compiler.h"
 #include "export.h"
 #include "extern.h"

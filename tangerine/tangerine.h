@@ -15,7 +15,7 @@
 
 #pragma once
 #include <functional>
-#include "sdfs.h"
+#include "sdf_evaluator.h"
 
 void PostScriptError(std::string ErrorMessage);
 void LoadModelCommon(std::function<void()> LoadingCallback);

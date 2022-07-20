@@ -14,7 +14,7 @@
 // limitations under the License.
 
 #pragma once
-#include "sdfs.h"
+#include "sdf_evaluator.h"
 
 enum class ExportFormat
 {
