@@ -300,6 +300,114 @@ int LuaBlendOperator(lua_State* L)
 }
 
 
+int LuaEval(lua_State* L)
+{
+	SDFNode* Node = GetSDFNode(L, 1);
+	glm::vec3 Point(
+		(float)luaL_checknumber(L, 2),
+		(float)luaL_checknumber(L, 3),
+		(float)luaL_checknumber(L, 4));
+	float Distance = Node->Eval(Point);
+	lua_pushnumber(L, Distance);
+	return 1;
+}
+
+
+int LuaGradient(lua_State* L)
+{
+	SDFNode* Node = GetSDFNode(L, 1);
+	glm::vec3 Point(
+		(float)luaL_checknumber(L, 2),
+		(float)luaL_checknumber(L, 3),
+		(float)luaL_checknumber(L, 4));
+	glm::vec3 Gradient = Node->Gradient(Point);
+	lua_createtable(L, 3, 0);
+	lua_pushnumber(L, Gradient.x);
+	lua_rawseti(L, -2, 1);
+	lua_pushnumber(L, Gradient.y);
+	lua_rawseti(L, -2, 2);
+	lua_pushnumber(L, Gradient.z);
+	lua_rawseti(L, -2, 3);
+	return 1;
+}
+
+
+int LuaPickColor(lua_State* L)
+{
+	SDFNode* Node = GetSDFNode(L, 1);
+	glm::vec3 Point(
+		(float)luaL_checknumber(L, 2),
+		(float)luaL_checknumber(L, 3),
+		(float)luaL_checknumber(L, 4));
+	glm::vec4 Color = Node->Sample(Point);
+
+	lua_createtable(L, 4, 0);
+	lua_pushnumber(L, Color.x);
+	lua_rawseti(L, -2, 1);
+	lua_pushnumber(L, Color.y);
+	lua_rawseti(L, -2, 2);
+	lua_pushnumber(L, Color.z);
+	lua_rawseti(L, -2, 3);
+	lua_pushnumber(L, Color.z);
+	lua_rawseti(L, -2, 4);
+	return 1;
+}
+
+
+template <bool Magnet>
+int LuaRayCast(lua_State* L)
+{
+	SDFNode* Node = GetSDFNode(L, 1);
+
+	glm::vec3 Origin(
+		(float)luaL_checknumber(L, 2),
+		(float)luaL_checknumber(L, 3),
+		(float)luaL_checknumber(L, 4));
+
+	glm::vec3 Direction(
+		(float)luaL_checknumber(L, 5),
+		(float)luaL_checknumber(L, 6),
+		(float)luaL_checknumber(L, 7));
+
+	if (Magnet)
+	{
+		Direction = glm::normalize(Direction - Origin);
+	}
+
+	int MaxIterations = 100;
+	float Epsilon = 0.001;
+
+	int Args = lua_gettop(L);
+	if (Args >= 8)
+	{
+		MaxIterations = (int)luaL_checkinteger(L, 8);
+	}
+	if (Args >= 9)
+	{
+		Epsilon = (float)luaL_checknumber(L, 9);
+	}
+
+	RayHit RayHit = Node->RayMarch(Origin, Direction, MaxIterations, Epsilon);
+
+	if (RayHit.Hit)
+	{
+		lua_createtable(L, 3, 0);
+		lua_pushnumber(L, RayHit.Position.x);
+		lua_rawseti(L, -2, 1);
+		lua_pushnumber(L, RayHit.Position.y);
+		lua_rawseti(L, -2, 2);
+		lua_pushnumber(L, RayHit.Position.z);
+		lua_rawseti(L, -2, 3);
+		return 1;
+	}
+	else
+	{
+		lua_pushnil(L);
+		return 1;
+	}
+}
+
+
 int LuaClearColor(lua_State* L)
 {
 	const char* ColorString = luaL_checklstring(L, 1, nullptr);
@@ -425,6 +533,12 @@ const luaL_Reg LuaSDFType[] = \
 	{ "blend_union", LuaBlendOperator<SetFamily::Union> },
 	{ "blend_inter", LuaBlendOperator<SetFamily::Inter> },
 	{ "blend_diff", LuaBlendOperator<SetFamily::Diff> },
+
+	{ "eval", LuaEval },
+	{ "gradient", LuaGradient },
+	{ "pick_color", LuaPickColor },
+	{ "ray_cast", LuaRayCast<false> },
+	{ "magnet", LuaRayCast<true> },
 
 	{ "set_bg", LuaClearColor },
 	{ "set_fixed_camera", LuaFixedCamera },
