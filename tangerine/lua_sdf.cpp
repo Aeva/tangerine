@@ -140,6 +140,20 @@ int LuaRotateZ(lua_State* L)
 }
 
 
+int LuaQuatate(lua_State* L)
+{
+	glm::quat Quat(
+		(float)luaL_checknumber(L, 5),
+		(float)luaL_checknumber(L, 2),
+		(float)luaL_checknumber(L, 3),
+		(float)luaL_checknumber(L, 4));
+	SDFNode* Node = GetSDFNode(L, 1);
+	SDFNode* NewNode = Node->Copy();
+	NewNode->Rotate(Quat);
+	return WrapSDFNode(L, NewNode);
+}
+
+
 template <bool Force>
 int LuaPaint(lua_State* L)
 {
@@ -524,6 +538,7 @@ const luaL_Reg LuaSDFType[] = \
 	{ "rotate_x", LuaRotateX },
 	{ "rotate_y", LuaRotateY },
 	{ "rotate_z", LuaRotateZ },
+	{ "quatate", LuaQuatate },
 
 	{ "paint", LuaPaint<false> },
 	{ "paint_over", LuaPaint<true> },
