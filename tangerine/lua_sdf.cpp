@@ -143,9 +143,19 @@ int LuaRotateZ(lua_State* L)
 template <bool Force>
 int LuaPaint(lua_State* L)
 {
-	const char* ColorString = luaL_checklstring(L, 2, nullptr);
 	glm::vec3 Color;
-	StatusCode Result = ParseColor(ColorString, Color);
+	if (lua_isnumber(L, 2))
+	{
+		Color = glm::vec3(
+			(float)luaL_checknumber(L, 2),
+			(float)luaL_checknumber(L, 3),
+			(float)luaL_checknumber(L, 4));
+	}
+	else
+	{
+		const char* ColorString = luaL_checklstring(L, 2, nullptr);
+		StatusCode Result = ParseColor(ColorString, Color);
+	}
 	SDFNode* Node = GetSDFNode(L, 1);
 	SDFNode* NewNode = Node->Copy();
 	NewNode->ApplyMaterial(Color, Force);
