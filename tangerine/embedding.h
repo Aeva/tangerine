@@ -38,6 +38,9 @@ enum class Language
 
 struct ScriptEnvironment
 {
+	bool CanAdvance = false;
+	virtual void Advance(double DeltaTimeMs, double ElapsedTimeMs) {};
+
 	virtual Language GetLanguage() = 0;
 	virtual void LoadFromPath(std::string Path) = 0;
 	virtual void LoadFromString(std::string Source) = 0;

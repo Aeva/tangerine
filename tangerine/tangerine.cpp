@@ -1958,6 +1958,31 @@ void MainLoop()
 					}
 				}
 				EndEvent();
+
+				if (MainEnvironment->CanAdvance)
+				{
+					BeginEvent("Advance");
+					double DeltaTime;
+					double ElapsedTime;
+					{
+						Clock::time_point CurrentTimePoint = Clock::now();
+						static Clock::time_point OriginTimePoint = CurrentTimePoint;
+						static Clock::time_point LastTimePoint = CurrentTimePoint;
+						{
+							std::chrono::duration<double, std::milli> FrameDelta = CurrentTimePoint - LastTimePoint;
+							DeltaTime = double(FrameDelta.count());
+						}
+						{
+							std::chrono::duration<double, std::milli> EpochDelta = CurrentTimePoint - OriginTimePoint;
+							ElapsedTime = double(EpochDelta.count());
+						}
+						LastTimePoint = CurrentTimePoint;
+					}
+					MainEnvironment->Advance(DeltaTime, ElapsedTime);
+					RequestDraw = true;
+					EndEvent();
+				}
+
 				if (RequestDraw)
 				{
 					{

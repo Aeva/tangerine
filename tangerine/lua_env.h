@@ -30,6 +30,8 @@ struct LuaEnvironment : public ScriptEnvironment
 		return Language::Lua;
 	}
 
+	virtual void Advance(double DeltaTimeMs, double ElapsedTimeMs);
+
 	virtual void LoadFromPath(std::string Path);
 	virtual void LoadFromString(std::string Source);
 	virtual ~LuaEnvironment();

@@ -23,16 +23,57 @@
 #include <filesystem>
 
 
+int LuaSetAdvanceEvent(lua_State* L)
+{
+	luaL_checktype(L, 1, LUA_TFUNCTION);
+	lua_setfield(L, LUA_REGISTRYINDEX, "tangerine.event.advance");
+
+	lua_getfield(L, LUA_REGISTRYINDEX, "tangerine.env");
+	LuaEnvironment* Environment = (LuaEnvironment*)lua_touserdata(L, 1);
+	Environment->CanAdvance = true;
+
+	return 0;
+}
+
+
+const luaL_Reg LuaEnvReg[] = \
+{
+	{ "set_advance_event", LuaSetAdvanceEvent },
+
+	{ NULL, NULL }
+};
+
+
+int LuaOpenEnv(lua_State* L)
+{
+	luaL_newlib(L, LuaEnvReg);
+	return 1;
+}
+
+
 LuaEnvironment::LuaEnvironment()
 {
 	L = luaL_newstate();
 	luaL_openlibs(L);
-	luaL_requiref(L, "tangerine", LuaOpenSDF, 1);
+
+	lua_pushlightuserdata(L, this);
+	lua_setfield(L, LUA_REGISTRYINDEX, "tangerine.env");
+
+	luaL_requiref(L, "tangerine_sdf", LuaOpenSDF, 1);
+	luaL_requiref(L, "tangerine_env", LuaOpenEnv, 1);
 
 	const char* Source = \
-		"for key, value in next, tangerine do\n"
-		"	_ENV[key] = tangerine[key]\n"
-		"end\n";
+		"tangerine = {}\n"
+		"for key, value in next, tangerine_sdf do\n"
+		"	_ENV[key] = tangerine_sdf[key]\n"
+		"	tangerine[key] = tangerine_sdf[key]\n"
+		"end\n"
+		"for key, value in next, tangerine_env do\n"
+		"	_ENV[key] = tangerine_env[key]\n"
+		"	tangerine[key] = tangerine_env[key]\n"
+		"end\n"
+		"tangerine_sdf = nil\n"
+		"tangerine_env = nil\n";
 
 	int Error = luaL_dostring(L, Source);
 	Assert(Error == 0);
@@ -42,6 +83,15 @@ LuaEnvironment::LuaEnvironment()
 LuaEnvironment::~LuaEnvironment()
 {
 	lua_close(L);
+}
+
+
+void LuaEnvironment::Advance(double DeltaTimeMs, double ElapsedTimeMs)
+{
+	lua_getfield(L, LUA_REGISTRYINDEX, "tangerine.event.advance");
+	lua_pushnumber(L, DeltaTimeMs);
+	lua_pushnumber(L, ElapsedTimeMs);
+	lua_call(L, 2, 0);
 }
 
 
