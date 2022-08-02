@@ -30,7 +30,7 @@ void UnloadAllModels()
 {
 	for (SDFModel* Model : LiveModels)
 	{
-		delete Model;
+		Model->Release();
 	}
 	LiveModels.clear();
 }
@@ -102,6 +102,10 @@ SDFModel::SDFModel(SDFNode* InEvaluator, const float VoxelSize)
 	Evaluator = InEvaluator;
 	Compile(VoxelSize);
 
+	LocalToWorld = glm::identity<glm::mat4>();
+	TransformBuffer.DebugName = "Instance Transforms Buffer";
+
+	this->Hold();
 	LiveModels.push_back(this);
 }
 
@@ -119,6 +123,8 @@ SDFModel::SDFModel(SDFModel&& Other)
 
 SDFModel::~SDFModel()
 {
+	Assert(RefCount == 0);
+
 	// If the Evaluator is nullptr, then this SDFModel was moved into a new instance, and less stuff needs to be deleted.
 	if (Evaluator)
 	{

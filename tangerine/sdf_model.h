@@ -23,6 +23,9 @@ struct SDFModel
 {
 	SDFNode* Evaluator = nullptr;
 
+	glm::mat4 LocalToWorld;
+	Buffer TransformBuffer;
+
 	std::map<std::string, size_t> ProgramTemplateSourceMap;
 	std::vector<ProgramTemplate> ProgramTemplates;
 
@@ -43,11 +46,30 @@ struct SDFModel
 	SDFModel(SDFModel&& Other);
 	~SDFModel();
 
+	void Hold()
+	{
+		++RefCount;
+	}
+
+	void Release()
+	{
+		Assert(RefCount > 0);
+		--RefCount;
+		if (RefCount == 0)
+		{
+			TransformBuffer.Release();
+			delete this;
+		}
+	}
+
 private:
 	void Compile(const float VoxelSize);
 	size_t AddProgramTemplate(std::string Source, std::string Pretty, int LeafCount);
 	void AddProgramVariant(size_t ShaderIndex, uint32_t SubtreeIndex, const std::vector<float>& Params, const std::vector<AABB>& Voxels);
 	ProgramBuffer* PendingVoxels = nullptr;
+
+protected:
+	size_t RefCount = 0;
 };
 
 

@@ -32,10 +32,8 @@ Buffer OctreeDebugOptions("Octree Debug Options Buffer");
 
 
 
-VoxelBuffer::VoxelBuffer(glm::mat4 LocalToWorld, glm::vec4 Center, glm::vec4 Extent)
+VoxelBuffer::VoxelBuffer(glm::vec4 Center, glm::vec4 Extent)
 {
-	SectionData.LocalToWorld = LocalToWorld;
-	SectionData.WorldToLocal = glm::inverse(LocalToWorld);
 	SectionData.Center = Center;
 	SectionData.Extent = Extent;
 
@@ -159,6 +157,11 @@ void ProgramTemplate::Release()
 }
 
 
+struct TransformUpload
+{
+	glm::mat4 LocalToWorld;
+	glm::mat4 WorldToLocal;
+};
 
 
 void SDFModel::Draw(
@@ -168,6 +171,14 @@ void SDFModel::Draw(
 	ShaderProgram* DebugShader)
 {
 	int NextOctreeID = 0;
+
+	TransformUpload TransformData =
+	{
+		LocalToWorld,
+		glm::inverse(LocalToWorld)
+	};
+	TransformBuffer.Upload((void*)&TransformData, sizeof(TransformUpload));
+	TransformBuffer.Bind(GL_UNIFORM_BUFFER, 1);
 
 	for (ProgramTemplate* ProgramFamily : CompiledTemplates)
 	{

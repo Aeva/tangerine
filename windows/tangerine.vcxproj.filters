@@ -477,6 +477,9 @@
     <None Include="..\third_party\licenses.inl">
       <Filter>Third Party</Filter>
     </None>
+    <None Include="..\shaders\octree_debug.fs.glsl">
+      <Filter>Shaders</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="tangerine.rc" />

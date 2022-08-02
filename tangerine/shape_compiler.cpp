@@ -213,10 +213,9 @@ void SDFModel::AddProgramVariant(size_t ShaderIndex, uint32_t SubtreeIndex, cons
 	ProgramBuffer& Program = ProgramTemplates[ShaderIndex].ProgramVariants.back();
 	for (const AABB& Bounds : Voxels)
 	{
-		glm::mat4 LocalToWorld = glm::identity<glm::mat4>();
 		glm::vec3 Extent = (Bounds.Max - Bounds.Min) * glm::vec3(0.5);
 		glm::vec3 Center = Extent + Bounds.Min;
-		Program.Voxels.emplace_back(LocalToWorld, glm::vec4(Center, 0.0), glm::vec4(Extent, 0.0));
+		Program.Voxels.emplace_back(glm::vec4(Center, 0.0), glm::vec4(Extent, 0.0));
 	}
 }
 

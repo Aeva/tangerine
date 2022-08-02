@@ -26,8 +26,6 @@ struct VoxelBuffer
 {
 	struct VoxelUpload
 	{
-		glm::mat4 LocalToWorld;
-		glm::mat4 WorldToLocal;
 		glm::vec4 Center;
 		glm::vec4 Extent;
 	};
@@ -35,7 +33,7 @@ struct VoxelBuffer
 	VoxelUpload SectionData;
 	Buffer SectionBuffer;
 
-	VoxelBuffer(glm::mat4 LocalToWorld, glm::vec4 Center, glm::vec4 Extent);
+	VoxelBuffer(glm::vec4 Center, glm::vec4 Extent);
 	void Bind(GLenum Target, GLuint BindingIndex);
 	void Release();
 };

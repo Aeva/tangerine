@@ -315,6 +315,7 @@
     <None Include="..\shaders\masked.vs.glsl" />
     <None Include="..\shaders\math.glsl" />
     <None Include="..\shaders\noise.fs.glsl" />
+    <None Include="..\shaders\octree_debug.fs.glsl" />
     <None Include="..\shaders\outliner.fs.glsl" />
     <None Include="..\shaders\resolve.fs.glsl" />
     <None Include="..\shaders\splat.vs.glsl" />

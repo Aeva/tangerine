@@ -34,11 +34,17 @@ uniform ViewInfoBlock
 // NOTE: SSBO binding 0 is reserved for generated parameters.
 
 
-layout(std140, binding = 2)
+layout(std140, binding = 1)
 uniform InstanceDataBlock
 {
-	mat4 WorldToLocal;
 	mat4 LocalToWorld;
+	mat4 WorldToLocal;
+};
+
+
+layout(std140, binding = 2)
+uniform VoxelDataBlock
+{
 	AABB Bounds;
 };
 
