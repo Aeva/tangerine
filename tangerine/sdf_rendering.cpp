@@ -170,6 +170,11 @@ void SDFModel::Draw(
 	const bool ShowHeatmap,
 	ShaderProgram* DebugShader)
 {
+	if (!Visible)
+	{
+		return;
+	}
+
 	int NextOctreeID = 0;
 
 	TransformUpload TransformData =

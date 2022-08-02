@@ -23,6 +23,7 @@ struct SDFModel
 {
 	SDFNode* Evaluator = nullptr;
 
+	bool Visible = true;
 	glm::mat4 LocalToWorld;
 	Buffer TransformBuffer;
 

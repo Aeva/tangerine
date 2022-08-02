@@ -15,6 +15,7 @@
 
 #include "lua_sdf.h"
 #if EMBED_LUA
+#include "sdf_model.h"
 
 #include <string.h>
 #include <random>
@@ -32,6 +33,13 @@ SDFNode* GetSDFNode(lua_State* L, int Arg)
 {
 	SDFNode** Node = (SDFNode**)luaL_checkudata(L, Arg, "tangerine.sdf");
 	return *Node;
+}
+
+
+SDFModel* GetSDFModel(lua_State* L, int Arg)
+{
+	SDFModel** Model = (SDFModel**)luaL_checkudata(L, Arg, "tangerine.model");
+	return *Model;
 }
 
 
@@ -526,6 +534,20 @@ int LuaShuffleSequence(lua_State* L)
 }
 
 
+int LuaInstanceModel(lua_State* L)
+{
+	SDFNode* Evaluator = GetSDFNode(L, 1);
+	SDFModel* NewModel = new SDFModel(Evaluator, 0.25);
+
+	SDFModel** Wrapper = (SDFModel**)lua_newuserdata(L, sizeof(SDFModel*));
+	luaL_getmetatable(L, "tangerine.model");
+	lua_setmetatable(L, -2);
+	*Wrapper = NewModel;
+	NewModel->Hold();
+	return 1;
+}
+
+
 const luaL_Reg LuaSDFType[] = \
 {
 	{ "move", LuaMove },
@@ -572,6 +594,8 @@ const luaL_Reg LuaSDFType[] = \
 	{ "random", LuaRandom },
 	{ "shuffle_sequence", LuaShuffleSequence },
 
+	{ "instance", LuaInstanceModel },
+
 	{ NULL, NULL }
 };
 
@@ -617,8 +641,74 @@ const luaL_Reg LuaSDFMeta[] = \
 };
 
 
+int LuaHideModel(lua_State* L)
+{
+	SDFModel* Self = GetSDFModel(L, 1);
+	Self->Visible = false;
+	return 1;
+};
+
+
+int LuaShowModel(lua_State* L)
+{
+	SDFModel* Self = GetSDFModel(L, 1);
+	Self->Visible = true;
+	return 1;
+};
+
+
+const luaL_Reg LuaModelType[] = \
+{
+	{ "hide", LuaHideModel },
+	{ "show", LuaShowModel },
+
+	{ NULL, NULL }
+};
+
+
+int IndexSDFModel(lua_State* L)
+{
+	SDFModel* Self = GetSDFModel(L, 1);
+	const char* Key = luaL_checklstring(L, 2, nullptr);
+
+	for (const luaL_Reg& Reg : LuaModelType)
+	{
+		if (Reg.name && strcmp(Reg.name, Key) == 0)
+		{
+			lua_pushcfunction(L, Reg.func);
+			break;
+		}
+		else if (!Reg.name)
+		{
+			lua_pushnil(L);
+		}
+	}
+
+	return 1;
+}
+
+
+int SDFModelGC(lua_State* L)
+{
+	SDFModel* Self = GetSDFModel(L, 1);
+	Self->Release();
+	return 0;
+}
+
+
+const luaL_Reg LuaModelMeta[] = \
+{
+	{ "__index", IndexSDFModel },
+	{ "__gc", SDFModelGC },
+	{ NULL, NULL }
+};
+
+
 int LuaOpenSDF(lua_State* L)
 {
+	luaL_newmetatable(L, "tangerine.model");
+	luaL_setfuncs(L, LuaModelMeta, 0);
+
 	luaL_newmetatable(L, "tangerine.sdf");
 	luaL_setfuncs(L, LuaSDFMeta, 0);
 	luaL_newlib(L, LuaSDFType);
