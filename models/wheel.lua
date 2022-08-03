@@ -101,10 +101,26 @@ function wheel (angle)
 		tire()
 		:union(
 			hub())
-		:rotate_z(angle)
+		:instance()
+		--:rotate_z(angle)
 end
 
 
-model = union(
-			wheel(-90):move_x(1),
-			wheel(-10):move_x(-1.3))
+-- Wheel model instances
+wheel_a = wheel(-90):move_x(1)
+wheel_b = wheel(-10)
+
+
+set_advance_event(function (dt, elapsed)
+	wheel_a
+	:reset_transform()
+	:rotate_x(elapsed * 1.5)
+	:rotate_z(-90)
+	:move_x(1)
+
+	wheel_b
+	:reset_transform()
+	:rotate_x(elapsed * 1.5)
+	:rotate_z(-10)
+	:move_x(-1.3)
+end)

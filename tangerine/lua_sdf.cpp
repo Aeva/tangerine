@@ -665,6 +665,7 @@ int LuaModelMove(lua_State* L)
 		(float)luaL_checknumber(L, 3),
 		(float)luaL_checknumber(L, 4));
 	Self->Transform.Move(Offset);
+	lua_pop(L, 3);
 	return 1;
 }
 
@@ -677,6 +678,7 @@ int LuaModelMoveX(lua_State* L)
 		0.0,
 		0.0);
 	Self->Transform.Move(Offset);
+	lua_pop(L, 1);
 	return 1;
 }
 
@@ -689,6 +691,7 @@ int LuaModelMoveY(lua_State* L)
 		(float)luaL_checknumber(L, 2),
 		0.0);
 	Self->Transform.Move(Offset);
+	lua_pop(L, 1);
 	return 1;
 }
 
@@ -701,6 +704,7 @@ int LuaModelMoveZ(lua_State* L)
 		0.0,
 		(float)luaL_checknumber(L, 2));
 	Self->Transform.Move(Offset);
+	lua_pop(L, 1);
 	return 1;
 }
 
@@ -714,6 +718,7 @@ int LuaModelRotate(lua_State* L)
 		(float)luaL_checknumber(L, 3),
 		(float)luaL_checknumber(L, 4));
 	Self->Transform.Rotate(Quat);
+	lua_pop(L, 4);
 	return 1;
 }
 
@@ -726,6 +731,7 @@ int LuaModelRotateX(lua_State* L)
 	float S = sin(R);
 	float C = cos(R);
 	Self->Transform.Rotate(glm::quat(C, S, 0, 0));
+	lua_pop(L, 1);
 	return 1;
 }
 
@@ -738,6 +744,7 @@ int LuaModelRotateY(lua_State* L)
 	float S = sin(R);
 	float C = cos(R);
 	Self->Transform.Rotate(glm::quat(C, 0, S, 0));
+	lua_pop(L, 1);
 	return 1;
 }
 
@@ -750,6 +757,7 @@ int LuaModelRotateZ(lua_State* L)
 	float S = sin(R);
 	float C = cos(R);
 	Self->Transform.Rotate(glm::quat(C, 0, 0, S));
+	lua_pop(L, 1);
 	return 1;
 }
 

@@ -112,10 +112,6 @@ void LuaEnvironment::LoadLuaModelCommon(int Error)
 			SDFNode* Model = *(SDFNode**)LuaData;
 			CompileEvaluator(Model);
 		}
-		else
-		{
-			PostScriptError("Invalid Model");
-		}
 		lua_pop(L, 1);
 	}
 }
