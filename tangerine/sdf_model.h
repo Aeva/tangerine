@@ -24,7 +24,7 @@ struct SDFModel
 	SDFNode* Evaluator = nullptr;
 
 	bool Visible = true;
-	glm::mat4 LocalToWorld;
+	TransformMachine Transform;
 	Buffer TransformBuffer;
 
 	std::map<std::string, size_t> ProgramTemplateSourceMap;

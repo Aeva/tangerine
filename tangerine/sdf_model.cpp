@@ -102,7 +102,6 @@ SDFModel::SDFModel(SDFNode* InEvaluator, const float VoxelSize)
 	Evaluator = InEvaluator;
 	Compile(VoxelSize);
 
-	LocalToWorld = glm::identity<glm::mat4>();
 	TransformBuffer.DebugName = "Instance Transforms Buffer";
 
 	LiveModels.push_back(this);

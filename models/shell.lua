@@ -73,7 +73,7 @@ function shell_segment (alpha, z, quat)
 		return
 			node
 			:rotate_x(90)
-			:quatate(table.unpack(quat))
+			:rotate(table.unpack(quat))
 			:move(table.unpack(offset))
 	end
 

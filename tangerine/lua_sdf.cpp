@@ -148,7 +148,7 @@ int LuaRotateZ(lua_State* L)
 }
 
 
-int LuaQuatate(lua_State* L)
+int LuaRotate(lua_State* L)
 {
 	glm::quat Quat(
 		(float)luaL_checknumber(L, 5),
@@ -557,10 +557,10 @@ const luaL_Reg LuaSDFType[] = \
 
 	{ "align", LuaAlign },
 
+	{ "rotate", LuaRotate },
 	{ "rotate_x", LuaRotateX },
 	{ "rotate_y", LuaRotateY },
 	{ "rotate_z", LuaRotateZ },
-	{ "quatate", LuaQuatate },
 
 	{ "paint", LuaPaint<false> },
 	{ "paint_over", LuaPaint<true> },
@@ -657,10 +657,127 @@ int LuaShowModel(lua_State* L)
 };
 
 
+int LuaModelMove(lua_State* L)
+{
+	SDFModel* Self = GetSDFModel(L, 1);
+	glm::vec3 Offset(
+		(float)luaL_checknumber(L, 2),
+		(float)luaL_checknumber(L, 3),
+		(float)luaL_checknumber(L, 4));
+	Self->Transform.Move(Offset);
+	return 1;
+}
+
+
+int LuaModelMoveX(lua_State* L)
+{
+	SDFModel* Self = GetSDFModel(L, 1);
+	glm::vec3 Offset(
+		(float)luaL_checknumber(L, 2),
+		0.0,
+		0.0);
+	Self->Transform.Move(Offset);
+	return 1;
+}
+
+
+int LuaModelMoveY(lua_State* L)
+{
+	SDFModel* Self = GetSDFModel(L, 1);
+	glm::vec3 Offset(
+		0.0,
+		(float)luaL_checknumber(L, 2),
+		0.0);
+	Self->Transform.Move(Offset);
+	return 1;
+}
+
+
+int LuaModelMoveZ(lua_State* L)
+{
+	SDFModel* Self = GetSDFModel(L, 1);
+	glm::vec3 Offset(
+		0.0,
+		0.0,
+		(float)luaL_checknumber(L, 2));
+	Self->Transform.Move(Offset);
+	return 1;
+}
+
+
+int LuaModelRotate(lua_State* L)
+{
+	SDFModel* Self = GetSDFModel(L, 1);
+	glm::quat Quat(
+		(float)luaL_checknumber(L, 5),
+		(float)luaL_checknumber(L, 2),
+		(float)luaL_checknumber(L, 3),
+		(float)luaL_checknumber(L, 4));
+	Self->Transform.Rotate(Quat);
+	return 1;
+}
+
+
+int LuaModelRotateX(lua_State* L)
+{
+	SDFModel* Self = GetSDFModel(L, 1);
+	float Degrees = (float)luaL_checknumber(L, 2);
+	float R = glm::radians(Degrees) * .5;
+	float S = sin(R);
+	float C = cos(R);
+	Self->Transform.Rotate(glm::quat(C, S, 0, 0));
+	return 1;
+}
+
+
+int LuaModelRotateY(lua_State* L)
+{
+	SDFModel* Self = GetSDFModel(L, 1);
+	float Degrees = (float)luaL_checknumber(L, 2);
+	float R = glm::radians(Degrees) * .5;
+	float S = sin(R);
+	float C = cos(R);
+	Self->Transform.Rotate(glm::quat(C, 0, S, 0));
+	return 1;
+}
+
+
+int LuaModelRotateZ(lua_State* L)
+{
+	SDFModel* Self = GetSDFModel(L, 1);
+	float Degrees = (float)luaL_checknumber(L, 2);
+	float R = glm::radians(Degrees) * .5;
+	float S = sin(R);
+	float C = cos(R);
+	Self->Transform.Rotate(glm::quat(C, 0, 0, S));
+	return 1;
+}
+
+
+int LuaModelResetTransform(lua_State* L)
+{
+	SDFModel* Self = GetSDFModel(L, 1);
+	Self->Transform.Reset();
+	return 1;
+}
+
+
 const luaL_Reg LuaModelType[] = \
 {
 	{ "hide", LuaHideModel },
 	{ "show", LuaShowModel },
+
+	{ "move", LuaModelMove },
+	{ "move_x", LuaModelMoveX },
+	{ "move_y", LuaModelMoveY },
+	{ "move_z", LuaModelMoveZ },
+
+	{ "rotate", LuaModelRotate },
+	{ "rotate_x", LuaModelRotateX },
+	{ "rotate_y", LuaModelRotateY },
+	{ "rotate_z", LuaModelRotateZ },
+
+	{ "reset_transform", LuaModelResetTransform },
 
 	{ NULL, NULL }
 };

@@ -177,10 +177,10 @@ void SDFModel::Draw(
 
 	int NextOctreeID = 0;
 
-	TransformUpload TransformData =
-	{
-		LocalToWorld,
-		glm::inverse(LocalToWorld)
+	Transform.Fold();
+	TransformUpload TransformData = {
+		Transform.LastFold,
+		Transform.LastFoldInverse
 	};
 	TransformBuffer.Upload((void*)&TransformData, sizeof(TransformUpload));
 	TransformBuffer.Bind(GL_UNIFORM_BUFFER, 1);

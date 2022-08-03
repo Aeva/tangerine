@@ -121,242 +121,224 @@ std::string MakeParamList(int Offset, int Count)
 // The following structs are used to implement executable signed distance
 // functions, to be constructed indirectly from Racket.
 
-
-struct TransformMachine
+TransformMachine::TransformMachine()
 {
-	enum class State
+	Reset();
+}
+
+void TransformMachine::Reset()
+{
+	FoldState = State::Identity;
+	LastFold = identity<mat4>();
+	LastFoldInverse = identity<mat4>();
+	OffsetPending = false;
+	OffsetRun = vec3(0.0);
+	RotatePending = false;
+	RotateRun = identity<quat>();
+}
+
+void TransformMachine::FoldOffset()
+{
+	FoldState = (State)max((int)FoldState, (int)State::Offset);
+	LastFoldInverse = translate(LastFoldInverse, OffsetRun);
+	LastFold = inverse(LastFoldInverse);
+	OffsetRun = vec3(0.0);
+	OffsetPending = false;
+	FoldState = (State)max((int)FoldState, (int)State::Offset);
+}
+
+void TransformMachine::FoldRotation()
+{
+	LastFoldInverse *= transpose(toMat4(RotateRun));
+	LastFold = inverse(LastFoldInverse);
+	RotateRun = identity<quat>();
+	RotatePending = false;
+	FoldState = (State)max((int)FoldState, (int)State::Matrix);
+}
+
+void TransformMachine::Fold()
+{
+	if (RotatePending)
 	{
-		Identity = 0,
-		Offset = 1,
-		Matrix = 2
+		FoldRotation();
+	}
+	else if (OffsetPending)
+	{
+		FoldOffset();
+	}
+}
+
+void TransformMachine::Move(vec3 Offset)
+{
+	if (RotatePending)
+	{
+		FoldRotation();
+	}
+	OffsetRun -= Offset;
+	OffsetPending = true;
+}
+
+void TransformMachine::Rotate(quat Rotation)
+{
+	if (OffsetPending)
+	{
+		FoldOffset();
+	}
+	RotateRun = Rotation * RotateRun;
+	RotatePending = true;
+}
+
+vec3 TransformMachine::ApplyInverse(vec3 Point)
+{
+	Fold();
+	vec4 Tmp = LastFoldInverse * vec4(Point, 1.0);
+	return Tmp.xyz / Tmp.www;
+}
+
+vec3 TransformMachine::Apply(vec3 Point)
+{
+	Fold();
+	vec4 Tmp = LastFold * vec4(Point, 1.0);
+	return Tmp.xyz / Tmp.www;
+}
+
+AABB TransformMachine::Apply(const AABB InBounds)
+{
+	Fold();
+	switch (FoldState)
+	{
+	case State::Identity:
+		return InBounds;
+
+	case State::Offset:
+		return ApplyOffset(InBounds);
+
+	case State::Matrix:
+		return ApplyMatrix(InBounds);
+	}
+	UNREACHABLE();
+}
+
+std::string TransformMachine::Compile(const bool WithOpcodes, std::vector<float>& TreeParams, std::string Point)
+{
+	Fold();
+	switch (FoldState)
+	{
+	case State::Identity:
+		return Point;
+
+	case State::Offset:
+		return CompileOffset(WithOpcodes, TreeParams, Point);
+
+	case State::Matrix:
+		return CompileMatrix(WithOpcodes, TreeParams, Point);
+	}
+	UNREACHABLE();
+}
+
+std::string TransformMachine::Pretty(std::string Brush)
+{
+	Fold();
+	switch (FoldState)
+	{
+	case State::Identity:
+		return Brush;
+
+	case State::Offset:
+		return fmt::format("Move({})", Brush);
+
+	case State::Matrix:
+		return fmt::format("Matrix({})", Brush);
+	}
+	UNREACHABLE();
+}
+
+bool TransformMachine::operator==(TransformMachine& Other)
+{
+	Fold();
+	Other.Fold();
+	if (FoldState == Other.FoldState)
+	{
+		if (FoldState == State::Identity)
+		{
+			return true;
+		}
+		else
+		{
+			return LastFold == Other.LastFold;
+		}
+	}
+	return false;
+}
+
+AABB TransformMachine::ApplyOffset(const AABB InBounds)
+{
+	vec3 Offset = LastFold[3].xyz;
+	return {
+		InBounds.Min + Offset,
+		InBounds.Max + Offset
 	};
+}
 
-	State FoldState;
+AABB TransformMachine::ApplyMatrix(const AABB InBounds)
+{
+	const vec3 A = InBounds.Min;
+	const vec3 B = InBounds.Max;
 
-	mat4 LastFold;
-	mat4 LastFoldInverse;
-
-	bool OffsetPending;
-	vec3 OffsetRun;
-	bool RotatePending;
-	quat RotateRun;
-
-	TransformMachine()
-		: FoldState(State::Identity)
-		, LastFold(identity<mat4>())
-		, LastFoldInverse(identity<mat4>())
-		, OffsetPending(false)
-		, OffsetRun(vec3(0.0))
-		, RotatePending(false)
-		, RotateRun(identity<quat>())
+	const vec3 Points[7] = \
 	{
-	}
-
-	void FoldOffset()
-	{
-		FoldState = (State)max((int)FoldState, (int)State::Offset);
-		LastFoldInverse = translate(LastFoldInverse, OffsetRun);
-		LastFold = inverse(LastFoldInverse);
-		OffsetRun = vec3(0.0);
-		OffsetPending = false;
-		FoldState = (State)max((int)FoldState, (int)State::Offset);
-	}
-
-	void FoldRotation()
-	{
-		LastFoldInverse *= transpose(toMat4(RotateRun));
-		LastFold = inverse(LastFoldInverse);
-		RotateRun = identity<quat>();
-		RotatePending = false;
-		FoldState = (State)max((int)FoldState, (int)State::Matrix);
-	}
-
-	void Fold()
-	{
-		if (RotatePending)
-		{
-			FoldRotation();
-		}
-		else if (OffsetPending)
-		{
-			FoldOffset();
-		}
-	}
-
-	void Move(vec3 Offset)
-	{
-		if (RotatePending)
-		{
-			FoldRotation();
-		}
-		OffsetRun -= Offset;
-		OffsetPending = true;
-	}
-
-	void Rotate(quat Rotation)
-	{
-		if (OffsetPending)
-		{
-			FoldOffset();
-		}
-		RotateRun = Rotation * RotateRun;
-		RotatePending = true;
-	}
-
-	vec3 ApplyInverse(vec3 Point)
-	{
-		Fold();
-		vec4 Tmp = LastFoldInverse * vec4(Point, 1.0);
-		return Tmp.xyz / Tmp.www;
-	}
-
-	vec3 Apply(vec3 Point)
-	{
-		Fold();
-		vec4 Tmp = LastFold * vec4(Point, 1.0);
-		return Tmp.xyz / Tmp.www;
-	}
-
-	AABB Apply(const AABB InBounds)
-	{
-		Fold();
-		switch (FoldState)
-		{
-		case State::Identity:
-			return InBounds;
-
-		case State::Offset:
-			return ApplyOffset(InBounds);
-
-		case State::Matrix:
-			return ApplyMatrix(InBounds);
-		}
-		UNREACHABLE();
-	}
-
-	std::string Compile(const bool WithOpcodes, std::vector<float>& TreeParams, std::string Point)
-	{
-		Fold();
-		switch (FoldState)
-		{
-		case State::Identity:
-			return Point;
-
-		case State::Offset:
-			return CompileOffset(WithOpcodes, TreeParams, Point);
-
-		case State::Matrix:
-			return CompileMatrix(WithOpcodes, TreeParams, Point);
-		}
-		UNREACHABLE();
-	}
-
-	std::string Pretty(std::string Brush)
-	{
-		Fold();
-		switch (FoldState)
-		{
-		case State::Identity:
-			return Brush;
-
-		case State::Offset:
-			return fmt::format("Move({})", Brush);
-
-		case State::Matrix:
-			return fmt::format("Matrix({})", Brush);
-		}
-		UNREACHABLE();
-	}
-
-	bool operator==(TransformMachine& Other)
-	{
-		Fold();
-		Other.Fold();
-		if (FoldState == Other.FoldState)
-		{
-			if (FoldState == State::Identity)
-			{
-				return true;
-			}
-			else
-			{
-				return LastFold == Other.LastFold;
-			}
-		}
-		return false;
-	}
-
-private:
-
-	AABB ApplyOffset(const AABB InBounds)
-	{
-		vec3 Offset = LastFold[3].xyz;
-		return {
-			InBounds.Min + Offset,
-			InBounds.Max + Offset
-		};
-	}
-
-	AABB ApplyMatrix(const AABB InBounds)
-	{
-		const vec3 A = InBounds.Min;
-		const vec3 B = InBounds.Max;
-
-		const vec3 Points[7] = \
-		{
-			B,
+		B,
 			vec3(B.x, A.yz),
 			vec3(A.x, B.y, A.z),
 			vec3(A.xy, B.z),
 			vec3(A.x, B.yz),
 			vec3(B.x, A.y, B.z),
 			vec3(B.xy, A.z)
-		};
+	};
 
-		AABB Bounds;
-		Bounds.Min = Apply(A);
-		Bounds.Max = Bounds.Min;
+	AABB Bounds;
+	Bounds.Min = Apply(A);
+	Bounds.Max = Bounds.Min;
 
-		for (const vec3& Point : Points)
-		{
-			const vec3 Tmp = Apply(Point);
-			Bounds.Min = min(Bounds.Min, Tmp);
-			Bounds.Max = max(Bounds.Max, Tmp);
-		}
-
-		return Bounds;
-	}
-
-	std::string CompileOffset(const bool WithOpcodes, std::vector<float>& TreeParams, std::string Point)
+	for (const vec3& Point : Points)
 	{
-		if (WithOpcodes)
-		{
-			TreeParams.push_back(AsFloat(OPCODE_OFFSET));
-		}
-		const int Offset = TreeParams.size();
-		TreeParams.push_back(LastFold[3].x);
-		TreeParams.push_back(LastFold[3].y);
-		TreeParams.push_back(LastFold[3].z);
-		std::string Params = MakeParamList(Offset, 3);
-		return fmt::format("({} - vec3({}))", Point, Params);
+		const vec3 Tmp = Apply(Point);
+		Bounds.Min = min(Bounds.Min, Tmp);
+		Bounds.Max = max(Bounds.Max, Tmp);
 	}
 
-	std::string CompileMatrix(const bool WithOpcodes, std::vector<float>& TreeParams, std::string Point)
+	return Bounds;
+}
+
+std::string TransformMachine::CompileOffset(const bool WithOpcodes, std::vector<float>& TreeParams, std::string Point)
+{
+	if (WithOpcodes)
 	{
-		if (WithOpcodes)
-		{
-			TreeParams.push_back(AsFloat(OPCODE_MATRIX));
-		}
-		const int Offset = TreeParams.size();
-		for (int i = 0; i < 16; ++i)
-		{
-			float Cell = value_ptr(LastFoldInverse)[i];
-			TreeParams.push_back(Cell);
-		}
-		std::string Params = MakeParamList(Offset, 16);
-		return fmt::format("MatrixTransform({}, mat4({}))", Point, Params);
+		TreeParams.push_back(AsFloat(OPCODE_OFFSET));
 	}
-};
+	const int Offset = TreeParams.size();
+	TreeParams.push_back(LastFold[3].x);
+	TreeParams.push_back(LastFold[3].y);
+	TreeParams.push_back(LastFold[3].z);
+	std::string Params = MakeParamList(Offset, 3);
+	return fmt::format("({} - vec3({}))", Point, Params);
+}
+
+std::string TransformMachine::CompileMatrix(const bool WithOpcodes, std::vector<float>& TreeParams, std::string Point)
+{
+	if (WithOpcodes)
+	{
+		TreeParams.push_back(AsFloat(OPCODE_MATRIX));
+	}
+	const int Offset = TreeParams.size();
+	for (int i = 0; i < 16; ++i)
+	{
+		float Cell = value_ptr(LastFoldInverse)[i];
+		TreeParams.push_back(Cell);
+	}
+	std::string Params = MakeParamList(Offset, 16);
+	return fmt::format("MatrixTransform({}, mat4({}))", Point, Params);
+}
 
 
 template<typename ParamsT>
