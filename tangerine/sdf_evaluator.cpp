@@ -57,11 +57,38 @@ namespace SDFMath
 vec3 SDFNode::Gradient(vec3 Point)
 {
 	float AlmostZero = 0.0001;
-	float Dist = Eval(Point);
-	return normalize(vec3(
-		Eval(vec3(Point.x + AlmostZero, Point.y, Point.z)) - Dist,
-		Eval(vec3(Point.x, Point.y + AlmostZero, Point.z)) - Dist,
-		Eval(vec3(Point.x, Point.y, Point.z + AlmostZero)) - Dist));
+	vec2 Offset = vec2(1.0, -1.0) * vec2(AlmostZero);
+
+#if 1
+	// Tetrahedral method
+	vec3 Gradient =
+		Offset.xyy * Eval(Point + Offset.xyy) +
+		Offset.yyx * Eval(Point + Offset.yyx) +
+		Offset.yxy * Eval(Point + Offset.yxy) +
+		Offset.xxx * Eval(Point + Offset.xxx);
+
+#else
+	// Central differences method
+	vec3 Gradient(
+		Eval(Point + Offset.xyy) - Eval(Point - Offset.xyy),
+		Eval(Point + Offset.yxy) - Eval(Point - Offset.yxy),
+		Eval(Point + Offset.yyx) - Eval(Point - Offset.yyx));
+#endif
+
+	float LengthSquared = dot(Gradient, Gradient);
+	if (LengthSquared == 0.0)
+	{
+		// Gradient is zero.  Let's try again with a worse method.
+		float Dist = Eval(Point);
+		return normalize(vec3(
+			Eval(Point + Offset.xyy) - Dist,
+			Eval(Point + Offset.yxy) - Dist,
+			Eval(Point + Offset.yyx) - Dist));
+	}
+	else
+	{
+		return Gradient / sqrt(LengthSquared);
+	}
 }
 
 
