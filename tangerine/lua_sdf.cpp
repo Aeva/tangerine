@@ -440,6 +440,151 @@ int LuaRayCast(lua_State* L)
 }
 
 
+int LuaPivotTowards(lua_State* L)
+{
+	SDFNode* Node = GetSDFNode(L, 1);
+
+	float MaxDist = (float)luaL_checknumber(L, 2);
+	float Margin = (float)luaL_checknumber(L, 3);
+	float MaxAngle = glm::radians((float)luaL_checknumber(L, 4));
+
+	glm::vec3 Pivot(
+		(float)luaL_checknumber(L, 5),
+		(float)luaL_checknumber(L, 6),
+		(float)luaL_checknumber(L, 7));
+
+	glm::vec3 Heading(
+		(float)luaL_checknumber(L, 8),
+		(float)luaL_checknumber(L, 9),
+		(float)luaL_checknumber(L, 10));
+
+	glm::vec3 Down(
+		(float)luaL_checknumber(L, 11),
+		(float)luaL_checknumber(L, 12),
+		(float)luaL_checknumber(L, 13));
+
+	glm::vec3 Tail;
+	glm::vec3 Axis;
+
+	// Normalize the heading.
+	{
+		float HeadingLen = glm::length(Heading);
+		if (HeadingLen == 0.0 || glm::isnan(HeadingLen) || glm::isinf(HeadingLen))
+		{
+			// The heading is invalid, so return the pivot and a zero heading.
+			Tail = Pivot;
+			Heading = glm::vec3(0.0, 0.0, 0.0);
+			goto finish;
+		}
+		else
+		{
+			Heading /= HeadingLen;
+		}
+	}
+
+	// Normalize the down vector.
+	{
+		float DownLen = glm::length(Down);
+		if (DownLen == 0.0 || glm::isnan(DownLen) || glm::isinf(DownLen))
+		{
+			// Down vector is invalid, so just use negative z.
+			Down = glm::vec3(0, 0, -1);
+		}
+		else
+		{
+			Down /= DownLen;
+		}
+	}
+
+	// Set the start position.
+	Tail = Heading * MaxDist + Pivot;
+
+	// Try to find a pivot axis vector
+	Axis = glm::cross(Heading, Down);
+	{
+		float AxisLen = glm::length(Axis);
+		if (AxisLen == 0.0)
+		{
+			// Are we already at the rest position?
+			if (glm::distance(Down, Heading) <= 0.001)
+			{
+				Heading = Down;
+				goto finish;
+			}
+			else
+			{
+				// The normal is antiparallel to the down vector, so just pick a random pivot.
+				while (AxisLen == 0.0)
+				{
+					std::uniform_real_distribution<double> Roll(-1.0, std::nextafter(1.0, DBL_MAX));
+					Axis = glm::cross(glm::normalize(glm::vec3(Roll(RNGesus), Roll(RNGesus), Roll(RNGesus))), Down);
+					AxisLen = glm::length(Axis);
+				}
+			}
+		}
+	}
+
+	// The rotation axis is probably valid now :D
+	Axis = glm::normalize(Axis);
+	{
+		float Dist;
+		const glm::vec3 Start = Tail;
+		float RemainingMaxAngle = MaxAngle;
+		const float Fnord = MaxDist * MaxDist * 2;
+		while (true)
+		{
+			Dist = Node->Eval(Tail);
+			if (Dist <= Margin)
+			{
+				break;
+			}
+
+			Dist = glm::min(abs(Dist), MaxDist);
+
+			float Cosine = abs((Fnord - Dist * Dist) / Fnord);
+			float MaybeAngle = glm::acos(Cosine);
+			float MaxDownward = abs(glm::acos(glm::dot(glm::normalize(Tail - Pivot), Down)));
+			float Angle = glm::min(RemainingMaxAngle, glm::min(MaxDownward, MaybeAngle));
+			RemainingMaxAngle -= Angle;
+
+			glm::quat Rotation = glm::angleAxis(Angle, Axis);
+			Tail = glm::rotate(Rotation, Tail - Pivot) + Pivot;
+
+			if (Angle <= glm::radians(0.5))
+			{
+				break;
+			}
+		}
+
+		const float Cosine = glm::min(abs(glm::dot(glm::normalize(Tail - Pivot), Heading)), 1.0f);
+		const float MaybeAngle = glm::acos(Cosine);
+		const float FinalAngle = glm::min(MaxAngle, MaybeAngle);
+		glm::quat Rotation = glm::angleAxis(FinalAngle, Axis);
+		Heading = glm::rotate(Rotation, Heading);
+		Tail = Heading * MaxDist + Pivot;
+	}
+
+finish:
+	lua_createtable(L, 3, 0);
+	lua_pushnumber(L, Tail.x);
+	lua_rawseti(L, -2, 1);
+	lua_pushnumber(L, Tail.y);
+	lua_rawseti(L, -2, 2);
+	lua_pushnumber(L, Tail.z);
+	lua_rawseti(L, -2, 3);
+
+	lua_createtable(L, 3, 0);
+	lua_pushnumber(L, Heading.x);
+	lua_rawseti(L, -2, 1);
+	lua_pushnumber(L, Heading.y);
+	lua_rawseti(L, -2, 2);
+	lua_pushnumber(L, Heading.z);
+	lua_rawseti(L, -2, 3);
+
+	return 2;
+}
+
+
 int LuaClearColor(lua_State* L)
 {
 	const char* ColorString = luaL_checklstring(L, 1, nullptr);
@@ -586,6 +731,7 @@ const luaL_Reg LuaSDFType[] = \
 	{ "pick_color", LuaPickColor },
 	{ "ray_cast", LuaRayCast<false> },
 	{ "magnet", LuaRayCast<true> },
+	{ "pivot_towards", LuaPivotTowards },
 
 	{ "set_bg", LuaClearColor },
 	{ "set_fixed_camera", LuaFixedCamera },
