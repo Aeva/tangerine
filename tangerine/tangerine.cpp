@@ -413,6 +413,7 @@ void EncodeBase64(std::vector<unsigned char>& Bytes, std::vector<char>& Encoded)
 
 struct ViewInfoUpload
 {
+	glm::mat4 WorldToLastView;
 	glm::mat4 WorldToView;
 	glm::mat4 ViewToWorld;
 	glm::mat4 ViewToClip;
@@ -554,6 +555,7 @@ bool ResetCamera = true;
 bool ShowOctree = false;
 bool ShowLeafCount = false;
 bool ShowWireframe = false;
+bool FreezeCulling = false;
 bool RealtimeMode = false;
 bool ShowStatsOverlay = false;
 float PresentFrequency = 0.0;
@@ -596,6 +598,9 @@ void RenderFrame(int ScreenWidth, int ScreenHeight, std::vector<SDFModel*>& Rend
 		}
 	}
 
+
+	static glm::mat4 WorldToLastView = glm::identity<glm::mat4>();
+
 	if (FixedCamera)
 	{
 		const glm::mat4 WorldToView = glm::lookAt(FixedOrigin, FixedFocus, FixedUp);
@@ -606,6 +611,7 @@ void RenderFrame(int ScreenWidth, int ScreenHeight, std::vector<SDFModel*>& Rend
 		const glm::mat4 ClipToView = inverse(ViewToClip);
 
 		ViewInfoUpload BufferData = {
+			WorldToLastView,
 			WorldToView,
 			ViewToWorld,
 			ViewToClip,
@@ -618,6 +624,11 @@ void RenderFrame(int ScreenWidth, int ScreenHeight, std::vector<SDFModel*>& Rend
 		};
 		ViewInfo.Upload((void*)&BufferData, sizeof(BufferData));
 		ViewInfo.Bind(GL_UNIFORM_BUFFER, 0);
+
+		if (!FreezeCulling)
+		{
+			WorldToLastView = WorldToView;
+		}
 	}
 	else
 	{
@@ -662,6 +673,7 @@ void RenderFrame(int ScreenWidth, int ScreenHeight, std::vector<SDFModel*>& Rend
 		const glm::mat4 ClipToView = inverse(ViewToClip);
 
 		ViewInfoUpload BufferData = {
+			WorldToLastView,
 			WorldToView,
 			ViewToWorld,
 			ViewToClip,
@@ -674,6 +686,11 @@ void RenderFrame(int ScreenWidth, int ScreenHeight, std::vector<SDFModel*>& Rend
 		};
 		ViewInfo.Upload((void*)&BufferData, sizeof(BufferData));
 		ViewInfo.Bind(GL_UNIFORM_BUFFER, 0);
+
+		if (!FreezeCulling)
+		{
+			WorldToLastView = WorldToView;
+		}
 	}
 
 	{
@@ -759,7 +776,10 @@ void RenderFrame(int ScreenWidth, int ScreenHeight, std::vector<SDFModel*>& Rend
 			EndEvent();
 		}
 #if ENABLE_OCCLUSION_CULLING
-		UpdateDepthPyramid(ScreenWidth, ScreenHeight);
+		if (!FreezeCulling)
+		{
+			UpdateDepthPyramid(ScreenWidth, ScreenHeight);
+		}
 #endif
 		{
 			glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Background");
@@ -1215,6 +1235,9 @@ void RenderUI(SDL_Window* Window, bool& Live)
 			}
 			ImGui::Separator();
 			if (ImGui::MenuItem("Wireframe", nullptr, &ShowWireframe))
+			{
+			}
+			if (ImGui::MenuItem("Freeze Culling", nullptr, &FreezeCulling))
 			{
 			}
 			if (ImGui::MenuItem("Force Redraw", nullptr, &RealtimeMode))

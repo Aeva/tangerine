@@ -20,6 +20,7 @@ prepend: shaders/math.glsl
 layout(std140, binding = 0)
 uniform ViewInfoBlock
 {
+	mat4 WorldToLastView;
 	mat4 WorldToView;
 	mat4 ViewToWorld;
 	mat4 ViewToClip;
@@ -140,12 +141,12 @@ void main()
 #if ENABLE_OCCLUSION_CULLING
 	// Ideally this would go in a mesh shader or a compute shader.
 
-	vec4 NDCBounds = gl_Position.xyxy / gl_Position.w;
+	vec4 NDCBounds = vec2(1.0, -1.0).xxyy / vec4(0.0);
 	float MaxDepth = 0.0;
 	for (int i = 0; i < 24; ++i)
 	{
 		vec3 Local = Verts[i] * Bounds.Extent + Bounds.Center;
-		vec4 Clip = ViewToClip * WorldToView * LocalToWorld * vec4(Local, 1.0);
+		vec4 Clip = ViewToClip * WorldToLastView * LocalToWorld * vec4(Local, 1.0);
 		vec3 NDC = Clip.xyz / Clip.w;
 
 		float Depth = 1.0 - NDC.z;
