@@ -49,7 +49,16 @@ uniform VoxelDataBlock
 };
 
 
+layout(std140, binding = 3)
+uniform DebugOptionsBlock
+{
+	uint OctreeID;
+	uint Wireframe;
+};
+
+
 in vec3 LocalPosition;
+in vec3 Barycenter;
 in flat vec3 LocalMin;
 in flat vec3 LocalMax;
 in flat vec3 LocalCamera;
@@ -104,6 +113,14 @@ void main()
 	float Travel = 0.0;
 	vec3 Position;
 	MaterialDist Dist = MaterialDist(vec3(1.0), 0.0);
+
+	if (Wireframe != 0 && any(lessThan(Barycenter, vec3(0.1))))
+	{
+		Dist.Color = vec3(1.0) - Barycenter;
+		Position = RayStart;
+		Hit = true;
+		CanHit = false;
+	}
 
 	if (CanHit)
 	{

@@ -553,6 +553,7 @@ bool HighlightEdges = true;
 bool ResetCamera = true;
 bool ShowOctree = false;
 bool ShowLeafCount = false;
+bool ShowWireframe = false;
 bool RealtimeMode = false;
 bool ShowStatsOverlay = false;
 float PresentFrequency = 0.0;
@@ -746,7 +747,7 @@ void RenderFrame(int ScreenWidth, int ScreenHeight, std::vector<SDFModel*>& Rend
 				}
 				for (SDFModel* Model : RenderableModels)
 				{
-					Model->Draw(ShowOctree, ShowLeafCount, ShowHeatmap, DebugShader);
+					Model->Draw(ShowOctree, ShowLeafCount, ShowHeatmap, ShowWireframe, DebugShader);
 				}
 			}
 
@@ -1211,6 +1212,10 @@ void RenderUI(SDL_Window* Window, bool& Live)
 				ShowOctree = false;
 				ShowHeatmap = false;
 				ShowSubtrees = false;
+			}
+			ImGui::Separator();
+			if (ImGui::MenuItem("Wireframe", nullptr, &ShowWireframe))
+			{
 			}
 			if (ImGui::MenuItem("Force Redraw", nullptr, &RealtimeMode))
 			{

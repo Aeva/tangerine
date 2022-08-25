@@ -41,6 +41,7 @@ struct SDFModel
 		const bool ShowOctree,
 		const bool ShowLeafCount,
 		const bool ShowHeatmap,
+		const bool Wireframe,
 		struct ShaderProgram* DebugShader);
 
 	SDFModel(SDFNode* InEvaluator, const float VoxelSize);

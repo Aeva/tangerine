@@ -21,9 +21,9 @@
 struct OctreeDebugOptionsUpload
 {
 	GLuint OutlinerFlags;
+	GLuint Wireframe;
 	GLuint Unused1;
 	GLuint Unused2;
-	GLuint Unused3;
 };
 
 
@@ -168,6 +168,7 @@ void SDFModel::Draw(
 	const bool ShowOctree,
 	const bool ShowLeafCount,
 	const bool ShowHeatmap,
+	const bool Wireframe,
 	ShaderProgram* DebugShader)
 {
 	if (!Visible)
@@ -184,6 +185,20 @@ void SDFModel::Draw(
 	};
 	TransformBuffer.Upload((void*)&TransformData, sizeof(TransformUpload));
 	TransformBuffer.Bind(GL_UNIFORM_BUFFER, 1);
+
+	const bool DebugView = ShowOctree || ShowLeafCount || Wireframe;
+	if (!DebugView)
+	{
+		// Clear the debug options buffer if we don't need it, so we don't persist wireframe mode.
+		OctreeDebugOptionsUpload BufferData = {
+			0,
+			0,
+			0,
+			0
+		};
+		OctreeDebugOptions.Upload((void*)&BufferData, sizeof(BufferData));
+		OctreeDebugOptions.Bind(GL_UNIFORM_BUFFER, 3);
+	}
 
 	for (ProgramTemplate* ProgramFamily : CompiledTemplates)
 	{
@@ -208,20 +223,20 @@ void SDFModel::Draw(
 			ProgramVariant.Bind(GL_SHADER_STORAGE_BUFFER, 0);
 			for (VoxelBuffer& Voxel : ProgramVariant.Voxels)
 			{
-				if (ShowOctree || ShowLeafCount)
+				if (DebugView)
 				{
 					int UploadValue;
-					if (ShowOctree)
-					{
-						UploadValue = ++NextOctreeID;
-					}
-					else
+					if (ShowLeafCount)
 					{
 						UploadValue = ProgramFamily->LeafCount;
 					}
+					else
+					{
+						UploadValue = ++NextOctreeID;
+					}
 					OctreeDebugOptionsUpload BufferData = {
 						(GLuint)UploadValue,
-						0,
+						Wireframe,
 						0,
 						0
 					};

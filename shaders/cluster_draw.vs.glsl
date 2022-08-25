@@ -64,6 +64,7 @@ out gl_PerVertex
 
 
 out vec3 LocalPosition;
+out vec3 Barycenter;
 out flat vec3 LocalMin;
 out flat vec3 LocalMax;
 out flat vec3 LocalCamera;
@@ -132,6 +133,8 @@ void main()
 		const int Vert = gl_VertexID % 3;
 		int Index = Indices[Tri][Vert];
 		LocalPosition = Verts[Index] * Bounds.Extent + Bounds.Center;
+		Barycenter = vec3(0.0);
+		Barycenter[Vert] = 1.0;
 		gl_Position = ViewToClip * WorldToView * LocalToWorld * vec4(LocalPosition, 1.0);
 	}
 #if ENABLE_OCCLUSION_CULLING

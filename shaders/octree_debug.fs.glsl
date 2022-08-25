@@ -49,13 +49,15 @@ uniform VoxelDataBlock
 
 
 layout(std140, binding = 3)
-uniform OctreeDebugOptionsBlock
+uniform DebugOptionsBlock
 {
 	uint OctreeID;
+	uint Wireframe;
 };
 
 
 in vec3 LocalPosition;
+in vec3 Barycenter;
 in flat vec3 LocalMin;
 in flat vec3 LocalMax;
 in flat vec3 LocalCamera;
@@ -73,6 +75,11 @@ layout(location = 3) out vec3 OutMaterial;
 
 void main()
 {
+	if (Wireframe != 0 && all(greaterThan(Barycenter, vec3(0.1))))
+	{
+		discard;
+	}
+
 	vec3 EyeRay = normalize(LocalPosition - LocalCamera);
 	vec3 Position = EyeRay * BoxBrush(LocalCamera - Bounds.Center, Bounds.Extent) + LocalCamera;
 
