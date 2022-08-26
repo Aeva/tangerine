@@ -172,13 +172,16 @@ void main()
 		for (float x = 0.0; x <= 1.0; ++x)
 		{
 			vec2 UV = mix(NDCBounds.xy, NDCBounds.zw, vec2(x, y));
-			float CullDepth = textureLod(DepthPyramid, UV, Mip).r;
-			CullDepthRange.x = min(CullDepthRange.x, CullDepth);
-			CullDepthRange.y = max(CullDepthRange.y, CullDepth);
-			if (CullDepth <= MaxDepth)
+			if (all(greaterThan(UV, vec2(0.0))) && all(lessThan(UV, vec2(1.0))))
 			{
-				AnyPass = true;
-				break;
+				float CullDepth = textureLod(DepthPyramid, UV, Mip).r;
+				CullDepthRange.x = min(CullDepthRange.x, CullDepth);
+				CullDepthRange.y = max(CullDepthRange.y, CullDepth);
+				if (CullDepth <= MaxDepth)
+				{
+					AnyPass = true;
+					break;
+				}
 			}
 		}
 	}
