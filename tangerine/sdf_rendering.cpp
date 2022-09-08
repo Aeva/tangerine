@@ -205,6 +205,7 @@ void SDFModel::Draw(
 		}
 
 #if ENABLE_OCCLUSION_CULLING
+		glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Occlusion Culling");
 		CullingShader.Activate();
 
 		for (ProgramBuffer& ProgramVariant : ProgramFamily->ProgramVariants)
@@ -217,6 +218,7 @@ void SDFModel::Draw(
 		}
 
 		glMemoryBarrier(GL_COMMAND_BARRIER_BIT);
+		glPopDebugGroup();
 #endif
 
 		Shader->Activate();
