@@ -59,10 +59,6 @@ in flat vec3 LocalMin;
 in flat vec3 LocalMax;
 in flat vec3 LocalCamera;
 
-#if DEBUG_OCCLUSION_CULLING
-in vec4 OcclusionDebug;
-#endif
-
 
 layout(depth_less) out float gl_FragDepth;
 layout(location = 0) out vec3 OutPosition;
@@ -73,10 +69,6 @@ layout(location = 1) out vec3 OutNormal;
 #endif
 layout(location = 2) out uint OutSubtreeID;
 layout(location = 3) out vec3 OutMaterial;
-
-#if DEBUG_OCCLUSION_CULLING
-layout(location = 4) out vec4 OutOcclusionDebug;
-#endif
 
 
 vec3 Gradient(vec3 Position)
@@ -174,10 +166,6 @@ void main()
 #endif
 		OutSubtreeID = SubtreeIndex;
 		OutMaterial = Dist.Color;
-
-#if DEBUG_OCCLUSION_CULLING
-		OutOcclusionDebug = OcclusionDebug;
-#endif
 
 		vec4 ViewPosition = WorldToView * WorldPosition;
 		ViewPosition /= ViewPosition.w;

@@ -18,6 +18,9 @@
 #include "profiling.h"
 
 
+extern ShaderProgram CullingShader;
+
+
 struct OctreeDebugOptionsUpload
 {
 	GLuint OutlinerFlags;
@@ -201,6 +204,21 @@ void SDFModel::Draw(
 			ProgramFamily->DepthQuery.Start();
 		}
 
+#if ENABLE_OCCLUSION_CULLING
+		CullingShader.Activate();
+
+		for (ProgramBuffer& ProgramVariant : ProgramFamily->ProgramVariants)
+		{
+			const int DrawCount = ProgramVariant.Voxels.size();
+			ProgramVariant.VoxelsBuffer.Bind(GL_SHADER_STORAGE_BUFFER, 2);
+			ProgramVariant.DrawsBuffer.Bind(GL_SHADER_STORAGE_BUFFER, 3);
+
+			glDispatchCompute(DrawCount, 1, 1);
+		}
+
+		glMemoryBarrier(GL_COMMAND_BARRIER_BIT);
+#endif
+
 		Shader->Activate();
 
 		for (ProgramBuffer& ProgramVariant : ProgramFamily->ProgramVariants)
@@ -209,6 +227,7 @@ void SDFModel::Draw(
 			ProgramVariant.ParamsBuffer.Bind(GL_SHADER_STORAGE_BUFFER, 0);
 			ProgramVariant.VoxelsBuffer.Bind(GL_SHADER_STORAGE_BUFFER, 2);
 			ProgramVariant.DrawsBuffer.Bind(GL_DRAW_INDIRECT_BUFFER);
+
 			if (DebugView)
 			{
 				int UploadValue;

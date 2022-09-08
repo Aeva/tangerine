@@ -102,6 +102,7 @@ ShaderProgram PaintShader;
 ShaderProgram NoiseShader;
 ShaderProgram BgShader;
 ShaderProgram GatherDepthShader;
+ShaderProgram CullingShader;
 ShaderProgram ResolveOutputShader;
 ShaderProgram OctreeDebugShader;
 
@@ -480,6 +481,10 @@ StatusCode SetupRenderer()
 	RETURN_ON_FAIL(GatherDepthShader.Setup(
 		{ {GL_COMPUTE_SHADER, ShaderSource("shaders/gather_depth.cs.glsl", true)} },
 		"Depth Pyramid Shader"));
+
+	RETURN_ON_FAIL(CullingShader.Setup(
+		{ {GL_COMPUTE_SHADER, ShaderSource("shaders/voxel_cull.cs.glsl", true)} },
+		"Occlusion Culling Shader"));
 
 	RETURN_ON_FAIL(ResolveOutputShader.Setup(
 		{ {GL_VERTEX_SHADER, ShaderSource("shaders/splat.vs.glsl", true)},

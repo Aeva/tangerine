@@ -480,6 +480,9 @@
     <None Include="..\shaders\octree_debug.fs.glsl">
       <Filter>Shaders</Filter>
     </None>
+    <None Include="..\shaders\voxel_cull.cs.glsl">
+      <Filter>Shaders</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="tangerine.rc" />
