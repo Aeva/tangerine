@@ -209,14 +209,8 @@ size_t SDFModel::AddProgramTemplate(std::string InSource, std::string InPretty, 
 void SDFModel::AddProgramVariant(size_t ShaderIndex, uint32_t SubtreeIndex, const std::vector<float>& Params, const std::vector<AABB>& Voxels)
 {
 	// TODO: ProgramVariants is currently a vector, but should it be a map...?
-	ProgramTemplates[ShaderIndex].ProgramVariants.emplace_back(ShaderIndex, SubtreeIndex, Params.size(), Params.data());
+	ProgramTemplates[ShaderIndex].ProgramVariants.emplace_back(ShaderIndex, SubtreeIndex, Params.size(), Params.data(), Voxels);
 	ProgramBuffer& Program = ProgramTemplates[ShaderIndex].ProgramVariants.back();
-	for (const AABB& Bounds : Voxels)
-	{
-		glm::vec3 Extent = (Bounds.Max - Bounds.Min) * glm::vec3(0.5);
-		glm::vec3 Center = Extent + Bounds.Min;
-		Program.Voxels.emplace_back(glm::vec4(Center, 0.0), glm::vec4(Extent, 0.0));
-	}
 }
 
 

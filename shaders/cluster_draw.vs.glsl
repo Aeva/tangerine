@@ -49,10 +49,10 @@ uniform InstanceDataBlock
 };
 
 
-layout(std140, binding = 2)
-uniform VoxelDataBlock
+layout(std430, binding = 2)
+restrict readonly buffer VoxelDataBlock
 {
-	AABB Bounds;
+	AABB BoundsArray[];
 };
 
 
@@ -66,6 +66,8 @@ out gl_PerVertex
 
 out vec3 LocalPosition;
 out vec3 Barycenter;
+out flat uint DrawID;
+out flat AABB Bounds;
 out flat vec3 LocalMin;
 out flat vec3 LocalMax;
 out flat vec3 LocalCamera;
@@ -122,6 +124,8 @@ ivec3 Indices[12] = \
 
 void main()
 {
+	DrawID = gl_VertexID / 36;
+	Bounds = BoundsArray[DrawID];
 	LocalMin = Bounds.Center - Bounds.Extent;
 	LocalMax = Bounds.Center + Bounds.Extent;
 	{
@@ -130,7 +134,7 @@ void main()
 		LocalCamera = Tmp.xyz;
 	}
 	{
-		const int Tri = gl_VertexID / 3;
+		const int Tri = (gl_VertexID % 36) / 3;
 		const int Vert = gl_VertexID % 3;
 		int Index = Indices[Tri][Vert];
 		LocalPosition = Verts[Index] * Bounds.Extent + Bounds.Center;
