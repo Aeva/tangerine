@@ -203,6 +203,8 @@ namespace SDF
 
 	SDFNode* Plane(float NormalX, float NormalY, float NormalZ);
 
+	SDFNode* Cone(float Radius, float Height);
+
 	SDFNode* Union(SDFNode* LHS, SDFNode* RHS);
 
 	SDFNode* Diff(SDFNode* LHS, SDFNode* RHS);

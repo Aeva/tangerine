@@ -140,6 +140,14 @@ MaterialDist Interpret(const vec3 EvalPoint)
 				Point = EvalPoint;
 				continue;
 			}
+			else if (Opcode == OPCODE_CONE)
+			{
+				Stack[StackPointer].Dist = ConeBrush(Point,
+					PARAMS[ProgramCounter++],
+					PARAMS[ProgramCounter++]);
+				Point = EvalPoint;
+				continue;
+			}
 		}
 
 		// Misc

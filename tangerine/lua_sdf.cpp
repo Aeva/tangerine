@@ -249,6 +249,15 @@ int LuaPlane(lua_State* L)
 }
 
 
+int LuaCone(lua_State* L)
+{
+	float Radius = luaL_checknumber(L, 1) * .5;
+	float Height = luaL_checknumber(L, 2);
+	SDFNode* NewNode = SDF::Cone(Radius, Height);
+	return WrapSDFNode(L, NewNode);
+}
+
+
 enum class SetFamily : uint32_t
 {
 	Union,
@@ -717,6 +726,7 @@ const luaL_Reg LuaSDFType[] = \
 	{ "torus", LuaTorus },
 	{ "cylinder", LuaCylinder },
 	{ "plane", LuaPlane },
+	{ "cone", LuaCone },
 
 	{ "union", LuaOperator<SetFamily::Union> },
 	{ "inter", LuaOperator<SetFamily::Inter> },
