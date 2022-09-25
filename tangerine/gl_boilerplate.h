@@ -105,3 +105,12 @@ private:
 	std::vector<double> Samples;
 	size_t Cursor = 0;
 };
+
+
+struct DrawArraysIndirectCommand
+{
+	uint32_t Count;
+	uint32_t InstanceCount;
+	uint32_t First;
+	uint32_t BaseInstance;
+};

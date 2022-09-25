@@ -43,13 +43,6 @@ uniform InstanceDataBlock
 };
 
 
-layout(std140, binding = 2)
-uniform VoxelDataBlock
-{
-	AABB Bounds;
-};
-
-
 layout(std140, binding = 3)
 uniform DebugOptionsBlock
 {
@@ -60,6 +53,8 @@ uniform DebugOptionsBlock
 
 in vec3 LocalPosition;
 in vec3 Barycenter;
+in flat uint DrawID;
+in flat AABB Bounds;
 in flat vec3 LocalMin;
 in flat vec3 LocalMax;
 in flat vec3 LocalCamera;

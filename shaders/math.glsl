@@ -27,10 +27,11 @@
 #define OPCODE_TORUS     9
 #define OPCODE_CYLINDER  10
 #define OPCODE_PLANE     11
+#define OPCODE_CONE      12
 
-#define OPCODE_OFFSET 12
-#define OPCODE_MATRIX 13
-#define OPCODE_PAINT  14
+#define OPCODE_OFFSET 13
+#define OPCODE_MATRIX 14
+#define OPCODE_PAINT  15
 
 #define OPCODE_RETURN 0xFFFFFFFF
 #define OPCODE_PUSH   (OPCODE_RETURN - 1)
@@ -93,6 +94,19 @@ float Plane(vec3 Point, vec3 Normal)
 float Plane(vec3 Point, float NormalX, float NormalY, float NormalZ)
 {
 	return Plane(Point, vec3(NormalX, NormalY, NormalZ));
+}
+
+
+float ConeBrush(vec3 Point, float Tangent, float Height)
+{
+	vec2 Q = Height * vec2(Tangent, -1.0);
+	vec2 W = vec2(length(vec2(Point.xy)), Height * -.5 + Point.z);
+	vec2 A = W - Q * clamp(float(dot(W, Q) / dot(Q, Q)), 0.0f, 1.0f);
+	vec2 B = W - Q * vec2(clamp(float(W.x / Q.x), 0.0f, 1.0f), 1.0);
+	float K = sign(Q.y);
+	float D = min(dot(A, A), dot(B, B));
+	float S = max(K * (W.x * Q.y - W.y * Q.x), K * (W.y - Q.y));
+	return sqrt(D) * sign(S);
 }
 
 

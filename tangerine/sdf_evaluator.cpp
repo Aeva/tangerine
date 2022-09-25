@@ -1131,6 +1131,17 @@ namespace SDF
 		return new BrushNode(OPCODE_PLANE, "Plane", Params, Eval, Unbound);
 	}
 
+	SDFNode* Cone(float Radius, float Height)
+	{
+		float Tangent = Radius / Height;
+		std::array<float, 2> Params = { Tangent, Height };
+
+		BrushMixin Eval = std::bind(SDFMath::ConeBrush, _1, Tangent, Height);
+
+		AABB Bounds = SymmetricalBounds(vec3(Radius, Radius, Height * .5));
+		return new BrushNode(OPCODE_CONE, "ConeBrush", Params, Eval, Bounds);
+	}
+
 
 	// The following functions construct CSG set operator nodes.
 	SDFNode* Union(SDFNode* LHS, SDFNode* RHS)

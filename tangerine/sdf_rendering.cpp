@@ -30,33 +30,7 @@ struct OctreeDebugOptionsUpload
 Buffer OctreeDebugOptions("Octree Debug Options Buffer");
 
 
-
-
-VoxelBuffer::VoxelBuffer(glm::vec4 Center, glm::vec4 Extent)
-{
-	SectionData.Center = Center;
-	SectionData.Extent = Extent;
-
-	SectionBuffer.DebugName = "Voxel Buffer";
-	SectionBuffer.Upload((void*)&SectionData, sizeof(VoxelUpload));
-}
-
-
-void VoxelBuffer::Bind(GLenum Target, GLuint BindingIndex)
-{
-	SectionBuffer.Bind(Target, BindingIndex);
-}
-
-
-void VoxelBuffer::Release()
-{
-	SectionBuffer.Release();
-}
-
-
-
-
-ProgramBuffer::ProgramBuffer(uint32_t ShaderIndex, uint32_t SubtreeIndex, size_t ParamCount, const float* InParams)
+ProgramBuffer::ProgramBuffer(uint32_t ShaderIndex, uint32_t SubtreeIndex, size_t ParamCount, const float* InParams, const std::vector<AABB>& InVoxels)
 {
 	++ParamCount;
 	size_t Padding = DIV_UP(ParamCount, 4) * 4 - ParamCount;
@@ -82,20 +56,31 @@ ProgramBuffer::ProgramBuffer(uint32_t ShaderIndex, uint32_t SubtreeIndex, size_t
 
 	ParamsBuffer.DebugName = "Shape Program Buffer";
 	ParamsBuffer.Upload((void*)Params.data(), UploadSize * sizeof(float));
-}
 
-void ProgramBuffer::Bind(GLenum Target, GLuint BindingIndex)
-{
-	ParamsBuffer.Bind(Target, BindingIndex);
+	Voxels.reserve(InVoxels.size());
+	for (const AABB& Bounds : InVoxels)
+	{
+		Voxels.emplace_back(Bounds);
+	}
+	VoxelsBuffer.Upload(Voxels.data(), sizeof(VoxelUpload) * Voxels.size());
+
+	std::vector<DrawArraysIndirectCommand> Draws;
+	Draws.resize(InVoxels.size());
+	uint32_t Index = 0;
+	for (DrawArraysIndirectCommand& Draw : Draws)
+	{
+		Draw.Count = 36;
+		Draw.InstanceCount = 1;
+		Draw.First = 36 * Index++;
+		Draw.BaseInstance = 0;
+	}
+	DrawsBuffer.Upload(Draws.data(), sizeof(DrawArraysIndirectCommand) * Draws.size());
 }
 
 void ProgramBuffer::Release()
 {
-	for (VoxelBuffer& Voxel : Voxels)
-	{
-		Voxel.Release();
-	}
-	Voxels.clear();
+	ParamsBuffer.Release();
+	VoxelsBuffer.Release();
 }
 
 
@@ -220,32 +205,32 @@ void SDFModel::Draw(
 
 		for (ProgramBuffer& ProgramVariant : ProgramFamily->ProgramVariants)
 		{
-			ProgramVariant.Bind(GL_SHADER_STORAGE_BUFFER, 0);
-			for (VoxelBuffer& Voxel : ProgramVariant.Voxels)
+			const int DrawCount = ProgramVariant.Voxels.size();
+			ProgramVariant.ParamsBuffer.Bind(GL_SHADER_STORAGE_BUFFER, 0);
+			ProgramVariant.VoxelsBuffer.Bind(GL_SHADER_STORAGE_BUFFER, 2);
+			ProgramVariant.DrawsBuffer.Bind(GL_DRAW_INDIRECT_BUFFER);
+			if (DebugView)
 			{
-				if (DebugView)
+				int UploadValue;
+				if (ShowLeafCount)
 				{
-					int UploadValue;
-					if (ShowLeafCount)
-					{
-						UploadValue = ProgramFamily->LeafCount;
-					}
-					else
-					{
-						UploadValue = ++NextOctreeID;
-					}
-					OctreeDebugOptionsUpload BufferData = {
-						(GLuint)UploadValue,
-						Wireframe,
-						0,
-						0
-					};
-					OctreeDebugOptions.Upload((void*)&BufferData, sizeof(BufferData));
-					OctreeDebugOptions.Bind(GL_UNIFORM_BUFFER, 3);
+					UploadValue = ProgramFamily->LeafCount;
 				}
-				Voxel.Bind(GL_UNIFORM_BUFFER, 2);
-				glDrawArrays(GL_TRIANGLES, 0, 36);
+				else
+				{
+					UploadValue = NextOctreeID;
+					NextOctreeID += DrawCount;
+				}
+				OctreeDebugOptionsUpload BufferData = {
+					(GLuint)UploadValue,
+					Wireframe,
+					0,
+					0
+				};
+				OctreeDebugOptions.Upload((void*)&BufferData, sizeof(BufferData));
+				OctreeDebugOptions.Bind(GL_UNIFORM_BUFFER, 3);
 			}
+			glMultiDrawArraysIndirect(GL_TRIANGLES, 0, DrawCount, 0);
 		}
 		if (ShowHeatmap)
 		{

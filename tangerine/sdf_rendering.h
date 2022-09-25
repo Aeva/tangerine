@@ -21,35 +21,30 @@
 #include "gl_async.h"
 
 
-// This object tracks a buffer containing the transforms and AABB needed to render a given octree leaf.
-struct VoxelBuffer
-{
-	struct VoxelUpload
-	{
-		glm::vec4 Center;
-		glm::vec4 Extent;
-	};
-
-	VoxelUpload SectionData;
-	Buffer SectionBuffer;
-
-	VoxelBuffer(glm::vec4 Center, glm::vec4 Extent);
-	void Bind(GLenum Target, GLuint BindingIndex);
-	void Release();
-};
-
-
 // This object tracks a buffer containing the bytecode that is used to render part of a model's
 // evaluator, and the voxels that will draw this program.  This bytecode buffer is used by both
 // the shader interpreter and the compiled shader.
 struct ProgramBuffer
 {
-	std::vector<float> Params;
-	std::vector<VoxelBuffer> Voxels;
-	Buffer ParamsBuffer;
+	struct VoxelUpload
+	{
+		glm::vec4 Center;
+		glm::vec4 Extent;
 
-	ProgramBuffer(uint32_t ShaderIndex, uint32_t SubtreeIndex, size_t ParamCount, const float* InParams);
-	void Bind(GLenum Target, GLuint BindingIndex);
+		VoxelUpload(const AABB& Bounds)
+		{
+			Extent = glm::vec4((Bounds.Max - Bounds.Min) * glm::vec3(0.5), 0.0);
+			Center = glm::vec4(Extent.xyz + Bounds.Min, 0.0);
+		}
+	};
+
+	std::vector<float> Params;
+	std::vector<VoxelUpload> Voxels;
+	Buffer ParamsBuffer;
+	Buffer VoxelsBuffer;
+	Buffer DrawsBuffer;
+
+	ProgramBuffer(uint32_t ShaderIndex, uint32_t SubtreeIndex, size_t ParamCount, const float* InParams, const std::vector<AABB>& InVoxels);
 	void Release();
 };
 
