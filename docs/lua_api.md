@@ -40,15 +40,17 @@ Brush functions draw shapes.
 
  * `sphere(diameter)`
 
- * `ellipsoid(diameter_x, diameter_y, diameter_z)`
+ * ~~`ellipsoid(diameter_x, diameter_y, diameter_z)`~~ *(has issues)*
+
+ * `cube(span)`
 
  * `box(width, length, height)`
-
- * `cube(widthlengthheight)`
 
  * `torus(major_diameter, minor_diameter)`
 
  * `cylinder(diameter, height)`
+
+ * `cone(diameter, height)`
 
 ## The Infinite Plane Function
 
@@ -94,6 +96,8 @@ These may be applied to brushes and operators.
 
  * `move_z(node, z)`
 
+ * `rotate(node, quat_x, quat_y, quat_z, quat_w)`
+
  * `rotate_x(node, degrees)`
 
  * `rotate_y(node, degrees)`
@@ -131,6 +135,25 @@ The following examples of the `paint` modifier are equivalent:
  * `paint(sphere(1), "#xFF0000")`
 
  * `paint(sphere(1), "red")`
+
+# Query APIs
+
+**WORDS OF CAUTION**: The distance field is *not* guaranteed to be exact, and these functions may return surprising results for some models!
+
+ * `eval(node, x, y, z)`
+   Returns the signed distance from the provided point to the closest surface.
+
+ * `gradient(node, x, y, z)`
+   Returns the sdf gradient at the provided point as an array of three numbers.  The returned vector is normalized without guarding for NaNs.
+
+ * `pick_color(node, x, y, z)`
+   Returns the rgba value at the provided point as an array of four numbers.  This is effectively the color of the closest surface to the query point.
+
+ * `ray_cast(node, origin_x, origin_y, origin_z, direction_x, direction_y, direction_z)`
+   Returns the location of the closest surface hit along the ray as an array of three numbers, or returns nil if there was no intersection.
+
+ * `magnet(node, origin_x, origin_y, origin_z, target_x, target_y, target_z)`
+   This is sugar for `ray_cast` where instead of providing the direction of the ray, you provide a second point which the ray passes through.
 
 # Miscellaneous APIs
 ## Background Manipulation
