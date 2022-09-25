@@ -61,6 +61,12 @@
 #include "gl_debug.h"
 #include "../shaders/defines.h"
 
+#ifndef _WIN64
+//unsure if you prefer macro or function min/max
+#define min(a, b) (a < b ? a : b)
+#define max(a, b) (a > b ? a : b)
+#endif
+
 #define MINIMUM_VERSION_MAJOR 4
 #define MINIMUM_VERSION_MINOR 2
 
@@ -1361,7 +1367,7 @@ void RenderUI(SDL_Window* Window, bool& Live)
 		glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
 
 		std::string Msg = fmt::format("CSG Leaf Count: {}\n", LeafCount);
-		ImGui::SetTooltip(Msg.c_str());
+		ImGui::SetTooltip("%s", Msg.c_str());
 	}
 
 	if (ShowFocusOverlay)
@@ -1744,6 +1750,10 @@ void Boot(int argc, char* argv[])
 #endif
 	}
 	{
+		std::cout << "Initialize gtk+3.0... ";
+		gtk_init(&argc, &argv);
+	}
+	{
 		std::cout << "Setting up Dear ImGui... ";
 		IMGUI_CHECKVERSION();
 		ImGui::CreateContext();
@@ -2079,6 +2089,7 @@ void MainLoop()
 					}
 				}
 				EndEvent();
+				gtk_main_iteration_do(false);
 			}
 		}
 	}

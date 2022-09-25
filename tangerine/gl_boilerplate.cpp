@@ -246,6 +246,8 @@ StatusCode RouteSource(std::vector<std::string>& BreadCrumbs, std::vector<std::s
 		}
 		return StatusCode::PASS;
 	}
+	//no match?
+	return StatusCode::FAIL;
 }
 
 
@@ -512,7 +514,7 @@ Buffer::~Buffer()
 }
 
 
-inline void Buffer::Release()
+void Buffer::Release()
 {
 	if (BufferID != 0)
 	{
