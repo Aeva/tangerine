@@ -389,7 +389,7 @@ int LuaPickColor(lua_State* L)
 	lua_rawseti(L, -2, 2);
 	lua_pushnumber(L, Color.z);
 	lua_rawseti(L, -2, 3);
-	lua_pushnumber(L, Color.z);
+	lua_pushnumber(L, Color.w);
 	lua_rawseti(L, -2, 4);
 	return 1;
 }
