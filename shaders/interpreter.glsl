@@ -184,6 +184,11 @@ MaterialDist Interpret(const vec3 EvalPoint)
 				Point = MatrixTransform(Point, Matrix);
 				continue;
 			}
+			else if (Opcode == OPCODE_SCALE)
+			{
+				Stack[StackPointer].Dist *= PARAMS[ProgramCounter++];
+				continue;
+			}
 			else if (Opcode == OPCODE_PAINT)
 			{
 				Stack[StackPointer].Color.r = PARAMS[ProgramCounter++];

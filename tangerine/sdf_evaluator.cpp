@@ -162,6 +162,7 @@ void TransformMachine::Reset()
 	OffsetRun = vec3(0.0);
 	RotatePending = false;
 	RotateRun = identity<quat>();
+	AccumulatedScale = 1.0;
 }
 
 void TransformMachine::FoldOffset()
@@ -213,6 +214,15 @@ void TransformMachine::Rotate(quat Rotation)
 	}
 	RotateRun = Rotation * RotateRun;
 	RotatePending = true;
+}
+
+void TransformMachine::Scale(float ScaleBy)
+{
+	Fold();
+	LastFoldInverse = scale_slow(LastFoldInverse, vec3(1.0 / ScaleBy));
+	LastFold = inverse(LastFoldInverse);
+	AccumulatedScale *= ScaleBy;
+	FoldState = State::Matrix;
 }
 
 vec3 TransformMachine::ApplyInverse(vec3 Point)
@@ -403,7 +413,7 @@ struct BrushNode : public SDFNode
 
 	virtual float Eval(vec3 Point)
 	{
-		return BrushFn(Transform.ApplyInverse(Point));
+		return BrushFn(Transform.ApplyInverse(Point)) * Transform.AccumulatedScale;
 	}
 
 	virtual SDFNode* Clip(vec3 Point, float Radius)
@@ -433,6 +443,17 @@ struct BrushNode : public SDFNode
 		return Bounds();
 	}
 
+	std::string CompileScale(const bool WithOpcodes, std::vector<float>& TreeParams, std::string& NestedExpr)
+	{
+		if (WithOpcodes)
+		{
+			TreeParams.push_back(AsFloat(OPCODE_SCALE));
+		}
+		float Scale = Transform.AccumulatedScale;
+		TreeParams.push_back(Scale);
+		return fmt::format("({} * {})", NestedExpr, Scale);
+	}
+
 	std::string CompilePaint(const bool WithOpcodes, std::vector<float>& TreeParams, std::string& NestedExpr)
 	{
 		if (WithOpcodes)
@@ -458,6 +479,10 @@ struct BrushNode : public SDFNode
 		const int Offset = StoreParams(TreeParams, NodeParams);
 		std::string Params = MakeParamList(Offset, (int)NodeParams.size());
 		std::string CompiledShape = fmt::format("{}({}, {})", BrushFnName, TransformedPoint, Params);
+		if (Transform.AccumulatedScale != 1.0)
+		{
+			CompiledShape = CompileScale(WithOpcodes, TreeParams, CompiledShape);
+		}
 		if (HasPaint())
 		{
 			return CompilePaint(WithOpcodes, TreeParams, CompiledShape);
@@ -486,6 +511,11 @@ struct BrushNode : public SDFNode
 	virtual void Rotate(quat Rotation)
 	{
 		Transform.Rotate(Rotation);
+	}
+
+	virtual void Scale(float Scale)
+	{
+		Transform.Scale(Scale);
 	}
 
 	virtual void ApplyMaterial(glm::vec3 InColor, bool Force)
@@ -815,6 +845,14 @@ struct SetNode : public SDFNode
 		}
 	}
 
+	virtual void Scale(float Scale)
+	{
+		for (SDFNode* Child : { LHS, RHS })
+		{
+			Child->Scale(Scale);
+		}
+	}
+
 	virtual void ApplyMaterial(glm::vec3 Color, bool Force)
 	{
 		for (SDFNode* Child : { LHS, RHS })
@@ -955,6 +993,11 @@ struct PaintNode : public SDFNode
 	}
 
 	virtual void Rotate(quat Rotation)
+	{
+		Child->Rotate(Rotation);
+	}
+
+	virtual void Scale(float Scale)
 	{
 		Child->Rotate(Rotation);
 	}

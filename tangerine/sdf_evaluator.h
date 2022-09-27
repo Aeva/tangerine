@@ -72,6 +72,7 @@ struct TransformMachine
 	};
 
 	State FoldState;
+	float AccumulatedScale;
 
 	glm::mat4 LastFold;
 	glm::mat4 LastFoldInverse;
@@ -88,6 +89,7 @@ struct TransformMachine
 	void Fold();
 	void Move(glm::vec3 Offset);
 	void Rotate(glm::quat Rotation);
+	void Scale(float ScaleBy);
 	glm::vec3 ApplyInverse(glm::vec3 Point);
 	glm::vec3 Apply(glm::vec3 Point);
 	AABB Apply(const AABB InBounds);
@@ -136,6 +138,8 @@ struct SDFNode
 	virtual void Move(glm::vec3 Offset) = 0;
 
 	virtual void Rotate(glm::quat Rotation) = 0;
+
+	virtual void Scale(float Scale) = 0;
 
 	virtual void ApplyMaterial(glm::vec3 Color, bool Force) = 0;
 

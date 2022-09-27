@@ -162,6 +162,16 @@ int LuaRotate(lua_State* L)
 }
 
 
+int LuaScale(lua_State* L)
+{
+	float Scale = (float)luaL_checknumber(L, 2);
+	SDFNode* Node = GetSDFNode(L, 1);
+	SDFNode* NewNode = Node->Copy();
+	NewNode->Scale(Scale);
+	return WrapSDFNode(L, NewNode);
+}
+
+
 template <bool Force>
 int LuaPaint(lua_State* L)
 {
@@ -715,6 +725,8 @@ const luaL_Reg LuaSDFType[] = \
 	{ "rotate_x", LuaRotateX },
 	{ "rotate_y", LuaRotateY },
 	{ "rotate_z", LuaRotateZ },
+
+	{ "scale", LuaScale },
 
 	{ "paint", LuaPaint<false> },
 	{ "paint_over", LuaPaint<true> },
