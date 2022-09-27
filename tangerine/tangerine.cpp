@@ -1749,10 +1749,12 @@ void Boot(int argc, char* argv[])
 		BootRacket();
 #endif
 	}
+#ifndef _WIN64
 	{
 		std::cout << "Initialize gtk+3.0... ";
 		gtk_init(&argc, &argv);
 	}
+#endif
 	{
 		std::cout << "Setting up Dear ImGui... ";
 		IMGUI_CHECKVERSION();
@@ -2089,7 +2091,9 @@ void MainLoop()
 					}
 				}
 				EndEvent();
+#ifndef _WIN64
 				gtk_main_iteration_do(false);
+#endif
 			}
 		}
 	}

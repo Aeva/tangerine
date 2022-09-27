@@ -23,10 +23,8 @@
 #include <mutex>
 #include <thread>
 #include <string>
-#ifndef MINIMAL_DLL
 #if _WIN64
 #include <shobjidl.h>
-#endif
 #endif
 #include <fmt/format.h>
 #include "threadpool.h"
