@@ -62,7 +62,7 @@
 #include "../shaders/defines.h"
 
 #ifndef _WIN64
-//unsure if you prefer macro or function min/max
+// Both GCC and Clang are able to translate these to the correct intrinsics.
 #define min(a, b) (a < b ? a : b)
 #define max(a, b) (a > b ? a : b)
 #endif
@@ -568,7 +568,7 @@ float PresentFrequency = 0.0;
 float PresentDeltaMs = 0.0;
 double LastInnerFrameDeltaMs = 0.0;
 glm::vec3 CameraFocus = glm::vec3(0.0, 0.0, 0.0);
-void RenderFrame(int ScreenWidth, int ScreenHeight, std::vector<SDFModel*>& RenderableModels)
+void RenderFrame(int ScreenWidth, int ScreenHeight, std::vector<SDFModel*>& RenderableModels, bool FullRedraw = true)
 {
 	BeginEvent("RenderFrame");
 	Clock::time_point FrameStartTimePoint = Clock::now();
@@ -740,6 +740,7 @@ void RenderFrame(int ScreenWidth, int ScreenHeight, std::vector<SDFModel*>& Rend
 
 	if (RenderableModels.size() > 0)
 	{
+		if (FullRedraw)
 		{
 			BeginEvent("Depth");
 			glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Depth");
@@ -1882,7 +1883,12 @@ void MainLoop()
 				static std::vector<SDFModel*> IncompleteModels;
 				static std::vector<SDFModel*> RenderableModels;
 
-				bool RequestDraw = RealtimeMode || ShowStatsOverlay || RenderableModels.size() == 0 || IncompleteModels.size() > 0;
+				static bool LastExportState = false;
+				bool ExportInProgress = GetExportProgress().Stage != 0;
+
+				bool RequestDraw = RealtimeMode || ShowStatsOverlay || RenderableModels.size() == 0 || IncompleteModels.size() > 0 || LastExportState != ExportInProgress;
+				LastExportState = ExportInProgress;
+
 				BeginEvent("Process Input");
 				while (SDL_PollEvent(&Event))
 				{
@@ -2023,7 +2029,7 @@ void MainLoop()
 					EndEvent();
 				}
 
-				if (RequestDraw)
+				if (RequestDraw || ExportInProgress)
 				{
 					{
 						BeginEvent("Update UI");
@@ -2043,7 +2049,7 @@ void MainLoop()
 						int ScreenWidth;
 						int ScreenHeight;
 						SDL_GetWindowSize(Window, &ScreenWidth, &ScreenHeight);
-						RenderFrame(ScreenWidth, ScreenHeight, RenderableModels);
+						RenderFrame(ScreenWidth, ScreenHeight, RenderableModels, RequestDraw);
 					}
 					{
 						BeginEvent("Dear ImGui Draw");
