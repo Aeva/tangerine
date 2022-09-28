@@ -1108,6 +1108,7 @@ void RenderUI(SDL_Window* Window, bool& Live)
 	static bool ShowExportOptions = false;
 	static float ExportStepSize;
 	static float ExportSplitStep[3];
+	static float ExportScale;
 	static bool ExportSkipRefine;
 	static int ExportRefinementSteps;
 	static ExportFormat ExportMeshFormat;
@@ -1118,6 +1119,7 @@ void RenderUI(SDL_Window* Window, bool& Live)
 
 	const bool DefaultExportSkipRefine = false;
 	const float DefaultExportStepSize = 0.01;
+	const float DefaultExportScale = 1.0;
 	const int DefaultExportRefinementSteps = 5;
 
 	if (!HeadlessMode && ImGui::BeginMainMenuBar())
@@ -1154,6 +1156,7 @@ void RenderUI(SDL_Window* Window, bool& Live)
 				{
 					ExportSplitStep[i] = ExportStepSize;
 				}
+				ExportScale = DefaultExportScale;
 				ExportSkipRefine = DefaultExportSkipRefine;
 				ExportRefinementSteps = DefaultExportRefinementSteps;
 			}
@@ -1510,13 +1513,14 @@ void RenderUI(SDL_Window* Window, bool& Live)
 		{
 			static bool AdvancedOptions = false;
 			ImVec2 MaxSize = ImGui::GetMainViewport()->WorkSize;
-			ImGui::SetNextWindowSizeConstraints(ImVec2(250, 165), MaxSize);
+			ImGui::SetNextWindowSizeConstraints(ImVec2(250, 190), MaxSize);
 			ImGui::OpenPopup("Export Options");
 			if (ImGui::BeginPopupModal("Export Options", nullptr, ImGuiWindowFlags_NoSavedSettings))
 			{
 				if (AdvancedOptions)
 				{
 					ImGui::InputFloat3("Voxel Size", ExportSplitStep);
+					ImGui::InputFloat("Unit Scale", &ExportScale);
 					ImGui::Checkbox("Skip Refinement", &ExportSkipRefine);
 					if (!ExportSkipRefine)
 					{
@@ -1526,6 +1530,7 @@ void RenderUI(SDL_Window* Window, bool& Live)
 				else
 				{
 					ImGui::InputFloat("Voxel Size", &ExportStepSize);
+					ImGui::InputFloat("Unit Scale", &ExportScale);
 				}
 				if (ExportMeshFormat == ExportFormat::PLY)
 				{
@@ -1540,12 +1545,12 @@ void RenderUI(SDL_Window* Window, bool& Live)
 							ExportSplitStep[1],
 							ExportSplitStep[2]);
 						int RefinementSteps = ExportSkipRefine ? 0 : ExportRefinementSteps;
-						MeshExport(TreeEvaluator, ModelBounds.Min, ModelBounds.Max, VoxelSize, RefinementSteps, ExportMeshFormat, ExportPointCloud);
+						MeshExport(TreeEvaluator, ModelBounds.Min, ModelBounds.Max, VoxelSize, RefinementSteps, ExportMeshFormat, ExportPointCloud, ExportScale);
 					}
 					else
 					{
 						glm::vec3 VoxelSize = glm::vec3(ExportStepSize);
-						MeshExport(TreeEvaluator, ModelBounds.Min, ModelBounds.Max, VoxelSize, DefaultExportRefinementSteps, ExportMeshFormat, ExportPointCloud);
+						MeshExport(TreeEvaluator, ModelBounds.Min, ModelBounds.Max, VoxelSize, DefaultExportRefinementSteps, ExportMeshFormat, ExportPointCloud, ExportScale);
 					}
 					ShowExportOptions = false;
 				}

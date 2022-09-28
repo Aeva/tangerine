@@ -58,7 +58,7 @@ std::atomic_int WriteCount;
 std::atomic_int WriteProgress;
 
 
-void WriteSTL(SDFOctree* Octree, std::string Path, std::vector<vec3> Vertices, std::vector<ivec4> Quads)
+void WriteSTL(SDFOctree* Octree, std::string Path, std::vector<vec3> Vertices, std::vector<ivec4> Quads, float Scale)
 {
 	std::ofstream OutFile;
 	OutFile.open(Path, std::ios::out | std::ios::binary);
@@ -82,6 +82,11 @@ void WriteSTL(SDFOctree* Octree, std::string Path, std::vector<vec3> Vertices, s
 		vec3 Center = (Vertices[Quad.x] + Vertices[Quad.y] + Vertices[Quad.z] + Vertices[Quad.w]) / vec3(4.0);
 		vec3 Normal = Octree->Gradient(Center);
 		Normals.push_back(Normal);
+	}
+
+	for (glm::vec3& Vertex : Vertices)
+	{
+		Vertex *= Scale;
 	}
 
 	WriteCount.store(Quads.size());
@@ -188,7 +193,7 @@ std::string PlyHeader(size_t VertexCount, size_t TriangleCount, bool ExportColor
 }
 
 
-void WritePLY(SDFOctree* Octree, std::string Path, std::vector<vec3> Vertices, std::vector<ivec4> Quads)
+void WritePLY(SDFOctree* Octree, std::string Path, std::vector<vec3> Vertices, std::vector<ivec4> Quads, float Scale)
 {
 	const bool ExportColor = Octree->Evaluator->HasPaint();
 	std::string Header;
@@ -219,6 +224,7 @@ void WritePLY(SDFOctree* Octree, std::string Path, std::vector<vec3> Vertices, s
 			Colors.push_back(0xFF * Color.g);
 			Colors.push_back(0xFF * Color.b);
 		}
+		Vertices[v] *= Scale;
 	}
 
 	// Write vertex data.
@@ -258,7 +264,7 @@ void WritePLY(SDFOctree* Octree, std::string Path, std::vector<vec3> Vertices, s
 }
 
 
-void MeshExportThread(SDFNode* Evaluator, vec3 ModelMin, vec3 ModelMax, vec3 Step, int RefineIterations, std::string Path, ExportFormat Format)
+void MeshExportThread(SDFNode* Evaluator, vec3 ModelMin, vec3 ModelMax, vec3 Step, int RefineIterations, std::string Path, ExportFormat Format, float Scale)
 {
 	const vec3 Half = Step / vec3(2.0);
 	const float Diagonal = length(Half);
@@ -425,11 +431,11 @@ void MeshExportThread(SDFNode* Evaluator, vec3 ModelMin, vec3 ModelMax, vec3 Ste
 
 	if (Format == ExportFormat::STL)
 	{
-		WriteSTL(Octree, Path, Vertices, Quads);
+		WriteSTL(Octree, Path, Vertices, Quads, Scale);
 	}
 	else if (Format == ExportFormat::PLY)
 	{
-		WritePLY(Octree, Path, Vertices, Quads);
+		WritePLY(Octree, Path, Vertices, Quads, Scale);
 	}
 
 	ExportState.store(0);
@@ -437,7 +443,7 @@ void MeshExportThread(SDFNode* Evaluator, vec3 ModelMin, vec3 ModelMax, vec3 Ste
 }
 
 
-void PointCloudExportThread(SDFNode* Evaluator, vec3 ModelMin, vec3 ModelMax, vec3 Step, int RefineIterations, std::string Path, ExportFormat Format)
+void PointCloudExportThread(SDFNode* Evaluator, vec3 ModelMin, vec3 ModelMax, vec3 Step, int RefineIterations, std::string Path, ExportFormat Format, float Scale)
 {
 	const vec3 Half = Step / vec3(2.0);
 	const float Diagonal = length(Half);
@@ -529,7 +535,7 @@ void PointCloudExportThread(SDFNode* Evaluator, vec3 ModelMin, vec3 ModelMax, ve
 	if (Format == ExportFormat::PLY)
 	{
 		std::vector<ivec4> NoQuads;
-		WritePLY(Octree, Path, Vertices, NoQuads);
+		WritePLY(Octree, Path, Vertices, NoQuads, Scale);
 	}
 
 	ExportState.store(0);
@@ -549,7 +555,7 @@ ExportProgress GetExportProgress()
 }
 
 
-void MeshExport(SDFNode* Evaluator, vec3 ModelMin, vec3 ModelMax, vec3 Step, int RefineIterations, ExportFormat Format, bool ExportPointCloud)
+void MeshExport(SDFNode* Evaluator, vec3 ModelMin, vec3 ModelMax, vec3 Step, int RefineIterations, ExportFormat Format, bool ExportPointCloud, float Scale)
 {
 #if _WIN64
 	char Path[MAX_PATH] = {};
@@ -583,7 +589,7 @@ void MeshExport(SDFNode* Evaluator, vec3 ModelMin, vec3 ModelMax, vec3 Step, int
 		ExportState.store(1);
 
 		auto Thunk = ExportPointCloud ? PointCloudExportThread : MeshExportThread;
-		std::thread ExportThread(Thunk, Evaluator, ModelMin, ModelMax, Step, RefineIterations, std::string(Path), Format);
+		std::thread ExportThread(Thunk, Evaluator, ModelMin, ModelMax, Step, RefineIterations, std::string(Path), Format, Scale);
 		ExportThread.detach();
 	}
 #endif
@@ -603,7 +609,7 @@ void CancelExport(bool Halt)
 }
 
 
-void ExportCommon(SDFNode* Evaluator, float GridSize, int RefineIterations, const char* Path, ExportFormat Format)
+void ExportCommon(SDFNode* Evaluator, float GridSize, int RefineIterations, const char* Path, ExportFormat Format, float Scale = 1.0)
 {
 	AABB Bounds = Evaluator->Bounds();
 	float Step = 1.0 / GridSize;
@@ -614,7 +620,7 @@ void ExportCommon(SDFNode* Evaluator, float GridSize, int RefineIterations, cons
 	RefinementProgress.store(0);
 	WriteProgress.store(0);
 	ExportState.store(1);
-	MeshExportThread(Evaluator, Bounds.Min, Bounds.Max, vec3(Step), RefineIterations, std::string(Path), Format);
+	MeshExportThread(Evaluator, Bounds.Min, Bounds.Max, vec3(Step), RefineIterations, std::string(Path), Format, Scale);
 }
 
 
