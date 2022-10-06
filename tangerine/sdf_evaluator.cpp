@@ -847,6 +847,7 @@ struct SetNode : public SDFNode
 
 	virtual void Scale(float Scale)
 	{
+		Threshold *= Scale;
 		for (SDFNode* Child : { LHS, RHS })
 		{
 			Child->Scale(Scale);
