@@ -28,11 +28,12 @@
 #define OPCODE_CYLINDER  10
 #define OPCODE_PLANE     11
 #define OPCODE_CONE      12
+#define OPCODE_CONINDER 13
 
-#define OPCODE_OFFSET 13
-#define OPCODE_MATRIX 14
-#define OPCODE_SCALE  15
-#define OPCODE_PAINT  16
+#define OPCODE_OFFSET 14
+#define OPCODE_MATRIX 15
+#define OPCODE_SCALE  16
+#define OPCODE_PAINT  17
 
 #define OPCODE_RETURN 0xFFFFFFFF
 #define OPCODE_PUSH   (OPCODE_RETURN - 1)
@@ -108,6 +109,18 @@ float ConeBrush(vec3 Point, float Tangent, float Height)
 	float D = min(dot(A, A), dot(B, B));
 	float S = max(K * (W.x * Q.y - W.y * Q.x), K * (W.y - Q.y));
 	return sqrt(D) * sign(S);
+}
+
+
+float ConinderBrush(vec3 Point, float RadiusL, float RadiusH, float Height)
+{
+	vec2 Q = vec2(length(vec2(Point.xy)), Point.z);
+	vec2 K1 = vec2(RadiusH, Height);
+	vec2 K2 = vec2(RadiusH - RadiusL,2.0 * Height);
+	vec2 CA = vec2(Q.x - min(Q.x, (Q.y < 0.0) ? RadiusL : RadiusH), abs(Q.y) - Height);
+	vec2 CB = Q - K1 + K2 * clamp(dot(K1 - Q, K2) / dot(K2, K2), 0.0f, 1.0f);
+	float S = (CB.x < 0.0 && CA.y < 0.0) ? -1.0f : 1.0f;
+	return S * sqrt(min(dot(CA, CA), dot(CB, CB)));
 }
 
 

@@ -50,6 +50,8 @@ Brush functions draw shapes.
 
  * `cylinder(diameter, height)`
 
+ * `coninder(diameter_low, diameter_high, height)` *(truncated cone)*
+
  * `cone(diameter, height)`
 
 ## The Infinite Plane Function

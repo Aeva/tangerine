@@ -29,6 +29,7 @@ model =
 		cube(2):move_x(-3),
 		box(1.5, 2, 1):move(-3, 3, 0),
 		torus(2, .5):move_x(3),
-		cylinder(1, 2):move(3, 3, 0),
-		wedge:move_y(-3),
+		wedge:move(3, 3, 0),
+		cylinder(1, 2):move(3, -3, 0),
+		coninder(2, 1, 2):move_y(-3),
 		cone(2, 2):move(-3, -3, 0))

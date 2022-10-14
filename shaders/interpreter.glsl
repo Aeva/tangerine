@@ -148,6 +148,15 @@ MaterialDist Interpret(const vec3 EvalPoint)
 				Point = EvalPoint;
 				continue;
 			}
+			else if (Opcode == OPCODE_CONINDER)
+			{
+				Stack[StackPointer].Dist = ConinderBrush(Point,
+					PARAMS[ProgramCounter++],
+					PARAMS[ProgramCounter++],
+					PARAMS[ProgramCounter++]);
+				Point = EvalPoint;
+				continue;
+			}
 		}
 
 		// Misc

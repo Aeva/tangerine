@@ -1186,6 +1186,17 @@ namespace SDF
 		return new BrushNode(OPCODE_CONE, "ConeBrush", Params, Eval, Bounds);
 	}
 
+	SDFNode* Coninder(float RadiusL, float RadiusH, float Height)
+	{
+		float HalfHeight = Height * .5;
+		std::array<float, 3> Params = { RadiusL, RadiusH, HalfHeight };
+
+		BrushMixin Eval = std::bind(SDFMath::ConinderBrush, _1, RadiusL, RadiusH, HalfHeight);
+
+		float MaxRadius = max(RadiusL, RadiusH);
+		AABB Bounds = SymmetricalBounds(vec3(MaxRadius, MaxRadius, HalfHeight));
+		return new BrushNode(OPCODE_CONINDER, "ConinderBrush", Params, Eval, Bounds);
+	}
 
 	// The following functions construct CSG set operator nodes.
 	SDFNode* Union(SDFNode* LHS, SDFNode* RHS)
