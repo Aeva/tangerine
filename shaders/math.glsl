@@ -33,7 +33,8 @@
 #define OPCODE_OFFSET 14
 #define OPCODE_MATRIX 15
 #define OPCODE_SCALE  16
-#define OPCODE_PAINT  17
+#define OPCODE_FLATE  17
+#define OPCODE_PAINT  18
 
 #define OPCODE_RETURN 0xFFFFFFFF
 #define OPCODE_PUSH   (OPCODE_RETURN - 1)
@@ -164,6 +165,12 @@ float SmoothDiffOp(float LHS, float RHS, float Threshold)
 }
 
 
+float FlateOp(float Dist, float Radius)
+{
+	return Dist - Radius;
+}
+
+
 #ifndef SDF_MATH_ONLY
 
 struct MaterialDist
@@ -287,6 +294,13 @@ MaterialDist SmoothDiffOp(MaterialDist LHS, MaterialDist RHS, float Threshold)
 	return MaterialDist(LHS.Color, Dist);
 }
 BLEND_OP_ROUTES(SmoothDiff, vec3(1.0), vec3(1.0))
+
+
+MaterialDist FlateOp(MaterialDist Dist, float Radius)
+{
+	Dist.Dist -= Radius;
+	return Dist;
+}
 
 
 MaterialDist TreeRoot(MaterialDist Dist)

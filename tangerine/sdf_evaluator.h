@@ -222,6 +222,8 @@ namespace SDF
 	SDFNode* BlendDiff(float Threshold, SDFNode* LHS, SDFNode* RHS);
 
 	SDFNode* BlendInter(float Threshold, SDFNode* LHS, SDFNode* RHS);
+
+	SDFNode* Flate(SDFNode* Node, float Radius);
 }
 
 

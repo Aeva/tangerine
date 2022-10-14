@@ -1042,6 +1042,133 @@ struct PaintNode : public SDFNode
 #endif
 
 
+struct FlateNode : public SDFNode
+{
+	SDFNode* Child;
+	float Radius;
+
+	FlateNode(SDFNode* InChild, float InRadius)
+		: Child(InChild)
+		, Radius(InRadius)
+	{
+		Child->Hold();
+	}
+
+	virtual float Eval(vec3 Point)
+	{
+		return Child->Eval(Point) - Radius;
+	}
+
+	virtual SDFNode* Clip(vec3 Point, float ClipRadius)
+	{
+		if (Eval(Point) <= ClipRadius)
+		{
+			SDFNode* NewChild = Child->Clip(Point, ClipRadius + Radius);
+			return new FlateNode(NewChild, Radius);
+		}
+		else
+		{
+			return nullptr;
+		}
+	}
+
+	virtual SDFNode* Copy()
+	{
+		return new FlateNode(Child->Copy(), Radius);
+	}
+
+	virtual AABB Bounds()
+	{
+		AABB ChildBounds = Child->Bounds();
+		ChildBounds.Max += vec3(Radius * 2);
+		ChildBounds.Min -= vec3(Radius * 2);
+		return ChildBounds;
+	}
+
+	virtual AABB InnerBounds()
+	{
+		AABB ChildBounds = Child->InnerBounds();
+		ChildBounds.Max += vec3(Radius * 2);
+		ChildBounds.Min -= vec3(Radius * 2);
+		return ChildBounds;
+	}
+
+	virtual std::string Compile(const bool WithOpcodes, std::vector<float>& TreeParams, std::string& Point)
+	{
+		std::string CompiledChild = Child->Compile(WithOpcodes, TreeParams, Point);
+		if (WithOpcodes)
+		{
+			TreeParams.push_back(AsFloat(OPCODE_FLATE));
+		}
+		const int Offset = TreeParams.size();
+		TreeParams.push_back(Radius);
+		return fmt::format("FlateOp({}, PARAMS[{}])", CompiledChild, Offset);
+	}
+
+	virtual uint32_t StackSize(const uint32_t Depth)
+	{
+		return Child->StackSize(Depth);
+	}
+
+	virtual std::string Pretty()
+	{
+		return fmt::format("FlateOp({})", Child->Pretty());
+	}
+
+	virtual void Move(vec3 Offset)
+	{
+		Child->Move(Offset);
+	}
+
+	virtual void Rotate(quat Rotation)
+	{
+		Child->Rotate(Rotation);
+	}
+
+	virtual void Scale(float Scale)
+	{
+		Child->Scale(Scale);
+	}
+
+	virtual void ApplyMaterial(vec3 InColor, bool Force)
+	{
+		Child->ApplyMaterial(InColor, Force);
+	}
+
+	virtual bool HasPaint()
+	{
+		return Child->HasPaint();
+	}
+
+	virtual bool HasFiniteBounds()
+	{
+		return Child->HasFiniteBounds();
+	}
+
+	virtual vec4 Sample(vec3 Point)
+	{
+		return Child->Sample(Point);
+	}
+
+	virtual int LeafCount()
+	{
+		return Child->LeafCount();
+	}
+
+	virtual bool operator==(SDFNode& Other)
+	{
+		FlateNode* OtherFlate = dynamic_cast<FlateNode*>(&Other);
+		return (OtherFlate && OtherFlate->Radius == Radius && *Child == *(OtherFlate->Child));
+	}
+
+	virtual ~FlateNode()
+	{
+		Assert(RefCount == 0);
+		Child->Release();
+	}
+};
+
+
 AABB SymmetricalBounds(vec3 High)
 {
 	return { High * vec3(-1), High };
@@ -1233,6 +1360,11 @@ namespace SDF
 	{
 		SetMixin Eval = std::bind(SDFMath::SmoothInterOp, _1, _2, Threshold);
 		return new SetNode<SetFamily::Inter, true>(Eval, (SDFNode*)LHS, (SDFNode*)RHS, Threshold);
+	}
+
+	SDFNode* Flate(SDFNode* Node, float Radius)
+	{
+		return new FlateNode(Node, Radius);
 	}
 }
 

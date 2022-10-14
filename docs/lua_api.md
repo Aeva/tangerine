@@ -108,6 +108,8 @@ These may be applied to brushes and operators.
 
  * `scale(node, amount)`
 
+ * `flate(node, radius)`
+
 ## The Align Modifier
 
 The `align` function offsets the node graph you pass into it to reposition it relative to its local bounding box.  In other words, this function is used to determine where a node graph's local origin should be.
