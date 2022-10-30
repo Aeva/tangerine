@@ -109,6 +109,7 @@ private:
 struct RayHit
 {
 	bool Hit;
+	float Travel;
 	glm::vec3 Position;
 };
 

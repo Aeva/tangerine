@@ -18,6 +18,12 @@
 #include "sdf_evaluator.h"
 #include "sdf_rendering.h"
 
+#define MOUSE_ENTER  1 << 0
+#define MOUSE_EXIT   1 << 1
+#define MOUSE_MOVE   1 << 2
+#define MOUSE_DOWN   1 << 3
+#define MOUSE_UP     1 << 4
+#define MOUSE_SCROLL 1 << 5
 
 struct SDFModel
 {
@@ -33,6 +39,8 @@ struct SDFModel
 	std::vector<size_t> PendingShaders;
 	std::vector<ProgramTemplate*> CompiledTemplates;
 
+	int MouseListenFlags = 0;
+
 	bool HasPendingShaders();
 	bool HasCompleteShaders();
 	void CompileNextShader();
@@ -43,6 +51,8 @@ struct SDFModel
 		const bool ShowHeatmap,
 		const bool Wireframe,
 		struct ShaderProgram* DebugShader);
+
+	RayHit RayMarch(glm::vec3 RayStart, glm::vec3 RayDir, int MaxIterations = 1000, float Epsilon = 0.001);
 
 	SDFModel(SDFNode* InEvaluator, const float VoxelSize);
 	SDFModel(SDFModel&& Other);
@@ -81,6 +91,9 @@ void UnloadAllModels();
 void GetIncompleteModels(std::vector<SDFModel*>& Incomplete);
 void GetRenderableModels(std::vector<SDFModel*>& Renderable);
 
+bool DeliverMouseMove(glm::vec3 Origin, glm::vec3 RayDir, int MouseX, int MouseY);
+bool DeliverMouseButton(glm::vec3 Origin, glm::vec3 RayDir, int MouseX, int MouseY, bool Press, bool Release, int Button, int Clicks);
+bool DeliverMouseScroll(glm::vec3 Origin, glm::vec3 RayDir, int ScrollX, int ScrollY);
 
 void ClearTreeEvaluator();
 void SetTreeEvaluator(SDFNode* InTreeEvaluator);

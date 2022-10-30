@@ -419,16 +419,16 @@ void EncodeBase64(std::vector<unsigned char>& Bytes, std::vector<char>& Encoded)
 
 struct ViewInfoUpload
 {
-	glm::mat4 WorldToLastView;
-	glm::mat4 WorldToView;
-	glm::mat4 ViewToWorld;
-	glm::mat4 ViewToClip;
-	glm::mat4 ClipToView;
-	glm::vec4 CameraOrigin;
-	glm::vec4 ScreenSize;
-	glm::vec4 ModelMin;
-	glm::vec4 ModelMax;
-	float CurrentTime;
+	glm::mat4 WorldToLastView = glm::identity<glm::mat4>();
+	glm::mat4 WorldToView = glm::identity<glm::mat4>();
+	glm::mat4 ViewToWorld = glm::identity<glm::mat4>();
+	glm::mat4 ViewToClip = glm::identity<glm::mat4>();
+	glm::mat4 ClipToView = glm::identity<glm::mat4>();
+	glm::vec4 CameraOrigin = glm::vec4(0.0, 0.0, 0.0, 0.0);
+	glm::vec4 ScreenSize = glm::vec4(0.0, 0.0, 0.0, 0.0);
+	glm::vec4 ModelMin = glm::vec4(0.0, 0.0, 0.0, 0.0);
+	glm::vec4 ModelMax = glm::vec4(0.0, 0.0, 0.0, 0.0);
+	float CurrentTime = -1.0;
 	float Padding[3] = { 0 };
 };
 
@@ -568,7 +568,7 @@ float PresentFrequency = 0.0;
 float PresentDeltaMs = 0.0;
 double LastInnerFrameDeltaMs = 0.0;
 glm::vec3 CameraFocus = glm::vec3(0.0, 0.0, 0.0);
-void RenderFrame(int ScreenWidth, int ScreenHeight, std::vector<SDFModel*>& RenderableModels, bool FullRedraw = true)
+void RenderFrame(int ScreenWidth, int ScreenHeight, std::vector<SDFModel*>& RenderableModels, ViewInfoUpload& UploadedView, bool FullRedraw = true)
 {
 	BeginEvent("RenderFrame");
 	Clock::time_point FrameStartTimePoint = Clock::now();
@@ -616,7 +616,7 @@ void RenderFrame(int ScreenWidth, int ScreenHeight, std::vector<SDFModel*>& Rend
 		const glm::mat4 ViewToClip = glm::infinitePerspective(glm::radians(45.f), AspectRatio, 1.0f);
 		const glm::mat4 ClipToView = inverse(ViewToClip);
 
-		ViewInfoUpload BufferData = {
+		UploadedView = {
 			WorldToLastView,
 			WorldToView,
 			ViewToWorld,
@@ -628,7 +628,7 @@ void RenderFrame(int ScreenWidth, int ScreenHeight, std::vector<SDFModel*>& Rend
 			glm::vec4(ModelBounds.Max, 1.0),
 			float(CurrentTime),
 		};
-		ViewInfo.Upload((void*)&BufferData, sizeof(BufferData));
+		ViewInfo.Upload((void*)&UploadedView, sizeof(UploadedView));
 		ViewInfo.Bind(GL_UNIFORM_BUFFER, 0);
 
 		if (!FreezeCulling)
@@ -678,7 +678,7 @@ void RenderFrame(int ScreenWidth, int ScreenHeight, std::vector<SDFModel*>& Rend
 		const glm::mat4 ViewToClip = glm::infinitePerspective(glm::radians(45.f), AspectRatio, 1.0f);
 		const glm::mat4 ClipToView = inverse(ViewToClip);
 
-		ViewInfoUpload BufferData = {
+		UploadedView = {
 			WorldToLastView,
 			WorldToView,
 			ViewToWorld,
@@ -690,7 +690,7 @@ void RenderFrame(int ScreenWidth, int ScreenHeight, std::vector<SDFModel*>& Rend
 			glm::vec4(ModelBounds.Max, 1.0),
 			float(CurrentTime),
 		};
-		ViewInfo.Upload((void*)&BufferData, sizeof(BufferData));
+		ViewInfo.Upload((void*)&UploadedView, sizeof(UploadedView));
 		ViewInfo.Bind(GL_UNIFORM_BUFFER, 0);
 
 		if (!FreezeCulling)
@@ -1082,6 +1082,20 @@ void GetMouseStateForGL(SDL_Window* Window, int& OutMouseX, int& OutMouseY)
 	int WindowHeight;
 	SDL_GetWindowSize(Window, &WindowWidth, &WindowHeight);
 	OutMouseY = WindowHeight - TmpMouseY - 1;
+}
+
+
+glm::vec3 WorldSpaceRay(const ViewInfoUpload& View, int ScreenX, int ScreenY, int ScreenWidth, int ScreenHeight)
+{
+	glm::vec4 ClipPosition(
+		glm::clamp(float(ScreenX) / float(ScreenWidth), 0.0f, 1.0f) * 2.0 - 1.0,
+		glm::clamp(float(ScreenHeight - ScreenY) / float(ScreenHeight), 0.0f, 1.0f) * 2.0 - 1.0,
+		-1.0f,
+		1.0f);
+	glm::vec4 WorldPosition = View.ViewToWorld * View.ClipToView * ClipPosition;
+	WorldPosition /= WorldPosition.w;
+	glm::vec3 Ray = glm::vec3(WorldPosition.xyz) - glm::vec3(View.CameraOrigin.xyz);
+	return glm::normalize(Ray);
 }
 
 
@@ -1826,7 +1840,8 @@ void Boot(int argc, char* argv[])
 			std::vector<SDFModel*> RenderableModels;
 			GetRenderableModels(RenderableModels);
 
-			RenderFrame(WindowWidth, WindowHeight, RenderableModels);
+			ViewInfoUpload UploadedView;
+			RenderFrame(WindowWidth, WindowHeight, RenderableModels, UploadedView);
 			ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 			glFinish();
 		}
@@ -1885,8 +1900,27 @@ void MainLoop()
 				MouseMotionY = 0;
 				MouseMotionZ = 0;
 
+				int ScreenWidth;
+				int ScreenHeight;
+				SDL_GetWindowSize(Window, &ScreenWidth, &ScreenHeight);
+
+				const bool HasMouseFoucs = Window == SDL_GetMouseFocus();
+				static int MouseX = 0;
+				static int MouseY = 0;
+				if (HasMouseFoucs)
+				{
+					SDL_GetMouseState(&MouseX, &MouseY);
+				}
+
+				static ViewInfoUpload LastView;
 				static std::vector<SDFModel*> IncompleteModels;
 				static std::vector<SDFModel*> RenderableModels;
+
+				static glm::vec3 MouseRay(0.0, 1.0, 0.0);
+				if (HasMouseFoucs)
+				{
+					MouseRay = WorldSpaceRay(LastView, MouseX, MouseY, ScreenWidth, ScreenHeight);
+				}
 
 				static bool LastExportState = false;
 				bool ExportInProgress = GetExportProgress().Stage != 0;
@@ -1909,7 +1943,7 @@ void MainLoop()
 						RequestDraw = true;
 					}
 					static bool Dragging = false;
-					if (!io.WantCaptureMouse)
+					if (!io.WantCaptureMouse && HasMouseFoucs && RenderableModels.size() > 0)
 					{
 						switch (Event.type)
 						{
@@ -1919,17 +1953,34 @@ void MainLoop()
 								MouseMotionX = Event.motion.xrel;
 								MouseMotionY = Event.motion.yrel;
 							}
+							else
+							{
+								DeliverMouseMove(LastView.CameraOrigin, MouseRay, Event.motion.x, Event.motion.y);
+							}
 							break;
 						case SDL_MOUSEBUTTONDOWN:
-							Dragging = true;
-							SDL_SetRelativeMouseMode(SDL_TRUE);
+							if (DeliverMouseButton(LastView.CameraOrigin, MouseRay, Event.button.x, Event.button.y, true, false, Event.button.button, Event.button.clicks))
+							{
+								Dragging = true;
+								SDL_SetRelativeMouseMode(SDL_TRUE);
+							}
 							break;
 						case SDL_MOUSEBUTTONUP:
-							Dragging = false;
-							SDL_SetRelativeMouseMode(SDL_FALSE);
+							if (Dragging)
+							{
+								Dragging = false;
+								SDL_SetRelativeMouseMode(SDL_FALSE);
+							}
+							else
+							{
+								DeliverMouseButton(LastView.CameraOrigin, MouseRay, Event.button.x, Event.button.y, false, true, Event.button.button, Event.button.clicks);
+							}
 							break;
 						case SDL_MOUSEWHEEL:
-							MouseMotionZ = Event.wheel.y;
+							if (DeliverMouseScroll(LastView.CameraOrigin, MouseRay, Event.wheel.x, Event.wheel.y))
+							{
+								MouseMotionZ = Event.wheel.y;
+							}
 							break;
 						}
 					}
@@ -2050,12 +2101,7 @@ void MainLoop()
 						}
 						GetRenderableModels(RenderableModels);
 					}
-					{
-						int ScreenWidth;
-						int ScreenHeight;
-						SDL_GetWindowSize(Window, &ScreenWidth, &ScreenHeight);
-						RenderFrame(ScreenWidth, ScreenHeight, RenderableModels, RequestDraw);
-					}
+					RenderFrame(ScreenWidth, ScreenHeight, RenderableModels, LastView, RequestDraw);
 					{
 						BeginEvent("Dear ImGui Draw");
 						glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Dear ImGui");

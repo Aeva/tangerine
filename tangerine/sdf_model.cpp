@@ -66,6 +66,108 @@ void GetRenderableModels(std::vector<SDFModel*>& Renderable)
 }
 
 
+bool DeliverMouseMove(glm::vec3 Origin, glm::vec3 RayDir, int MouseX, int MouseY)
+{
+	bool ReturnToSender = true;
+
+	// TODO
+
+	return ReturnToSender;
+}
+
+
+bool DeliverMouseButton(glm::vec3 Origin, glm::vec3 RayDir, int MouseX, int MouseY, bool Press, bool Release, int Button, int Clicks)
+{
+	bool ReturnToSender = true;
+
+	float Nearest = std::numeric_limits<float>::infinity();
+	SDFModel* NearestMatch = nullptr;
+	std::vector<SDFModel*> MouseUpRecipients;
+
+	int Match = 0;
+	if (Press)
+	{
+		Match |= MOUSE_DOWN;
+	}
+	if (Release)
+	{
+		Match |= MOUSE_UP;
+	}
+
+	for (SDFModel* Model : LiveModels)
+	{
+		// TODO:
+		// I'm unsure if this is how I want to handle mouse button event routing.
+		// Obviously the most useful form is an env registers a mouse down event on
+		// one of its models to find when the model is clicked, double clicked, or to
+		// start listening to mouse move.
+		// I'm pretty sure listening for a global mouse up is also useful, because if
+		// the down event us used to start some interaction state machine, we probably
+		// want to be able to use the up event to terminate the machine even if the
+		// model is occluded.  This part is fine.
+		// Quesiton is, is it useful for models to register a global mouse down event?
+		// I'm guessing "maybe yes maybe" - for example you click on a model in a pallet,
+		// then click on the board to place an instance of it, like a paint program.
+		// Likewise it would be useful for some models to opt out of blocking the ray
+		// queries, and for others to be able to block the ray queries without registering
+		// a handler.
+		// This is probably fine at least until the events can be forwarded back to
+		// the script envs.
+
+		if (Release && Model->MouseListenFlags | MOUSE_UP)
+		{
+			MouseUpRecipients.push_back(Model);
+		}
+		if (Model->MouseListenFlags | Match)
+		{
+			RayHit Query = Model->RayMarch(Origin, RayDir);
+			if (Query.Hit && Query.Travel < Nearest)
+			{
+				Nearest = Query.Travel;
+				NearestMatch = Model;
+			}
+		}
+	}
+
+	if (Press && NearestMatch)
+	{
+		ReturnToSender = false;
+		// TODO: send event to script env
+	}
+
+	if (MouseUpRecipients.size() > 0)
+	{
+		ReturnToSender = false;
+		for (SDFModel* Recipient : MouseUpRecipients)
+		{
+			int SendClicks = Recipient == NearestMatch ? Clicks : 0;
+			// TODO: send event to script env
+		}
+	}
+
+	return ReturnToSender;
+}
+
+
+bool DeliverMouseScroll(glm::vec3 Origin, glm::vec3 RayDir, int ScrollX, int ScrollY)
+{
+	bool ReturnToSender = true;
+
+	// TODO
+
+	return ReturnToSender;
+}
+
+
+RayHit SDFModel::RayMarch(glm::vec3 RayStart, glm::vec3 RayDir, int MaxIterations, float Epsilon)
+{
+	glm::vec3 RelativeOrigin = Transform.ApplyInverse(RayStart);
+	glm::mat3 Rotation = (glm::mat3)Transform.LastFoldInverse;
+	glm::vec3 RelativeRayDir = Rotation * RayDir;
+	return Evaluator->RayMarch(RelativeOrigin, RelativeRayDir, 1000);
+}
+
+
 bool SDFModel::HasPendingShaders()
 {
 	return PendingShaders.size() > 0;
