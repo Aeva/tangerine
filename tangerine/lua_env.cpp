@@ -23,14 +23,25 @@
 #include <filesystem>
 
 
-int LuaSetAdvanceEvent(lua_State* L)
+int LuaEnvironment::LuaSetAdvanceEvent(lua_State* L)
 {
-	luaL_checktype(L, 1, LUA_TFUNCTION);
-	lua_setfield(L, LUA_REGISTRYINDEX, "tangerine.event.advance");
-
 	lua_getfield(L, LUA_REGISTRYINDEX, "tangerine.env");
-	LuaEnvironment* Environment = (LuaEnvironment*)lua_touserdata(L, 1);
-	Environment->CanAdvance = true;
+	LuaEnvironment* Env = (LuaEnvironment*)lua_touserdata(L, 2);
+	lua_pop(L, 1);
+
+	luaL_unref(L, LUA_REGISTRYINDEX, Env->AdvanceCallbackRef);
+
+	if (lua_isnil(L, 1))
+	{
+		Env->CanAdvance = false;
+		Env->AdvanceCallbackRef = LUA_REFNIL;
+	}
+	else
+	{
+		luaL_checktype(L, 1, LUA_TFUNCTION);
+		Env->CanAdvance = true;
+		Env->AdvanceCallbackRef = luaL_ref(L, LUA_REGISTRYINDEX);
+	}
 
 	return 0;
 }
@@ -38,7 +49,7 @@ int LuaSetAdvanceEvent(lua_State* L)
 
 const luaL_Reg LuaEnvReg[] = \
 {
-	{ "set_advance_event", LuaSetAdvanceEvent },
+	{ "set_advance_event", LuaEnvironment::LuaSetAdvanceEvent },
 
 	{ NULL, NULL }
 };
@@ -53,6 +64,7 @@ int LuaOpenEnv(lua_State* L)
 
 LuaEnvironment::LuaEnvironment()
 {
+	AdvanceCallbackRef = LUA_REFNIL;
 	L = luaL_newstate();
 	luaL_openlibs(L);
 
@@ -88,10 +100,13 @@ LuaEnvironment::~LuaEnvironment()
 
 void LuaEnvironment::Advance(double DeltaTimeMs, double ElapsedTimeMs)
 {
-	lua_getfield(L, LUA_REGISTRYINDEX, "tangerine.event.advance");
-	lua_pushnumber(L, DeltaTimeMs);
-	lua_pushnumber(L, ElapsedTimeMs);
-	lua_call(L, 2, 0);
+	if (AdvanceCallbackRef != LUA_REFNIL)
+	{
+		lua_rawgeti(L, LUA_REGISTRYINDEX, AdvanceCallbackRef);
+		lua_pushnumber(L, DeltaTimeMs);
+		lua_pushnumber(L, ElapsedTimeMs);
+		lua_call(L, 2, 0);
+	}
 }
 
 
