@@ -23,11 +23,18 @@
 #include <filesystem>
 
 
-int LuaEnvironment::LuaSetAdvanceEvent(lua_State* L)
+LuaEnvironment* LuaEnvironment::GetScriptEnvironment(struct lua_State* L)
 {
 	lua_getfield(L, LUA_REGISTRYINDEX, "tangerine.env");
 	LuaEnvironment* Env = (LuaEnvironment*)lua_touserdata(L, 2);
 	lua_pop(L, 1);
+	return Env;
+}
+
+
+int LuaEnvironment::LuaSetAdvanceEvent(lua_State* L)
+{
+	LuaEnvironment* Env = GetScriptEnvironment(L);
 
 	luaL_unref(L, LUA_REGISTRYINDEX, Env->AdvanceCallbackRef);
 

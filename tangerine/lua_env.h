@@ -36,6 +36,7 @@ struct LuaEnvironment : public ScriptEnvironment
 	virtual void LoadFromString(std::string Source);
 	virtual ~LuaEnvironment();
 
+	static LuaEnvironment* GetScriptEnvironment(struct lua_State* L);
 	static int LuaSetAdvanceEvent(struct lua_State* L);
 
 private:

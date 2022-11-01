@@ -36,9 +36,9 @@ SDFNode* GetSDFNode(lua_State* L, int Arg)
 }
 
 
-SDFModel* GetSDFModel(lua_State* L, int Arg)
+LuaModel* GetSDFModel(lua_State* L, int Arg)
 {
-	SDFModel** Model = (SDFModel**)luaL_checkudata(L, Arg, "tangerine.model");
+	LuaModel** Model = (LuaModel**)luaL_checkudata(L, Arg, "tangerine.model");
 	return *Model;
 }
 
@@ -720,9 +720,9 @@ int LuaShuffleSequence(lua_State* L)
 int LuaInstanceModel(lua_State* L)
 {
 	SDFNode* Evaluator = GetSDFNode(L, 1);
-	SDFModel* NewModel = new SDFModel(Evaluator, 0.25);
+	LuaModel* NewModel = new LuaModel(L, Evaluator, 0.25);
 
-	SDFModel** Wrapper = (SDFModel**)lua_newuserdata(L, sizeof(SDFModel*));
+	LuaModel** Wrapper = (LuaModel**)lua_newuserdata(L, sizeof(LuaModel*));
 	luaL_getmetatable(L, "tangerine.model");
 	lua_setmetatable(L, -2);
 	*Wrapper = NewModel;
@@ -831,9 +831,25 @@ const luaL_Reg LuaSDFMeta[] = \
 };
 
 
+LuaModel::LuaModel(lua_State* L, SDFNode* InEvaluator, const float VoxelSize)
+	: SDFModel(InEvaluator, VoxelSize)
+	, Env(LuaEnvironment::GetScriptEnvironment(L))
+	, MouseDownCallbackRef(LUA_REFNIL)
+	, MouseUpCallbackRef(LUA_REFNIL)
+{
+}
+
+
+LuaModel::~LuaModel()
+{
+	luaL_unref(Env->L, LUA_REGISTRYINDEX, MouseDownCallbackRef);
+	luaL_unref(Env->L, LUA_REGISTRYINDEX, MouseUpCallbackRef);
+}
+
+
 int LuaHideModel(lua_State* L)
 {
-	SDFModel* Self = GetSDFModel(L, 1);
+	LuaModel* Self = GetSDFModel(L, 1);
 	Self->Visible = false;
 	return 1;
 };
@@ -841,7 +857,7 @@ int LuaHideModel(lua_State* L)
 
 int LuaShowModel(lua_State* L)
 {
-	SDFModel* Self = GetSDFModel(L, 1);
+	LuaModel* Self = GetSDFModel(L, 1);
 	Self->Visible = true;
 	return 1;
 };
@@ -849,7 +865,7 @@ int LuaShowModel(lua_State* L)
 
 int LuaModelMove(lua_State* L)
 {
-	SDFModel* Self = GetSDFModel(L, 1);
+	LuaModel* Self = GetSDFModel(L, 1);
 	glm::vec3 Offset(
 		(float)luaL_checknumber(L, 2),
 		(float)luaL_checknumber(L, 3),
@@ -862,7 +878,7 @@ int LuaModelMove(lua_State* L)
 
 int LuaModelMoveX(lua_State* L)
 {
-	SDFModel* Self = GetSDFModel(L, 1);
+	LuaModel* Self = GetSDFModel(L, 1);
 	glm::vec3 Offset(
 		(float)luaL_checknumber(L, 2),
 		0.0,
@@ -875,7 +891,7 @@ int LuaModelMoveX(lua_State* L)
 
 int LuaModelMoveY(lua_State* L)
 {
-	SDFModel* Self = GetSDFModel(L, 1);
+	LuaModel* Self = GetSDFModel(L, 1);
 	glm::vec3 Offset(
 		0.0,
 		(float)luaL_checknumber(L, 2),
@@ -888,7 +904,7 @@ int LuaModelMoveY(lua_State* L)
 
 int LuaModelMoveZ(lua_State* L)
 {
-	SDFModel* Self = GetSDFModel(L, 1);
+	LuaModel* Self = GetSDFModel(L, 1);
 	glm::vec3 Offset(
 		0.0,
 		0.0,
@@ -901,7 +917,7 @@ int LuaModelMoveZ(lua_State* L)
 
 int LuaModelRotate(lua_State* L)
 {
-	SDFModel* Self = GetSDFModel(L, 1);
+	LuaModel* Self = GetSDFModel(L, 1);
 	glm::quat Quat(
 		(float)luaL_checknumber(L, 5),
 		(float)luaL_checknumber(L, 2),
@@ -915,7 +931,7 @@ int LuaModelRotate(lua_State* L)
 
 int LuaModelRotateX(lua_State* L)
 {
-	SDFModel* Self = GetSDFModel(L, 1);
+	LuaModel* Self = GetSDFModel(L, 1);
 	float Degrees = (float)luaL_checknumber(L, 2);
 	float R = glm::radians(Degrees) * .5;
 	float S = sin(R);
@@ -928,7 +944,7 @@ int LuaModelRotateX(lua_State* L)
 
 int LuaModelRotateY(lua_State* L)
 {
-	SDFModel* Self = GetSDFModel(L, 1);
+	LuaModel* Self = GetSDFModel(L, 1);
 	float Degrees = (float)luaL_checknumber(L, 2);
 	float R = glm::radians(Degrees) * .5;
 	float S = sin(R);
@@ -941,7 +957,7 @@ int LuaModelRotateY(lua_State* L)
 
 int LuaModelRotateZ(lua_State* L)
 {
-	SDFModel* Self = GetSDFModel(L, 1);
+	LuaModel* Self = GetSDFModel(L, 1);
 	float Degrees = (float)luaL_checknumber(L, 2);
 	float R = glm::radians(Degrees) * .5;
 	float S = sin(R);
@@ -954,9 +970,73 @@ int LuaModelRotateZ(lua_State* L)
 
 int LuaModelResetTransform(lua_State* L)
 {
-	SDFModel* Self = GetSDFModel(L, 1);
+	LuaModel* Self = GetSDFModel(L, 1);
 	Self->Transform.Reset();
 	return 1;
+}
+
+
+void LuaModel::SetOnMouseButtonCallback(int& CallbackRef, int EventFlag)
+{
+	lua_State* L = Env->L;
+	luaL_unref(L, LUA_REGISTRYINDEX, CallbackRef);
+
+	if (lua_isnil(L, 2))
+	{
+		lua_pop(L, 1);
+		CallbackRef = LUA_REFNIL;
+		MouseListenFlags = MouseListenFlags & ~EventFlag;
+	}
+	else
+	{
+		luaL_checktype(L, 2, LUA_TFUNCTION);
+		CallbackRef = luaL_ref(L, LUA_REGISTRYINDEX);
+		MouseListenFlags = MouseListenFlags | EventFlag;
+	}
+}
+
+
+int LuaModel::SetOnMouseDown(lua_State* L)
+{
+	LuaModel* Self = GetSDFModel(L, 1);
+	Self->SetOnMouseButtonCallback(Self->MouseDownCallbackRef, MOUSE_DOWN);
+	return 1;
+}
+
+
+int LuaModel::SetOnMouseUp(lua_State* L)
+{
+	LuaModel* Self = GetSDFModel(L, 1);
+	Self->SetOnMouseButtonCallback(Self->MouseUpCallbackRef, MOUSE_UP);
+	return 1;
+}
+
+
+inline void OnMouseButtonInner(lua_State* L, int CallbackRef, glm::vec3 HitPosition, bool MouseOver, int Button, int Clicks)
+{
+	if (CallbackRef != LUA_REFNIL)
+	{
+		lua_rawgeti(L, LUA_REGISTRYINDEX, CallbackRef);
+		lua_pushinteger(L, Button);
+		lua_pushinteger(L, Clicks);
+		lua_pushboolean(L, MouseOver);
+		lua_pushnumber(L, HitPosition.x);
+		lua_pushnumber(L, HitPosition.y);
+		lua_pushnumber(L, HitPosition.z);
+		lua_call(L, 6, 0);
+	}
+}
+
+
+void LuaModel::OnMouseDown(glm::vec3 HitPosition, bool MouseOver, int Button, int Clicks)
+{
+	OnMouseButtonInner(Env->L, MouseDownCallbackRef, HitPosition, MouseOver, Button, Clicks);
+}
+
+
+void LuaModel::OnMouseUp(glm::vec3 HitPosition, bool MouseOver, int Button, int Clicks)
+{
+	OnMouseButtonInner(Env->L, MouseUpCallbackRef, HitPosition, MouseOver, Button, Clicks);
 }
 
 
@@ -977,13 +1057,16 @@ const luaL_Reg LuaModelType[] = \
 
 	{ "reset_transform", LuaModelResetTransform },
 
+	{ "on_mouse_down" , LuaModel::SetOnMouseDown },
+	{ "on_mouse_up" , LuaModel::SetOnMouseUp },
+
 	{ NULL, NULL }
 };
 
 
 int IndexSDFModel(lua_State* L)
 {
-	SDFModel* Self = GetSDFModel(L, 1);
+	LuaModel* Self = GetSDFModel(L, 1);
 	const char* Key = luaL_checklstring(L, 2, nullptr);
 
 	for (const luaL_Reg& Reg : LuaModelType)
@@ -1005,7 +1088,7 @@ int IndexSDFModel(lua_State* L)
 
 int SDFModelGC(lua_State* L)
 {
-	SDFModel* Self = GetSDFModel(L, 1);
+	LuaModel* Self = GetSDFModel(L, 1);
 	Self->Release();
 	return 0;
 }

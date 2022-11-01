@@ -102,16 +102,18 @@ RayHit SDFNode::RayMarch(glm::vec3 RayStart, glm::vec3 RayDir, int MaxIterations
 {
 	RayDir = normalize(RayDir);
 	vec3 Position = RayStart;
-	float Travel = std::numeric_limits<float>::infinity();
+	float Travel = 0.0;
 	for (int i = 0; i < MaxIterations; ++i)
 	{
-		Travel = Eval(Position);
-		if (Travel <= Epsilon)
+		float Dist = Eval(Position);
+		if (Dist <= Epsilon)
 		{
 			return { true, Travel, Position };
 		}
-		Position += RayDir * Travel;
+		Travel += Dist;
+		Position = RayDir * Travel + RayStart;
 	}
+	Travel = std::numeric_limits<float>::infinity();
 	return { false, Travel, Position };
 }
 
