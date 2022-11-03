@@ -39,10 +39,11 @@ struct LuaEnvironment : public ScriptEnvironment
 	static LuaEnvironment* GetScriptEnvironment(struct lua_State* L);
 	static int LuaSetAdvanceEvent(struct lua_State* L);
 
+	bool HandleError(int Error);
 private:
 	int AdvanceCallbackRef;
 
-	void LoadLuaModelCommon(int Error);
+	void LoadLuaModelCommon();
 };
 
 #endif //EMBED_LUA

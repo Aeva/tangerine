@@ -834,16 +834,20 @@ const luaL_Reg LuaSDFMeta[] = \
 LuaModel::LuaModel(lua_State* L, SDFNode* InEvaluator, const float VoxelSize)
 	: SDFModel(InEvaluator, VoxelSize)
 	, Env(LuaEnvironment::GetScriptEnvironment(L))
-	, MouseDownCallbackRef(LUA_REFNIL)
-	, MouseUpCallbackRef(LUA_REFNIL)
 {
+	for (int i = 0; i < MOUSE_EVENTS; ++i)
+	{
+		MouseCallbackRefs[i] = LUA_REFNIL;
+	}
 }
 
 
 LuaModel::~LuaModel()
 {
-	luaL_unref(Env->L, LUA_REGISTRYINDEX, MouseDownCallbackRef);
-	luaL_unref(Env->L, LUA_REGISTRYINDEX, MouseUpCallbackRef);
+	for (int i = 0; i < MOUSE_EVENTS; ++i)
+	{
+		luaL_unref(Env->L, LUA_REGISTRYINDEX, MouseCallbackRefs[i]);
+	}
 }
 
 
@@ -976,10 +980,12 @@ int LuaModelResetTransform(lua_State* L)
 }
 
 
-void LuaModel::SetOnMouseButtonCallback(int& CallbackRef, int EventFlag)
+void LuaModel::SetMouseEventCallback(int EventIndex)
 {
 	lua_State* L = Env->L;
+	int& CallbackRef = MouseCallbackRefs[EventIndex];
 	luaL_unref(L, LUA_REGISTRYINDEX, CallbackRef);
+	const int EventFlag = MOUSE_FLAG(EventIndex);
 
 	if (lua_isnil(L, 2))
 	{
@@ -996,47 +1002,77 @@ void LuaModel::SetOnMouseButtonCallback(int& CallbackRef, int EventFlag)
 }
 
 
-int LuaModel::SetOnMouseDown(lua_State* L)
+template<int EventIndex>
+int SetOnMouseEvent(lua_State* L)
 {
 	LuaModel* Self = GetSDFModel(L, 1);
-	Self->SetOnMouseButtonCallback(Self->MouseDownCallbackRef, MOUSE_DOWN);
+	Self->SetMouseEventCallback(EventIndex);
 	return 1;
 }
 
 
-int LuaModel::SetOnMouseUp(lua_State* L)
+void LuaModel::OnMouseEvent(MouseEvent& Event, bool Picked)
 {
-	LuaModel* Self = GetSDFModel(L, 1);
-	Self->SetOnMouseButtonCallback(Self->MouseUpCallbackRef, MOUSE_UP);
-	return 1;
-}
-
-
-inline void OnMouseButtonInner(lua_State* L, int CallbackRef, glm::vec3 HitPosition, bool MouseOver, int Button, int Clicks)
-{
-	if (CallbackRef != LUA_REFNIL)
+	lua_State* L = Env->L;
+	int& CallbackRef = MouseCallbackRefs[Event.Type];
+	int ErrorStatus = LUA_OK;
+	switch (Event.Type)
 	{
-		lua_rawgeti(L, LUA_REGISTRYINDEX, CallbackRef);
-		lua_pushinteger(L, Button);
-		lua_pushinteger(L, Clicks);
-		lua_pushboolean(L, MouseOver);
-		lua_pushnumber(L, HitPosition.x);
-		lua_pushnumber(L, HitPosition.y);
-		lua_pushnumber(L, HitPosition.z);
-		lua_call(L, 6, 0);
+	case MOUSE_DOWN:
+	case MOUSE_UP:
+		if (CallbackRef != LUA_REFNIL)
+		{
+			lua_rawgeti(L, LUA_REGISTRYINDEX, CallbackRef);
+
+			lua_createtable(L, 0, 5);
+			{
+				lua_pushboolean(L, true);
+				lua_setfield(L, -2, Event.Type == MOUSE_DOWN ? "mouse_down" : "mouse_up");
+
+				lua_pushinteger(L, Event.Button);
+				lua_setfield(L, -2, "button");
+
+				lua_pushinteger(L, Event.Clicks);
+				lua_setfield(L, -2, "clicks");
+
+				lua_pushboolean(L, Picked);
+				lua_setfield(L, -2, "picked");
+
+				if (Event.AnyHit)
+				{
+					lua_createtable(L, 3, 0);
+					{
+						lua_pushnumber(L, Event.Cursor.x);
+						lua_rawseti(L, -2, 1);
+
+						lua_pushnumber(L, Event.Cursor.y);
+						lua_rawseti(L, -2, 2);
+
+						lua_pushnumber(L, Event.Cursor.z);
+						lua_rawseti(L, -2, 3);
+					}
+				}
+				else
+				{
+					lua_pushnil(L);
+				}
+				lua_setfield(L, -2, "cursor");
+			}
+			ErrorStatus = lua_pcall(L, 1, 0, 0);
+		}
+		break;
+
+	default:
+		break;
 	}
-}
 
-
-void LuaModel::OnMouseDown(glm::vec3 HitPosition, bool MouseOver, int Button, int Clicks)
-{
-	OnMouseButtonInner(Env->L, MouseDownCallbackRef, HitPosition, MouseOver, Button, Clicks);
-}
-
-
-void LuaModel::OnMouseUp(glm::vec3 HitPosition, bool MouseOver, int Button, int Clicks)
-{
-	OnMouseButtonInner(Env->L, MouseUpCallbackRef, HitPosition, MouseOver, Button, Clicks);
+	if (!Env->HandleError(ErrorStatus))
+	{
+		luaL_unref(L, LUA_REGISTRYINDEX, CallbackRef);
+		CallbackRef = LUA_REFNIL;
+		const int EventFlag = MOUSE_FLAG(Event.Type);
+		MouseListenFlags = MouseListenFlags & ~EventFlag;
+	}
 }
 
 
@@ -1057,8 +1093,8 @@ const luaL_Reg LuaModelType[] = \
 
 	{ "reset_transform", LuaModelResetTransform },
 
-	{ "on_mouse_down" , LuaModel::SetOnMouseDown },
-	{ "on_mouse_up" , LuaModel::SetOnMouseUp },
+	{ "on_mouse_down" , SetOnMouseEvent<MOUSE_DOWN> },
+	{ "on_mouse_up" , SetOnMouseEvent<MOUSE_UP> },
 
 	{ NULL, NULL }
 };

@@ -175,6 +175,7 @@
     <ClCompile Include="..\tangerine\colors.cpp" />
     <ClCompile Include="..\tangerine\c_sdf.cpp" />
     <ClCompile Include="..\tangerine\errors.cpp" />
+    <ClCompile Include="..\tangerine\events.cpp" />
     <ClCompile Include="..\tangerine\export.cpp" />
     <ClCompile Include="..\tangerine\gl_async.cpp" />
     <ClCompile Include="..\tangerine\gl_boilerplate.cpp" />
@@ -239,8 +240,10 @@
     <ClInclude Include="..\tangerine\colors.h" />
     <ClInclude Include="..\tangerine\embedding.h" />
     <ClInclude Include="..\tangerine\errors.h" />
+    <ClInclude Include="..\tangerine\events.h" />
     <ClInclude Include="..\tangerine\export.h" />
     <ClInclude Include="..\tangerine\extern.h" />
+    <ClInclude Include="..\tangerine\glm_common.h" />
     <ClInclude Include="..\tangerine\gl_async.h" />
     <ClInclude Include="..\tangerine\gl_boilerplate.h" />
     <ClInclude Include="..\tangerine\gl_debug.h" />

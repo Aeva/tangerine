@@ -112,30 +112,42 @@ void LuaEnvironment::Advance(double DeltaTimeMs, double ElapsedTimeMs)
 		lua_rawgeti(L, LUA_REGISTRYINDEX, AdvanceCallbackRef);
 		lua_pushnumber(L, DeltaTimeMs);
 		lua_pushnumber(L, ElapsedTimeMs);
-		lua_call(L, 2, 0);
+		int Error = lua_pcall(L, 2, 0, 0);
+		if (!HandleError(Error))
+		{
+			luaL_unref(L, LUA_REGISTRYINDEX, AdvanceCallbackRef);
+			AdvanceCallbackRef = LUA_REFNIL;
+		}
 	}
 }
 
 
-void LuaEnvironment::LoadLuaModelCommon(int Error)
+bool LuaEnvironment::HandleError(int Error)
 {
-	if (Error)
+	if (Error != LUA_OK)
 	{
 		std::string ErrorMessage = fmt::format("{}\n", lua_tostring(L, -1));
 		PostScriptError(ErrorMessage);
 		lua_pop(L, 1);
+		return false;
 	}
 	else
 	{
-		lua_getglobal(L, "model");
-		void* LuaData = luaL_testudata(L, -1, "tangerine.sdf");
-		if (LuaData)
-		{
-			SDFNode* Model = *(SDFNode**)LuaData;
-			CompileEvaluator(Model);
-		}
-		lua_pop(L, 1);
+		return true;
 	}
+}
+
+
+void LuaEnvironment::LoadLuaModelCommon()
+{
+	lua_getglobal(L, "model");
+	void* LuaData = luaL_testudata(L, -1, "tangerine.sdf");
+	if (LuaData)
+	{
+		SDFNode* Model = *(SDFNode**)LuaData;
+		CompileEvaluator(Model);
+	}
+	lua_pop(L, 1);
 }
 
 void LuaEnvironment::LoadFromPath(std::string Path)
@@ -156,7 +168,10 @@ void LuaEnvironment::LoadFromPath(std::string Path)
 		lua_pop(L, 2);
 
 		int Error = luaL_dofile(L, Path.c_str());
-		LoadLuaModelCommon(Error);
+		if (HandleError(Error))
+		{
+			LoadLuaModelCommon();
+		}
 	};
 	LoadModelCommon(LoadAndProcess);
 }
@@ -167,7 +182,10 @@ void LuaEnvironment::LoadFromString(std::string Source)
 	auto LoadAndProcess = [&]()
 	{
 		int Error = luaL_dostring(L, Source.c_str());
-		LoadLuaModelCommon(Error);
+		if (HandleError(Error))
+		{
+			LoadLuaModelCommon();
+		}
 	};
 	LoadModelCommon(LoadAndProcess);
 }

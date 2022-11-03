@@ -15,26 +15,29 @@
 
 #pragma once
 
-#include "embedding.h"
-#if EMBED_LUA
-#include "lua_env.h"
-#include "sdf_model.h"
-#include <lua/lua.hpp>
+#include "glm_common.h"
 
-struct LuaModel : public SDFModel
+#define MOUSE_ENTER  0
+#define MOUSE_EXIT   1
+#define MOUSE_MOVE   2
+#define MOUSE_DOWN   3
+#define MOUSE_UP     4
+#define MOUSE_SCROLL 5
+#define MOUSE_EVENTS 6
+
+#define MOUSE_FLAG(EVENT) (1 << EVENT)
+
+
+struct MouseEvent
 {
-	LuaEnvironment* Env = nullptr;
-	int MouseCallbackRefs[MOUSE_EVENTS];
+	int Type = 0;
+	int Button = 0;
+	int Clicks = 0;
+	glm::vec3 RayOrigin = { 0.0, 0.0, 0.0 };
+	glm::vec3 RayDir = { 0.0, 0.0, 0.0 };
+	glm::vec3 Cursor = { 0.0, 0.0, 0.0 };
+	bool AnyHit = false;
 
-	LuaModel(lua_State* L, SDFNode* InEvaluator, const float VoxelSize);
-	virtual ~LuaModel();
-	virtual void OnMouseEvent(MouseEvent& Event, bool Picked);
-
-	void SetMouseEventCallback(int EventFlag);
+	MouseEvent() {};
+	MouseEvent(struct SDL_MouseButtonEvent& Event, glm::vec3& InRayOrigin, glm::vec3& InRayDir);
 };
-
-
-int LuaOpenSDF(struct lua_State* L);
-
-
-#endif // EMBED_LUA

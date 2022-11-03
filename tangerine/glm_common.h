@@ -15,26 +15,19 @@
 
 #pragma once
 
-#include "embedding.h"
-#if EMBED_LUA
-#include "lua_env.h"
-#include "sdf_model.h"
-#include <lua/lua.hpp>
+#define GLM_FORCE_DEPTH_ZERO_TO_ONE
+#define GLM_FORCE_SWIZZLE
+#define GLM_FORCE_INTRINSICS
+#include <glm/vec3.hpp>
+#include <glm/vec4.hpp>
+#include <glm/mat4x4.hpp>
+#include <glm/ext/matrix_transform.hpp>
+#include <glm/ext/matrix_clip_space.hpp>
+#include <glm/gtx/extended_min_max.hpp>
+#include <glm/gtx/quaternion.hpp>
 
-struct LuaModel : public SDFModel
-{
-	LuaEnvironment* Env = nullptr;
-	int MouseCallbackRefs[MOUSE_EVENTS];
-
-	LuaModel(lua_State* L, SDFNode* InEvaluator, const float VoxelSize);
-	virtual ~LuaModel();
-	virtual void OnMouseEvent(MouseEvent& Event, bool Picked);
-
-	void SetMouseEventCallback(int EventFlag);
-};
-
-
-int LuaOpenSDF(struct lua_State* L);
-
-
-#endif // EMBED_LUA
+#ifndef _WIN64
+// Both GCC and Clang are able to translate these to the correct intrinsics.
+#define min(a, b) (a < b ? a : b)
+#define max(a, b) (a > b ? a : b)
+#endif

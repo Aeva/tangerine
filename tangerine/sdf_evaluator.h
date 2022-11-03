@@ -18,16 +18,7 @@
 #include <functional>
 #include <vector>
 #include <string>
-#define GLM_FORCE_DEPTH_ZERO_TO_ONE
-#define GLM_FORCE_SWIZZLE
-#define GLM_FORCE_INTRINSICS
-#include <glm/vec3.hpp>
-#include <glm/vec4.hpp>
-#include <glm/mat4x4.hpp>
-#include <glm/ext/matrix_transform.hpp>
-#include <glm/ext/matrix_clip_space.hpp>
-#include <glm/gtx/extended_min_max.hpp>
-#include <glm/gtx/quaternion.hpp>
+#include "glm_common.h"
 #include "errors.h"
 
 

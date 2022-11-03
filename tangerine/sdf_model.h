@@ -15,16 +15,11 @@
 
 #pragma once
 
+#include "events.h"
 #include "embedding.h"
 #include "sdf_evaluator.h"
 #include "sdf_rendering.h"
 
-#define MOUSE_ENTER  (1 << 0)
-#define MOUSE_EXIT   (1 << 1)
-#define MOUSE_MOVE   (1 << 2)
-#define MOUSE_DOWN   (1 << 3)
-#define MOUSE_UP     (1 << 4)
-#define MOUSE_SCROLL (1 << 5)
 
 struct SDFModel
 {
@@ -59,8 +54,7 @@ struct SDFModel
 	SDFModel(SDFModel&& Other) = delete;
 	virtual ~SDFModel();
 
-	virtual void OnMouseDown(glm::vec3 HitPosition, bool MouseOver, int Button, int Clicks) {};
-	virtual void OnMouseUp(glm::vec3 HitPosition, bool MouseOver, int Button, int Clicks) {};
+	virtual void OnMouseEvent(MouseEvent& Event, bool Picked) {};
 
 	void Hold()
 	{
@@ -96,7 +90,7 @@ void GetIncompleteModels(std::vector<SDFModel*>& Incomplete);
 void GetRenderableModels(std::vector<SDFModel*>& Renderable);
 
 bool DeliverMouseMove(glm::vec3 Origin, glm::vec3 RayDir, int MouseX, int MouseY);
-bool DeliverMouseButton(glm::vec3 Origin, glm::vec3 RayDir, int MouseX, int MouseY, bool Press, bool Release, int Button, int Clicks);
+bool DeliverMouseButton(MouseEvent Event);
 bool DeliverMouseScroll(glm::vec3 Origin, glm::vec3 RayDir, int ScrollX, int ScrollY);
 
 void ClearTreeEvaluator();

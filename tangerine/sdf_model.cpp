@@ -66,6 +66,12 @@ void GetRenderableModels(std::vector<SDFModel*>& Renderable)
 }
 
 
+bool MatchEvent(SDFModel& Model, MouseEvent& Event)
+{
+	return (Model.MouseListenFlags & MOUSE_FLAG(Event.Type)) == MOUSE_FLAG(Event.Type);
+}
+
+
 bool DeliverMouseMove(glm::vec3 Origin, glm::vec3 RayDir, int MouseX, int MouseY)
 {
 	bool ReturnToSender = true;
@@ -76,24 +82,16 @@ bool DeliverMouseMove(glm::vec3 Origin, glm::vec3 RayDir, int MouseX, int MouseY
 }
 
 
-bool DeliverMouseButton(glm::vec3 Origin, glm::vec3 RayDir, int MouseX, int MouseY, bool Press, bool Release, int Button, int Clicks)
+bool DeliverMouseButton(MouseEvent Event)
 {
 	bool ReturnToSender = true;
 
 	float Nearest = std::numeric_limits<float>::infinity();
 	SDFModel* NearestMatch = nullptr;
-	glm::vec3 HitPosition(0.0, 0.0, 0.0);
 	std::vector<SDFModel*> MouseUpRecipients;
 
-	int Match = 0;
-	if (Press)
-	{
-		Match |= MOUSE_DOWN;
-	}
-	if (Release)
-	{
-		Match |= MOUSE_UP;
-	}
+	const bool Press = Event.Type == MOUSE_DOWN;
+	const bool Release = Event.Type == MOUSE_UP;
 
 	for (SDFModel* Model : LiveModels)
 	{
@@ -115,18 +113,22 @@ bool DeliverMouseButton(glm::vec3 Origin, glm::vec3 RayDir, int MouseX, int Mous
 		// This is probably fine at least until the events can be forwarded back to
 		// the script envs.
 
-		if (Release && Model->MouseListenFlags | MOUSE_UP)
+		if (MatchEvent(*Model, Event))
 		{
-			MouseUpRecipients.push_back(Model);
-		}
-		if (Model->Visible && Model->MouseListenFlags | Match)
-		{
-			RayHit Query = Model->RayMarch(Origin, RayDir);
-			if (Query.Hit && Query.Travel < Nearest)
+			if (Release)
 			{
-				Nearest = Query.Travel;
-				NearestMatch = Model;
-				HitPosition = Query.Position;
+				MouseUpRecipients.push_back(Model);
+			}
+			if (Model->Visible)
+			{
+				RayHit Query = Model->RayMarch(Event.RayOrigin, Event.RayDir);
+				if (Query.Hit && Query.Travel < Nearest)
+				{
+					Nearest = Query.Travel;
+					NearestMatch = Model;
+					Event.AnyHit = true;
+					Event.Cursor = Query.Position;
+				}
 			}
 		}
 	}
@@ -134,7 +136,7 @@ bool DeliverMouseButton(glm::vec3 Origin, glm::vec3 RayDir, int MouseX, int Mous
 	if (Press && NearestMatch)
 	{
 		ReturnToSender = false;
-		NearestMatch->OnMouseDown(HitPosition, true, Button, Clicks);
+		NearestMatch->OnMouseEvent(Event, true);
 	}
 
 	if (MouseUpRecipients.size() > 0)
@@ -142,7 +144,7 @@ bool DeliverMouseButton(glm::vec3 Origin, glm::vec3 RayDir, int MouseX, int Mous
 		ReturnToSender = false;
 		for (SDFModel* Recipient : MouseUpRecipients)
 		{
-			Recipient->OnMouseUp(HitPosition, Recipient == NearestMatch, Button, Clicks);
+			Recipient->OnMouseEvent(Event, Recipient == NearestMatch);
 		}
 	}
 

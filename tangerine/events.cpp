@@ -13,28 +13,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#pragma once
+#include "events.h"
+#include <SDL_events.h>
 
-#include "embedding.h"
-#if EMBED_LUA
-#include "lua_env.h"
-#include "sdf_model.h"
-#include <lua/lua.hpp>
 
-struct LuaModel : public SDFModel
+MouseEvent::MouseEvent(SDL_MouseButtonEvent& Event, glm::vec3& InRayOrigin, glm::vec3& InRayDir)
+	: Type(Event.type == SDL_MOUSEBUTTONDOWN ? MOUSE_DOWN : MOUSE_UP)
+	, Button(Event.button)
+	, Clicks(Event.clicks)
+	, RayOrigin(InRayOrigin)
+	, RayDir(InRayDir)
 {
-	LuaEnvironment* Env = nullptr;
-	int MouseCallbackRefs[MOUSE_EVENTS];
-
-	LuaModel(lua_State* L, SDFNode* InEvaluator, const float VoxelSize);
-	virtual ~LuaModel();
-	virtual void OnMouseEvent(MouseEvent& Event, bool Picked);
-
-	void SetMouseEventCallback(int EventFlag);
-};
-
-
-int LuaOpenSDF(struct lua_State* L);
-
-
-#endif // EMBED_LUA
+}

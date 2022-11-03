@@ -26,6 +26,7 @@
 #include <imgui_impl_sdl.h>
 #include <imgui_impl_opengl3.h>
 
+#include "events.h"
 #include "sdf_evaluator.h"
 #include "sdf_rendering.h"
 #include "sdf_model.h"
@@ -60,12 +61,6 @@
 #include "gl_async.h"
 #include "gl_debug.h"
 #include "../shaders/defines.h"
-
-#ifndef _WIN64
-// Both GCC and Clang are able to translate these to the correct intrinsics.
-#define min(a, b) (a < b ? a : b)
-#define max(a, b) (a > b ? a : b)
-#endif
 
 #define MINIMUM_VERSION_MAJOR 4
 #define MINIMUM_VERSION_MINOR 2
@@ -1945,6 +1940,7 @@ void MainLoop()
 					static bool Dragging = false;
 					if (!io.WantCaptureMouse && HasMouseFoucs && RenderableModels.size() > 0)
 					{
+						glm::vec3 RayOrigin = glm::vec3(LastView.CameraOrigin.xyz);
 						switch (Event.type)
 						{
 						case SDL_MOUSEMOTION:
@@ -1959,7 +1955,7 @@ void MainLoop()
 							}
 							break;
 						case SDL_MOUSEBUTTONDOWN:
-							if (DeliverMouseButton(LastView.CameraOrigin, MouseRay, Event.button.x, Event.button.y, true, false, Event.button.button, Event.button.clicks))
+							if (DeliverMouseButton(MouseEvent(Event.button, RayOrigin, MouseRay)))
 							{
 								Dragging = true;
 								SDL_SetRelativeMouseMode(SDL_TRUE);
@@ -1973,7 +1969,7 @@ void MainLoop()
 							}
 							else
 							{
-								DeliverMouseButton(LastView.CameraOrigin, MouseRay, Event.button.x, Event.button.y, false, true, Event.button.button, Event.button.clicks);
+								DeliverMouseButton(MouseEvent(Event.button, RayOrigin, MouseRay));
 							}
 							break;
 						case SDL_MOUSEWHEEL:
