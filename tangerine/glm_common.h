@@ -25,9 +25,3 @@
 #include <glm/ext/matrix_clip_space.hpp>
 #include <glm/gtx/extended_min_max.hpp>
 #include <glm/gtx/quaternion.hpp>
-
-#ifndef _WIN64
-// Both GCC and Clang are able to translate these to the correct intrinsics.
-#define min(a, b) (a < b ? a : b)
-#define max(a, b) (a > b ? a : b)
-#endif

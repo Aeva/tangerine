@@ -62,6 +62,12 @@
 #include "gl_debug.h"
 #include "../shaders/defines.h"
 
+#ifndef _WIN64
+// Both GCC and Clang are able to translate these to the correct intrinsics.
+#define min(a, b) (a < b ? a : b)
+#define max(a, b) (a > b ? a : b)
+#endif
+
 #define MINIMUM_VERSION_MAJOR 4
 #define MINIMUM_VERSION_MINOR 2
 
