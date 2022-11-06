@@ -126,6 +126,7 @@ void main()
 {
 	DrawID = gl_VertexID / 36;
 	Bounds = BoundsArray[DrawID];
+	Bounds.Extent += 0.0001;
 	LocalMin = Bounds.Center - Bounds.Extent;
 	LocalMax = Bounds.Center + Bounds.Extent;
 	{
