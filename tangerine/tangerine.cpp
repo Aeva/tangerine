@@ -862,6 +862,12 @@ void SetClearColor(glm::vec3& Color)
 }
 
 
+void SetOutline(bool OutlinerState)
+{
+	HighlightEdges = OutlinerState;
+}
+
+
 void SetFixedCamera(glm::vec3& Origin, glm::vec3& Focus, glm::vec3& Up)
 {
 	FixedCamera = true;
