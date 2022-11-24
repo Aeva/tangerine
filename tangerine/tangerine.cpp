@@ -79,7 +79,7 @@ using Clock = std::chrono::high_resolution_clock;
 bool HeadlessMode;
 
 
-ScriptEnvironment* MainEnvironment;
+ScriptEnvironment* MainEnvironment = nullptr;
 
 
 SDFNode* TreeEvaluator = nullptr;
@@ -1643,7 +1643,7 @@ void RenderUI(SDL_Window* Window, bool& Live)
 SDL_Window* Window = nullptr;
 SDL_GLContext Context = nullptr;
 
-void Boot(int argc, char* argv[])
+StatusCode Boot(int argc, char* argv[])
 {
 	std::vector<std::string> Args;
 	for (int i = 1; i < argc; ++i)
@@ -1704,7 +1704,7 @@ void Boot(int argc, char* argv[])
 			else
 			{
 				std::cout << "Invalid commandline arg(s).\n";
-				return;
+				return StatusCode::FAIL;
 			}
 		}
 	}
@@ -1737,10 +1737,15 @@ void Boot(int argc, char* argv[])
 				WindowWidth, WindowHeight,
 				WindowFlags);
 		}
+		else
+		{
+			std::cout << "Failed to initialize SDL2.\n";
+			return StatusCode::FAIL;
+		}
 		if (Window == nullptr)
 		{
 			std::cout << "Failed to create SDL2 window.\n";
-			return;
+			return StatusCode::FAIL;
 		}
 		else
 		{
@@ -1748,7 +1753,7 @@ void Boot(int argc, char* argv[])
 			if (Context == nullptr)
 			{
 				std::cout << "Failed to create SDL2 OpenGL Context.\n";
-				return;
+				return StatusCode::FAIL;
 			}
 			else
 			{
@@ -1812,7 +1817,7 @@ void Boot(int argc, char* argv[])
 	if (SetupRenderer() == StatusCode::FAIL)
 	{
 		std::cout << "Failed to initialize the renderer.\n";
-		return;
+		return StatusCode::FAIL;
 	}
 	{
 		StartWorkerThreads();
@@ -1869,6 +1874,7 @@ void Boot(int argc, char* argv[])
 			}
 		}
 	}
+	return StatusCode::PASS;
 }
 
 
@@ -1876,18 +1882,27 @@ void Teardown()
 {
 	std::cout << "Shutting down...\n";
 
-	delete MainEnvironment;
+	if (MainEnvironment)
+	{
+		delete MainEnvironment;
+	}
 	{
 		JoinWorkerThreads();
 		UnloadAllModels();
-		if (!HeadlessMode)
+		if (Context)
 		{
-			ImGui_ImplOpenGL3_Shutdown();
-			ImGui_ImplSDL2_Shutdown();
-			ImGui::DestroyContext();
+			if (!HeadlessMode)
+			{
+				ImGui_ImplOpenGL3_Shutdown();
+				ImGui_ImplSDL2_Shutdown();
+				ImGui::DestroyContext();
+			}
+			SDL_GL_DeleteContext(Context);
 		}
-		SDL_GL_DeleteContext(Context);
-		SDL_DestroyWindow(Window);
+		if (Window)
+		{
+			SDL_DestroyWindow(Window);
+		}
 	}
 }
 
@@ -2168,8 +2183,10 @@ void MainLoop()
 #ifndef MINIMAL_DLL
 int main(int argc, char* argv[])
 {
-	Boot(argc, argv);
-	MainLoop();
+	if (Boot(argc, argv) == StatusCode::PASS)
+	{
+		MainLoop();
+	}
 	Teardown();
 	return 0;
 }
