@@ -126,7 +126,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;IMGUI_USE_WCHAR32;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>$(SolutionDir)..\third_party\fmt\include;$(SolutionDir)..\third_party\imgui;$(SolutionDir)..\third_party\imgui\backends;$(SolutionDir)..\third_party\sdl2\include;$(SolutionDir)..\third_party\racket\include;$(SolutionDir)..\third_party\lua-5.4.4;$(SolutionDir)..\third_party</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)..\third_party\fmt\include;$(SolutionDir)..\third_party\imgui;$(SolutionDir)..\third_party\imgui\backends;$(SolutionDir)..\third_party\sdl2\include;$(SolutionDir)..\third_party\racket\include;$(SolutionDir)..\third_party\lua-5.4.4;$(SolutionDir)..\third_party\stb;$(SolutionDir)..\third_party\ImFileDialog;$(SolutionDir)..\third_party</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
     </ClCompile>
@@ -152,7 +152,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;IMGUI_USE_WCHAR32;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>$(SolutionDir)..\third_party\fmt\include;$(SolutionDir)..\third_party\imgui;$(SolutionDir)..\third_party\imgui\backends;$(SolutionDir)..\third_party\sdl2\include;$(SolutionDir)..\third_party\racket\include;$(SolutionDir)..\third_party\lua-5.4.4;$(SolutionDir)..\third_party</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)..\third_party\fmt\include;$(SolutionDir)..\third_party\imgui;$(SolutionDir)..\third_party\imgui\backends;$(SolutionDir)..\third_party\sdl2\include;$(SolutionDir)..\third_party\racket\include;$(SolutionDir)..\third_party\lua-5.4.4;$(SolutionDir)..\third_party\stb;$(SolutionDir)..\third_party\ImFileDialog;$(SolutionDir)..\third_party</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
     </ClCompile>
@@ -194,6 +194,7 @@
     <ClCompile Include="..\third_party\fmt\src\format.cc" />
     <ClCompile Include="..\third_party\glad\glad.c" />
     <ClCompile Include="..\third_party\glad\glad_wgl.c" />
+    <ClCompile Include="..\third_party\ImFileDialog\ImFileDialog.cpp" />
     <ClCompile Include="..\third_party\imgui\backends\imgui_impl_opengl3.cpp" />
     <ClCompile Include="..\third_party\imgui\backends\imgui_impl_sdl.cpp" />
     <ClCompile Include="..\third_party\imgui\imgui.cpp" />
@@ -233,6 +234,8 @@
     <ClCompile Include="..\third_party\lua-5.4.4\lua\lutf8lib.c" />
     <ClCompile Include="..\third_party\lua-5.4.4\lua\lvm.c" />
     <ClCompile Include="..\third_party\lua-5.4.4\lua\lzio.c" />
+    <ClCompile Include="..\third_party\stb\stb.cpp" />
+    <ClCompile Include="..\third_party\stb\stb_vorbis.c" />
     <ClCompile Include="..\third_party\voxwriter\VoxWriter.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -262,6 +265,7 @@
     <ClInclude Include="..\third_party\glad\glad_wgl.h" />
     <ClInclude Include="..\third_party\glad\khrplatform.h" />
     <ClInclude Include="..\third_party\glm\glm.hpp" />
+    <ClInclude Include="..\third_party\ImFileDialog\ImFileDialog.h" />
     <ClInclude Include="..\third_party\imgui\backends\imgui_impl_opengl3.h" />
     <ClInclude Include="..\third_party\imgui\backends\imgui_impl_opengl3_loader.h" />
     <ClInclude Include="..\third_party\imgui\backends\imgui_impl_sdl.h" />
@@ -299,6 +303,26 @@
     <ClInclude Include="..\third_party\lua-5.4.4\lua\lundump.h" />
     <ClInclude Include="..\third_party\lua-5.4.4\lua\lvm.h" />
     <ClInclude Include="..\third_party\lua-5.4.4\lua\lzio.h" />
+    <ClInclude Include="..\third_party\stb\stb_connected_components.h" />
+    <ClInclude Include="..\third_party\stb\stb_c_lexer.h" />
+    <ClInclude Include="..\third_party\stb\stb_divide.h" />
+    <ClInclude Include="..\third_party\stb\stb_ds.h" />
+    <ClInclude Include="..\third_party\stb\stb_dxt.h" />
+    <ClInclude Include="..\third_party\stb\stb_easy_font.h" />
+    <ClInclude Include="..\third_party\stb\stb_herringbone_wang_tile.h" />
+    <ClInclude Include="..\third_party\stb\stb_hexwave.h" />
+    <ClInclude Include="..\third_party\stb\stb_image.h" />
+    <ClInclude Include="..\third_party\stb\stb_image_resize.h" />
+    <ClInclude Include="..\third_party\stb\stb_image_write.h" />
+    <ClInclude Include="..\third_party\stb\stb_include.h" />
+    <ClInclude Include="..\third_party\stb\stb_leakcheck.h" />
+    <ClInclude Include="..\third_party\stb\stb_perlin.h" />
+    <ClInclude Include="..\third_party\stb\stb_rect_pack.h" />
+    <ClInclude Include="..\third_party\stb\stb_sprintf.h" />
+    <ClInclude Include="..\third_party\stb\stb_textedit.h" />
+    <ClInclude Include="..\third_party\stb\stb_tilemap_editor.h" />
+    <ClInclude Include="..\third_party\stb\stb_truetype.h" />
+    <ClInclude Include="..\third_party\stb\stb_voxel_render.h" />
     <ClInclude Include="..\third_party\voxwriter\VoxWriter.h" />
     <ClInclude Include="resource.h" />
   </ItemGroup>

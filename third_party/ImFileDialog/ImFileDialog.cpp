@@ -10,7 +10,11 @@
 #include <imgui/imgui.h>
 #include <imgui/imgui_internal.h>
 
+// TANGERINE MOD BEGIN remove redundant STB implementation macro
+#if 0
 #define STB_IMAGE_IMPLEMENTATION
+#endif
+// TANGERINE MOD END
 #include "stb_image.h"
 
 #ifdef _WIN32
@@ -24,7 +28,9 @@
 #endif
 
 #define ICON_SIZE ImGui::GetFont()->FontSize + 3
-#define GUI_ELEMENT_SIZE std::max(GImGui->FontSize + 10.f, 24.f)
+// TANGERINE MOD BEGIN - Replace usage of std::max to avoid conflict with macro?
+#define GUI_ELEMENT_SIZE max(GImGui->FontSize + 10.f, 24.f)
+// TANGERINE MOD END
 #define DEFAULT_ICON_SIZE 32
 #define PI 3.141592f
 

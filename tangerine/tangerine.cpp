@@ -25,6 +25,7 @@
 #include <imgui.h>
 #include <imgui_impl_sdl.h>
 #include <imgui_impl_opengl3.h>
+#include <ImFileDialog.h>
 
 #include "events.h"
 #include "sdf_evaluator.h"
@@ -992,7 +993,7 @@ void ReadInputModel(Language Runtime)
 }
 
 
-Language LanguageForPath(const char* Path)
+Language LanguageForPath(std::string Path)
 {
 	const std::regex LuaFile(".*?\\.(lua)$", std::regex::icase);
 	const std::regex RacketFile(".*?\\.(rkt)$", std::regex::icase);
@@ -1014,70 +1015,30 @@ Language LanguageForPath(const char* Path)
 
 void OpenModel()
 {
-#if _WIN64
-	char Path[MAX_PATH] = {};
-
-	OPENFILENAMEA Dialog = { sizeof(Dialog) };
-	Dialog.hwndOwner = 0;
-	Dialog.lpstrFilter = ""
+	std::string Filter = "";
+	{
+		std::string Separator = "";
 
 #if EMBED_MULTI
-		"Tangerines\0"
-
-	#if EMBED_LUA
-		"*.lua"
-		#define ADD_SEPARATOR
-	#endif
-
-	#ifdef ADD_SEPARATOR
-		";"
-	#endif
-
-	#if EMBED_RACKET
-		"*.rkt"
-		#define ADD_SEPARATOR
-	#endif
-
-	#undef ADD_SEPARATOR
-		"\0"
+		// TODO: This will need to be revised if--Madoka help me--I decide to embed another optional language runtime.
+		Filter = fmt::format("{}{}Tangerines (*.lua; *.rkt){{.lua,.rkt}}", Filter, Separator);
+		Separator = ",";
 #endif
 
 #if EMBED_LUA
-		"Lua Sources\0*.lua\0"
+		Filter = fmt::format("{}{}Lua Sources (*.lua){{.lua}}", Filter, Separator);
+		Separator = ",";
 #endif
 
 #if EMBED_RACKET
-		"Racket Sources\0*.rkt\0"
+		Filter = fmt::format("{}{}Racket Sources (*.rkt){{.rkt}}", Filter, Separator);
+		Separator = ",";
 #endif
-		"";
 
-	Dialog.lpstrFile = Path;
-	Dialog.nMaxFile = ARRAYSIZE(Path);
-	Dialog.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST | OFN_NOCHANGEDIR;
+		Filter = fmt::format("{}{}.*", Filter, Separator);
+	}
 
-	if (GetOpenFileNameA(&Dialog))
-	{
-		LoadModel(std::string(Path), LanguageForPath(Path));
-	}
-#else
-	GtkWidget* Dialog = gtk_file_chooser_dialog_new("Open File",
-		nullptr,
-		GTK_FILE_CHOOSER_ACTION_OPEN,
-		"_Cancel",
-		GTK_RESPONSE_CANCEL,
-		"_Open",
-		GTK_RESPONSE_ACCEPT,
-		nullptr);
-	gint Result = gtk_dialog_run(GTK_DIALOG(Dialog));
-	if (Result == GTK_RESPONSE_ACCEPT)
-	{
-		GtkFileChooser* FileChooser = GTK_FILE_CHOOSER(Dialog);
-		char* Path = gtk_file_chooser_get_filename(FileChooser);
-		LoadModel(std::string(Path), LanguageForPath(Path));
-		g_free(Path);
-	}
-	gtk_widget_destroy(Dialog);
-#endif
+	ifd::FileDialog::Instance().Open("OpenModelDialog", "Open a model", Filter, false, "Models");
 }
 
 
@@ -1297,6 +1258,21 @@ void RenderUI(SDL_Window* Window, bool& Live)
 
 
 			ImGui::EndMenu();
+		}
+
+		if (ifd::FileDialog::Instance().IsDone("OpenModelDialog"))
+		{
+			if (ifd::FileDialog::Instance().HasResult())
+			{
+				const std::vector<std::filesystem::path>& Results = ifd::FileDialog::Instance().GetResults();
+				Assert(Results.size() <= 1);
+				for (const auto& Result : Results)
+				{
+					const std::string Path = Result.u8string();
+					LoadModel(Path, LanguageForPath(Path));
+				}
+			}
+			ifd::FileDialog::Instance().Close();
 		}
 
 		bool ToggleInterpreted = false;
@@ -1798,6 +1774,30 @@ StatusCode Boot(int argc, char* argv[])
 		Style.FrameBorderSize = 1.0f;
 		ImGui_ImplSDL2_InitForOpenGL(Window, Context);
 		ImGui_ImplOpenGL3_Init("#version 130");
+
+		// Required by ImFileDialog
+		{
+			ifd::FileDialog::Instance().CreateTexture = [](uint8_t* Data, int Width, int Height, char Format) -> void*
+			{
+				GLuint Texture;
+				glGenTextures(1, &Texture);
+				glBindTexture(GL_TEXTURE_2D, Texture);
+				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+				glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+				glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, Width, Height, 0, (Format == 0) ? GL_BGRA : GL_RGBA, GL_UNSIGNED_BYTE, Data);
+				glGenerateMipmap(GL_TEXTURE_2D);
+				glBindTexture(GL_TEXTURE_2D, 0);
+				return (void*)Texture;
+			};
+			ifd::FileDialog::Instance().DeleteTexture = [](void* OpaqueHandle)
+			{
+				GLuint Texture = (GLuint)((uintptr_t)OpaqueHandle);
+				glDeleteTextures(1, &Texture);
+			};
+		}
+
 #if _WIN64
 		{
 			io.Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\segoeui.ttf", 16.0);

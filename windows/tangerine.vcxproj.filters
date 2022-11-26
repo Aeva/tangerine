@@ -37,6 +37,12 @@
     <Filter Include="Tangerine\Runtimes">
       <UniqueIdentifier>{7ff1cde1-a1c8-46c0-a2e2-02aab35614f1}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Third Party\ImFileDialog">
+      <UniqueIdentifier>{63fb70c5-aee3-4fc0-9d90-ad3afd024546}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Third Party\stb">
+      <UniqueIdentifier>{2f946632-7034-42fc-8695-02895325b470}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\third_party\glad\glad.c">
@@ -224,6 +230,15 @@
     </ClCompile>
     <ClCompile Include="..\tangerine\events.cpp">
       <Filter>Tangerine</Filter>
+    </ClCompile>
+    <ClCompile Include="..\third_party\ImFileDialog\ImFileDialog.cpp">
+      <Filter>Third Party\ImFileDialog</Filter>
+    </ClCompile>
+    <ClCompile Include="..\third_party\stb\stb_vorbis.c">
+      <Filter>Third Party\stb</Filter>
+    </ClCompile>
+    <ClCompile Include="..\third_party\stb\stb.cpp">
+      <Filter>Third Party\stb</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -419,6 +434,69 @@
     </ClInclude>
     <ClInclude Include="..\tangerine\glm_common.h">
       <Filter>Tangerine</Filter>
+    </ClInclude>
+    <ClInclude Include="..\third_party\ImFileDialog\ImFileDialog.h">
+      <Filter>Third Party\ImFileDialog</Filter>
+    </ClInclude>
+    <ClInclude Include="..\third_party\stb\stb_c_lexer.h">
+      <Filter>Third Party\stb</Filter>
+    </ClInclude>
+    <ClInclude Include="..\third_party\stb\stb_connected_components.h">
+      <Filter>Third Party\stb</Filter>
+    </ClInclude>
+    <ClInclude Include="..\third_party\stb\stb_divide.h">
+      <Filter>Third Party\stb</Filter>
+    </ClInclude>
+    <ClInclude Include="..\third_party\stb\stb_ds.h">
+      <Filter>Third Party\stb</Filter>
+    </ClInclude>
+    <ClInclude Include="..\third_party\stb\stb_dxt.h">
+      <Filter>Third Party\stb</Filter>
+    </ClInclude>
+    <ClInclude Include="..\third_party\stb\stb_easy_font.h">
+      <Filter>Third Party\stb</Filter>
+    </ClInclude>
+    <ClInclude Include="..\third_party\stb\stb_herringbone_wang_tile.h">
+      <Filter>Third Party\stb</Filter>
+    </ClInclude>
+    <ClInclude Include="..\third_party\stb\stb_hexwave.h">
+      <Filter>Third Party\stb</Filter>
+    </ClInclude>
+    <ClInclude Include="..\third_party\stb\stb_image.h">
+      <Filter>Third Party\stb</Filter>
+    </ClInclude>
+    <ClInclude Include="..\third_party\stb\stb_image_resize.h">
+      <Filter>Third Party\stb</Filter>
+    </ClInclude>
+    <ClInclude Include="..\third_party\stb\stb_image_write.h">
+      <Filter>Third Party\stb</Filter>
+    </ClInclude>
+    <ClInclude Include="..\third_party\stb\stb_include.h">
+      <Filter>Third Party\stb</Filter>
+    </ClInclude>
+    <ClInclude Include="..\third_party\stb\stb_leakcheck.h">
+      <Filter>Third Party\stb</Filter>
+    </ClInclude>
+    <ClInclude Include="..\third_party\stb\stb_perlin.h">
+      <Filter>Third Party\stb</Filter>
+    </ClInclude>
+    <ClInclude Include="..\third_party\stb\stb_rect_pack.h">
+      <Filter>Third Party\stb</Filter>
+    </ClInclude>
+    <ClInclude Include="..\third_party\stb\stb_sprintf.h">
+      <Filter>Third Party\stb</Filter>
+    </ClInclude>
+    <ClInclude Include="..\third_party\stb\stb_textedit.h">
+      <Filter>Third Party\stb</Filter>
+    </ClInclude>
+    <ClInclude Include="..\third_party\stb\stb_tilemap_editor.h">
+      <Filter>Third Party\stb</Filter>
+    </ClInclude>
+    <ClInclude Include="..\third_party\stb\stb_truetype.h">
+      <Filter>Third Party\stb</Filter>
+    </ClInclude>
+    <ClInclude Include="..\third_party\stb\stb_voxel_render.h">
+      <Filter>Third Party\stb</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
