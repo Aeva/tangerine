@@ -46,6 +46,7 @@
 #include <vector>
 #include <chrono>
 #include <regex>
+#include <filesystem>
 
 #if _WIN64
 #include <shobjidl.h>
@@ -84,6 +85,10 @@ ScriptEnvironment* MainEnvironment = nullptr;
 
 
 SDFNode* TreeEvaluator = nullptr;
+
+
+std::filesystem::path ExecutableDir;
+std::filesystem::path ModelsDir;
 
 
 void ClearTreeEvaluator()
@@ -1038,7 +1043,7 @@ void OpenModel()
 		Filter = fmt::format("{}{}.*", Filter, Separator);
 	}
 
-	ifd::FileDialog::Instance().Open("OpenModelDialog", "Open a model", Filter, false, "Models");
+	ifd::FileDialog::Instance().Open("OpenModelDialog", "Open a model", Filter, false, ModelsDir.string());
 }
 
 
@@ -1621,6 +1626,9 @@ SDL_GLContext Context = nullptr;
 
 StatusCode Boot(int argc, char* argv[])
 {
+	ExecutableDir = std::filesystem::absolute(argv[0]).remove_filename();
+	ModelsDir = ExecutableDir / std::filesystem::path("Models");
+
 	std::vector<std::string> Args;
 	for (int i = 1; i < argc; ++i)
 	{
