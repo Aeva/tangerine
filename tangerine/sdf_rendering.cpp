@@ -111,8 +111,8 @@ void ProgramTemplate::StartCompile()
 	std::unique_ptr<ShaderProgram> NewShader;
 	NewShader.reset(new ShaderProgram());
 	NewShader->AsyncSetup(
-		{ {GL_VERTEX_SHADER, ShaderSource("shaders/cluster_draw.vs.glsl", true)},
-		  {GL_FRAGMENT_SHADER, GeneratedShader("shaders/math.glsl", DistSource, "shaders/cluster_draw.fs.glsl")} },
+		{ {GL_VERTEX_SHADER, ShaderSource("cluster_draw.vs.glsl", true)},
+		  {GL_FRAGMENT_SHADER, GeneratedShader("math.glsl", DistSource, "cluster_draw.fs.glsl")} },
 		DebugName.c_str());
 	AsyncCompile(std::move(NewShader), Compiled);
 

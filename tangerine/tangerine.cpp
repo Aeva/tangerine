@@ -85,6 +85,7 @@ SDFNode* TreeEvaluator = nullptr;
 
 
 std::filesystem::path ExecutableDir;
+std::filesystem::path ShadersDir;
 std::filesystem::path ModelsDir;
 
 
@@ -471,39 +472,39 @@ StatusCode SetupRenderer()
 
 #if VISUALIZE_CLUSTER_COVERAGE
 	RETURN_ON_FAIL(ClusterCoverageShader.Setup(
-		{ {GL_VERTEX_SHADER, ShaderSource("shaders/cluster_coverage.vs.glsl", true)},
-		  {GL_FRAGMENT_SHADER, ShaderSource("shaders/cluster_coverage.fs.glsl", true)} },
+		{ {GL_VERTEX_SHADER, ShaderSource("cluster_coverage.vs.glsl", true)},
+		  {GL_FRAGMENT_SHADER, ShaderSource("cluster_coverage.fs.glsl", true)} },
 		"Cluster Coverage Shader"));
 #else
 
 	RETURN_ON_FAIL(PaintShader.Setup(
-		{ {GL_VERTEX_SHADER, ShaderSource("shaders/splat.vs.glsl", true)},
-		  {GL_FRAGMENT_SHADER, ShaderSource("shaders/outliner.fs.glsl", true)} },
+		{ {GL_VERTEX_SHADER, ShaderSource("splat.vs.glsl", true)},
+		  {GL_FRAGMENT_SHADER, ShaderSource("outliner.fs.glsl", true)} },
 		"Outliner Shader"));
 
 	RETURN_ON_FAIL(BgShader.Setup(
-		{ {GL_VERTEX_SHADER, ShaderSource("shaders/splat.vs.glsl", true)},
-		  {GL_FRAGMENT_SHADER, ShaderSource("shaders/bg.fs.glsl", true)} },
+		{ {GL_VERTEX_SHADER, ShaderSource("splat.vs.glsl", true)},
+		  {GL_FRAGMENT_SHADER, ShaderSource("bg.fs.glsl", true)} },
 		"Background Shader"));
 #endif
 
 	RETURN_ON_FAIL(GatherDepthShader.Setup(
-		{ {GL_COMPUTE_SHADER, ShaderSource("shaders/gather_depth.cs.glsl", true)} },
+		{ {GL_COMPUTE_SHADER, ShaderSource("gather_depth.cs.glsl", true)} },
 		"Depth Pyramid Shader"));
 
 	RETURN_ON_FAIL(ResolveOutputShader.Setup(
-		{ {GL_VERTEX_SHADER, ShaderSource("shaders/splat.vs.glsl", true)},
-		  {GL_FRAGMENT_SHADER, ShaderSource("shaders/resolve.fs.glsl", true)} },
+		{ {GL_VERTEX_SHADER, ShaderSource("splat.vs.glsl", true)},
+		  {GL_FRAGMENT_SHADER, ShaderSource("resolve.fs.glsl", true)} },
 		"Resolve BackBuffer Shader"));
 
 	RETURN_ON_FAIL(NoiseShader.Setup(
-		{ {GL_VERTEX_SHADER, ShaderSource("shaders/splat.vs.glsl", true)},
-		  {GL_FRAGMENT_SHADER, ShaderSource("shaders/noise.fs.glsl", true)} },
+		{ {GL_VERTEX_SHADER, ShaderSource("splat.vs.glsl", true)},
+		  {GL_FRAGMENT_SHADER, ShaderSource("noise.fs.glsl", true)} },
 		"Noise Shader"));
 
 	RETURN_ON_FAIL(OctreeDebugShader.Setup(
-		{ {GL_VERTEX_SHADER, ShaderSource("shaders/cluster_draw.vs.glsl", true)},
-		  {GL_FRAGMENT_SHADER, GeneratedShader("shaders/math.glsl", "", "shaders/octree_debug.fs.glsl")} },
+		{ {GL_VERTEX_SHADER, ShaderSource("cluster_draw.vs.glsl", true)},
+		  {GL_FRAGMENT_SHADER, GeneratedShader("math.glsl", "", "octree_debug.fs.glsl")} },
 		"Octree Debug Shader"));
 
 	DepthTimeQuery.Create();
@@ -1679,6 +1680,7 @@ SDL_GLContext Context = nullptr;
 StatusCode Boot(int argc, char* argv[])
 {
 	ExecutableDir = std::filesystem::absolute(argv[0]).remove_filename();
+	ShadersDir = ExecutableDir / std::filesystem::path("Shaders");
 	ModelsDir = ExecutableDir / std::filesystem::path("Models");
 
 	std::vector<std::string> Args;

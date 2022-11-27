@@ -1,5 +1,5 @@
-prepend: shaders/defines.h
-prepend: shaders/math.glsl
+prepend: defines.h
+prepend: math.glsl
 --------------------------------------------------------------------------------
 
 // Copyright 2022 Aeva Palecek

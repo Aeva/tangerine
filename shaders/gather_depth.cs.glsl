@@ -1,4 +1,4 @@
-prepend: shaders/defines.h
+prepend: defines.h
 --------------------------------------------------------------------------------
 
 // Copyright 2022 Aeva Palecek

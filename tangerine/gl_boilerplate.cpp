@@ -15,10 +15,14 @@
 
 #include <iostream>
 #include <fstream>
+#include <filesystem>
 #include <map>
 #include <mutex>
 #include "gl_boilerplate.h"
 #include "profiling.h"
+
+
+extern std::filesystem::path ShadersDir;
 
 
 inline GLsizei min(GLsizei LHS, GLsizei RHS)
@@ -46,7 +50,7 @@ void SetDebugLable(GLenum ObjectType, GLuint ObjectID, std::string DebugLabel)
 ShaderSource GeneratedShader(std::string PrePath, std::string Generated, std::string PostPath)
 {
 	std::vector<ShaderSource> Sources = {
-		ShaderSource("shaders/defines.h", true),
+		ShaderSource("defines.h", true),
 		ShaderSource(PrePath, true),
 		ShaderSource(Generated, false),
 		ShaderSource(PostPath, true)
@@ -134,7 +138,9 @@ StatusCode FillSources(std::vector<std::string>& BreadCrumbs, std::vector<std::s
 	}
 	BreadCrumbs.push_back(Path);
 
-	std::ifstream File(Path);
+	std::filesystem::path FullPath = ShadersDir / Path;
+
+	std::ifstream File(FullPath);
 	if (!File.is_open())
 	{
 		std::cout << "Error: cannot open file \"" << Path << "\"\n";
