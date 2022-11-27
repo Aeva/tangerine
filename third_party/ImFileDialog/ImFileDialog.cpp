@@ -22,14 +22,19 @@
 #include <shellapi.h>
 #include <lmcons.h>
 #pragma comment(lib, "Shell32.lib")
+// TANGERINE MOD BEGIN The Windows header max macro strikes again
+#define GUI_ELEMENT_SIZE max(GImGui->FontSize + 10.f, 24.f)
+// TANGERINE MOD END
 #else
 #include <unistd.h>
 #include <pwd.h>
 #endif
 
 #define ICON_SIZE ImGui::GetFont()->FontSize + 3
-// TANGERINE MOD BEGIN - Replace usage of std::max to avoid conflict with macro?
-#define GUI_ELEMENT_SIZE max(GImGui->FontSize + 10.f, 24.f)
+// TANGERINE MOD BEGIN The Windows header max macro strikes again
+#ifndef GUI_ELEMENT_SIZE
+#define GUI_ELEMENT_SIZE std::max(GImGui->FontSize + 10.f, 24.f)
+#endif
 // TANGERINE MOD END
 #define DEFAULT_ICON_SIZE 32
 #define PI 3.141592f

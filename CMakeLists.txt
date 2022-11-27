@@ -30,6 +30,8 @@ set(TANGERINE_THIRD_PARTY_FILES
 	${TANGERINE_IMGUI_FILES}
 	"third_party/imgui/backends/imgui_impl_opengl3.cpp"
 	"third_party/imgui/backends/imgui_impl_sdl.cpp"
+	"third_party/ImFileDialog/ImFileDialog.cpp"
+	"third_party/stb/stb.cpp"
 	"third_party/voxwriter/VoxWriter.cpp"
 	"third_party/fmt/src/format.cc"
 	"third_party/glad/glad.c"
@@ -39,7 +41,9 @@ set(TANGERINE_INCLUDE_DIRS
 	"third_party"
 	"third_party/fmt/include"
 	"third_party/imgui"
-	"third_party/imgui/backends")
+	"third_party/imgui/backends"
+	"third_party/ImFileDialog"
+	"third_party/stb")
 
 if(EMBED_LUA)
 	list(APPEND TANGERINE_INCLUDE_DIRS "third_party/lua-5.4.4")
@@ -55,10 +59,9 @@ add_executable(tangerine
 find_package(SDL2 REQUIRED)
 
 find_package(PkgConfig REQUIRED)
-pkg_check_modules(GTK3 REQUIRED gtk+-3.0)
+
 include_directories(
-	${TANGERINE_INCLUDE_DIRS}
-	${GTK3_INCLUDE_DIRS})
+	${TANGERINE_INCLUDE_DIRS})
 
 target_compile_definitions(tangerine PRIVATE
 	"EMBED_LUA=$<BOOL:${EMBED_LUA}>"
@@ -67,5 +70,4 @@ target_compile_definitions(tangerine PRIVATE
 target_link_libraries(tangerine
 	SDL2::SDL2
 	"$<$<BOOL:${EMBED_RACKET}>:racketcs>"
-	tinfo
-	${GTK3_LIBRARIES})
+	tinfo)
