@@ -87,6 +87,7 @@ SDFNode* TreeEvaluator = nullptr;
 std::filesystem::path ExecutableDir;
 std::filesystem::path ShadersDir;
 std::filesystem::path ModelsDir;
+std::filesystem::path LastOpenDir;
 
 
 void ClearTreeEvaluator()
@@ -1067,7 +1068,7 @@ void OpenModel()
 		Filter = fmt::format("{}{}.*", Filter, Separator);
 	}
 
-	ifd::FileDialog::Instance().Open("OpenModelDialog", "Open a model", Filter, false, ModelsDir.string());
+	ifd::FileDialog::Instance().Open("OpenModelDialog", "Open a model", Filter, false, LastOpenDir.string());
 }
 
 
@@ -1284,6 +1285,7 @@ void RenderUI(SDL_Window* Window, bool& Live)
 				Assert(Results.size() == 1);
 				const std::string Path = Results[0].string();
 				LoadModel(Path, LanguageForPath(Path));
+				LastOpenDir =  Results[0].parent_path();
 			}
 			ifd::FileDialog::Instance().Close();
 		}
@@ -1679,9 +1681,10 @@ SDL_GLContext Context = nullptr;
 
 StatusCode Boot(int argc, char* argv[])
 {
-	ExecutableDir = std::filesystem::absolute(argv[0]).remove_filename();
+	ExecutableDir = std::filesystem::absolute(argv[0]).parent_path();
 	ShadersDir = ExecutableDir / std::filesystem::path("Shaders");
 	ModelsDir = ExecutableDir / std::filesystem::path("Models");
+	LastOpenDir = ModelsDir;
 
 	std::vector<std::string> Args;
 	for (int i = 1; i < argc; ++i)
