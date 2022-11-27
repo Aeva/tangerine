@@ -33,6 +33,7 @@
 #include "sdf_model.h"
 #include "shape_compiler.h"
 #include "export.h"
+#include "magica.h"
 #include "extern.h"
 
 #include "lua_env.h"
@@ -48,12 +49,6 @@
 #include <regex>
 #include <filesystem>
 
-#if _WIN64
-#include <shobjidl.h>
-#else
-#include <gtk/gtk.h>
-#endif
-
 #include <fmt/format.h>
 
 #include "profiling.h"
@@ -64,11 +59,13 @@
 #include "gl_debug.h"
 #include "../shaders/defines.h"
 
-#ifndef _WIN64
-// Both GCC and Clang are able to translate these to the correct intrinsics.
+
+// TODO: These were originally defined as a cross-platform compatibility hack for code
+// in this file that was using min/max macros from a Windows header.  The header is no
+// longer in use, but the code remains.
 #define min(a, b) (a < b ? a : b)
 #define max(a, b) (a > b ? a : b)
-#endif
+
 
 #define MINIMUM_VERSION_MAJOR 4
 #define MINIMUM_VERSION_MINOR 2
@@ -1018,6 +1015,32 @@ Language LanguageForPath(std::string Path)
 }
 
 
+ExportFormat ExportFormatForPath(std::string Path)
+{
+	const std::regex PlyFile(".*?\\.(ply)$", std::regex::icase);
+	const std::regex StlFile(".*?\\.(stl)$", std::regex::icase);
+	const std::regex VoxFile(".*?\\.(vox)$", std::regex::icase);
+
+	if (std::regex_match(Path, PlyFile))
+	{
+		return ExportFormat::PLY;
+	}
+	else if (std::regex_match(Path, StlFile))
+	{
+		return ExportFormat::STL;
+	}
+	else if (std::regex_match(Path, VoxFile))
+	{
+		return ExportFormat::VOX;
+	}
+	else
+	{
+		Assert(false);
+		return ExportFormat::Unknown;
+	}
+}
+
+
 void OpenModel()
 {
 	std::string Filter = "";
@@ -1100,6 +1123,9 @@ void RenderUI(SDL_Window* Window, bool& Live)
 	static int ExportRefinementSteps;
 	static ExportFormat ExportMeshFormat;
 	static bool ExportPointCloud;
+	static float MagicaGridSize = 1.0;
+	static int MagicaColorIndex = 0;
+	static std::string ExportPath;
 
 	static bool ShowChangeIterations = false;
 	static int NewMaxIterations = 0;
@@ -1108,6 +1134,7 @@ void RenderUI(SDL_Window* Window, bool& Live)
 	const float DefaultExportStepSize = 0.01;
 	const float DefaultExportScale = 1.0;
 	const int DefaultExportRefinementSteps = 5;
+	const float DefaultMagicaGridSize = 0.05;
 
 	if (!HeadlessMode && ImGui::BeginMainMenuBar())
 	{
@@ -1121,31 +1148,14 @@ void RenderUI(SDL_Window* Window, bool& Live)
 			{
 				ReloadModel();
 			}
-			bool AnyExport = false;
-			if (ImGui::MenuItem("Export PLY", nullptr, false, TreeEvaluator != nullptr))
+			if (ImGui::MenuItem("Export As...", nullptr, false, TreeEvaluator != nullptr))
 			{
-				AnyExport = true;
-				ExportMeshFormat = ExportFormat::PLY;
-				ExportPointCloud = true;
-			}
-			if (ImGui::MenuItem("Export STL", nullptr, false, TreeEvaluator != nullptr))
-			{
-				AnyExport = true;
-				ExportMeshFormat = ExportFormat::STL;
-				ExportPointCloud = false;
-			}
-			if (AnyExport)
-			{
-				ShowExportOptions = true;
-
-				ExportStepSize = DefaultExportStepSize;
-				for (int i = 0; i < 3; ++i)
-				{
-					ExportSplitStep[i] = ExportStepSize;
-				}
-				ExportScale = DefaultExportScale;
-				ExportSkipRefine = DefaultExportSkipRefine;
-				ExportRefinementSteps = DefaultExportRefinementSteps;
+				ifd::FileDialog::Instance().Save(
+					"ModelExportDialog",
+					"Export Model",
+					"PLY Model (*.ply){.ply},"
+					"STL Model (*.stl){.stl},"
+					"Magica Voxel (*.vox){.vox},");
 			}
 			if (ImGui::MenuItem("Exit"))
 			{
@@ -1270,12 +1280,35 @@ void RenderUI(SDL_Window* Window, bool& Live)
 			if (ifd::FileDialog::Instance().HasResult())
 			{
 				const std::vector<std::filesystem::path>& Results = ifd::FileDialog::Instance().GetResults();
-				Assert(Results.size() <= 1);
-				for (const auto& Result : Results)
+				Assert(Results.size() == 1);
+				const std::string Path = Results[0].string();
+				LoadModel(Path, LanguageForPath(Path));
+			}
+			ifd::FileDialog::Instance().Close();
+		}
+
+		if (ifd::FileDialog::Instance().IsDone("ModelExportDialog"))
+		{
+			if (ifd::FileDialog::Instance().HasResult())
+			{
+				const std::vector<std::filesystem::path>& Results = ifd::FileDialog::Instance().GetResults();
+				Assert(Results.size() == 1);
+				ExportPath = Results[0].string();
+				ExportMeshFormat = ExportFormatForPath(ExportPath);
+
+				ExportPointCloud = ExportMeshFormat == ExportFormat::PLY;
+
+				ShowExportOptions = true;
+
+				ExportStepSize = DefaultExportStepSize;
+				for (int i = 0; i < 3; ++i)
 				{
-					const std::string Path = Result.u8string();
-					LoadModel(Path, LanguageForPath(Path));
+					ExportSplitStep[i] = ExportStepSize;
 				}
+				MagicaGridSize = MagicaGridSize;
+				ExportScale = DefaultExportScale;
+				ExportSkipRefine = DefaultExportSkipRefine;
+				ExportRefinementSteps = DefaultExportRefinementSteps;
 			}
 			ifd::FileDialog::Instance().Close();
 		}
@@ -1519,54 +1552,73 @@ void RenderUI(SDL_Window* Window, bool& Live)
 			ImGui::OpenPopup("Export Options");
 			if (ImGui::BeginPopupModal("Export Options", nullptr, ImGuiWindowFlags_NoSavedSettings))
 			{
-				if (AdvancedOptions)
+				if (ExportMeshFormat == ExportFormat::VOX)
 				{
-					ImGui::InputFloat3("Voxel Size", ExportSplitStep);
-					ImGui::InputFloat("Unit Scale", &ExportScale);
-					ImGui::Checkbox("Skip Refinement", &ExportSkipRefine);
-					if (!ExportSkipRefine)
+					ImGui::InputFloat("Voxel Size", &MagicaGridSize);
+					ImGui::InputInt("Color Index", &MagicaColorIndex, 1, 10);
+
+					if (ImGui::Button("Start"))
 					{
-						ImGui::InputInt("Refinement Steps", &ExportRefinementSteps);
+						VoxExport(TreeEvaluator, ExportPath, 1.0 / MagicaGridSize, MagicaColorIndex);
+						ShowExportOptions = false;
+					}
+					ImGui::SameLine();
+					if (ImGui::Button("Cancel"))
+					{
+						ShowExportOptions = false;
 					}
 				}
 				else
 				{
-					ImGui::InputFloat("Voxel Size", &ExportStepSize);
-					ImGui::InputFloat("Unit Scale", &ExportScale);
-				}
-				if (ExportMeshFormat == ExportFormat::PLY)
-				{
-					ImGui::Checkbox("Point Cloud Only", &ExportPointCloud);
-				}
-				if (ImGui::Button("Start"))
-				{
 					if (AdvancedOptions)
 					{
-						glm::vec3 VoxelSize = glm::vec3(
-							ExportSplitStep[0],
-							ExportSplitStep[1],
-							ExportSplitStep[2]);
-						int RefinementSteps = ExportSkipRefine ? 0 : ExportRefinementSteps;
-						MeshExport(TreeEvaluator, ModelBounds.Min, ModelBounds.Max, VoxelSize, RefinementSteps, ExportMeshFormat, ExportPointCloud, ExportScale);
+						ImGui::InputFloat3("Voxel Size", ExportSplitStep);
+						ImGui::InputFloat("Unit Scale", &ExportScale);
+						ImGui::Checkbox("Skip Refinement", &ExportSkipRefine);
+						if (!ExportSkipRefine)
+						{
+							ImGui::InputInt("Refinement Steps", &ExportRefinementSteps);
+						}
 					}
 					else
 					{
-						glm::vec3 VoxelSize = glm::vec3(ExportStepSize);
-						MeshExport(TreeEvaluator, ModelBounds.Min, ModelBounds.Max, VoxelSize, DefaultExportRefinementSteps, ExportMeshFormat, ExportPointCloud, ExportScale);
+						ImGui::InputFloat("Voxel Size", &ExportStepSize);
+						ImGui::InputFloat("Unit Scale", &ExportScale);
 					}
-					ShowExportOptions = false;
-				}
-				ImGui::SameLine();
-				if (ImGui::Button("Cancel"))
-				{
-					ShowExportOptions = false;
-				}
-				ImGui::SameLine();
-				if (ImGui::Checkbox("Advanced Options", &AdvancedOptions) && AdvancedOptions)
-				{
-					for (int i = 0; i < 3; ++i)
+					if (ExportMeshFormat == ExportFormat::PLY)
 					{
-						ExportSplitStep[i] = ExportStepSize;
+						ImGui::Checkbox("Point Cloud Only", &ExportPointCloud);
+					}
+					if (ImGui::Button("Start"))
+					{
+						if (AdvancedOptions)
+						{
+							glm::vec3 VoxelSize = glm::vec3(
+								ExportSplitStep[0],
+								ExportSplitStep[1],
+								ExportSplitStep[2]);
+							int RefinementSteps = ExportSkipRefine ? 0 : ExportRefinementSteps;
+							MeshExport(TreeEvaluator, ExportPath, ModelBounds.Min, ModelBounds.Max, VoxelSize, RefinementSteps, ExportMeshFormat, ExportPointCloud, ExportScale);
+						}
+						else
+						{
+							glm::vec3 VoxelSize = glm::vec3(ExportStepSize);
+							MeshExport(TreeEvaluator, ExportPath, ModelBounds.Min, ModelBounds.Max, VoxelSize, DefaultExportRefinementSteps, ExportMeshFormat, ExportPointCloud, ExportScale);
+						}
+						ShowExportOptions = false;
+					}
+					ImGui::SameLine();
+					if (ImGui::Button("Cancel"))
+					{
+						ShowExportOptions = false;
+					}
+					ImGui::SameLine();
+					if (ImGui::Checkbox("Advanced Options", &AdvancedOptions) && AdvancedOptions)
+					{
+						for (int i = 0; i < 3; ++i)
+						{
+							ExportSplitStep[i] = ExportStepSize;
+						}
 					}
 				}
 				ImGui::EndPopup();

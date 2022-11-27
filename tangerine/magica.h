@@ -15,3 +15,6 @@
 
 #pragma once
 #include "sdf_evaluator.h"
+#include <string>
+
+void VoxExport(SDFNode* Evaluator, std::string& Path, float GridSize, int ColorIndex);
