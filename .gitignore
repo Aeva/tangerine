@@ -11,6 +11,7 @@ third_party/racket/lib/x64
 WinPixEventRuntime.dll
 tangerine.exe
 imgui.ini
+bookmarks.txt
 *.pdb
 *.lib
 *.exp

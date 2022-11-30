@@ -48,6 +48,7 @@
 #include <chrono>
 #include <regex>
 #include <filesystem>
+#include <fstream>
 
 #include <fmt/format.h>
 
@@ -1676,6 +1677,46 @@ void RenderUI(SDL_Window* Window, bool& Live)
 }
 
 
+void LoadBookmarks()
+{
+	std::filesystem::path BookmarksPath = ExecutableDir / "bookmarks.txt";
+	if (std::filesystem::is_regular_file(BookmarksPath))
+	{
+		std::ifstream BookmarksFile;
+		BookmarksFile.open(BookmarksPath);
+		std::string Bookmark;
+	repeat:
+		std::getline(BookmarksFile, Bookmark);
+		if (Bookmark.size() > 0)
+		{
+			if (std::filesystem::is_directory(Bookmark))
+			{
+				ifd::FileDialog::Instance().AddFavorite(Bookmark);
+			}
+			goto repeat;
+		}
+		BookmarksFile.close();
+	}
+}
+
+
+void SaveBookmarks()
+{
+	std::filesystem::path BookmarksPath = ExecutableDir / "bookmarks.txt";
+	const std::vector<std::string>& Bookmarks = ifd::FileDialog::Instance().GetFavorites();
+	if (Bookmarks.size() > 0)
+	{
+		std::ofstream BookmarksFile;
+		BookmarksFile.open(BookmarksPath);
+		for (const std::string& Bookmark : Bookmarks)
+		{
+			BookmarksFile << Bookmark << std::endl;
+		}
+		BookmarksFile.close();
+	}
+}
+
+
 SDL_Window* Window = nullptr;
 SDL_GLContext Context = nullptr;
 
@@ -1685,6 +1726,7 @@ StatusCode Boot(int argc, char* argv[])
 	ShadersDir = ExecutableDir / std::filesystem::path("Shaders");
 	ModelsDir = ExecutableDir / std::filesystem::path("Models");
 	LastOpenDir = ModelsDir;
+	LoadBookmarks();
 
 	std::vector<std::string> Args;
 	for (int i = 1; i < argc; ++i)
@@ -1952,6 +1994,7 @@ void Teardown()
 		{
 			if (!HeadlessMode)
 			{
+				SaveBookmarks();
 				ImGui_ImplOpenGL3_Shutdown();
 				ImGui_ImplSDL2_Shutdown();
 				ImGui::DestroyContext();
