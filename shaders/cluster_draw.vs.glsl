@@ -134,8 +134,8 @@ void main()
 		Tmp /= Tmp.w;
 		LocalCamera = Tmp.xyz;
 	}
+	const int Tri = (gl_VertexID % 36) / 3;
 	{
-		const int Tri = (gl_VertexID % 36) / 3;
 		const int Vert = gl_VertexID % 3;
 		int Index = Indices[Tri][Vert];
 		LocalPosition = Verts[Index] * Bounds.Extent + Bounds.Center;
@@ -144,49 +144,49 @@ void main()
 		gl_Position = ViewToClip * WorldToView * LocalToWorld * vec4(LocalPosition, 1.0);
 	}
 #if ENABLE_OCCLUSION_CULLING
-	// Ideally this would go in a mesh shader or a compute shader.
+	// Ideally this would go in a mesh shader or a compute shader?
 
+	vec3 Tests[3];
 	vec4 NDCBounds = vec2(1.0, -1.0).xxyy / vec4(0.0);
-	float MaxDepth = 0.0;
-	for (int i = 0; i < 24; ++i)
+
+	for (int i = 0; i < 3; ++i)
 	{
-		vec3 Local = Verts[i] * Bounds.Extent + Bounds.Center;
+		int Index = Indices[Tri][i];
+		vec3 Local = Verts[Index] * Bounds.Extent + Bounds.Center;
 		vec4 Clip = ViewToClip * WorldToLastView * LocalToWorld * vec4(Local, 1.0);
 		vec3 NDC = Clip.xyz / Clip.w;
-
 		float Depth = 1.0 - NDC.z;
-		MaxDepth = max(MaxDepth, Depth);
 
-		NDCBounds.xy = min(NDCBounds.xy, NDC.xy);
-		NDCBounds.zw = max(NDCBounds.zw, NDC.xy);
+		vec2 UV = NDC.xy * 0.5 + 0.5;
+		Tests[i] = vec3(UV, Depth);
+		NDCBounds.xy = min(NDCBounds.xy, UV);
+		NDCBounds.zw = max(NDCBounds.zw, UV);
 	}
-	NDCBounds = NDCBounds * 0.5 + 0.5;
+
 	vec2 Span = (NDCBounds.zw - NDCBounds.xy) * ScreenSize.xy;
 	float MaxSpan = max(max(Span.x, Span.y), 1.0);
-
 	float Mip = ceil(log2(MaxSpan));
 
 	bool AnyPass = false;
 	vec2 CullDepthRange = vec2(1.0 / 0.0, 0.0);
-	for (float y = 0.0; y <= 1.0; ++y)
+	float MaxDepth = max(max(Tests[0].z, Tests[1].z), Tests[2].z);
+
+	// TODO: Replacing this with a single test greatly reduces the frame time, more
+	// so than switching from doing culling per-voxel to per-vertex did.  However,
+	// doing so often produces false negatives.  This might be worth revisiting once
+	// there is a secondary cull / draw stage.
+	for (int i = 0; i < 3; ++i)
 	{
-		if (AnyPass)
+		vec2 UV = Tests[i].xy;
+		if (all(greaterThan(UV, vec2(0.0))) && all(lessThan(UV, vec2(1.0))))
 		{
-			break;
-		}
-		for (float x = 0.0; x <= 1.0; ++x)
-		{
-			vec2 UV = mix(NDCBounds.xy, NDCBounds.zw, vec2(x, y));
-			if (all(greaterThan(UV, vec2(0.0))) && all(lessThan(UV, vec2(1.0))))
+			float CullDepth = textureLod(DepthPyramid, UV, Mip).r;
+			CullDepthRange.x = min(CullDepthRange.x, CullDepth);
+			CullDepthRange.y = max(CullDepthRange.y, CullDepth);
+			if (CullDepth <= Tests[i].z)
 			{
-				float CullDepth = textureLod(DepthPyramid, UV, Mip).r;
-				CullDepthRange.x = min(CullDepthRange.x, CullDepth);
-				CullDepthRange.y = max(CullDepthRange.y, CullDepth);
-				if (CullDepth <= MaxDepth)
-				{
-					AnyPass = true;
-					break;
-				}
+				AnyPass = true;
+				break;
 			}
 		}
 	}
