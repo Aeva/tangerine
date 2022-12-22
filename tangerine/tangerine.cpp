@@ -550,6 +550,15 @@ timeout:
 }
 
 
+float CameraFov = 45.0;
+float CameraNear = 0.1;
+glm::mat4 GetViewToClip(int ViewportWidth, int ViewportHeight)
+{
+	const float AspectRatio = float(ViewportWidth) / float(ViewportHeight);
+	return glm::infinitePerspective(glm::radians(CameraFov), AspectRatio, CameraNear);
+}
+
+
 int MouseMotionX = 0;
 int MouseMotionY = 0;
 int MouseMotionZ = 0;
@@ -619,8 +628,7 @@ void RenderFrame(int ScreenWidth, int ScreenHeight, std::vector<SDFModel*>& Rend
 		const glm::mat4 WorldToView = glm::lookAt(FixedOrigin, FixedFocus, FixedUp);
 		const glm::mat4 ViewToWorld = glm::inverse(WorldToView);
 
-		const float AspectRatio = float(Width) / float(Height);
-		const glm::mat4 ViewToClip = glm::infinitePerspective(glm::radians(45.f), AspectRatio, 1.0f);
+		const glm::mat4 ViewToClip = GetViewToClip(Width, Height);
 		const glm::mat4 ClipToView = inverse(ViewToClip);
 
 		UploadedView = {
@@ -681,8 +689,7 @@ void RenderFrame(int ScreenWidth, int ScreenHeight, std::vector<SDFModel*>& Rend
 			CameraOrigin = glm::vec3(CameraLocal.x, CameraLocal.y, CameraLocal.z);
 		}
 
-		const float AspectRatio = float(Width) / float(Height);
-		const glm::mat4 ViewToClip = glm::infinitePerspective(glm::radians(45.f), AspectRatio, 1.0f);
+		const glm::mat4 ViewToClip = GetViewToClip(Width, Height);
 		const glm::mat4 ClipToView = inverse(ViewToClip);
 
 		UploadedView = {
@@ -1435,6 +1442,14 @@ void RenderUI(SDL_Window* Window, bool& Live)
 			ImGui::Text("Z");
 			ImGui::SameLine();
 			ImGui::InputFloat("##FocusZ", &CameraFocus.z, 1.0f);
+
+			ImGui::Text("NearPlane:\n");
+			ImGui::InputFloat("##CameraNear", &CameraNear, CameraNear * 0.5);
+			CameraNear = max(CameraNear, 0.001);
+
+			ImGui::Text("Field of View:\n");
+			ImGui::InputFloat("##CameraFov", &CameraFov, 1.0f);
+			CameraFov = min(max(CameraFov, 0.001), 180);
 		}
 		ImGui::End();
 	}
