@@ -93,6 +93,9 @@ LuaEnvironment::LuaEnvironment()
 		"	_ENV[key] = tangerine_env[key]\n"
 		"	tangerine[key] = tangerine_env[key]\n"
 		"end\n"
+		"for key, value in next, more_math do\n"
+		"	_ENV[key] = more_math[key]\n"
+		"end\n"
 		"tangerine_sdf = nil\n"
 		"tangerine_env = nil\n";
 
