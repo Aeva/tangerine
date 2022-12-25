@@ -17,25 +17,18 @@
 
 #include "embedding.h"
 #if EMBED_LUA
-#include "lua_env.h"
-#include "lua_vec.h"
-#include "sdf_model.h"
 #include <lua/lua.hpp>
+#include "glm_common.h"
 
-struct LuaModel : public SDFModel
+
+struct LuaVec
 {
-	LuaEnvironment* Env = nullptr;
-	int MouseCallbackRefs[MOUSE_EVENTS];
-
-	LuaModel(lua_State* L, SDFNode* InEvaluator, const float VoxelSize);
-	virtual ~LuaModel();
-	virtual void OnMouseEvent(MouseEvent& Event, bool Picked);
-
-	void SetMouseEventCallback(int EventFlag);
+	glm::vec4 Vector;
+	int Size;
 };
 
 
-int LuaOpenSDF(struct lua_State* L);
+int LuaOpenVec(struct lua_State* L);
 
 
 #endif // EMBED_LUA

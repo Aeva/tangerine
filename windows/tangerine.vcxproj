@@ -182,6 +182,7 @@
     <ClCompile Include="..\tangerine\gl_debug.cpp" />
     <ClCompile Include="..\tangerine\lua_env.cpp" />
     <ClCompile Include="..\tangerine\lua_sdf.cpp" />
+    <ClCompile Include="..\tangerine\lua_vec.cpp" />
     <ClCompile Include="..\tangerine\magica.cpp" />
     <ClCompile Include="..\tangerine\profiling.cpp" />
     <ClCompile Include="..\tangerine\racket_env.cpp" />
@@ -252,6 +253,7 @@
     <ClInclude Include="..\tangerine\gl_debug.h" />
     <ClInclude Include="..\tangerine\lua_env.h" />
     <ClInclude Include="..\tangerine\lua_sdf.h" />
+    <ClInclude Include="..\tangerine\lua_vec.h" />
     <ClInclude Include="..\tangerine\magica.h" />
     <ClInclude Include="..\tangerine\profiling.h" />
     <ClInclude Include="..\tangerine\racket_env.h" />

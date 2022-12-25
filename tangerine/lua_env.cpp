@@ -19,6 +19,7 @@
 #include "tangerine.h"
 #include "shape_compiler.h"
 #include "lua_sdf.h"
+#include "lua_vec.h"
 #include <fmt/format.h>
 #include <filesystem>
 
@@ -80,6 +81,7 @@ LuaEnvironment::LuaEnvironment()
 
 	luaL_requiref(L, "tangerine_sdf", LuaOpenSDF, 1);
 	luaL_requiref(L, "tangerine_env", LuaOpenEnv, 1);
+	luaL_requiref(L, "more_math", LuaOpenVec, 1);
 
 	const char* Source = \
 		"tangerine = {}\n"

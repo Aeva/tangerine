@@ -240,6 +240,9 @@
     <ClCompile Include="..\third_party\stb\stb.cpp">
       <Filter>Third Party\stb</Filter>
     </ClCompile>
+    <ClCompile Include="..\tangerine\lua_vec.cpp">
+      <Filter>Tangerine\Runtimes</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\third_party\glad\glad.h">
@@ -497,6 +500,9 @@
     </ClInclude>
     <ClInclude Include="..\third_party\stb\stb_voxel_render.h">
       <Filter>Third Party\stb</Filter>
+    </ClInclude>
+    <ClInclude Include="..\tangerine\lua_vec.h">
+      <Filter>Tangerine\Runtimes</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
