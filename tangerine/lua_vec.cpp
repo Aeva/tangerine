@@ -166,7 +166,7 @@ int VecNegate(lua_State* L)
 }
 
 
-int VecLen(lua_State* L)
+int VecSize(lua_State* L)
 {
 	LuaVec* Self = GetLuaVec(L, 1);
 	lua_pushinteger(L, Self->Size);
@@ -174,18 +174,78 @@ int VecLen(lua_State* L)
 }
 
 
-int VecDot(lua_State* L)
+float VecDot(LuaVec* LHS, LuaVec* RHS)
 {
-	LuaVec* LHS = GetLuaVec(L, 1);
-	LuaVec* RHS = GetLuaVec(L, 2);
 	int Size = min(LHS->Size, RHS->Size);
 	float Total = 0.0;
 	for (int Lane = 0; Lane < Size; ++Lane)
 	{
 		Total += LHS->Vector[Lane] * RHS->Vector[Lane];
 	}
-	lua_pushnumber(L, Total);
+	return Total;
+}
+
+
+int VecDot(lua_State* L)
+{
+	LuaVec* LHS = GetLuaVec(L, 1);
+	LuaVec* RHS = GetLuaVec(L, 2);
+	lua_pushnumber(L, VecDot(LHS, RHS));
 	return 1;
+}
+
+
+float VecLength(LuaVec* Vec)
+{
+	float LengthSquared = VecDot(Vec, Vec);
+	if (isinf(LengthSquared))
+	{
+		return LengthSquared;
+	}
+	else
+	{
+		return sqrt(LengthSquared);
+	}
+}
+
+
+int VecLength(lua_State* L)
+{
+	LuaVec* Self = GetLuaVec(L, 1);
+	lua_pushnumber(L, VecLength(Self));
+	return 1;
+}
+
+
+int VecDistance(lua_State* L)
+{
+	LuaVec* LHS = GetLuaVec(L, 1);
+	LuaVec* RHS = GetLuaVec(L, 2);
+	LuaVec Delta;
+	Delta.Size = min(LHS->Size, RHS->Size);
+	Delta.Vector = RHS->Vector - LHS->Vector;
+	lua_pushnumber(L, VecLength(&Delta));
+	return 1;
+}
+
+
+int VecNormalize(lua_State* L)
+{
+	LuaVec* Self = GetLuaVec(L, 1);
+
+	float Length = VecLength(Self);
+	LuaVec* Normal = CreateVec(L, Self->Size);
+	Normal->Vector = Self->Vector / Length;
+
+	for (int Lane = Normal->Size; Lane < 4; ++Lane)
+	{
+		Normal->Vector[Lane] = 0.0;
+	}
+
+	bool Abnormal = any(isinf(Normal->Vector)) || any(isnan(Normal->Vector));
+	lua_pushboolean(L, Abnormal);
+
+	return 2;
 }
 
 
@@ -274,6 +334,9 @@ const luaL_Reg LuaVecType[] = \
 	{ "vec3", CreateVec<3> },
 	{ "vec4", CreateVec<4> },
 	{ "dot", VecDot },
+	{ "length", VecLength },
+	{ "distance", VecDistance },
+	{ "normalize", VecNormalize },
 	{ "cross", VecCross },
 	{ "lerp", VecLerp },
 	{ "mix", VecLerp },
@@ -471,7 +534,7 @@ const luaL_Reg LuaVecMeta[] = \
 	{ "__pow", VecPow },
 	{ "__unm", VecNegate },
 
-	{ "__len", VecLen },
+	{ "__len", VecSize },
 
 	{ NULL, NULL }
 };
