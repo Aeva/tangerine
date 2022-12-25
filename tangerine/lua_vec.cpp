@@ -30,13 +30,25 @@ LuaVec* GetLuaVec(lua_State* L, int Arg)
 }
 
 
-int CreateVec(lua_State* L, int Size)
+LuaVec* CreateVec(lua_State* L, int Size)
+{
+	LuaVec* NewVec = (LuaVec*)lua_newuserdata(L, sizeof(LuaVec));
+	luaL_getmetatable(L, "more_math.vec");
+	lua_setmetatable(L, -2);
+	NewVec->Size = Size;
+	NewVec->Vector = { 0.0, 0.0, 0.0, 0.0 };
+	return NewVec;
+}
+
+
+template<int Size>
+int CreateVec(lua_State* L)
 {
 	LuaVec* NewVec = (LuaVec*)lua_newuserdata(L, sizeof(LuaVec));
 	luaL_getmetatable(L, "more_math.vec");
 	lua_setmetatable(L, -2);
 	int Cursor = 0;
-	int Args = lua_gettop(L);
+	int Args = lua_gettop(L) - 1;
 
 	NewVec->Size = Size;
 
@@ -50,7 +62,7 @@ int CreateVec(lua_State* L, int Size)
 	}
 	else
 	{
-		for (int Arg = 1; Arg < Args; ++Arg)
+		for (int Arg = 1; Arg <= Args; ++Arg)
 		{
 			if (lua_isnumber(L, 1))
 			{
@@ -75,10 +87,90 @@ int CreateVec(lua_State* L, int Size)
 }
 
 
-template<int Size>
-int CreateVec(lua_State* L)
+int VecAdd(lua_State* L)
 {
-	return CreateVec(L, Size);
+	LuaVec* LHS = GetLuaVec(L, 1);
+	LuaVec* RHS = GetLuaVec(L, 2);
+	LuaVec* NewVec = CreateVec(L, min(LHS->Size, RHS->Size));
+	NewVec->Vector = LHS->Vector + RHS->Vector;
+	return 1;
+}
+
+
+int VecSub(lua_State* L)
+{
+	LuaVec* LHS = GetLuaVec(L, 1);
+	LuaVec* RHS = GetLuaVec(L, 2);
+	LuaVec* NewVec = CreateVec(L, min(LHS->Size, RHS->Size));
+	NewVec->Vector = LHS->Vector - RHS->Vector;
+	return 1;
+}
+
+
+int VecMul(lua_State* L)
+{
+	LuaVec* LHS = GetLuaVec(L, 1);
+	LuaVec* RHS = GetLuaVec(L, 2);
+	LuaVec* NewVec = CreateVec(L, min(LHS->Size, RHS->Size));
+	NewVec->Vector = LHS->Vector * RHS->Vector;
+	return 1;
+}
+
+
+template<int Mode>
+int VecDiv(lua_State* L)
+{
+	LuaVec* LHS = GetLuaVec(L, 1);
+	LuaVec* RHS = GetLuaVec(L, 2);
+	LuaVec* NewVec = CreateVec(L, min(LHS->Size, RHS->Size));
+	if (Mode == 1)
+	{
+		// Regular division
+		NewVec->Vector = LHS->Vector / RHS->Vector;
+	}
+	else if (Mode == 1)
+	{
+		// Floor division
+		NewVec->Vector = floor(LHS->Vector / RHS->Vector);
+	}
+	else if (Mode == 3)
+	{
+		// Modulo https://www.lua.org/manual/5.4/manual.html#3.4.1
+		NewVec->Vector = LHS->Vector - floor(LHS->Vector / RHS->Vector) * RHS->Vector;
+	}
+	for (int Inactive = NewVec->Size; Inactive < 4; ++Inactive)
+	{
+		// Zero out the dead lanes to ensure non-NaN and non-inf values.
+		NewVec->Vector[Inactive] = 0.0;
+	}
+	return 1;
+}
+
+
+int VecPow(lua_State* L)
+{
+	LuaVec* LHS = GetLuaVec(L, 1);
+	LuaVec* RHS = GetLuaVec(L, 2);
+	LuaVec* NewVec = CreateVec(L, min(LHS->Size, RHS->Size));
+	NewVec->Vector = pow(LHS->Vector, RHS->Vector);
+	return 1;
+}
+
+
+int VecNegate(lua_State* L)
+{
+	LuaVec* Self = GetLuaVec(L, 1);
+	LuaVec* NewVec = CreateVec(L, Self->Size);
+	NewVec->Vector = -(Self->Vector);
+	return 1;
+}
+
+
+int VecLen(lua_State* L)
+{
+	LuaVec* Self = GetLuaVec(L, 1);
+	lua_pushinteger(L, Self->Size);
+	return 1;
 }
 
 
@@ -271,6 +363,17 @@ const luaL_Reg LuaVecMeta[] = \
 	{ "__index", IndexVec },
 	{ "__newindex", NewIndexVec },
 	{ "__tostring", VecToString },
+
+	{ "__add", VecAdd },
+	{ "__sub", VecSub },
+	{ "__mul", VecMul },
+	{ "__div", VecDiv<1> },
+	{ "__idiv", VecDiv<2> },
+	{ "__mod", VecDiv<3> },
+	{ "__pow", VecPow },
+	{ "__unm", VecNegate },
+
+	{ "__len", VecLen },
 
 	{ NULL, NULL }
 };
