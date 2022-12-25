@@ -174,11 +174,109 @@ int VecLen(lua_State* L)
 }
 
 
+int VecDot(lua_State* L)
+{
+	LuaVec* LHS = GetLuaVec(L, 1);
+	LuaVec* RHS = GetLuaVec(L, 2);
+	int Size = min(LHS->Size, RHS->Size);
+	float Total = 0.0;
+	for (int Lane = 0; Lane < Size; ++Lane)
+	{
+		Total += LHS->Vector[Lane] * RHS->Vector[Lane];
+	}
+	lua_pushnumber(L, Total);
+	return 1;
+}
+
+
+int VecCross(lua_State* L)
+{
+	LuaVec* LHS = GetLuaVec(L, 1);
+	LuaVec* RHS = GetLuaVec(L, 2);
+	int Size = min(LHS->Size, RHS->Size);
+	if (Size != 3)
+	{
+		lua_pushstring(L, "Attempted to take the cross product of two vectors that aren't both size 3.");
+		lua_error(L);
+		lua_pushnil(L);
+		return 1;
+	}
+	LuaVec* NewVec = CreateVec(L, min(LHS->Size, RHS->Size));
+	NewVec->Size = 3;
+	NewVec->Vector = vec4(cross(vec3(LHS->Vector.xyz), vec3(RHS->Vector.xyz)), 0.0);
+	return 1;
+}
+
+
+int VecLerp(lua_State* L)
+{
+	if (lua_isnumber(L, 1) && lua_isnumber(L, 2))
+	{
+		float LHS = lua_tonumber(L, 1);
+		float RHS = lua_tonumber(L, 2);
+		float Alpha = luaL_checknumber(L, 3);
+		lua_pushnumber(L, mix(LHS, RHS, Alpha));
+		return 1;
+	}
+	else
+	{
+		int Size;
+		glm::vec4 Vec1;
+		glm::vec4 Vec2;
+		glm::vec4 Alpha;
+		if (lua_isnumber(L, 1))
+		{
+			float LHS = lua_tonumber(L, 1);
+			Vec1 = glm::vec4(LHS);
+
+			LuaVec* RHS = GetLuaVec(L, 2);
+			Size = RHS->Size;
+			Vec2 = RHS->Vector;
+		}
+		else if (lua_isnumber(L, 2))
+		{
+			LuaVec* LHS = GetLuaVec(L, 1);
+			Size = LHS->Size;
+			Vec1 = LHS->Vector;
+
+			float RHS = lua_tonumber(L, 2);
+			Vec2 = glm::vec4(RHS);
+		}
+		else
+		{
+			LuaVec* LHS = GetLuaVec(L, 1);
+			LuaVec* RHS = GetLuaVec(L, 2);
+			Size = min(LHS->Size, RHS->Size);
+			Vec1 = LHS->Vector;
+			Vec2 = RHS->Vector;
+		}
+		if (lua_isnumber(L, 3))
+		{
+			float Other = lua_tonumber(L, 3);
+			Alpha = glm::vec4(Other);
+		}
+		else
+		{
+			LuaVec* Other = GetLuaVec(L, 3);
+			Size = min(Size, Other->Size);
+			Alpha = Other->Vector;
+		}
+		LuaVec* NewVec = CreateVec(L, Size);
+		NewVec->Vector = mix(Vec1, Vec2, Alpha);
+		return 1;
+	}
+}
+
+
 const luaL_Reg LuaVecType[] = \
 {
 	{ "vec2", CreateVec<2> },
 	{ "vec3", CreateVec<3> },
 	{ "vec4", CreateVec<4> },
+	{ "dot", VecDot },
+	{ "cross", VecCross },
+	{ "lerp", VecLerp },
+	{ "mix", VecLerp },
 
 	{ NULL, NULL }
 };
