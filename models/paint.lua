@@ -23,8 +23,8 @@ local terrain_model = nil
 function mouse_event (event)
 	if event.cursor then
 		terrain = terrain
-			:diff(sphere(.5):move(table.unpack(event.cursor)))
-			:union(sphere(.4):paint(cursor_color):move(table.unpack(event.cursor)))
+			:diff(sphere(.5):move(event.cursor))
+			:union(sphere(.4):paint(cursor_color):move(event.cursor))
 		refresh_canvas()
 	end
 end

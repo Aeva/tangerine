@@ -28,6 +28,13 @@ struct LuaVec
 };
 
 
+LuaVec* GetLuaVec(lua_State* L, int Arg);
+glm::vec3 GetVec3(lua_State* L, int& NextArg);
+LuaVec* CreateVec(lua_State* L, int Size);
+LuaVec* CreateVec(lua_State* L, glm::vec2);
+LuaVec* CreateVec(lua_State* L, glm::vec3);
+LuaVec* CreateVec(lua_State* L, glm::vec4);
+
 int LuaOpenVec(struct lua_State* L);
 
 

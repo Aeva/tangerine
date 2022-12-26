@@ -84,7 +84,7 @@ cityscape = (function ()
 		for x = -5.125, 5.125, .25 do
 			local hit = seascape:ray_cast(x, y, 50, 0, 0, -1)
 			if hit then
-				local z = hit[3]
+				local z = hit.z
 				if z > 0.1 then
 					local side = random(0.0, 0.25)
 					if side > 0.125 then

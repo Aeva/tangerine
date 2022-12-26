@@ -86,22 +86,21 @@ int LuaMoveZ(lua_State* L)
 
 int LuaMove(lua_State* L)
 {
-	float X = (float)luaL_checknumber(L, 2);
-	float Y = (float)luaL_checknumber(L, 3);
-	float Z = (float)luaL_checknumber(L, 4);
+	int NextArg = 2;
+	glm::vec3 Offset = GetVec3(L, NextArg);
+
 	SDFNode* Node = GetSDFNode(L, 1);
 	SDFNode* NewNode = Node->Copy();
-	NewNode->Move(glm::vec3(X, Y, Z));
+	NewNode->Move(Offset);
 	return WrapSDFNode(L, NewNode);
 }
 
 
 int LuaAlign(lua_State* L)
 {
-	glm::vec3 Anchors(
-		(float)luaL_checknumber(L, 2),
-		(float)luaL_checknumber(L, 3),
-		(float)luaL_checknumber(L, 4));
+	int NextArg = 2;
+	glm::vec3 Anchors = GetVec3(L, NextArg);
+
 	SDFNode* Node = GetSDFNode(L, 1);
 	SDFNode* NewNode = Node->Copy();
 	SDF::Align(NewNode, Anchors);
@@ -185,18 +184,17 @@ template <bool Force>
 int LuaPaint(lua_State* L)
 {
 	glm::vec3 Color;
-	if (lua_isnumber(L, 2))
-	{
-		Color = glm::vec3(
-			(float)luaL_checknumber(L, 2),
-			(float)luaL_checknumber(L, 3),
-			(float)luaL_checknumber(L, 4));
-	}
-	else
+	if (lua_isstring(L, 2))
 	{
 		const char* ColorString = luaL_checklstring(L, 2, nullptr);
 		StatusCode Result = ParseColor(ColorString, Color);
 	}
+	else
+	{
+		int NextArg = 2;
+		Color = GetVec3(L, NextArg);
+	}
+
 	SDFNode* Node = GetSDFNode(L, 1);
 	SDFNode* NewNode = Node->Copy();
 	NewNode->ApplyMaterial(Color, Force);
@@ -214,20 +212,18 @@ int LuaSphere(lua_State* L)
 
 int LuaEllipsoid(lua_State* L)
 {
-	float RadipodeX = luaL_checknumber(L, 1) * .5;
-	float RadipodeY = luaL_checknumber(L, 2) * .5;
-	float RadipodeZ = luaL_checknumber(L, 3) * .5;
-	SDFNode* NewNode = SDF::Ellipsoid(RadipodeX, RadipodeY, RadipodeZ);
+	int NextArg = 1;
+	glm::vec3 Radipodes = GetVec3(L, NextArg) * glm::vec3(0.5);
+	SDFNode* NewNode = SDF::Ellipsoid(Radipodes.x, Radipodes.y, Radipodes.z);
 	return WrapSDFNode(L, NewNode);
 }
 
 
 int LuaBox(lua_State* L)
 {
-	float ExtentX = luaL_checknumber(L, 1) * .5;
-	float ExtentY = luaL_checknumber(L, 2) * .5;
-	float ExtentZ = luaL_checknumber(L, 3) * .5;
-	SDFNode* NewNode = SDF::Box(ExtentX, ExtentY, ExtentZ);
+	int NextArg = 1;
+	glm::vec3 Extent = GetVec3(L, NextArg) * glm::vec3(0.5);
+	SDFNode* NewNode = SDF::Box(Extent.x, Extent.y, Extent.z);
 	return WrapSDFNode(L, NewNode);
 }
 
@@ -260,10 +256,9 @@ int LuaCylinder(lua_State* L)
 
 int LuaPlane(lua_State* L)
 {
-	float NormalX = luaL_checknumber(L, 1);
-	float NormalY = luaL_checknumber(L, 2);
-	float NormalZ = luaL_checknumber(L, 3);
-	SDFNode* NewNode = SDF::Plane(NormalX, NormalY, NormalZ);
+	int NextArg = 1;
+	glm::vec3 Normal = GetVec3(L, NextArg);
+	SDFNode* NewNode = SDF::Plane(Normal.x, Normal.y, Normal.z);
 	return WrapSDFNode(L, NewNode);
 }
 
@@ -279,10 +274,10 @@ int LuaCone(lua_State* L)
 
 int LuaConinder(lua_State* L)
 {
-	float RadiusL = luaL_checknumber(L, 1) * .5;
-	float RadiusH = luaL_checknumber(L, 2) * .5;
-	float Height = luaL_checknumber(L, 3);
-	SDFNode* NewNode = SDF::Coninder(RadiusL, RadiusH, Height);
+	int NextArg = 1;
+	// RadiusL, RadiusH, and Height
+	glm::vec3 Params = GetVec3(L, NextArg) * glm::vec3(.5, .5, 1.0);
+	SDFNode* NewNode = SDF::Coninder(Params.x, Params.y, Params.z);
 	return WrapSDFNode(L, NewNode);
 }
 
@@ -373,10 +368,9 @@ int LuaBlendOperator(lua_State* L)
 int LuaEval(lua_State* L)
 {
 	SDFNode* Node = GetSDFNode(L, 1);
-	glm::vec3 Point(
-		(float)luaL_checknumber(L, 2),
-		(float)luaL_checknumber(L, 3),
-		(float)luaL_checknumber(L, 4));
+	int NextArg = 2;
+	glm::vec3 Point = GetVec3(L, NextArg);
+
 	float Distance = Node->Eval(Point);
 	lua_pushnumber(L, Distance);
 	return 1;
@@ -386,18 +380,10 @@ int LuaEval(lua_State* L)
 int LuaGradient(lua_State* L)
 {
 	SDFNode* Node = GetSDFNode(L, 1);
-	glm::vec3 Point(
-		(float)luaL_checknumber(L, 2),
-		(float)luaL_checknumber(L, 3),
-		(float)luaL_checknumber(L, 4));
+	int NextArg = 2;
+	glm::vec3 Point = GetVec3(L, NextArg);
 	glm::vec3 Gradient = Node->Gradient(Point);
-	lua_createtable(L, 3, 0);
-	lua_pushnumber(L, Gradient.x);
-	lua_rawseti(L, -2, 1);
-	lua_pushnumber(L, Gradient.y);
-	lua_rawseti(L, -2, 2);
-	lua_pushnumber(L, Gradient.z);
-	lua_rawseti(L, -2, 3);
+	CreateVec(L, Gradient);
 	return 1;
 }
 
@@ -405,21 +391,10 @@ int LuaGradient(lua_State* L)
 int LuaPickColor(lua_State* L)
 {
 	SDFNode* Node = GetSDFNode(L, 1);
-	glm::vec3 Point(
-		(float)luaL_checknumber(L, 2),
-		(float)luaL_checknumber(L, 3),
-		(float)luaL_checknumber(L, 4));
+	int NextArg = 2;
+	glm::vec3 Point = GetVec3(L, NextArg);
 	glm::vec4 Color = Node->Sample(Point);
-
-	lua_createtable(L, 4, 0);
-	lua_pushnumber(L, Color.x);
-	lua_rawseti(L, -2, 1);
-	lua_pushnumber(L, Color.y);
-	lua_rawseti(L, -2, 2);
-	lua_pushnumber(L, Color.z);
-	lua_rawseti(L, -2, 3);
-	lua_pushnumber(L, Color.w);
-	lua_rawseti(L, -2, 4);
+	CreateVec(L, Color);
 	return 1;
 }
 
@@ -429,15 +404,9 @@ int LuaRayCast(lua_State* L)
 {
 	SDFNode* Node = GetSDFNode(L, 1);
 
-	glm::vec3 Origin(
-		(float)luaL_checknumber(L, 2),
-		(float)luaL_checknumber(L, 3),
-		(float)luaL_checknumber(L, 4));
-
-	glm::vec3 Direction(
-		(float)luaL_checknumber(L, 5),
-		(float)luaL_checknumber(L, 6),
-		(float)luaL_checknumber(L, 7));
+	int NextArg = 2;
+	glm::vec3 Origin = GetVec3(L, NextArg);
+	glm::vec3 Direction = GetVec3(L, NextArg);
 
 	if (Magnet)
 	{
@@ -461,13 +430,7 @@ int LuaRayCast(lua_State* L)
 
 	if (RayHit.Hit)
 	{
-		lua_createtable(L, 3, 0);
-		lua_pushnumber(L, RayHit.Position.x);
-		lua_rawseti(L, -2, 1);
-		lua_pushnumber(L, RayHit.Position.y);
-		lua_rawseti(L, -2, 2);
-		lua_pushnumber(L, RayHit.Position.z);
-		lua_rawseti(L, -2, 3);
+		CreateVec(L, RayHit.Position);
 		return 1;
 	}
 	else
@@ -486,20 +449,10 @@ int LuaPivotTowards(lua_State* L)
 	float Margin = (float)luaL_checknumber(L, 3);
 	float MaxAngle = glm::radians((float)luaL_checknumber(L, 4));
 
-	glm::vec3 Pivot(
-		(float)luaL_checknumber(L, 5),
-		(float)luaL_checknumber(L, 6),
-		(float)luaL_checknumber(L, 7));
-
-	glm::vec3 Heading(
-		(float)luaL_checknumber(L, 8),
-		(float)luaL_checknumber(L, 9),
-		(float)luaL_checknumber(L, 10));
-
-	glm::vec3 Down(
-		(float)luaL_checknumber(L, 11),
-		(float)luaL_checknumber(L, 12),
-		(float)luaL_checknumber(L, 13));
+	int NextArg = 5;
+	glm::vec3 Pivot = GetVec3(L, NextArg);
+	glm::vec3 Heading = GetVec3(L, NextArg);
+	glm::vec3 Down = GetVec3(L, NextArg);
 
 	glm::vec3 Tail;
 	glm::vec3 Axis;
@@ -603,21 +556,8 @@ int LuaPivotTowards(lua_State* L)
 	}
 
 finish:
-	lua_createtable(L, 3, 0);
-	lua_pushnumber(L, Tail.x);
-	lua_rawseti(L, -2, 1);
-	lua_pushnumber(L, Tail.y);
-	lua_rawseti(L, -2, 2);
-	lua_pushnumber(L, Tail.z);
-	lua_rawseti(L, -2, 3);
-
-	lua_createtable(L, 3, 0);
-	lua_pushnumber(L, Heading.x);
-	lua_rawseti(L, -2, 1);
-	lua_pushnumber(L, Heading.y);
-	lua_rawseti(L, -2, 2);
-	lua_pushnumber(L, Heading.z);
-	lua_rawseti(L, -2, 3);
+	CreateVec(L, Tail);
+	CreateVec(L, Heading);
 
 	return 2;
 }
@@ -625,9 +565,17 @@ finish:
 
 int LuaClearColor(lua_State* L)
 {
-	const char* ColorString = luaL_checklstring(L, 1, nullptr);
 	glm::vec3 Color;
-	StatusCode Result = ParseColor(ColorString, Color);
+	if (lua_isstring(L, 1))
+	{
+		const char* ColorString = luaL_checklstring(L, 1, nullptr);
+		StatusCode Result = ParseColor(ColorString, Color);
+	}
+	else
+	{
+		int NextArg = 1;
+		Color = GetVec3(L, NextArg);
+	}
 	SetClearColor(Color);
 	return 0;
 }
@@ -643,18 +591,10 @@ int LuaOutliner(lua_State* L)
 
 int LuaFixedCamera(lua_State* L)
 {
-	glm::vec3 Origin(
-		luaL_checknumber(L, 1),
-		luaL_checknumber(L, 2),
-		luaL_checknumber(L, 3));
-	glm::vec3 Center(
-		luaL_checknumber(L, 4),
-		luaL_checknumber(L, 5),
-		luaL_checknumber(L, 6));
-	glm::vec3 Up(
-		luaL_checknumber(L, 7),
-		luaL_checknumber(L, 8),
-		luaL_checknumber(L, 9));
+	int NextArg = 1;
+	glm::vec3 Origin = GetVec3(L, NextArg);
+	glm::vec3 Center = GetVec3(L, NextArg);
+	glm::vec3 Up = GetVec3(L, NextArg);
 	SetFixedCamera(Origin, Center, Up);
 	return 0;
 }
@@ -879,10 +819,8 @@ int LuaShowModel(lua_State* L)
 int LuaModelMove(lua_State* L)
 {
 	LuaModel* Self = GetSDFModel(L, 1);
-	glm::vec3 Offset(
-		(float)luaL_checknumber(L, 2),
-		(float)luaL_checknumber(L, 3),
-		(float)luaL_checknumber(L, 4));
+	int NextArg = 2;
+	glm::vec3 Offset = GetVec3(L, NextArg);
 	Self->Transform.Move(Offset);
 	lua_pop(L, 3);
 	return 1;
@@ -1049,17 +987,7 @@ void LuaModel::OnMouseEvent(MouseEvent& Event, bool Picked)
 
 				if (Event.AnyHit)
 				{
-					lua_createtable(L, 3, 0);
-					{
-						lua_pushnumber(L, Event.Cursor.x);
-						lua_rawseti(L, -2, 1);
-
-						lua_pushnumber(L, Event.Cursor.y);
-						lua_rawseti(L, -2, 2);
-
-						lua_pushnumber(L, Event.Cursor.z);
-						lua_rawseti(L, -2, 3);
-					}
+					CreateVec(L, Event.Cursor);
 				}
 				else
 				{

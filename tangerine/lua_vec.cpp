@@ -30,6 +30,25 @@ LuaVec* GetLuaVec(lua_State* L, int Arg)
 }
 
 
+vec3 GetVec3(lua_State* L, int& NextArg)
+{
+	LuaVec* Vec = (LuaVec*)luaL_testudata(L, NextArg, "more_math.vec");
+	if (Vec)
+	{
+		++NextArg;
+		return Vec->Vector.xyz;
+	}
+	else
+	{
+		glm::vec3 Ret;
+		Ret.x = luaL_checknumber(L, NextArg++);
+		Ret.y = luaL_checknumber(L, NextArg++);
+		Ret.z = luaL_checknumber(L, NextArg++);
+		return Ret;
+	}
+}
+
+
 LuaVec* CreateVec(lua_State* L, int Size)
 {
 	LuaVec* NewVec = (LuaVec*)lua_newuserdata(L, sizeof(LuaVec));
@@ -37,6 +56,39 @@ LuaVec* CreateVec(lua_State* L, int Size)
 	lua_setmetatable(L, -2);
 	NewVec->Size = Size;
 	NewVec->Vector = { 0.0, 0.0, 0.0, 0.0 };
+	return NewVec;
+}
+
+
+LuaVec* CreateVec(lua_State* L, glm::vec2 Vec)
+{
+	LuaVec* NewVec = (LuaVec*)lua_newuserdata(L, sizeof(LuaVec));
+	luaL_getmetatable(L, "more_math.vec");
+	lua_setmetatable(L, -2);
+	NewVec->Size = 2;
+	NewVec->Vector = vec4(Vec, 0.0, 0.0);
+	return NewVec;
+}
+
+
+LuaVec* CreateVec(lua_State* L, glm::vec3 Vec)
+{
+	LuaVec* NewVec = (LuaVec*)lua_newuserdata(L, sizeof(LuaVec));
+	luaL_getmetatable(L, "more_math.vec");
+	lua_setmetatable(L, -2);
+	NewVec->Size = 3;
+	NewVec->Vector = vec4(Vec, 0.0);
+	return NewVec;
+}
+
+
+LuaVec* CreateVec(lua_State* L, glm::vec4 Vec)
+{
+	LuaVec* NewVec = (LuaVec*)lua_newuserdata(L, sizeof(LuaVec));
+	luaL_getmetatable(L, "more_math.vec");
+	lua_setmetatable(L, -2);
+	NewVec->Size = 4;
+	NewVec->Vector = Vec;
 	return NewVec;
 }
 

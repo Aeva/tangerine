@@ -52,17 +52,11 @@ local hit = model:magnet(
 
 
 if hit then
-	local x, y, z = table.unpack(hit)
-	local gx, gy, gz = table.unpack(model:gradient(x, y, z))
-
 	local d = random(1.5, 3.5)
-	local r = d * .5
+	local shell = model:gradient(hit) * vec3(d * .5)
+	hit = hit + shell
 
-	x = x + gx * r
-	y = y + gy * r
-	z = z + gz * r
-
-	model = model:union(sphere(d):move(x, y, z):paint("#F00"))
+	model = model:union(sphere(d):move(hit):paint("#F00"))
 
 	for i = 1, 500, 1 do
 		local hit = model:ray_cast(
@@ -74,10 +68,9 @@ if hit then
 			-1)
 
 		if hit then
-			local a, b, c = table.unpack(hit)
 			local r = .5
-			local pebble = sphere(r):move(a, b, c):paint("#0FF")
-			local cut = sphere(r * 1.2):move(a, b, c)
+			local pebble = sphere(r):move(hit):paint("#0FF")
+			local cut = sphere(r * 1.2):move(hit)
 			model = model:diff(cut):union(pebble)
 		end
 	end
