@@ -184,7 +184,7 @@ template <bool Force>
 int LuaPaint(lua_State* L)
 {
 	glm::vec3 Color;
-	if (lua_isstring(L, 2))
+	if (!lua_isnumber(L, 2) && lua_isstring(L, 2))
 	{
 		const char* ColorString = luaL_checklstring(L, 2, nullptr);
 		StatusCode Result = ParseColor(ColorString, Color);
@@ -566,7 +566,7 @@ finish:
 int LuaClearColor(lua_State* L)
 {
 	glm::vec3 Color;
-	if (lua_isstring(L, 1))
+	if (!lua_isnumber(L, 1) && lua_isstring(L, 1))
 	{
 		const char* ColorString = luaL_checklstring(L, 1, nullptr);
 		StatusCode Result = ParseColor(ColorString, Color);
