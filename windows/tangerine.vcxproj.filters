@@ -539,9 +539,6 @@
     <None Include="..\shaders\resolve.fs.glsl">
       <Filter>Shaders</Filter>
     </None>
-    <None Include="..\shaders\masked.vs.glsl">
-      <Filter>Shaders</Filter>
-    </None>
     <None Include="..\materials\red.glsl">
       <Filter>Materials</Filter>
     </None>

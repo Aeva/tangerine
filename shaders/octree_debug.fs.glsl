@@ -28,6 +28,7 @@ uniform ViewInfoBlock
 	vec4 ModelMin;
 	vec4 ModelMax;
 	float CurrentTime;
+	bool Perspective;
 };
 
 
@@ -56,7 +57,7 @@ in flat uint DrawID;
 in flat AABB Bounds;
 in flat vec3 LocalMin;
 in flat vec3 LocalMax;
-in flat vec3 LocalCamera;
+in noperspective vec3 LocalCamera;
 
 
 layout(location = 0) out vec3 OutPosition;

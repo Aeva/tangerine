@@ -30,6 +30,7 @@ uniform ViewInfoBlock
 	vec4 ModelMin;
 	vec4 ModelMax;
 	float CurrentTime;
+	bool Perspective;
 };
 
 
@@ -70,7 +71,7 @@ out flat uint DrawID;
 out flat AABB Bounds;
 out flat vec3 LocalMin;
 out flat vec3 LocalMax;
-out flat vec3 LocalCamera;
+out noperspective vec3 LocalCamera;
 
 #if DEBUG_OCCLUSION_CULLING
 out vec4 OcclusionDebug;
@@ -129,6 +130,7 @@ void main()
 	Bounds.Extent += 0.0001;
 	LocalMin = Bounds.Center - Bounds.Extent;
 	LocalMax = Bounds.Center + Bounds.Extent;
+	if (Perspective)
 	{
 		vec4 Tmp = WorldToLocal * vec4(CameraOrigin.xyz, 1.0);
 		Tmp /= Tmp.w;
@@ -141,7 +143,14 @@ void main()
 		LocalPosition = Verts[Index] * Bounds.Extent + Bounds.Center;
 		Barycenter = vec3(0.0);
 		Barycenter[Vert] = 1.0;
-		gl_Position = ViewToClip * WorldToView * LocalToWorld * vec4(LocalPosition, 1.0);
+		vec4 ViewPosition = WorldToView * LocalToWorld * vec4(LocalPosition, 1.0);
+		if (!Perspective)
+		{
+			vec4 ViewCamera = vec4(ViewPosition.xy / ViewPosition.w, 0.0, 1.0);
+			vec4 Tmp = WorldToLocal * ViewToWorld * ViewCamera;
+			LocalCamera = Tmp.xyz / Tmp.w;
+		}
+		gl_Position = ViewToClip * ViewPosition;
 	}
 #if ENABLE_OCCLUSION_CULLING
 	// Ideally this would go in a mesh shader or a compute shader.

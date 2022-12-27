@@ -28,6 +28,7 @@ uniform ViewInfoBlock
 	vec4 ModelMin;
 	vec4 ModelMax;
 	float CurrentTime;
+	bool Perspective;
 };
 
 

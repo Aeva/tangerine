@@ -436,7 +436,8 @@ struct ViewInfoUpload
 	glm::vec4 ModelMin = glm::vec4(0.0, 0.0, 0.0, 0.0);
 	glm::vec4 ModelMax = glm::vec4(0.0, 0.0, 0.0, 0.0);
 	float CurrentTime = -1.0;
-	float Padding[3] = { 0 };
+	bool Perspective = true;
+	float Padding[2] = { 0 };
 };
 
 
@@ -550,12 +551,25 @@ timeout:
 }
 
 
+bool UsePerspective = true;
+float OrthoScale = 64.0;
 float CameraFov = 45.0;
 float CameraNear = 0.1;
+float CameraFar = 1000.0;
 glm::mat4 GetViewToClip(int ViewportWidth, int ViewportHeight)
 {
 	const float AspectRatio = float(ViewportWidth) / float(ViewportHeight);
-	return glm::infinitePerspective(glm::radians(CameraFov), AspectRatio, CameraNear);
+	if (UsePerspective)
+	{
+		return glm::infinitePerspective(glm::radians(CameraFov), AspectRatio, CameraNear);
+	}
+	else
+	{
+		float Scale = (1.0 / OrthoScale) * .5;
+		float Horizontal = ViewportWidth * Scale;
+		float Vertical = ViewportHeight * Scale;
+		return glm::ortho(-Horizontal, Horizontal, -Vertical, Vertical, CameraNear, CameraFar);
+	}
 }
 
 
@@ -642,6 +656,7 @@ void RenderFrame(int ScreenWidth, int ScreenHeight, std::vector<SDFModel*>& Rend
 			glm::vec4(ModelBounds.Min, 1.0),
 			glm::vec4(ModelBounds.Max, 1.0),
 			float(CurrentTime),
+			UsePerspective,
 		};
 		ViewInfo.Upload((void*)&UploadedView, sizeof(UploadedView));
 		ViewInfo.Bind(GL_UNIFORM_BUFFER, 0);
@@ -703,6 +718,7 @@ void RenderFrame(int ScreenWidth, int ScreenHeight, std::vector<SDFModel*>& Rend
 			glm::vec4(ModelBounds.Min, 1.0),
 			glm::vec4(ModelBounds.Max, 1.0),
 			float(CurrentTime),
+			UsePerspective,
 		};
 		ViewInfo.Upload((void*)&UploadedView, sizeof(UploadedView));
 		ViewInfo.Bind(GL_UNIFORM_BUFFER, 0);
@@ -1443,13 +1459,28 @@ void RenderUI(SDL_Window* Window, bool& Live)
 			ImGui::SameLine();
 			ImGui::InputFloat("##FocusZ", &CameraFocus.z, 1.0f);
 
+			ImGui::Checkbox("Perspective", &UsePerspective);
+
 			ImGui::Text("NearPlane:\n");
 			ImGui::InputFloat("##CameraNear", &CameraNear, CameraNear * 0.5);
 			CameraNear = max(CameraNear, 0.001);
 
-			ImGui::Text("Field of View:\n");
-			ImGui::InputFloat("##CameraFov", &CameraFov, 1.0f);
-			CameraFov = min(max(CameraFov, 0.001), 180);
+			if (UsePerspective)
+			{
+				ImGui::Text("Field of View:\n");
+				ImGui::InputFloat("##CameraFov", &CameraFov, 1.0f);
+				CameraFov = min(max(CameraFov, 0.001), 180);
+			}
+			else
+			{
+				ImGui::Text("FarPlane:\n");
+				ImGui::InputFloat("##CameraFar", &CameraFar, CameraFar * 0.5);
+				CameraFar = max(CameraFar, CameraNear + 1.0);
+
+				ImGui::Text("Orthographic Scale:\n");
+				ImGui::InputFloat("##OrthoScale", &OrthoScale, 16.0);
+				OrthoScale = max(OrthoScale, 1.0);
+			}
 		}
 		ImGui::End();
 	}
