@@ -116,35 +116,58 @@ void main()
 	vec3 BestNormal = vec3(0.0, 0.0, 0.0);
 	vec3 BestIntersect = vec3(0.0, 0.0, 0.0);
 
-	vec3 FocalPoint = vec3(0.0, 0.0, 0.0);
-	vec3 Stare = normalize(Origin - FocalPoint);
-	float TowardsX = abs(dot(Stare, vec3(1.0, 0.0, 0.0)));
-	float TowardsY = abs(dot(Stare, vec3(0.0, 1.0, 0.0)));
-	float TowardsZ = abs(dot(Stare, vec3(0.0, 0.0, 1.0)));
 	float ClipAngle = 0.25;
 
-	if (Origin.x < ModelMax.x && TowardsX > ClipAngle)
+	bvec3 DrawMin;
+	bvec3 DrawMax;
+
+	if (Perspective)
+	{
+		vec3 FocalPoint = vec3(0.0, 0.0, 0.0);
+		vec3 Stare = normalize(Origin - FocalPoint);
+		float TowardsX = abs(dot(Stare, vec3(1.0, 0.0, 0.0)));
+		float TowardsY = abs(dot(Stare, vec3(0.0, 1.0, 0.0)));
+		float TowardsZ = abs(dot(Stare, vec3(0.0, 0.0, 1.0)));
+
+		DrawMin.x = Origin.x < ModelMax.x && TowardsX > ClipAngle;
+		DrawMin.y = Origin.y < ModelMax.y && TowardsY > ClipAngle;
+		DrawMin.z = Origin.z < ModelMax.z && TowardsZ > ClipAngle;
+		DrawMax.x = Origin.x > ModelMin.x && TowardsX > ClipAngle;
+		DrawMax.y = Origin.y > ModelMin.y && TowardsY > ClipAngle;
+		DrawMax.z = Origin.z > ModelMin.z && TowardsZ > ClipAngle;
+	}
+	else
+	{
+		DrawMin.x = dot(EyeRay, vec3(1.0, 0.0, 0.0)) > ClipAngle;
+		DrawMin.y = dot(EyeRay, vec3(0.0, 1.0, 0.0)) > ClipAngle;
+		DrawMin.z = dot(EyeRay, vec3(0.0, 0.0, 1.0)) > ClipAngle;
+		DrawMax.x = dot(EyeRay, vec3(-1.0, 0.0, 0.0)) > ClipAngle;
+		DrawMax.y = dot(EyeRay, vec3(0.0, -1.0, 0.0)) > ClipAngle;
+		DrawMax.z = dot(EyeRay, vec3(0.0, 0.0, -1.0)) > ClipAngle;
+	}
+
+	if (DrawMin.x)
 	{
 		DrawPlane(Origin, EyeRay, vec3(-1.0, 0.0, 0.0), ModelMax.x, BestDist, BestNormal, BestIntersect);
 	}
-	if (Origin.y < ModelMax.y && TowardsY > ClipAngle)
+	if (DrawMin.y)
 	{
 		DrawPlane(Origin, EyeRay, vec3(0.0, -1.0, 0.0), ModelMax.y, BestDist, BestNormal, BestIntersect);
 	}
-	if (Origin.z < ModelMax.z && TowardsZ > ClipAngle)
+	if (DrawMin.z)
 	{
 		DrawPlane(Origin, EyeRay, vec3(0.0, 0.0, -1.0), ModelMax.z, BestDist, BestNormal, BestIntersect);
 	}
 
-	if (Origin.x > ModelMin.x && TowardsX > ClipAngle)
+	if (DrawMax.x)
 	{
 		DrawPlane(Origin, EyeRay, vec3(1.0, 0.0, 0.0), ModelMin.x, BestDist, BestNormal, BestIntersect);
 	}
-	if (Origin.y > ModelMin.y && TowardsY > ClipAngle)
+	if (DrawMax.y)
 	{
 		DrawPlane(Origin, EyeRay, vec3(0.0, 1.0, 0.0), ModelMin.y, BestDist, BestNormal, BestIntersect);
 	}
-	if (Origin.z > ModelMin.z && TowardsZ > ClipAngle)
+	if (DrawMax.z)
 	{
 		DrawPlane(Origin, EyeRay, vec3(0.0, 0.0, 1.0), ModelMin.z, BestDist, BestNormal, BestIntersect);
 	}
@@ -152,7 +175,7 @@ void main()
 	OutColor = vec4(0.5, 0.5, 0.5, 1.0);
 	if (BestDist != 1.0 / 0.0)
 	{
-		float Highlight = dot(BestNormal, normalize(Origin - BestIntersect)) * 0.5 + 0.5;
+		float Highlight = dot(BestNormal, -EyeRay) * 0.5 + 0.5;
 		OutColor.rgb = vec3(Highlight);
 		float LineDistX = min(fract(BestIntersect.x), 1.0 - fract(BestIntersect.x));
 		float LineDistY = min(fract(BestIntersect.y), 1.0 - fract(BestIntersect.y));
