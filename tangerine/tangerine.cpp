@@ -1107,17 +1107,41 @@ void GetMouseStateForGL(SDL_Window* Window, int& OutMouseX, int& OutMouseY)
 }
 
 
-glm::vec3 WorldSpaceRay(const ViewInfoUpload& View, int ScreenX, int ScreenY, int ScreenWidth, int ScreenHeight)
+void WorldSpaceRay(const ViewInfoUpload& View, int ScreenX, int ScreenY, int ScreenWidth, int ScreenHeight, glm::vec3& Origin, glm::vec3& Direction)
 {
-	glm::vec4 ClipPosition(
-		glm::clamp(float(ScreenX) / float(ScreenWidth), 0.0f, 1.0f) * 2.0 - 1.0,
-		glm::clamp(float(ScreenHeight - ScreenY) / float(ScreenHeight), 0.0f, 1.0f) * 2.0 - 1.0,
-		-1.0f,
-		1.0f);
-	glm::vec4 WorldPosition = View.ViewToWorld * View.ClipToView * ClipPosition;
-	WorldPosition /= WorldPosition.w;
-	glm::vec3 Ray = glm::vec3(WorldPosition.xyz) - glm::vec3(View.CameraOrigin.xyz);
-	return glm::normalize(Ray);
+	glm::vec4 ViewPosition;
+
+	if (UsePerspective)
+	{
+		glm::vec4 ClipPosition(
+			glm::clamp(float(ScreenX) / float(ScreenWidth), 0.0f, 1.0f) * 2.0 - 1.0,
+			glm::clamp(float(ScreenHeight - ScreenY) / float(ScreenHeight), 0.0f, 1.0f) * 2.0 - 1.0,
+			-1.0f,
+			1.0f);
+		ViewPosition = View.ClipToView * ClipPosition;
+
+		Origin = View.CameraOrigin;
+	}
+	else
+	{
+		glm::vec4 ClipPosition(
+			glm::clamp(float(ScreenX) / float(ScreenWidth), 0.0f, 1.0f) * 2.0 - 1.0,
+			glm::clamp(float(ScreenHeight - ScreenY) / float(ScreenHeight), 0.0f, 1.0f) * 2.0 - 1.0,
+			1.0f,
+			1.0f);
+		ViewPosition = View.ClipToView * ClipPosition;
+
+		glm::vec4 ViewOrigin = glm::vec4(ViewPosition.xy, 0.0, ViewPosition.w);
+		glm::vec4 WorldOrigin = View.ViewToWorld * ViewOrigin;
+		Origin = glm::vec3(WorldOrigin.xyz) / WorldOrigin.w;
+	}
+
+	{
+		glm::vec4 WorldPosition = View.ViewToWorld * ViewPosition;
+		WorldPosition /= WorldPosition.w;
+		glm::vec3 Ray = glm::vec3(WorldPosition.xyz) - glm::vec3(Origin);
+		Direction = glm::normalize(Ray);
+	}
 }
 
 
@@ -2074,10 +2098,10 @@ void MainLoop()
 				int ScreenHeight;
 				SDL_GetWindowSize(Window, &ScreenWidth, &ScreenHeight);
 
-				const bool HasMouseFoucs = Window == SDL_GetMouseFocus();
+				const bool HasMouseFocus = Window == SDL_GetMouseFocus();
 				static int MouseX = 0;
 				static int MouseY = 0;
-				if (HasMouseFoucs)
+				if (HasMouseFocus)
 				{
 					SDL_GetMouseState(&MouseX, &MouseY);
 				}
@@ -2087,9 +2111,10 @@ void MainLoop()
 				static std::vector<SDFModel*> RenderableModels;
 
 				static glm::vec3 MouseRay(0.0, 1.0, 0.0);
-				if (HasMouseFoucs)
+				static glm::vec3 RayOrigin(0.0, 0.0, 0.0);
+				if (HasMouseFocus)
 				{
-					MouseRay = WorldSpaceRay(LastView, MouseX, MouseY, ScreenWidth, ScreenHeight);
+					WorldSpaceRay(LastView, MouseX, MouseY, ScreenWidth, ScreenHeight, RayOrigin, MouseRay);
 				}
 
 				static bool LastExportState = false;
@@ -2113,9 +2138,8 @@ void MainLoop()
 						RequestDraw = true;
 					}
 					static bool Dragging = false;
-					if (!io.WantCaptureMouse && HasMouseFoucs && RenderableModels.size() > 0)
+					if (!io.WantCaptureMouse && HasMouseFocus && RenderableModels.size() > 0)
 					{
-						glm::vec3 RayOrigin = glm::vec3(LastView.CameraOrigin.xyz);
 						switch (Event.type)
 						{
 						case SDL_MOUSEMOTION:
@@ -2126,7 +2150,7 @@ void MainLoop()
 							}
 							else
 							{
-								DeliverMouseMove(LastView.CameraOrigin, MouseRay, Event.motion.x, Event.motion.y);
+								DeliverMouseMove(RayOrigin, MouseRay, Event.motion.x, Event.motion.y);
 							}
 							break;
 						case SDL_MOUSEBUTTONDOWN:
@@ -2148,7 +2172,7 @@ void MainLoop()
 							}
 							break;
 						case SDL_MOUSEWHEEL:
-							if (DeliverMouseScroll(LastView.CameraOrigin, MouseRay, Event.wheel.x, Event.wheel.y))
+							if (DeliverMouseScroll(RayOrigin, MouseRay, Event.wheel.x, Event.wheel.y))
 							{
 								MouseMotionZ = Event.wheel.y;
 							}
