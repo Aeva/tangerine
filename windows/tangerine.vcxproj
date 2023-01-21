@@ -81,7 +81,7 @@
     <SourcePath>$(ProjectDir)..\backend;$(VC_SourcePath)</SourcePath>
     <OutDir>$(SolutionDir)..\</OutDir>
     <CustomBuildBeforeTargets>Link</CustomBuildBeforeTargets>
-    <LibraryPath>$(SolutionDir)..\third_party\sdl2\lib\x64;$(SolutionDir)..\third_party\racket\lib\x64;$(LibraryPath)</LibraryPath>
+    <LibraryPath>$(SolutionDir)..\third_party\sdl2\lib\x64;$(SolutionDir)..\third_party\racket\lib\x64;$(SolutionDir)..\third_party\psmove\lib;$(LibraryPath)</LibraryPath>
     <IntDir>$(Platform)\$(Configuration)\tangerine\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -126,14 +126,14 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;IMGUI_USE_WCHAR32;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>$(SolutionDir)..\third_party\fmt\include;$(SolutionDir)..\third_party\imgui;$(SolutionDir)..\third_party\imgui\backends;$(SolutionDir)..\third_party\sdl2\include;$(SolutionDir)..\third_party\racket\include;$(SolutionDir)..\third_party\lua-5.4.4;$(SolutionDir)..\third_party\stb;$(SolutionDir)..\third_party\ImFileDialog;$(SolutionDir)..\third_party</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)..\third_party\fmt\include;$(SolutionDir)..\third_party\imgui;$(SolutionDir)..\third_party\imgui\backends;$(SolutionDir)..\third_party\sdl2\include;$(SolutionDir)..\third_party\racket\include;$(SolutionDir)..\third_party\lua-5.4.4;$(SolutionDir)..\third_party\stb;$(SolutionDir)..\third_party\ImFileDialog;$(SolutionDir)..\third_party\psmove\include;$(SolutionDir)..\third_party\</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>libracketcs_db9xz4.lib;opengl32.lib;SDL2.lib;SDL2main.lib;comctl32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>libracketcs_db9xz4.lib;opengl32.lib;SDL2.lib;SDL2main.lib;comctl32.lib;psmoveapi.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <StackReserveSize>10485760</StackReserveSize>
     </Link>
     <CustomBuildStep>
@@ -152,7 +152,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;IMGUI_USE_WCHAR32;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>$(SolutionDir)..\third_party\fmt\include;$(SolutionDir)..\third_party\imgui;$(SolutionDir)..\third_party\imgui\backends;$(SolutionDir)..\third_party\sdl2\include;$(SolutionDir)..\third_party\racket\include;$(SolutionDir)..\third_party\lua-5.4.4;$(SolutionDir)..\third_party\stb;$(SolutionDir)..\third_party\ImFileDialog;$(SolutionDir)..\third_party\psmove;$(SolutionDir)..\third_party</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)..\third_party\fmt\include;$(SolutionDir)..\third_party\imgui;$(SolutionDir)..\third_party\imgui\backends;$(SolutionDir)..\third_party\sdl2\include;$(SolutionDir)..\third_party\racket\include;$(SolutionDir)..\third_party\lua-5.4.4;$(SolutionDir)..\third_party\stb;$(SolutionDir)..\third_party\ImFileDialog;$(SolutionDir)..\third_party\psmove\include;$(SolutionDir)..\third_party</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
     </ClCompile>
@@ -305,6 +305,11 @@
     <ClInclude Include="..\third_party\lua-5.4.4\lua\lundump.h" />
     <ClInclude Include="..\third_party\lua-5.4.4\lua\lvm.h" />
     <ClInclude Include="..\third_party\lua-5.4.4\lua\lzio.h" />
+    <ClInclude Include="..\third_party\psmove\include\psmove.h" />
+    <ClInclude Include="..\third_party\psmove\include\psmoveapi.h" />
+    <ClInclude Include="..\third_party\psmove\include\psmove_config.h" />
+    <ClInclude Include="..\third_party\psmove\include\psmove_fusion.h" />
+    <ClInclude Include="..\third_party\psmove\include\psmove_tracker.h" />
     <ClInclude Include="..\third_party\stb\stb_connected_components.h" />
     <ClInclude Include="..\third_party\stb\stb_c_lexer.h" />
     <ClInclude Include="..\third_party\stb\stb_divide.h" />

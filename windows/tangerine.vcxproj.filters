@@ -43,6 +43,9 @@
     <Filter Include="Third Party\stb">
       <UniqueIdentifier>{2f946632-7034-42fc-8695-02895325b470}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Third Party\psmove">
+      <UniqueIdentifier>{ad88ae65-7068-471a-9d5a-563e4363260e}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\third_party\glad\glad.c">
@@ -503,6 +506,21 @@
     </ClInclude>
     <ClInclude Include="..\tangerine\lua_vec.h">
       <Filter>Tangerine\Runtimes</Filter>
+    </ClInclude>
+    <ClInclude Include="..\third_party\psmove\include\psmove.h">
+      <Filter>Third Party\psmove</Filter>
+    </ClInclude>
+    <ClInclude Include="..\third_party\psmove\include\psmove_config.h">
+      <Filter>Third Party\psmove</Filter>
+    </ClInclude>
+    <ClInclude Include="..\third_party\psmove\include\psmove_fusion.h">
+      <Filter>Third Party\psmove</Filter>
+    </ClInclude>
+    <ClInclude Include="..\third_party\psmove\include\psmove_tracker.h">
+      <Filter>Third Party\psmove</Filter>
+    </ClInclude>
+    <ClInclude Include="..\third_party\psmove\include\psmoveapi.h">
+      <Filter>Third Party\psmove</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

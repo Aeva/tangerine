@@ -27,6 +27,8 @@
 #include <imgui_impl_opengl3.h>
 #include <ImFileDialog.h>
 
+#include <psmove.h>
+
 #include "events.h"
 #include "sdf_evaluator.h"
 #include "sdf_rendering.h"
@@ -59,6 +61,70 @@
 #include "gl_async.h"
 #include "gl_debug.h"
 #include "../shaders/defines.h"
+
+
+struct MoveConnection
+{
+	int Index = -1;
+	PSMove* Handle = nullptr;
+	PSMove_Connection_Type Connection = Conn_Unknown;
+	PSMove_Model_Type Model;
+	bool Local = false;
+	char* Serial;
+	glm::quat Orientation;
+
+	MoveConnection(int InIndex)
+		: Index(InIndex)
+		, Handle(psmove_connect_by_id(Index))
+		, Connection(psmove_connection_type(Handle))
+		, Model(psmove_get_model(Handle))
+		, Local(!psmove_is_remote(Handle))
+		, Serial(psmove_get_serial(Handle))
+	{}
+
+	int Score()
+	{
+		// USB connections don't support button events, and are really only useful for a bluetooth
+		// pairing workflow, which can be done outside of the application for now anyway.
+		// Local connections are preferred over remote ones for lower latency.
+		// Accepting connections from unknown models is unlikely to be productive.
+		// Likewise, controllers without a valid calibration can't be oriented.
+		if (Connection == Conn_Bluetooth && Model > Model_Unknown && psmove_has_calibration(Handle))
+		{
+			return Local ? 2 : 1;
+		}
+		else
+		{
+			return 0;
+		}
+	}
+
+	void SetColor(glm::vec3 Color)
+	{
+		Color = glm::clamp(Color, glm::vec3(0.0), glm::vec3(1.0)) * glm::vec3(255.0);
+		psmove_set_leds(Handle, int(Color.r), int(Color.g), int(Color.b));
+	}
+
+	void Activate()
+	{
+		psmove_enable_orientation(Handle, PSMove_True);
+		psmove_set_orientation_fusion_type(Handle, OrientationFusion_ComplementaryMARG);
+	}
+
+	void Refresh()
+	{
+		psmove_update_leds(Handle);
+		psmove_poll(Handle);
+		psmove_get_orientation(Handle, &Orientation.w, &Orientation.x, &Orientation.y, &Orientation.z);
+	}
+
+	~MoveConnection()
+	{
+		psmove_disconnect(Handle);
+	}
+};
+
+MoveConnection* MoveController = nullptr;
 
 
 // TODO: These were originally defined as a cross-platform compatibility hack for code
@@ -678,6 +744,11 @@ void RenderFrame(int ScreenWidth, int ScreenHeight, std::vector<SDFModel*>& Rend
 			RotateZ = 0.0;
 			Zoom = 14.0;
 			CameraFocus = (ModelBounds.Max - ModelBounds.Min) * glm::vec3(0.5) + ModelBounds.Min;
+
+			if (MoveController)
+			{
+				psmove_reset_orientation(MoveController->Handle);
+			}
 		}
 
 		RotateX = fmodf(RotateX - MouseMotionY, 360.0);
@@ -2045,6 +2116,44 @@ StatusCode Boot(int argc, char* argv[])
 			}
 		}
 	}
+
+	if (psmove_init(PSMOVE_CURRENT_VERSION))
+	{
+		const int MoveControllerCount = psmove_count_connected();
+		if (MoveControllerCount > 0)
+		{
+			int Best = 0;
+			for (int ControllerIndex = 0; ControllerIndex < MoveControllerCount; ++ControllerIndex)
+			{
+				MoveConnection* MaybeController = new MoveConnection(ControllerIndex);
+				int Score = MaybeController->Score();
+				if (Score > Best)
+				{
+					if (MoveController)
+					{
+						delete MoveController;
+					}
+					MoveController = MaybeController;
+					Best = Score;
+				}
+			}
+			if (MoveController)
+			{
+				std::cout << "Move controller connected: " << MoveController->Serial << "\n";
+				MoveController->Activate();
+				MoveController->SetColor(glm::vec3(1.0, 0.0, 1.0));
+			}
+			else
+			{
+				std::cout << "No suitable move controllers found.  The controller must already be paired via bluetooth and be of a known model.\n";
+			}
+		}
+	}
+	else
+	{
+		std::cout << "Unable to init psmove API.\n";
+	}
+
 	return StatusCode::PASS;
 }
 
@@ -2052,6 +2161,11 @@ StatusCode Boot(int argc, char* argv[])
 void Teardown()
 {
 	std::cout << "Shutting down...\n";
+
+	if (MoveController)
+	{
+		delete MoveController;
+	}
 
 	if (MainEnvironment)
 	{
@@ -2110,6 +2224,14 @@ void MainLoop()
 				static std::vector<SDFModel*> IncompleteModels;
 				static std::vector<SDFModel*> RenderableModels;
 
+				if (MoveController && RenderableModels.size() == 1)
+				{
+					// This almost works, but the chirality is flipped :(
+					TransformMachine& Transform = RenderableModels[0]->Transform;
+					Transform.Reset();
+					Transform.Rotate(MoveController->Orientation);
+				}
+
 				static glm::vec3 MouseRay(0.0, 1.0, 0.0);
 				static glm::vec3 RayOrigin(0.0, 0.0, 0.0);
 				if (HasMouseFocus)
@@ -2120,8 +2242,13 @@ void MainLoop()
 				static bool LastExportState = false;
 				bool ExportInProgress = GetExportProgress().Stage != 0;
 
-				bool RequestDraw = RealtimeMode || ShowStatsOverlay || RenderableModels.size() == 0 || IncompleteModels.size() > 0 || LastExportState != ExportInProgress;
+				bool RequestDraw = RealtimeMode || ShowStatsOverlay || RenderableModels.size() == 0 || IncompleteModels.size() > 0 || LastExportState != ExportInProgress || MoveController;
 				LastExportState = ExportInProgress;
+
+				if (MoveController)
+				{
+					MoveController->Refresh();
+				}
 
 				BeginEvent("Process Input");
 				while (SDL_PollEvent(&Event))
