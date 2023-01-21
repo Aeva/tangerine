@@ -44,7 +44,7 @@ def splat_license(project, path):
 
 if __name__ == "__main__":
     paths = []
-    variants = ["LICENSE", "copying"]
+    variants = ["LICENSE", "COPYING", "copying"]
     for variant in variants:
         paths += glob.glob(f"*/{variant}*")
 
