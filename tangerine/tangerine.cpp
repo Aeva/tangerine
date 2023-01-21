@@ -116,6 +116,8 @@ struct MoveConnection
 		psmove_update_leds(Handle);
 		psmove_poll(Handle);
 		psmove_get_orientation(Handle, &Orientation.w, &Orientation.x, &Orientation.y, &Orientation.z);
+		Orientation.y *= -1;
+		Orientation.z *= -1;
 	}
 
 	~MoveConnection()
