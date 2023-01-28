@@ -190,6 +190,7 @@
     <ClCompile Include="..\tangerine\sdf_model.cpp" />
     <ClCompile Include="..\tangerine\sdf_rendering.cpp" />
     <ClCompile Include="..\tangerine\shape_compiler.cpp" />
+    <ClCompile Include="..\tangerine\sodapop.cpp" />
     <ClCompile Include="..\tangerine\tangerine.cpp" />
     <ClCompile Include="..\tangerine\threadpool.cpp" />
     <ClCompile Include="..\third_party\fmt\src\format.cc" />
@@ -261,6 +262,7 @@
     <ClInclude Include="..\tangerine\sdf_model.h" />
     <ClInclude Include="..\tangerine\sdf_rendering.h" />
     <ClInclude Include="..\tangerine\shape_compiler.h" />
+    <ClInclude Include="..\tangerine\sodapop.h" />
     <ClInclude Include="..\tangerine\tangerine.h" />
     <ClInclude Include="..\tangerine\threadpool.h" />
     <ClInclude Include="..\third_party\glad\glad.h" />
@@ -351,6 +353,8 @@
     <None Include="..\shaders\octree_debug.fs.glsl" />
     <None Include="..\shaders\outliner.fs.glsl" />
     <None Include="..\shaders\resolve.fs.glsl" />
+    <None Include="..\shaders\sodapop\yolo.fs.glsl" />
+    <None Include="..\shaders\sodapop\yolo.vs.glsl" />
     <None Include="..\shaders\splat.vs.glsl" />
     <None Include="..\shaders\tile_heap.glsl" />
     <None Include="..\third_party\licenses.inl" />

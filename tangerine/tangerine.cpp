@@ -62,6 +62,8 @@
 #include "gl_debug.h"
 #include "../shaders/defines.h"
 
+#include "sodapop.h"
+
 
 struct MoveConnection
 {
@@ -1957,7 +1959,7 @@ StatusCode Boot(int argc, char* argv[])
 				WindowFlags |= SDL_WINDOW_RESIZABLE;
 			}
 			Window = SDL_CreateWindow(
-				"Tangerine",
+				"Sodapop",
 				SDL_WINDOWPOS_CENTERED,
 				SDL_WINDOWPOS_CENTERED,
 				WindowWidth, WindowHeight,
@@ -1984,7 +1986,7 @@ StatusCode Boot(int argc, char* argv[])
 			else
 			{
 				SDL_GL_MakeCurrent(Window, Context);
-				SDL_GL_SetSwapInterval(1);
+				SDL_GL_SetSwapInterval(0);
 				std::cout << "Done!\n";
 			}
 		}
@@ -2058,7 +2060,7 @@ StatusCode Boot(int argc, char* argv[])
 	}
 	std::cout << "Using device: " << glGetString(GL_RENDERER) << " " << glGetString(GL_VERSION) << "\n";
 
-	if (SetupRenderer() == StatusCode::FAIL)
+	if (SetupRenderer() == StatusCode::FAIL || SetupSodapop() == StatusCode::FAIL)
 	{
 		std::cout << "Failed to initialize the renderer.\n";
 		return StatusCode::FAIL;
@@ -2417,6 +2419,7 @@ void MainLoop()
 						ImGui::Render();
 						EndEvent();
 					}
+#if 0
 					{
 						GetIncompleteModels(IncompleteModels);
 						if (IncompleteModels.size() > 0)
@@ -2426,6 +2429,37 @@ void MainLoop()
 						GetRenderableModels(RenderableModels);
 					}
 					RenderFrame(ScreenWidth, ScreenHeight, RenderableModels, LastView, RequestDraw);
+#else
+					{
+						BeginEvent("RenderFrame");
+						Clock::time_point FrameStartTimePoint = Clock::now();
+
+						double CurrentTime;
+						{
+							static Clock::time_point StartTimePoint = FrameStartTimePoint;
+							static Clock::time_point LastTimePoint = StartTimePoint;
+							{
+								std::chrono::duration<double, std::milli> FrameDelta = FrameStartTimePoint - LastTimePoint;
+								PresentDeltaMs = float(FrameDelta.count());
+							}
+							{
+								std::chrono::duration<double, std::milli> EpochDelta = FrameStartTimePoint - StartTimePoint;
+								CurrentTime = float(EpochDelta.count());
+							}
+							LastTimePoint = FrameStartTimePoint;
+							PresentFrequency = float(1000.0 / PresentDeltaMs);
+						}
+
+						RenderFrame(ScreenWidth, ScreenHeight);
+
+						{
+							std::chrono::duration<double, std::milli> InnerFrameDelta = Clock::now() - FrameStartTimePoint;
+							LastInnerFrameDeltaMs = float(InnerFrameDelta.count());
+						}
+
+						EndEvent();
+					}
+#endif
 					{
 						BeginEvent("Dear ImGui Draw");
 						glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Dear ImGui");

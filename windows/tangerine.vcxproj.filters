@@ -46,6 +46,9 @@
     <Filter Include="Third Party\psmove">
       <UniqueIdentifier>{ad88ae65-7068-471a-9d5a-563e4363260e}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Shaders\sodapop">
+      <UniqueIdentifier>{44f4d3d1-86ac-4bf6-ad51-0ae2b1b854dc}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\third_party\glad\glad.c">
@@ -245,6 +248,9 @@
     </ClCompile>
     <ClCompile Include="..\tangerine\lua_vec.cpp">
       <Filter>Tangerine\Runtimes</Filter>
+    </ClCompile>
+    <ClCompile Include="..\tangerine\sodapop.cpp">
+      <Filter>Tangerine</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -522,6 +528,9 @@
     <ClInclude Include="..\third_party\psmove\include\psmoveapi.h">
       <Filter>Third Party\psmove</Filter>
     </ClInclude>
+    <ClInclude Include="..\tangerine\sodapop.h">
+      <Filter>Tangerine</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="..\shaders\math.glsl">
@@ -587,6 +596,12 @@
     </None>
     <None Include="..\shaders\octree_debug.fs.glsl">
       <Filter>Shaders</Filter>
+    </None>
+    <None Include="..\shaders\sodapop\yolo.fs.glsl">
+      <Filter>Shaders\sodapop</Filter>
+    </None>
+    <None Include="..\shaders\sodapop\yolo.vs.glsl">
+      <Filter>Shaders\sodapop</Filter>
     </None>
   </ItemGroup>
   <ItemGroup>
