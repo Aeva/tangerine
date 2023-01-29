@@ -17,7 +17,11 @@
 #include "sdf_evaluator.h"
 
 
-StatusCode SetupSodapop();
+namespace Sodapop
+{
+	StatusCode Setup();
+	void Teardown();
 
 
-void RenderFrame(int ScreenWidth, int ScreenHeight, double CurrentTime, glm::quat Orientation);
+	void RenderFrame(int ScreenWidth, int ScreenHeight, double CurrentTime, glm::quat Orientation);
+}

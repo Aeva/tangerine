@@ -2060,7 +2060,7 @@ StatusCode Boot(int argc, char* argv[])
 	}
 	std::cout << "Using device: " << glGetString(GL_RENDERER) << " " << glGetString(GL_VERSION) << "\n";
 
-	if (SetupRenderer() == StatusCode::FAIL || SetupSodapop() == StatusCode::FAIL)
+	if (SetupRenderer() == StatusCode::FAIL || Sodapop::Setup() == StatusCode::FAIL)
 	{
 		std::cout << "Failed to initialize the renderer.\n";
 		return StatusCode::FAIL;
@@ -2165,6 +2165,8 @@ StatusCode Boot(int argc, char* argv[])
 void Teardown()
 {
 	std::cout << "Shutting down...\n";
+
+	Sodapop::Teardown();
 
 	if (MoveController)
 	{
@@ -2456,7 +2458,7 @@ void MainLoop()
 							Orientation = MoveController->Orientation;
 						}
 
-						RenderFrame(ScreenWidth, ScreenHeight, CurrentTime, Orientation);
+						Sodapop::RenderFrame(ScreenWidth, ScreenHeight, CurrentTime, Orientation);
 
 						{
 							std::chrono::duration<double, std::milli> InnerFrameDelta = Clock::now() - FrameStartTimePoint;

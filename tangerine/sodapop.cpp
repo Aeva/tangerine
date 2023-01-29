@@ -17,8 +17,9 @@
 #include "gl_boilerplate.h"
 #include <vector>
 #include <random>
-
-static std::default_random_engine RNGesus;
+#include <thread>
+#include <atomic>
+#include <mutex>
 
 
 static ShaderProgram PaintShader;
@@ -26,6 +27,8 @@ static ShaderProgram PaintShader;
 
 struct Bubble
 {
+	std::default_random_engine RNGesus;
+
 	SDFNode* SDF;
 	glm::mat4 LocalToWorld;
 
@@ -249,15 +252,18 @@ struct Bubble
 		SDF->Release();
 	}
 
-	void Refresh(glm::vec3 ViewOrigin)
+	void Retrace(glm::vec3 ViewOrigin)
 	{
+		// This is called in a worker thread, and it both can and will write to Colors
+		// as the main thread is trying to upload the data to the GPU.  This is deliberatly
+		// *not* holding a lock to prevent blocking the main thread.
+
 		std::uniform_real_distribution<double> Roll(0.0, std::nextafter(1.0, DBL_MAX));
 
-		for (int i = 0; i < 100; ++i)
 		{
 #if 1
 			const int Update = int(Roll(RNGesus) * float(Colors.size() - 1));
-			const glm::vec3 Position = Positions[Update].xyz;
+			const glm::vec3 Position = (LocalToWorld * glm::vec4(Positions[Update].xyz, 1.0)).xyz;
 
 			const glm::vec3 L = glm::normalize(Position - ViewOrigin);
 
@@ -269,7 +275,10 @@ struct Bubble
 			Colors[Update].xyz = glm::vec3(Roll(RNGesus), Roll(RNGesus), Roll(RNGesus));
 #endif
 		}
+	}
 
+	void Refresh()
+	{
 		ColorBuffer.Upload(Colors.data(), sizeof(glm::vec4) * Colors.size());
 		ModelInfo.Upload((void*)&LocalToWorld, sizeof(LocalToWorld));
 	}
@@ -278,8 +287,12 @@ struct Bubble
 
 Bubble* Fnord;
 
+std::atomic_bool Live;
+std::vector<std::thread> Threads;
+void AsyncTracer();
 
-StatusCode SetupSodapop()
+
+StatusCode Sodapop::Setup()
 {
 	RETURN_ON_FAIL(PaintShader.Setup(
 		{ {GL_VERTEX_SHADER, ShaderSource("sodapop/yolo.vs.glsl", true)},
@@ -297,7 +310,26 @@ StatusCode SetupSodapop()
 		Model->Release();
 	}
 
+	Live.store(true);
+	//const int ThreadCount = glm::max(int(std::thread::hardware_concurrency()), 2);
+	const int ThreadCount = 1;
+	Threads.reserve(ThreadCount);
+	for (int i = 0; i < ThreadCount; ++i)
+	{
+		Threads.push_back(std::thread(AsyncTracer));
+	}
+
 	return StatusCode::PASS;
+}
+
+
+void Sodapop::Teardown()
+{
+	Live.store(false);
+	for (auto& Thread : Threads)
+	{
+		Thread.join();
+	}
 }
 
 
@@ -323,7 +355,21 @@ struct ViewInfoUpload
 static Buffer ViewInfo("ViewInfo Buffer");
 
 
-void RenderFrame(int ScreenWidth, int ScreenHeight, double CurrentTime, glm::quat Orientation)
+std::mutex Viewtex;
+glm::vec3 ViewOrigin(0, 0, 0);
+void AsyncTracer()
+{
+	while (Live.load())
+	{
+		Viewtex.lock();
+		glm::vec3 CurrentOrigin = ViewOrigin;
+		Viewtex.unlock();
+		Fnord->Retrace(CurrentOrigin);
+	}
+}
+
+
+void Sodapop::RenderFrame(int ScreenWidth, int ScreenHeight, double CurrentTime, glm::quat Orientation)
 {
 	static int Width = 0;
 	static int Height = 0;
@@ -336,7 +382,8 @@ void RenderFrame(int ScreenWidth, int ScreenHeight, double CurrentTime, glm::qua
 		AllocateRenderTargets(Width, Height);
 	}
 
-	glm::vec3 ViewOrigin(0.0, -10.0, 0.0);
+	Viewtex.lock();
+	ViewOrigin = glm::vec3(0.0, -10.0, 0.0);
 	const glm::vec3 FocalPoint(0.0, 0.0, 0.0);
 	const glm::vec3 WorldUp(0.0, 0.0, 1.0);
 
@@ -349,6 +396,7 @@ void RenderFrame(int ScreenWidth, int ScreenHeight, double CurrentTime, glm::qua
 
 	Fnord->LocalToWorld = glm::toMat4(Orientation);
 #endif
+	Viewtex.unlock();
 
 	const float CameraFov = 45.0;
 	const float CameraNear = 0.1;
@@ -364,7 +412,7 @@ void RenderFrame(int ScreenWidth, int ScreenHeight, double CurrentTime, glm::qua
 		ViewInfo.Bind(GL_UNIFORM_BUFFER, 0);
 	}
 
-	Fnord->Refresh(ViewOrigin);
+	Fnord->Refresh();
 
 	Fnord->ModelInfo.Bind(GL_UNIFORM_BUFFER, 1);
 	Fnord->IndexBuffer.Bind(GL_SHADER_STORAGE_BUFFER, 2);
