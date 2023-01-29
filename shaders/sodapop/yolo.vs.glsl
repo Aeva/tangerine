@@ -31,13 +31,20 @@ uniform ModelInfoBlock
 
 
 layout(std430, binding = 2)
+restrict readonly buffer VertexIndexBlock
+{
+	int VertexIndices[];
+};
+
+
+layout(std430, binding = 3)
 restrict readonly buffer VertexPositionBlock
 {
 	vec3 VertexPositions[];
 };
 
 
-layout(std430, binding = 3)
+layout(std430, binding = 4)
 restrict readonly buffer VertexColorBlock
 {
 	vec3 VertexColors[];
@@ -52,13 +59,18 @@ out gl_PerVertex
 };
 
 out vec3 VertexColor;
+out vec3 Barycenter;
 
 
 void main()
 {
-	vec3 LocalPosition = VertexPositions[gl_VertexID];
+	int Index = VertexIndices[gl_VertexID];
+	vec3 LocalPosition = VertexPositions[Index];
 	vec4 ViewPosition = WorldToView * LocalToWorld * vec4(LocalPosition, 1.0);
 	gl_Position = ViewToClip * ViewPosition;
 
-	VertexColor = VertexColors[gl_VertexID];
+	VertexColor = VertexColors[Index];
+
+	Barycenter = vec3(0.0);
+	Barycenter[gl_VertexID % 3] = 1.0;
 }

@@ -16,6 +16,9 @@
 #include "sodapop.h"
 #include "gl_boilerplate.h"
 #include <vector>
+#include <random>
+
+static std::default_random_engine RNGesus;
 
 
 static ShaderProgram PaintShader;
@@ -41,9 +44,10 @@ struct Bubble
 		, ModelInfo("ModelInfo")
 		, PositionBuffer("PositionBuffer")
 	{
+		SDF->Hold();
 		const AABB Bounds = SDF->Bounds();
 		const glm::vec3 Extent = Bounds.Extent();
-		const int Iterations = 21;
+		const int Iterations = 51;
 
 		auto Record = [&](glm::vec4 Position) -> int
 		{
@@ -238,6 +242,34 @@ struct Bubble
 
 		IndexBuffer.Upload(Indices.data(), sizeof(int) * Indices.size());
 		PositionBuffer.Upload(Positions.data(), sizeof(glm::vec4) * Positions.size());
+	}
+
+	~Bubble()
+	{
+		SDF->Release();
+	}
+
+	void Refresh(glm::vec3 ViewOrigin)
+	{
+		std::uniform_real_distribution<double> Roll(0.0, std::nextafter(1.0, DBL_MAX));
+
+		for (int i = 0; i < 100; ++i)
+		{
+#if 1
+			const int Update = int(Roll(RNGesus) * float(Colors.size() - 1));
+			const glm::vec3 Position = Positions[Update].xyz;
+
+			const glm::vec3 L = glm::normalize(Position - ViewOrigin);
+
+			const glm::vec3 Normal = SDF->Gradient(Position);
+			float A = glm::max(-glm::dot(L, Normal), 0.0f);
+			Colors[Update] = glm::vec4(Normal * glm::vec3(.5) + glm::vec3(.5), 1) * glm::vec4(glm::vec3(A * A), 1.0);
+#else
+			const int Update = int(Roll(RNGesus) * float(Colors.size() - 1));
+			Colors[Update].xyz = glm::vec3(Roll(RNGesus), Roll(RNGesus), Roll(RNGesus));
+#endif
+		}
+
 		ColorBuffer.Upload(Colors.data(), sizeof(glm::vec4) * Colors.size());
 		ModelInfo.Upload((void*)&LocalToWorld, sizeof(LocalToWorld));
 	}
@@ -304,18 +336,18 @@ void RenderFrame(int ScreenWidth, int ScreenHeight, double CurrentTime, glm::qua
 		AllocateRenderTargets(Width, Height);
 	}
 
-	const glm::vec3 ViewOrigin(0.0, -10.0, 0.0);
+	glm::vec3 ViewOrigin(0.0, -10.0, 0.0);
 	const glm::vec3 FocalPoint(0.0, 0.0, 0.0);
 	const glm::vec3 WorldUp(0.0, 0.0, 1.0);
 
 #if 1
-	const glm::quat WorldRotation = glm::angleAxis(float(glm::radians(CurrentTime / 100.0)), WorldUp);
-	const const glm::mat4 WorldToView = glm::lookAt(glm::rotate(WorldRotation, ViewOrigin), FocalPoint, WorldUp);
+	const glm::quat WorldRotation = glm::angleAxis(float(glm::radians(CurrentTime / 50.0)), WorldUp);
+	ViewOrigin = glm::rotate(WorldRotation, ViewOrigin);
+	const const glm::mat4 WorldToView = glm::lookAt(ViewOrigin, FocalPoint, WorldUp);
 #else
 	const const glm::mat4 WorldToView = glm::lookAt(ViewOrigin, FocalPoint, WorldUp);
 
 	Fnord->LocalToWorld = glm::toMat4(Orientation);
-	Fnord->ModelInfo.Upload((void*)&(Fnord->LocalToWorld), sizeof(Fnord->LocalToWorld));
 #endif
 
 	const float CameraFov = 45.0;
@@ -331,6 +363,8 @@ void RenderFrame(int ScreenWidth, int ScreenHeight, double CurrentTime, glm::qua
 		ViewInfo.Upload((void*)&BufferData, sizeof(BufferData));
 		ViewInfo.Bind(GL_UNIFORM_BUFFER, 0);
 	}
+
+	Fnord->Refresh(ViewOrigin);
 
 	Fnord->ModelInfo.Bind(GL_UNIFORM_BUFFER, 1);
 	Fnord->IndexBuffer.Bind(GL_SHADER_STORAGE_BUFFER, 2);
