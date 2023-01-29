@@ -2450,7 +2450,13 @@ void MainLoop()
 							PresentFrequency = float(1000.0 / PresentDeltaMs);
 						}
 
-						RenderFrame(ScreenWidth, ScreenHeight);
+						glm::quat Orientation = glm::quat(1, 0, 0, 0);
+						if (MoveController)
+						{
+							Orientation = MoveController->Orientation;
+						}
+
+						RenderFrame(ScreenWidth, ScreenHeight, CurrentTime, Orientation);
 
 						{
 							std::chrono::duration<double, std::milli> InnerFrameDelta = Clock::now() - FrameStartTimePoint;

@@ -14,9 +14,10 @@
 // limitations under the License.
 
 #include "errors.h"
+#include "sdf_evaluator.h"
 
 
 StatusCode SetupSodapop();
 
 
-void RenderFrame(int ScreenWidth, int ScreenHeight);
+void RenderFrame(int ScreenWidth, int ScreenHeight, double CurrentTime, glm::quat Orientation);
