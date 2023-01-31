@@ -41,6 +41,8 @@ struct Bubble
 	std::vector<glm::vec4> Positions;
 	std::vector<glm::vec4> Colors;
 
+	std::mutex ColorsCS;
+
 	Bubble(SDFNode* InSDF)
 		: SDF(InSDF)
 		, LocalToWorld(glm::identity<glm::mat4>())
@@ -254,32 +256,26 @@ struct Bubble
 
 	void Retrace(glm::vec3 ViewOrigin)
 	{
-		// This is called in a worker thread, and it both can and will write to Colors
-		// as the main thread is trying to upload the data to the GPU.  This is deliberatly
-		// *not* holding a lock to prevent blocking the main thread.
-
 		std::uniform_real_distribution<double> Roll(0.0, std::nextafter(1.0, DBL_MAX));
+		const int Update = int(Roll(RNGesus) * float(Colors.size() - 1));
 
-		{
-#if 1
-			const int Update = int(Roll(RNGesus) * float(Colors.size() - 1));
-			const glm::vec3 Position = (LocalToWorld * glm::vec4(Positions[Update].xyz, 1.0)).xyz;
+		const glm::vec3 Position = (LocalToWorld * glm::vec4(Positions[Update].xyz, 1.0)).xyz;
+		const glm::vec3 L = glm::normalize(Position - ViewOrigin);
+		const glm::vec3 Normal = SDF->Gradient(Position);
+		const float A = glm::max(-glm::dot(L, Normal), 0.0f);
+		const glm::vec4 NewColor = glm::vec4(Normal * glm::vec3(.5) + glm::vec3(.5), 1) * glm::vec4(glm::vec3(A * A), 1.0);
 
-			const glm::vec3 L = glm::normalize(Position - ViewOrigin);
-
-			const glm::vec3 Normal = SDF->Gradient(Position);
-			float A = glm::max(-glm::dot(L, Normal), 0.0f);
-			Colors[Update] = glm::vec4(Normal * glm::vec3(.5) + glm::vec3(.5), 1) * glm::vec4(glm::vec3(A * A), 1.0);
-#else
-			const int Update = int(Roll(RNGesus) * float(Colors.size() - 1));
-			Colors[Update].xyz = glm::vec3(Roll(RNGesus), Roll(RNGesus), Roll(RNGesus));
-#endif
-		}
+		ColorsCS.lock();
+		Colors[Update] = NewColor;
+		ColorsCS.unlock();
 	}
 
 	void Refresh()
 	{
+		ColorsCS.lock();
 		ColorBuffer.Upload(Colors.data(), sizeof(glm::vec4) * Colors.size());
+		ColorsCS.unlock();
+
 		ModelInfo.Upload((void*)&LocalToWorld, sizeof(LocalToWorld));
 	}
 };
@@ -364,7 +360,16 @@ void AsyncTracer()
 		Viewtex.lock();
 		glm::vec3 CurrentOrigin = ViewOrigin;
 		Viewtex.unlock();
+
 		Fnord->Retrace(CurrentOrigin);
+
+		// This isn't strictly necessary since the lock above on Viewtex, and the other
+		// lock in Bubble::Retrace will periodically block this thread.  However, this yield
+		// will hopefully ensure the main thread is prioritized more consistently, along with
+		// other work on the system.  This is expected to improve the overall responsiveness
+		// of this program and the system it runs on at the expense of a marginal reduction
+		// to async tracing throughput.
+		std::this_thread::yield();
 	}
 }
 
