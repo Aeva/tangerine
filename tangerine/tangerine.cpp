@@ -59,7 +59,7 @@
 #include "gl_async.h"
 #include "gl_debug.h"
 #include "../shaders/defines.h"
-
+#include "installation.h"
 
 // TODO: These were originally defined as a cross-platform compatibility hack for code
 // in this file that was using min/max macros from a Windows header.  The header is no
@@ -85,9 +85,7 @@ ScriptEnvironment* MainEnvironment = nullptr;
 SDFNode* TreeEvaluator = nullptr;
 
 
-std::filesystem::path ExecutableDir;
-std::filesystem::path ShadersDir;
-std::filesystem::path ModelsDir;
+TangerineInstallation Installed;
 std::filesystem::path LastOpenDir;
 
 
@@ -1749,7 +1747,9 @@ void RenderUI(SDL_Window* Window, bool& Live)
 
 void LoadBookmarks()
 {
-	std::filesystem::path BookmarksPath = ExecutableDir / "bookmarks.txt";
+	std::filesystem::path BookmarksPath =
+                // FIXME might be read-only
+                Installed.ExecutableDir / "bookmarks.txt";
 	if (std::filesystem::is_regular_file(BookmarksPath))
 	{
 		std::ifstream BookmarksFile;
@@ -1772,7 +1772,9 @@ void LoadBookmarks()
 
 void SaveBookmarks()
 {
-	std::filesystem::path BookmarksPath = ExecutableDir / "bookmarks.txt";
+	std::filesystem::path BookmarksPath =
+		// FIXME might be read-only
+		Installed.ExecutableDir / "bookmarks.txt";
 	const std::vector<std::string>& Bookmarks = ifd::FileDialog::Instance().GetFavorites();
 	if (Bookmarks.size() > 0)
 	{
@@ -1792,10 +1794,8 @@ SDL_GLContext Context = nullptr;
 
 StatusCode Boot(int argc, char* argv[])
 {
-	ExecutableDir = std::filesystem::absolute(argv[0]).parent_path();
-	ShadersDir = ExecutableDir / std::filesystem::path("Shaders");
-	ModelsDir = ExecutableDir / std::filesystem::path("Models");
-	LastOpenDir = ModelsDir;
+	Installed = { argv[0] };
+	LastOpenDir = Installed.ModelsDir;
 	LoadBookmarks();
 
 	std::vector<std::string> Args;
