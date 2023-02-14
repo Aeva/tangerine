@@ -22,7 +22,7 @@ function(racket_extract_config_pair entryId)
     set(${parse_OUTPUT_VARIABLE} ${_found} PARENT_SCOPE)
 endfunction()
 
-function(racket_extract_last_string)
+function(racket_extract_strings)
     # FRAGILE: breaks if there is a "\"" in the string
     set(_options "")
     set(_oneValKeys FROM OUTPUT_VARIABLE)
@@ -36,12 +36,15 @@ function(racket_extract_last_string)
         _allRaw
         ${parse_FROM}
     )
-    list(POP_BACK _allRaw _lastRaw) # NOTE: mutates _allRaw
-    # remove the opening and closing "\""
-    string(LENGTH ${_lastRaw} _lenRaw)
-    math(EXPR _lenTrimmed "${_lenRaw} - 2")
-    string(SUBSTRING ${_lastRaw} 1 ${_lenTrimmed} _lastTrimmed)
-    set(${parse_OUTPUT_VARIABLE} ${_lastTrimmed} PARENT_SCOPE)
+    set(_allTrimmed "")
+    foreach(_raw IN LISTS _allRaw)
+        # remove the opening and closing "\""
+        string(LENGTH ${_raw} _lenRaw)
+        math(EXPR _lenTrimmed "${_lenRaw} - 2")
+        string(SUBSTRING ${_raw} 1 ${_lenTrimmed} _trimmed)
+        list(APPEND _allTrimmed ${_trimmed})
+    endforeach()
+    set(${parse_OUTPUT_VARIABLE} ${_allTrimmed} PARENT_SCOPE)
 endfunction()
 
 function(racket_parse_config_entry entryId)
@@ -55,9 +58,31 @@ function(racket_parse_config_entry entryId)
     # message(WARNING "unparsed: ${parse_UNPARSED_ARGUMENTS}")
     # message(WARNING "missing: ${parse_KEYWORDS_MISSING_VALUES}")
     racket_extract_config_pair(${entryId} FROM ${parse_FROM} OUTPUT_VARIABLE _pair)
-    racket_extract_last_string(FROM ${_pair} OUTPUT_VARIABLE _string)
+    racket_extract_strings(FROM ${_pair} OUTPUT_VARIABLE _string)
     message(NOTICE "========\nFound:\n-----\n${entryId}\n${_string}\n========")
     set(${parse_OUTPUT_VARIABLE} ${_string} PARENT_SCOPE)
+endfunction()
+
+function(racket_parse_config_search_path dirId searchDirsID)
+    # Not correct in general (see comments above), but good enough for hints
+    set(_options "")
+    set(_oneValKeys FROM OUTPUT_VARIABLE)
+    set(_multiValKeys "")
+    cmake_parse_arguments(PARSE_ARGV 2 "parse" "${_options}" "${_oneValKeys}" "${_multiValKeys}")
+    # parse_UNPARSED_ARGUMENTS
+    # parse_KEYWORDS_MISSING_VALUES
+    # message(WARNING "unparsed: ${parse_UNPARSED_ARGUMENTS}")
+    # message(WARNING "missing: ${parse_KEYWORDS_MISSING_VALUES}")
+    racket_parse_config_entry(${dirId}
+        FROM ${parse_FROM}
+        OUTPUT_VARIABLE _ret
+    )
+    racket_parse_config_entry(${searchDirsID}
+        FROM ${parse_FROM}
+        OUTPUT_VARIABLE _more
+    )
+    list(APPEND _ret "${_more}")
+    set(${parse_OUTPUT_VARIABLE} ${_ret} PARENT_SCOPE)
 endfunction()
 
 file(READ ${Racket_CONFIG_FILE} _Racket_CONFIG_FILE_content)
@@ -65,19 +90,13 @@ racket_parse_config_entry("installation-name"
     FROM ${_Racket_CONFIG_FILE_content}
     OUTPUT_VARIABLE _installationName
 )
-racket_parse_config_entry("lib-dir"
+racket_parse_config_search_path("lib-dir" "lib-search-dirs"
     FROM ${_Racket_CONFIG_FILE_content}
-    OUTPUT_VARIABLE _configLibDir
+    OUTPUT_VARIABLE _configLibSearchDirs
 )
-racket_parse_config_entry("lib-search-dirs"
+racket_parse_config_search_path("include-dir" "include-search-dirs"
     FROM ${_Racket_CONFIG_FILE_content}
-    OUTPUT_VARIABLE _configLastLibSearchDir
+    OUTPUT_VARIABLE _configIncludeSearchDirs
 )
-racket_parse_config_entry("include-dir"
-    FROM ${_Racket_CONFIG_FILE_content}
-    OUTPUT_VARIABLE _configIncludeDir
-)
-racket_parse_config_entry("include-search-dirs"
-    FROM ${_Racket_CONFIG_FILE_content}
-    OUTPUT_VARIABLE _configLastIncludeSearchDir
-)
+message(WARNING "Got:\n${_configLibSearchDirs}")
+message(NOTICE "Got:\n${_configIncludeSearchDirs}")
