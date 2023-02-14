@@ -2,6 +2,9 @@ cmake_minimum_required(VERSION 3.24)
 project(tangerine
 	DESCRIPTION "Procedural 3D model creation")
 
+# Add find modules to the path
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${PROJECT_SOURCE_DIR}/linux/cmake")
+
 if (MSVC)
 	message(FATAL_ERROR 
 		"Currently CMake is only used on the Linux platform.\
@@ -9,6 +12,8 @@ if (MSVC)
 endif()
 
 include(GNUInstallDirs)
+
+find_package(Racket REQUIRED) #FIXME for testing
 
 #######################################################################
 ## Build options:
@@ -28,7 +33,6 @@ find_package(SDL2 REQUIRED)
 find_package(Threads REQUIRED)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_C_STANDARD 17)
-
 
 #######################################################################
 ##+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++##
