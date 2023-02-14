@@ -19,12 +19,18 @@
 (define %tangerine-revision "0")
 
 (define-public %tangerine-origin
+  ;; TODO: consider putting the Racket packages in a separate origin
+  ;; from the other things to reduce rebuilds
   (local-file
    "." "tangerine-src"
    #:recursive? #t
    #:select?
    (let* ((src-dir (current-source-directory))
           (checked-in?
+           ;; TODO: This excluded linux/cmake/FindRacket.scm before I
+           ;; checked it in, which was very confusing. Probably better
+           ;; to use a predicate like git-ignored-file?, or something
+           ;; like the logic from `nix flake.
            (or (and src-dir
                     (git-predicate (canonicalize-path src-dir)))
                (lambda (path stat)
