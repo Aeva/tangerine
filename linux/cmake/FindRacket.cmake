@@ -55,21 +55,25 @@ set(Racket_CONFIG_FILE NO)
         cmake_path(APPEND dir "config.rktd" OUTPUT_VARIABLE _file)
         if(EXISTS ${_file})
             set(Racket_CONFIG_DIR ${dir} CACHE PATH "Like the --config argument at the command line")
-            set(Racket_CONFIG_FILE ${_file})
+            set(Racket_CONFIG_FILE ${_file}) # FIXME set this outside to work even if we got Racket_CONFIG_DIR from the user (we may still need to find others
             break()
         endif()
     endforeach()
 #endif()
 
-file(READ ${_Racket_CONFIG_FILE} _Racket_CONFIG_FILE_content NEWLINE_CONSUME)
-
+message(WARNING "File   :\n--------\n${Racket_CONFIG_FILE}\n--------")
+file(READ ${Racket_CONFIG_FILE} _Racket_CONFIG_FILE_content)
+message(WARNING "Content:\n--------\n${_Racket_CONFIG_FILE_content}\n--------")
 string(REGEX MATCH "[(][ \t\r\n]*lib-search-dirs[ \t\r\n]+\.[ \t\r\n]+[^)]+[)]"
     _matched
     ${_Racket_CONFIG_FILE_content})
-message(FATAL_ERROR "Matched:\n--------\n${_matched}\n--------}")
+message(WARNING "ContenT:\n--------\n${_Racket_CONFIG_FILE_content}\n--------")
+message(WARNING "Matched:\n--------\n${_matched}\n--------}")
 
 
 find_package_handle_standard_args(Racket DEFAULT_MSG Racket_CONFIG_DIR)
+message(FATAL_ERROR "stop here")
 
-
-
+mark_as_advanced(
+    Racket_CONFIG_DIR
+)
