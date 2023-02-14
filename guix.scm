@@ -151,9 +151,7 @@ developed for Tangerine.  For documentation, see the Racket package
               #:name "tangerine-racket-layer"
               #:tethered? #f
               #:racket racket-vm-cs
-              #:packages (delay (list ;;racket-tangerine))))
-                                 ;;HACK get to failure faster
-                                 racket-vec-lib))))
+              #:packages (delay (list racket-tangerine))))
     (synopsis "Racket installation layer for Tangerine")
     (description
      "")
