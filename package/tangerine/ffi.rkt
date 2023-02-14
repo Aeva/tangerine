@@ -25,13 +25,13 @@
 (define-runtime-path tangerine-dll
   '(so "tangerine"))
 
-(define-ffi-definer
-  define-backend
-  (begin
+(define-ffi-definer define-backend
+  (let* ([fail (λ () #f)])
     ; If the symbols are not already available to the process, attempt to load tangerine.dll,
-    ; wherever it may be.
-    (unless (ffi-obj-ref "EvalTree" (ffi-lib #f) (λ () #f))
-      (ffi-lib tangerine-dll))
+    ; wherever it may be.  If Racket is embeded in Tangerine, the library
+    ; won't be there, so fail gracefully.
+    (unless (ffi-obj-ref "EvalTree" (ffi-lib #f) fail)
+      (ffi-lib tangerine-dll #:fail fail))
 
     ; Then return the ffi-lib for the entire process either way.  If loading the dll was
     ; required (and successful), this will include those foreign symbols, along with
