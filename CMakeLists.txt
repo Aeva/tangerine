@@ -15,6 +15,7 @@ include(GNUInstallDirs)
 
 option(EMBED_LUA "Embed Lua support" ON)
 option(EMBED_RACKET "Embed Racket support" OFF)
+option(SELF_CONTAINED "Use directory tree instead of XDG_STATE_HOME" OFF)
 
 set(INSTALL_PKG_SUBPATH "tangerine" CACHE PATH
 	"Subdirectory to form PKGDATADIR from DATADIR")
@@ -149,6 +150,7 @@ set_target_properties(tangerine
 	RUNTIME_OUTPUT_DIRECTORY
 	$<PATH:APPEND,${CMAKE_BINARY_DIR},${CMAKE_INSTALL_BINDIR}>)
 target_compile_definitions(tangerine PRIVATE
+	$<$<BOOL:${SELF_CONTAINED}>:"TANGERINE_SELF_CONTAINED">
 	"TANGERINE_PKGDATADIR_FROM_BINDIR=${PKGDATADIR_FROM_BINDIR}")
 target_link_libraries(tangerine PRIVATE
 	fmt
