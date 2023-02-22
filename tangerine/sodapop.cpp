@@ -290,10 +290,18 @@ void AsyncTracer();
 
 StatusCode Sodapop::Setup()
 {
+#if _WIN64
 	RETURN_ON_FAIL(PaintShader.Setup(
 		{ {GL_VERTEX_SHADER, ShaderSource("sodapop/yolo.vs.glsl", true)},
 		  {GL_FRAGMENT_SHADER, ShaderSource("sodapop/yolo.fs.glsl", true)} },
 		"Outliner Shader"));
+#else
+	// Idk why cmake(?) is flattening out the collected sources
+	RETURN_ON_FAIL(PaintShader.Setup(
+		{ {GL_VERTEX_SHADER, ShaderSource("yolo.vs.glsl", true)},
+		  {GL_FRAGMENT_SHADER, ShaderSource("yolo.fs.glsl", true)} },
+		"Outliner Shader"));
+#endif
 
 	{
 		SDFNode* Box = SDF::Box(2, 2, 2);

@@ -143,7 +143,7 @@ StatusCode FillSources(std::vector<std::string>& BreadCrumbs, std::vector<std::s
 	std::ifstream File(FullPath);
 	if (!File.is_open())
 	{
-		std::cout << "Error: cannot open file \"" << Path << "\"\n";
+		std::cout << "Error: cannot open file \"" << FullPath << "\"\n";
 		return StatusCode::FAIL;
 	}
 	std::string Line;
