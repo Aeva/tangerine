@@ -395,9 +395,9 @@ void Sodapop::RenderFrame(int ScreenWidth, int ScreenHeight, double CurrentTime,
 #if 1
 	const glm::quat WorldRotation = glm::angleAxis(float(glm::radians(CurrentTime / 50.0)), WorldUp);
 	ViewOrigin = glm::rotate(WorldRotation, ViewOrigin);
-	const const glm::mat4 WorldToView = glm::lookAt(ViewOrigin, FocalPoint, WorldUp);
+	const glm::mat4 WorldToView = glm::lookAt(ViewOrigin, FocalPoint, WorldUp);
 #else
-	const const glm::mat4 WorldToView = glm::lookAt(ViewOrigin, FocalPoint, WorldUp);
+	const glm::mat4 WorldToView = glm::lookAt(ViewOrigin, FocalPoint, WorldUp);
 
 	Fnord->LocalToWorld = glm::toMat4(Orientation);
 #endif

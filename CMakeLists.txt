@@ -43,6 +43,7 @@ cmake_path(APPEND CMAKE_BINARY_DIR "${INSTALL_PKGDATADIR}"
 	OUTPUT_VARIABLE BUILD_PKGDATADIR)
 file(GLOB_RECURSE SHADER_FILES CONFIGURE_DEPENDS
 	"shaders/*.glsl"
+	"shaders/sodapop/*.glsl"
 	"shaders/defines.h")
 if(EMBED_LUA)
 	file(GLOB_RECURSE MODELS_LUA_FILES CONFIGURE_DEPENDS "models/*.lua")
