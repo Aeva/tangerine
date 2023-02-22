@@ -1789,6 +1789,10 @@ void SaveBookmarks()
 		}
 		BookmarksFile.close();
 	}
+	else if (std::filesystem::exists(BookmarksPath))
+	{
+		std::filesystem::remove(BookmarksPath);
+	}
 }
 
 
