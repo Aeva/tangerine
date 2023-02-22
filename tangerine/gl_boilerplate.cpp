@@ -22,7 +22,7 @@
 #include "profiling.h"
 #include "installation.h"
 
-extern TangerineInstallation Installed;
+extern TangerinePaths Installed;
 
 
 inline GLsizei min(GLsizei LHS, GLsizei RHS)

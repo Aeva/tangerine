@@ -85,7 +85,7 @@ ScriptEnvironment* MainEnvironment = nullptr;
 SDFNode* TreeEvaluator = nullptr;
 
 
-TangerineInstallation Installed;
+TangerinePaths Installed;
 std::filesystem::path LastOpenDir;
 
 
@@ -1794,7 +1794,7 @@ SDL_GLContext Context = nullptr;
 
 StatusCode Boot(int argc, char* argv[])
 {
-	Installed = { argv[0] };
+	Installed = TangerinePaths(argc, argv);
 	LastOpenDir = Installed.ModelsDir;
 	LoadBookmarks();
 

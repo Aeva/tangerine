@@ -14,41 +14,65 @@
 // limitations under the License.
 
 #include "installation.h"
-#if !(defined(TANGERINE_WINDOWS) || EMBED_RACKET)
-# include <unistd.h>
+
+#if !_WIN64
+#include <unistd.h>
 #endif
 
-std::filesystem::path tangerine_get_self_exe_path(char* argv0)
+
+TangerinePaths::TangerinePaths(int argc, char* argv[])
 {
-#if defined(TANGERINE_WINDOWS)
-        // Is this really right? Should it use GetModuleFileNameW?
-        return std::filesystem::absolute(argv0);
+#if _WIN64
+	// TODO: This is fine for standalone builds, but we will want to do something
+	// else for future library builds.  Maybe GetModuleFileNameW?
+	ExecutablePath = std::filesystem::absolute(argv[0]);
+
 #elif EMBED_RACKET
-        return std::filesystem::path(racket_get_self_exe_path(argv0));
+	ExecutablePath = std::filesystem::path(racket_get_self_exe_path(argv[0]));
+
 #else
-        // limited fallback support for linux
-        char *s;
-        ssize_t len, blen = 256;
+	{
+		char* Path = nullptr;
+		ssize_t PathLength = 0;
+		ssize_t Allocation = 256;
 
-        s = (char*)malloc(blen);
+retry:
+		Path = (char*)malloc(Allocation);
+		PathLength = readlink("/proc/self/exe", Path, Allocation - 1);
+		if (PathLength == (Allocation - 1))
+		{
+			free(Path);
+			Allocation *= 2;
+			goto retry;
+		}
 
-        while (1) {
-                len = readlink("/proc/self/exe", s, blen-1);
-                if (len == (blen-1)) {
-                        free(s);
-                        blen *= 2;
-                        s = (char*)malloc(blen);
-                } else if (len < 0) {
-                        /* possibly in a chroot environment where "/proc" is not
-                           available, so fall back to generic approach: */
-                        free(s);
-                        return std::filesystem::absolute(argv0);
-                } else
-                        break;
-        }
-        s[len] = 0;
-        std::filesystem::path ret = std::filesystem::path(s);
-        free(s);
-        return ret;
+		if (PathLength < 0)
+		{
+			// Possibly in a chroot environment where "/proc" is not available, so fall back to generic approach.
+			ExecutablePath = std::filesystem::absolute(argv[0]);
+		}
+		else
+		{
+			Path[PathLength] = 0;
+			ExecutablePath = std::filesystem::path(Path);
+		}
+
+		free(Path);
+	}
 #endif
-};
+
+	ExecutableDir = ExecutablePath.parent_path();
+
+#ifdef TANGERINE_PKGDATADIR_FROM_BINDIR
+#define STRINGIFY(x) #x
+#define EXPAND_AS_STR(x) STRINGIFY(x)
+	PkgDataDir = ExecutableDir / std::filesystem::path(EXPAND_AS_STR(TANGERINE_PKGDATADIR_FROM_BINDIR));
+#undef EXPAND_AS_STR
+#undef STRINGIFY
+#else
+	PkgDataDir = ExecutableDir;
+#endif
+
+	ShadersDir = PkgDataDir / std::filesystem::path("shaders");
+	ModelsDir = PkgDataDir / std::filesystem::path("models");
+}

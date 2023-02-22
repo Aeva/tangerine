@@ -180,6 +180,7 @@
     <ClCompile Include="..\tangerine\gl_async.cpp" />
     <ClCompile Include="..\tangerine\gl_boilerplate.cpp" />
     <ClCompile Include="..\tangerine\gl_debug.cpp" />
+    <ClCompile Include="..\tangerine\installation.cpp" />
     <ClCompile Include="..\tangerine\lua_env.cpp" />
     <ClCompile Include="..\tangerine\lua_sdf.cpp" />
     <ClCompile Include="..\tangerine\lua_vec.cpp" />
@@ -251,6 +252,7 @@
     <ClInclude Include="..\tangerine\gl_async.h" />
     <ClInclude Include="..\tangerine\gl_boilerplate.h" />
     <ClInclude Include="..\tangerine\gl_debug.h" />
+    <ClInclude Include="..\tangerine\installation.h" />
     <ClInclude Include="..\tangerine\lua_env.h" />
     <ClInclude Include="..\tangerine\lua_sdf.h" />
     <ClInclude Include="..\tangerine\lua_vec.h" />

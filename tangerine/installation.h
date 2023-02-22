@@ -17,34 +17,15 @@
 #include <filesystem>
 #include "embedding.h"
 
-#if defined(_MSC_VER) || defined(__MINGW32__)
-# define TANGERINE_WINDOWS
-#else
-# define TANGERINE_UNIX
-#endif
 
-std::filesystem::path tangerine_get_self_exe_path(char* argv0);
-
-struct TangerineInstallation
+struct TangerinePaths
 {
-        char* argv0;
-        std::filesystem::path SelfExePath = tangerine_get_self_exe_path(argv0);
-        std::filesystem::path ExecutableDir = SelfExePath.parent_path();
-        std::filesystem::path PkgDataDir {
-#ifdef TANGERINE_PKGDATADIR_FROM_BINDIR
-# define AS_a_STR_HELPER(x) #x
-# define AS_a_STR(x) AS_a_STR_HELPER(x)
-# define TPFB TANGERINE_PKGDATADIR_FROM_BINDIR
-		ExecutableDir / std::filesystem::path(AS_a_STR(TPFB))
-# undef TPFB
-# undef AS_a_STR
-# undef AS_a_STR_HELPER
-#else
-		ExecutableDir
-#endif
-	};
-        std::filesystem::path ShadersDir =
-		PkgDataDir / std::filesystem::path("shaders");
-        std::filesystem::path ModelsDir =
-		PkgDataDir / std::filesystem::path("models");
+	TangerinePaths() {}
+	TangerinePaths(int argc, char* argv[]);
+
+	std::filesystem::path ExecutablePath;
+	std::filesystem::path ExecutableDir;
+	std::filesystem::path PkgDataDir;
+	std::filesystem::path ShadersDir;
+	std::filesystem::path ModelsDir;
 };
