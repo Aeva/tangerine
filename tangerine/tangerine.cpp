@@ -27,7 +27,13 @@
 #include <imgui_impl_opengl3.h>
 #include <ImFileDialog.h>
 
+#if _WIN64
+#define BUILD_PSMOVE
+#endif
+
+#ifdef BUILD_PSMOVE
 #include <psmove.h>
+#endif
 
 #include "events.h"
 #include "sdf_evaluator.h"
@@ -62,9 +68,12 @@
 #include "gl_debug.h"
 #include "../shaders/defines.h"
 
+#include "installation.h"
+
 #include "sodapop.h"
 
 
+#ifdef BUILD_PSMOVE
 struct MoveConnection
 {
 	int Index = -1;
@@ -129,6 +138,9 @@ struct MoveConnection
 };
 
 MoveConnection* MoveController = nullptr;
+#else
+void* MoveController = nullptr;
+#endif
 
 
 // TODO: These were originally defined as a cross-platform compatibility hack for code
@@ -155,9 +167,7 @@ ScriptEnvironment* MainEnvironment = nullptr;
 SDFNode* TreeEvaluator = nullptr;
 
 
-std::filesystem::path ExecutableDir;
-std::filesystem::path ShadersDir;
-std::filesystem::path ModelsDir;
+TangerinePaths Installed;
 std::filesystem::path LastOpenDir;
 
 
@@ -749,10 +759,12 @@ void RenderFrame(int ScreenWidth, int ScreenHeight, std::vector<SDFModel*>& Rend
 			Zoom = 14.0;
 			CameraFocus = (ModelBounds.Max - ModelBounds.Min) * glm::vec3(0.5) + ModelBounds.Min;
 
+#ifdef BUILD_PSMOVE
 			if (MoveController)
 			{
 				psmove_reset_orientation(MoveController->Handle);
 			}
+#endif
 		}
 
 		RotateX = fmodf(RotateX - MouseMotionY, 360.0);
@@ -1824,7 +1836,9 @@ void RenderUI(SDL_Window* Window, bool& Live)
 
 void LoadBookmarks()
 {
-	std::filesystem::path BookmarksPath = ExecutableDir / "bookmarks.txt";
+	std::filesystem::path BookmarksPath =
+                // FIXME might be read-only
+                Installed.ExecutableDir / "bookmarks.txt";
 	if (std::filesystem::is_regular_file(BookmarksPath))
 	{
 		std::ifstream BookmarksFile;
@@ -1847,7 +1861,9 @@ void LoadBookmarks()
 
 void SaveBookmarks()
 {
-	std::filesystem::path BookmarksPath = ExecutableDir / "bookmarks.txt";
+	std::filesystem::path BookmarksPath =
+		// FIXME might be read-only
+		Installed.ExecutableDir / "bookmarks.txt";
 	const std::vector<std::string>& Bookmarks = ifd::FileDialog::Instance().GetFavorites();
 	if (Bookmarks.size() > 0)
 	{
@@ -1867,10 +1883,8 @@ SDL_GLContext Context = nullptr;
 
 StatusCode Boot(int argc, char* argv[])
 {
-	ExecutableDir = std::filesystem::absolute(argv[0]).parent_path();
-	ShadersDir = ExecutableDir / std::filesystem::path("Shaders");
-	ModelsDir = ExecutableDir / std::filesystem::path("Models");
-	LastOpenDir = ModelsDir;
+	Installed = TangerinePaths(argc, argv);
+	LastOpenDir = Installed.ModelsDir;
 	LoadBookmarks();
 
 	std::vector<std::string> Args;
@@ -2121,6 +2135,7 @@ StatusCode Boot(int argc, char* argv[])
 		}
 	}
 
+#ifdef BUILD_PSMOVE
 	if (psmove_init(PSMOVE_CURRENT_VERSION))
 	{
 		const int MoveControllerCount = psmove_count_connected();
@@ -2154,6 +2169,7 @@ StatusCode Boot(int argc, char* argv[])
 		}
 	}
 	else
+#endif
 	{
 		std::cout << "Unable to init psmove API.\n";
 	}
@@ -2168,10 +2184,12 @@ void Teardown()
 
 	Sodapop::Teardown();
 
+#ifdef BUILD_PSMOVE
 	if (MoveController)
 	{
 		delete MoveController;
 	}
+#endif
 
 	if (MainEnvironment)
 	{
@@ -2230,6 +2248,7 @@ void MainLoop()
 				static std::vector<SDFModel*> IncompleteModels;
 				static std::vector<SDFModel*> RenderableModels;
 
+#ifdef BUILD_PSMOVE
 				if (MoveController && RenderableModels.size() == 1)
 				{
 					// This almost works, but the chirality is flipped :(
@@ -2237,6 +2256,7 @@ void MainLoop()
 					Transform.Reset();
 					Transform.Rotate(MoveController->Orientation);
 				}
+#endif
 
 				static glm::vec3 MouseRay(0.0, 1.0, 0.0);
 				static glm::vec3 RayOrigin(0.0, 0.0, 0.0);
@@ -2251,10 +2271,12 @@ void MainLoop()
 				bool RequestDraw = RealtimeMode || ShowStatsOverlay || RenderableModels.size() == 0 || IncompleteModels.size() > 0 || LastExportState != ExportInProgress || MoveController;
 				LastExportState = ExportInProgress;
 
+#ifdef BUILD_PSMOVE
 				if (MoveController)
 				{
 					MoveController->Refresh();
 				}
+#endif
 
 				BeginEvent("Process Input");
 				while (SDL_PollEvent(&Event))
@@ -2453,10 +2475,12 @@ void MainLoop()
 						}
 
 						glm::quat Orientation = glm::quat(1, 0, 0, 0);
+#ifdef BUILD_PSMOVE
 						if (MoveController)
 						{
 							Orientation = MoveController->Orientation;
 						}
+#endif
 
 						Sodapop::RenderFrame(ScreenWidth, ScreenHeight, CurrentTime, Orientation);
 

@@ -9,6 +9,7 @@ Tangerine currently supports Windows and Linux:
 
  * The Linux version must be built from source.
    Build instructions are at the end of this readme.
+   Optionally, you can use Guix to automate the build process.
 
 # Getting Started
 
@@ -34,14 +35,43 @@ There is also [API reference documentation](docs/lua_api.md) available.
 
 ## Linux
 
- 1. Install cmake, clang, and SDL2 by whatever means are appropriate for your distro.
+You can build the project directly, or you can use [Guix](https://guix.gnu.org) to manage the build environment.
+
+### Building Manually
+
+ 1. Install CMake, a C++17 toolchain (Clang and GCC both seem to work), and SDL2 by whatever means are appropriate for your distro.
+    (If you encounter errors about linking to `tinfo`, the problem may be related to Curses.)
     The other dependencies are provided by this repository.
     As several of the included dependencies contain modifications for this project, it is not advisable to replace them with packaged dependencies.
     I apologize for the convenience.
 
  2. Clone this project somewhere.
 
- 3. Run `linux/build_majuscule.sh`.
+ 3. Run `./linux/build_majuscule.sh`.
 
- 4. If all goes well, the binary will show up in `linux/build/Release/tangerine`.
-    Rename it to something like `a.out` and copy it into the root project folder (it must be in the same directory as the `shaders` folder to work).
+ 4. If all goes well, the binary will show up in `./linux/build/Release/bin/tangerine`: you can run it directly from the build directory.
+    (If you want to move it somewhere else, beware that it must find some runtime data from a path relative to the executable: `cmake --install` handles keeping them together.)
+
+Of course, `./linux/build_majuscule.sh` just runs `cmake` with some sensible options.
+If you prefer, you can always run `cmake` directly.
+
+### Building with Guix
+
+If you install Guix (which may be as easy as `sudo apt install guix`), you don't have to worry about any of the other dependencies.
+
+To run Tangerine, automatically building it if needed, try:
+
+```sh
+guix time-machine -C channels.scm -- \
+  shell --rebuild-cache -f guix.scm -- \
+    tangerine
+```
+
+You can create an isolated container and enter a shell for interactive building by running:
+
+```sh
+guix time-machine -C channels.scm -- \
+  shell --rebuild-cache -D -f guix.scm --container --emulate-fhs
+```
+
+Adding `-- ./linux/build_majuscule.sh` to the end of that command will perform a build in the same way as the manual process described above.

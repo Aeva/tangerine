@@ -530,11 +530,11 @@ int LuaPivotTowards(lua_State* L)
 				break;
 			}
 
-			Dist = glm::min(abs(Dist), MaxDist);
+			Dist = glm::min(glm::abs(Dist), MaxDist);
 
-			float Cosine = abs((Fnord - Dist * Dist) / Fnord);
+			float Cosine = glm::abs((Fnord - Dist * Dist) / Fnord);
 			float MaybeAngle = glm::acos(Cosine);
-			float MaxDownward = abs(glm::acos(glm::dot(glm::normalize(Tail - Pivot), Down)));
+			float MaxDownward = glm::abs(glm::acos(glm::dot(glm::normalize(Tail - Pivot), Down)));
 			float Angle = glm::min(RemainingMaxAngle, glm::min(MaxDownward, MaybeAngle));
 			RemainingMaxAngle -= Angle;
 
@@ -547,7 +547,7 @@ int LuaPivotTowards(lua_State* L)
 			}
 		}
 
-		const float Cosine = glm::min(abs(glm::dot(glm::normalize(Tail - Pivot), Heading)), 1.0f);
+		const float Cosine = glm::min(glm::abs(glm::dot(glm::normalize(Tail - Pivot), Heading)), 1.0f);
 		const float MaybeAngle = glm::acos(Cosine);
 		const float FinalAngle = glm::min(MaxAngle, MaybeAngle);
 		glm::quat Rotation = glm::angleAxis(FinalAngle, Axis);

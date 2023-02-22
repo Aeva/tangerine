@@ -249,6 +249,9 @@
     <ClCompile Include="..\tangerine\lua_vec.cpp">
       <Filter>Tangerine\Runtimes</Filter>
     </ClCompile>
+    <ClCompile Include="..\tangerine\installation.cpp">
+      <Filter>Tangerine</Filter>
+    </ClCompile>
     <ClCompile Include="..\tangerine\sodapop.cpp">
       <Filter>Tangerine</Filter>
     </ClCompile>
@@ -512,6 +515,9 @@
     </ClInclude>
     <ClInclude Include="..\tangerine\lua_vec.h">
       <Filter>Tangerine\Runtimes</Filter>
+    </ClInclude>
+    <ClInclude Include="..\tangerine\installation.h">
+      <Filter>Tangerine</Filter>
     </ClInclude>
     <ClInclude Include="..\third_party\psmove\include\psmove.h">
       <Filter>Third Party\psmove</Filter>
