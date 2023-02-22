@@ -19,16 +19,17 @@
 #include <unistd.h>
 #endif
 
+namespace fs = std::filesystem;
 
 TangerinePaths::TangerinePaths(int argc, char* argv[])
 {
 #if _WIN64
 	// TODO: This is fine for standalone builds, but we will want to do something
 	// else for future library builds.  Maybe GetModuleFileNameW?
-	ExecutablePath = std::filesystem::absolute(argv[0]);
+	ExecutablePath = fs::absolute(argv[0]);
 
 #elif EMBED_RACKET
-	ExecutablePath = std::filesystem::path(racket_get_self_exe_path(argv[0]));
+	ExecutablePath = fs::path(racket_get_self_exe_path(argv[0]));
 
 #else
 	{
@@ -49,12 +50,12 @@ retry:
 		if (PathLength < 0)
 		{
 			// Possibly in a chroot environment where "/proc" is not available, so fall back to generic approach.
-			ExecutablePath = std::filesystem::absolute(argv[0]);
+			ExecutablePath = fs::absolute(argv[0]);
 		}
 		else
 		{
 			Path[PathLength] = 0;
-			ExecutablePath = std::filesystem::path(Path);
+			ExecutablePath = fs::path(Path);
 		}
 
 		free(Path);
@@ -66,13 +67,13 @@ retry:
 #ifdef TANGERINE_PKGDATADIR_FROM_BINDIR
 #define STRINGIFY(x) #x
 #define EXPAND_AS_STR(x) STRINGIFY(x)
-	PkgDataDir = ExecutableDir / std::filesystem::path(EXPAND_AS_STR(TANGERINE_PKGDATADIR_FROM_BINDIR));
+	PkgDataDir = ExecutableDir / fs::path(EXPAND_AS_STR(TANGERINE_PKGDATADIR_FROM_BINDIR));
 #undef EXPAND_AS_STR
 #undef STRINGIFY
 #else
 	PkgDataDir = ExecutableDir;
 #endif
 
-	ShadersDir = PkgDataDir / std::filesystem::path("shaders");
-	ModelsDir = PkgDataDir / std::filesystem::path("models");
+	ShadersDir = PkgDataDir / fs::path("shaders");
+	ModelsDir = PkgDataDir / fs::path("models");
 }
