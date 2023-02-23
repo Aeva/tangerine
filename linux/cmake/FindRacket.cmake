@@ -21,7 +21,7 @@ This module provides the following imported targets, if found:
 # Model: https://cmake.org/cmake/help/latest/manual/cmake-developer.7.html#find-modules
 
 include(FindPackageHandleStandardArgs)
-include(RacketParseConfigFile.cmake)
+include(RacketParseConfigFile)
 
 cmake_path(CONVERT "$ENV{Racket_ROOT}" TO_CMAKE_PATH_LIST _env_Racket_ROOT)
 cmake_path(CONVERT "$ENV{CMAKE_PREFIX_PATH}" TO_CMAKE_PATH_LIST _env_CMAKE_PREFIX_PATH)
@@ -63,7 +63,7 @@ set(Racket_CONFIG_FILE NO)
     endforeach()
 #endif()
 
-racket_parse_config_file("/gnu/store/al90nb7vrjhgbzr71x037c7ny73b03sb-tangerine-racket-layer-8.7/etc/racket/config.rktd"
+racket_parse_config_file(${Racket_CONFIG_FILE}
     NAME _installationName
     LIB_DIRS _configLibDirs
     INCLUDE_DIRS _configIncludeDirs
