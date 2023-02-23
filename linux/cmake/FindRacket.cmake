@@ -28,7 +28,9 @@ The following cache variables may also be set:
 ``Racket_RACKET_BOOT``
   Path to ``racket.boot``.
 ``Racket_CONFIG_DIR``
-  Path to a directory usable with the ``-G``/``--config`` option to ``racket``.
+  Path to a main configuration directory like the ``-G``/``--config`` option to ``racket``.
+``Racket_COLLECTS_DIR``
+  Path to a main collections directory like the ``-X``/``--collects`` option to ``racket``.
 
 Less Useful Variables
 ^^^^^^^^^^^^^^^^^^^^^
@@ -42,7 +44,7 @@ These cache variables may also be set, but they are less likely to be useful to 
 ``Racket_chezscheme_INCLUDE_DIR``
   Likewise, but for ``chezscheme.h`` (likely the same directory).
 
-The following non-cache variables will be set (but prefer ``Racket::LibRacketCS``):
+The following non-cache output variables will be set (but prefer ``Racket::LibRacketCS``):
 
 ``Racket_FOUND``
   True if the system has Racket.
@@ -91,7 +93,7 @@ set(Racket_CONFIG_FILE NO)
     foreach(dir IN LISTS _toSearch_etc_racket _toSearch_etc)
         cmake_path(APPEND dir "config.rktd" OUTPUT_VARIABLE _file)
         if(EXISTS ${_file})
-            set(Racket_CONFIG_DIR ${dir} CACHE PATH "Like the --config argument at the command line")
+            set(Racket_CONFIG_DIR ${dir} CACHE PATH "Like the --config argument at the command line.")
             set(Racket_CONFIG_FILE ${_file}) # FIXME set this outside to work even if we got Racket_CONFIG_DIR from the user (we may still need to find others
             break()
         endif()
@@ -155,11 +157,18 @@ find_file(Racket_RACKET_BOOT
   DOC "Bootfile for Racket."
 )
 
+find_path(Racket_COLLECTS_DIR
+    "racket/base.rkt"
+    HINTS ${_configLibDirs}
+    PATH_SUFFIXES "../collects" "../../collects" "../../share/racket/collects" "../share/racket/collects"
+    DOC "Like the --collects argument at the command line."
+)
 
 
 find_package_handle_standard_args(Racket
     REQUIRED_VARS
-        Racket_CONFIG_DIR Racket_racketcs_LIBRARY
+        Racket_CONFIG_DIR Racket_COLLECTS_DIR
+        Racket_racketcs_LIBRARY
         Racket_racketcs_INCLUDE_DIR Racket_chezscheme_INCLUDE_DIR
         Racket_PETITE_BOOT Racket_SCHEME_BOOT Racket_RACKET_BOOT
 )
@@ -174,6 +183,8 @@ if(Racket_FOUND AND NOT TARGET Racket::LibRacketCS)
     set(Racket_LIBRARIES Racket::LibRacketCS)
     set_target_properties(Racket::LibRacketCS PROPERTIES
         IMPORTED_LOCATION ${Racket_racketcs_LIBRARY}
-        INTERFACE_INCLUDE_DIRECTORIES "${Racket_INCLUDE_DIRS}"
+    )
+    target_include_directories(Racket::LibRacketCS
+        INTERFACE "${Racket_INCLUDE_DIRS}"
     )
 endif()

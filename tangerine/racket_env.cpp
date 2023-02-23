@@ -57,18 +57,52 @@ void RacketEnvironment::LoadFromString(std::string Source)
 	LoadModelCommon(LoadAndProcess);
 }
 
-void BootRacket()
+#if !defined(TANGERINE_RACKET_PETITE_BOOT)
+#define TANGERINE_RACKET_PETITE_BOOT ./racket/petite.boot
+#endif
+#if !defined(TANGERINE_RACKET_SCHEME_BOOT)
+#define TANGERINE_RACKET_SCHEME_BOOT ./racket/scheme.boot
+#endif
+#if !defined(TANGERINE_RACKET_RACKET_BOOT)
+#define TANGERINE_RACKET_RACKET_BOOT ./racket/racket.boot
+#endif
+#if !defined(TANGERINE_RACKET_COLLECTS_DIR)
+#define TANGERINE_RACKET_COLLECTS_DIR ./racket/collects
+#endif
+#if !defined(TANGERINE_RACKET_CONFIG_DIR)
+#define TANGERINE_RACKET_CONFIG_DIR ./racket/etc
+#endif
+
+void BootRacket(const char *argv0)
 {
 	std::cout << "Setting up Racket CS... ";
 	racket_boot_arguments_t BootArgs;
 	memset(&BootArgs, 0, sizeof(BootArgs));
-	BootArgs.boot1_path = "./racket/petite.boot";
-	BootArgs.boot2_path = "./racket/scheme.boot";
-	BootArgs.boot3_path = "./racket/racket.boot";
-	BootArgs.exec_file = "tangerine.exe";
-	BootArgs.collects_dir = "./racket/collects";
-	BootArgs.config_dir = "./racket/etc";
+	BootArgs.exec_file = argv0;
+#define STRINGIFY(x) #x
+#if defined(TANGERINE_USE_SYSTEM_RACKET)
+	char *SelfExe = racket_get_self_exe_path(argv0);
+#define RESOLVE(sym) racket_path_replace_filename(SelfExe,STRINGIFY(sym)
+#else
+#define RESOLVE(sym) STRINGIFY(sym)
+#endif
+	BootArgs.boot1_path = RESOLVE(TANGERINE_RACKET_PETITE_BOOT);
+	BootArgs.boot2_path = RESOLVE(TANGERINE_RACKET_SCHEME_BOOT);
+	BootArgs.boot3_path = RESOLVE(TANGERINE_RACKET_RACKET_BOOT);
+	BootArgs.collects_dir = RESOLVE(TANGERINE_RACKET_COLLECTS_DIR);
+	BootArgs.config_dir = RESOLVE(TANGERINE_RACKET_CONFIG_DIR);
+#undef RESOLVE
+#undef STRINGIFY
 	racket_boot(&BootArgs);
+
 	std::cout << "Done!\n";
+#if defined(TANGERINE_USE_SYSTEM_RACKET)
+	free(SelfExe);
+	free(BootArgs.boot1_path);
+	free(BootArgs.boot2_path);
+	free(BootArgs.boot3_path);
+	free(BootArgs.collects_dir);
+	free(BootArgs.config_dir);
+#endif
 }
 #endif //EMBED_RACKET

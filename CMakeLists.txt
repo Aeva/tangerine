@@ -13,8 +13,6 @@ endif()
 
 include(GNUInstallDirs)
 
-find_package(Racket REQUIRED) #FIXME for testing
-
 #######################################################################
 ## Build options:
 
@@ -187,4 +185,16 @@ target_compile_definitions(tangerine PRIVATE
 #######################################################################
 ## Racket:
 
-# FIXME!
+if(EMBED_RACKET)
+	find_package(Racket REQUIRED) #FIXME or build our own
+	target_link_libraries(tangerine PRIVATE Racket::LibRacketCS)
+	target_compile_definitions(tangerine PRIVATE
+		"TANGERINE_RACKET_PETITE_BOOT=${Racket_PETITE_BOOT}"
+		"TANGERINE_RACKET_SCHEME_BOOT=${Racket_SCHEME_BOOT}"
+		"TANGERINE_RACKET_RACKET_BOOT=${Racket_RACKET_BOOT}"
+		"TANGERINE_RACKET_COLLECTS_DIR=${Racket_COLLECTS_DIR}"
+		"TANGERINE_RACKET_CONFIG_DIR=${Racket_CONFIG_DIR}"
+		"TANGERINE_USE_SYSTEM_RACKET=1")
+endif()
+target_compile_definitions(tangerine PRIVATE
+	"EMBED_RACKET=$<BOOL:${EMBED_RACKET}>")
