@@ -33,6 +33,6 @@ struct RacketEnvironment : public ScriptEnvironment
 	virtual ~RacketEnvironment() {}
 };
 
-void BootRacket();
+void BootRacket(int argc, char* argv[]);
 
 #endif //EMBED_RACKET

@@ -2,6 +2,9 @@ cmake_minimum_required(VERSION 3.24)
 project(tangerine
 	DESCRIPTION "Procedural 3D model creation")
 
+# Add find modules to the path
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${PROJECT_SOURCE_DIR}/linux/cmake")
+
 if (MSVC)
 	message(FATAL_ERROR 
 		"Currently CMake is only used on the Linux platform.\
@@ -14,7 +17,8 @@ include(GNUInstallDirs)
 ## Build options:
 
 option(EMBED_LUA "Embed Lua support" ON)
-option(EMBED_RACKET "Embed Racket support" OFF)
+option(EMBED_RACKET "Embed Racket support" ON) #FIXME for testing
+option(SELF_CONTAINED "Use directory tree instead of XDG_STATE_HOME" OFF)
 
 set(INSTALL_PKG_SUBPATH "tangerine" CACHE PATH
 	"Subdirectory to form PKGDATADIR from DATADIR")
@@ -27,7 +31,6 @@ find_package(SDL2 REQUIRED)
 find_package(Threads REQUIRED)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_C_STANDARD 17)
-
 
 #######################################################################
 ##+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++##
@@ -143,6 +146,7 @@ set_target_properties(tangerine
 	RUNTIME_OUTPUT_DIRECTORY
 	$<PATH:APPEND,${CMAKE_BINARY_DIR},${CMAKE_INSTALL_BINDIR}>)
 target_compile_definitions(tangerine PRIVATE
+	$<$<BOOL:${SELF_CONTAINED}>:"TANGERINE_SELF_CONTAINED">
 	"TANGERINE_PKGDATADIR_FROM_BINDIR=${PKGDATADIR_FROM_BINDIR}")
 target_link_libraries(tangerine PRIVATE
 	fmt
@@ -181,4 +185,16 @@ target_compile_definitions(tangerine PRIVATE
 #######################################################################
 ## Racket:
 
-# FIXME!
+if(EMBED_RACKET)
+	find_package(Racket REQUIRED) #FIXME or build our own
+	target_link_libraries(tangerine PRIVATE Racket::LibRacketCS)
+	target_compile_definitions(tangerine PRIVATE
+		"TANGERINE_RACKET_PETITE_BOOT=${Racket_PETITE_BOOT}"
+		"TANGERINE_RACKET_SCHEME_BOOT=${Racket_SCHEME_BOOT}"
+		"TANGERINE_RACKET_RACKET_BOOT=${Racket_RACKET_BOOT}"
+		"TANGERINE_RACKET_COLLECTS_DIR=${Racket_COLLECTS_DIR}"
+		"TANGERINE_RACKET_CONFIG_DIR=${Racket_CONFIG_DIR}"
+		"TANGERINE_USE_SYSTEM_RACKET=1")
+endif()
+target_compile_definitions(tangerine PRIVATE
+	"EMBED_RACKET=$<BOOL:${EMBED_RACKET}>")
