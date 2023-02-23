@@ -179,12 +179,17 @@ if(Racket_FOUND AND NOT TARGET Racket::LibRacketCS)
     # per cmake docs, Racket_INCLUDE_DIRS "should not be a cache entry"
     set(Racket_INCLUDE_DIRS ${Racket_racketcs_INCLUDE_DIR} ${Racket_chezscheme_INCLUDE_DIR})
     list(REMOVE_DUPLICATES Racket_INCLUDE_DIRS)
+    find_package(ZLIB)
+    find_package(LZ4)
     add_library(Racket::LibRacketCS UNKNOWN IMPORTED)
-    set(Racket_LIBRARIES Racket::LibRacketCS)
     set_target_properties(Racket::LibRacketCS PROPERTIES
         IMPORTED_LOCATION ${Racket_racketcs_LIBRARY}
     )
     target_include_directories(Racket::LibRacketCS
         INTERFACE "${Racket_INCLUDE_DIRS}"
     )
+    target_link_libraries(Racket::LibRacketCS
+        INTERFACE ZLIB::ZLIB LZ4::LZ4
+    )
+    set(Racket_LIBRARIES Racket::LibRacketCS)
 endif()

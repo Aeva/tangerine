@@ -24,6 +24,11 @@
 #include <cstring>
 #endif
 
+#if EMBED_RACKET
+#include <chezscheme.h>
+#include <racketcs.h>
+#endif
+
 namespace fs = std::filesystem;
 
 #if !_WIN64

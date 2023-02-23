@@ -52,7 +52,7 @@
       ;; to use a predicate like git-ignored-file?, or something
       ;; like the logic from `nix flake.
       ;; (It even excludes staged files.)
-      (if src-dir
+      (if #f;src-dir
           (git-predicate (canonicalize-path src-dir))
           (lambda (path stat)
             #t)))
@@ -91,6 +91,8 @@
      (list ncurses/tinfo ; for -ltinfo
            tangerine-racket-layer
            racket-vm-cs
+           (lookup-package-input racket-vm-cs "zlib")
+           (lookup-package-input racket-vm-cs "lz4")
            sdl2
            ;; are the rest needed?
            sdl2-image

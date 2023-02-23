@@ -1938,7 +1938,7 @@ StatusCode Boot(int argc, char* argv[])
 	{
 		MainEnvironment = new NullEnvironment();
 #if EMBED_RACKET
-		BootRacket();
+		BootRacket(argc, argv);
 #endif
 	}
 	{

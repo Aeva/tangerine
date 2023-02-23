@@ -73,16 +73,16 @@ void RacketEnvironment::LoadFromString(std::string Source)
 #define TANGERINE_RACKET_CONFIG_DIR ./racket/etc
 #endif
 
-void BootRacket(const char *argv0)
+void BootRacket(int argc, char* argv[])
 {
 	std::cout << "Setting up Racket CS... ";
 	racket_boot_arguments_t BootArgs;
 	memset(&BootArgs, 0, sizeof(BootArgs));
-	BootArgs.exec_file = argv0;
+	BootArgs.exec_file = argv[0];
 #define STRINGIFY(x) #x
-#if defined(TANGERINE_USE_SYSTEM_RACKET)
-	char *SelfExe = racket_get_self_exe_path(argv0);
-#define RESOLVE(sym) racket_path_replace_filename(SelfExe,STRINGIFY(sym)
+#if !defined(TANGERINE_USE_SYSTEM_RACKET)
+	char *SelfExe = racket_get_self_exe_path(BootArgs.exec_file);
+#define RESOLVE(sym) racket_path_replace_filename(SelfExe,STRINGIFY(sym))
 #else
 #define RESOLVE(sym) STRINGIFY(sym)
 #endif
@@ -96,7 +96,7 @@ void BootRacket(const char *argv0)
 	racket_boot(&BootArgs);
 
 	std::cout << "Done!\n";
-#if defined(TANGERINE_USE_SYSTEM_RACKET)
+#if !defined(TANGERINE_USE_SYSTEM_RACKET)
 	free(SelfExe);
 	free(BootArgs.boot1_path);
 	free(BootArgs.boot2_path);
