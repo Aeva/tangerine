@@ -11,7 +11,9 @@
  ((guix licenses) #:prefix license:)
  (guix packages)
  (guix utils)
+ (ice-9 ftw)
  (ice-9 regex)
+ (ice-9 vlist)
  (wip-gnu packages racket)
  (wip-guix build-system racket))
 
@@ -19,41 +21,70 @@
 (define %tangerine-revision "0")
 
 
-(define-public %tangerine-origin
-  ;; TODO: consider putting the Racket packages in a separate origin
-  ;; from the other things to reduce rebuilds
-  (local-file
-   "." "tangerine-src"
-   #:recursive? #t
-   #:select?
-   (let* ((src-dir (current-source-directory))
-          (checked-in?
-           ;; TODO: This excluded linux/cmake/FindRacket.scm before I
-           ;; checked it in, which was very confusing. Probably better
-           ;; to use a predicate like git-ignored-file?, or something
-           ;; like the logic from `nix flake.
-           ;; (It even excludes staged files.)
-           #;(status-list->status-entries (status-list-new $3 (make-status-options STATUS-SHOW-INDEX-AND-WORKDIR (logior STATUS-FLAG-RENAMES-HEAD-TO-INDEX STATUS-FLAG-RENAMES-INDEX-TO-WORKDIR))))
-           (or (and src-dir #f #;
-                    (git-predicate (canonicalize-path src-dir)))
-               (lambda (path stat)
-                 #t)))
-          (so-dll-rx
-           (make-regexp "\\.(so|dll)$"))
-          (so-or-dll?
-           (lambda (path stat)
-             (regexp-exec so-dll-rx path)))
-          (source-file?
-           (lambda (path stat)
-             (and (checked-in? path stat)
-                  (not (so-or-dll? path stat))))))
-     source-file?)))
+(define-values (%tangerine-racket-origin %tangerine-cxx-origin)
+  ;; separate origins to reduce rebuilds
+  (let ()
+    (define src-dir
+      (current-source-directory))
+    (define (stat->identity stat)
+      (cons (stat:dev stat) (stat:ino stat)))
+    (define racket-src-identities
+      (delay
+        (if src-dir
+            (let* ((enter? (const #t))
+                   (leaf (lambda (path stat result)
+                           (vhash-cons (stat->identity stat) #t result)))
+                   (down leaf)
+                   (up (lambda (path stat result)
+                         result))
+                   (skip up)
+                   (error (lambda (name stat errno result)
+                            result))
+                   (ids
+                    (file-system-fold enter? leaf down up skip error
+                                      vlist-null
+                                      (string-append src-dir "/package"))))
+              ids)
+            vlist-null)))
+    (define checked-in?
+      ;; TODO: This excluded linux/cmake/FindRacket.scm before I
+      ;; checked it in, which was very confusing. Probably better
+      ;; to use a predicate like git-ignored-file?, or something
+      ;; like the logic from `nix flake.
+      ;; (It even excludes staged files.)
+      (if src-dir
+          (git-predicate (canonicalize-path src-dir))
+          (lambda (path stat)
+            #t)))
+    (define so-dll-rx
+      (make-regexp "\\.(so|dll)$"))
+    (define (so-or-dll? path stat)
+      (regexp-exec so-dll-rx path))
+    (define guix-file-rx
+      (make-regexp "(channels|guix)\\.scm$"))
+    (define (guix-file? path stat)
+      (regexp-exec guix-file-rx path))
+    (define (source-file? path stat)
+      (and (checked-in? path stat)
+           (not (guix-file? path stat))
+           (not (so-or-dll? path stat))))
+    (define (non-racket-source-file? path stat)
+      (and (source-file? path stat)
+           (not (vhash-assoc (stat->identity stat)
+                             (force racket-src-identities)))))
+    (values
+      (local-file "package" "tangerine-racket-src"
+                  #:recursive? #t
+                  #:select? source-file?)
+      (local-file "." "tangerine-cxx-src"
+                  #:recursive? #t
+                  #:select? non-racket-source-file?))))
 
 (define-public tangerine
   (package
     (name "tangerine")
     (version "0.0")
-    (source %tangerine-origin)
+    (source %tangerine-cxx-origin)
     (outputs '("out" "debug"))
     (build-system cmake-build-system)
     (inputs
@@ -112,14 +143,14 @@ developed for Tangerine.  For documentation, see the Racket package
   (package
     (name "racket-tangerine-x86-64-linux")
     (version (git-version "0.0" %tangerine-revision "develop"))
-    (source %tangerine-origin)
+    (source %tangerine-racket-origin)
     (build-system racket-build-system)
     (outputs `("out" "pkgs"))
     (inputs
      (list racket-base))
     (arguments
      (list
-      #:path "package/tangerine-x86_64-linux"
+     #:path "tangerine-x86_64-linux"
       #:phases
       #~(modify-phases %standard-phases
           (add-after 'unpack 'patch-info-rkt
@@ -136,7 +167,7 @@ developed for Tangerine.  For documentation, see the Racket package
   (package
     (name "racket-tangerine")
     (version (git-version "0.0" %tangerine-revision "develop"))
-    (source %tangerine-origin)
+    (source %tangerine-racket-origin)
     (build-system racket-build-system)
     (outputs `("out" "pkgs"))
     (inputs
@@ -145,7 +176,7 @@ developed for Tangerine.  For documentation, see the Racket package
            racket-tangerine-x86-64-linux
            racket-vec-lib))
     (arguments
-     (list #:path "package/tangerine"))
+     (list #:path "tangerine"))
     (home-page "https://pkgs.racket-lang.org/package/tangerine-x86-64-linux")
     (synopsis "")
     (description "")

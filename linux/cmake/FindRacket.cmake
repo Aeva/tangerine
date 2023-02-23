@@ -108,7 +108,7 @@ find_package_handle_standard_args(Racket DEFAULT_MSG
     # Racket_racketBoot
     Racket_INCLUDE_DIR
 )
-message(FATAL_ERROR "stop here")
+message(FATAL_ERROR "stop here") # TODO <---------------------------------- TODO
 
 mark_as_advanced(
     Racket_CONFIG_DIR
