@@ -16,6 +16,41 @@ This module provides the following imported targets, if found:
 ``Racket::LibRacketCS``
   The Racket CS library
 
+Cache Variables
+^^^^^^^^^^^^^^^
+
+The following cache variables may also be set:
+
+``Racket_PETITE_BOOT``
+  Path to ``petite.boot``.
+``Racket_SCHEME_BOOT``
+  Path to ``scheme.boot``.
+``Racket_RACKET_BOOT``
+  Path to ``racket.boot``.
+``Racket_CONFIG_DIR``
+  Path to a directory usable with the ``-G``/``--config`` option to ``racket``.
+
+Less Useful Variables
+^^^^^^^^^^^^^^^^^^^^^
+
+These cache variables may also be set, but they are less likely to be useful to your code:
+
+``Racket_racketcs_LIBRARY``
+  Path to the library ``Racket::LibRacketCS``.
+``Racket_racketcs_INCLUDE_DIR``
+  Path to the directory for ``racketcs.h``.
+``Racket_chezscheme_INCLUDE_DIR``
+  Likewise, but for ``chezscheme.h`` (likely the same directory).
+
+The following non-cache variables will be set (but prefer ``Racket::LibRacketCS``):
+
+``Racket_FOUND``
+  True if the system has Racket.
+``Racket_INCLUDE_DIRS``
+  Include directories needed to embed Racket.
+``Foo_LIBRARIES``
+  Libraries needed to link to Racket (i.e. ``Racket::LibRacketCS``).
+
 #]=======================================================================]
 
 # Model: https://cmake.org/cmake/help/latest/manual/cmake-developer.7.html#find-modules
@@ -63,53 +98,82 @@ set(Racket_CONFIG_FILE NO)
     endforeach()
 #endif()
 
+
 racket_parse_config_file(${Racket_CONFIG_FILE}
     NAME _installationName
     LIB_DIRS _configLibDirs
     INCLUDE_DIRS _configIncludeDirs
 )
-#message(WARNING "Got:\n${_configLibSearchDirs}")
-#message(NOTICE "Got:\n${_configIncludeSearchDirs}")
 
 
-find_library(Racket_LIBRARY
+find_library(Racket_racketcs_LIBRARY
   NAMES racketcs libracketcs NAMES_PER_DIR
   HINTS ${_configLibDirs}
   PATH_SUFFIXES "racket"
+  DOC "Racket CS library for embedding."
 )
-message(WARNING ${Racket_LIBRARY})
-find_path(Racket_INCLUDE_DIR
+
+
+find_path(Racket_racketcs_INCLUDE_DIR
   NAMES racketcs.h
   HINTS ${_configIncludeDirs}
-  PATH_SUFFIXES "racket"
+  PATH_SUFFIXES "Directory to include for <racketcs.h>."
 )
-message(WARNING ${Racket_INCLUDE_DIR})
-######## These don't work:
-# find_library(Racket_petiteBoot
-#   "petite.boot"
-#   HINTS ${_configLibSearchDirs}
-# )
-# find_library(Racket_schemeBoot
-#   "scheme.boot"
-#   HINTS ${_configLibSearchDirs}
-# )
-# find_library(Racket_racketBoot
-#   "racket.boot"
-#   HINTS ${_configLibSearchDirs}
-# )
-
-
-
-find_package_handle_standard_args(Racket DEFAULT_MSG
-    Racket_CONFIG_DIR
-    Racket_LIBRARY
-    # Racket_petiteBoot
-    # Racket_schemeBoot
-    # Racket_racketBoot
-    Racket_INCLUDE_DIR
+# Prefer the sibling of "racketcs.h" if it exists, search otherwise.
+find_path(Racket_chezscheme_INCLUDE_DIR
+  NAMES chezscheme.h
+  HINTS ${Racket_racketcs_INCLUDE_DIR}
+  NO_DEFAULT_PATH
+  PATH_SUFFIXES "Directory to include for <chezscheme.h>."
 )
-message(FATAL_ERROR "stop here") # TODO <---------------------------------- TODO
+find_path(Racket_chezscheme_INCLUDE_DIR
+  NAMES chezscheme.h
+  HINTS ${_configIncludeDirs}
+  PATH_SUFFIXES "Directory to include for <chezscheme.h>."
+)
 
+
+# We would like to use the default paths from `find_library`,
+# but it insists on appending ".so" or ".a".
+# No PATH_SUFFIXES needed as _configLibDirs handles it.
+find_file(Racket_PETITE_BOOT
+  "petite.boot"
+  HINTS ${_configLibDirs}
+  NO_DEFAULT_PATH
+  DOC "Bootfile for Petite Chez Scheme."
+)
+find_file(Racket_SCHEME_BOOT
+  "scheme.boot"
+  HINTS ${_configLibDirs}
+  NO_DEFAULT_PATH
+  DOC "Bootfile  for Chez Scheme."
+)
+find_file(Racket_RACKET_BOOT
+  "racket.boot"
+  HINTS ${_configLibDirs}
+  NO_DEFAULT_PATH
+  DOC "Bootfile for Racket."
+)
+
+
+
+find_package_handle_standard_args(Racket
+    REQUIRED_VARS
+        Racket_CONFIG_DIR Racket_racketcs_LIBRARY
+        Racket_racketcs_INCLUDE_DIR Racket_chezscheme_INCLUDE_DIR
+        Racket_PETITE_BOOT Racket_SCHEME_BOOT Racket_RACKET_BOOT
+)
 mark_as_advanced(
     Racket_CONFIG_DIR
 )
+if(Racket_FOUND AND NOT TARGET Racket::LibRacketCS)
+    # per cmake docs, Racket_INCLUDE_DIRS "should not be a cache entry"
+    set(Racket_INCLUDE_DIRS ${Racket_racketcs_INCLUDE_DIR} ${Racket_chezscheme_INCLUDE_DIR})
+    list(REMOVE_DUPLICATES Racket_INCLUDE_DIRS)
+    add_library(Racket::LibRacketCS UNKNOWN IMPORTED)
+    set(Racket_LIBRARIES Racket::LibRacketCS)
+    set_target_properties(Racket::LibRacketCS PROPERTIES
+        IMPORTED_LOCATION ${Racket_racketcs_LIBRARY}
+        INTERFACE_INCLUDE_DIRECTORIES "${Racket_INCLUDE_DIRS}"
+    )
+endif()

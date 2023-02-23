@@ -19,7 +19,7 @@ find_package(Racket REQUIRED) #FIXME for testing
 ## Build options:
 
 option(EMBED_LUA "Embed Lua support" ON)
-option(EMBED_RACKET "Embed Racket support" OFF)
+option(EMBED_RACKET "Embed Racket support" ON) #FIXME for testing
 option(SELF_CONTAINED "Use directory tree instead of XDG_STATE_HOME" OFF)
 
 set(INSTALL_PKG_SUBPATH "tangerine" CACHE PATH
