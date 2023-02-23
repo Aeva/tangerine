@@ -18,6 +18,7 @@
 
 (define %tangerine-revision "0")
 
+
 (define-public %tangerine-origin
   ;; TODO: consider putting the Racket packages in a separate origin
   ;; from the other things to reduce rebuilds
@@ -31,7 +32,9 @@
            ;; checked it in, which was very confusing. Probably better
            ;; to use a predicate like git-ignored-file?, or something
            ;; like the logic from `nix flake.
-           (or (and src-dir
+           ;; (It even excludes staged files.)
+           #;(status-list->status-entries (status-list-new $3 (make-status-options STATUS-SHOW-INDEX-AND-WORKDIR (logior STATUS-FLAG-RENAMES-HEAD-TO-INDEX STATUS-FLAG-RENAMES-INDEX-TO-WORKDIR))))
+           (or (and src-dir #f #;
                     (git-predicate (canonicalize-path src-dir)))
                (lambda (path stat)
                  #t)))
