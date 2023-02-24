@@ -90,3 +90,19 @@ if (ImGui::BeginTabItem("voxwriter"))
 	ImGui::EndTabItem();
 }
 #endif
+
+#if 1
+if (ImGui::BeginTabItem("whereami"))
+{
+	ImGui::TextUnformatted("MIT License\n\nCopyright Gregory Pakosz\n\nPermission is hereby granted, free of charge, to any person obtaining a copy of\nthis software and associated documentation files (the \"Software\"), to deal in\nthe Software without restriction, including without limitation the rights to\nuse, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of\nthe Software, and to permit persons to whom the Software is furnished to do so,\nsubject to the following conditions:\n\nThe above copyright notice and this permission notice shall be included in all\ncopies or substantial portions of the Software.\n\nTHE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\nIMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS\nFOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR\nCOPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER\nIN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN\nCONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.\n", nullptr);
+	ImGui::EndTabItem();
+}
+#endif
+
+#if 1
+if (ImGui::BeginTabItem("whereami"))
+{
+	ImGui::TextUnformatted("--------------------------------------------------------------------------------\n        DO WHAT THE FUCK YOU WANT TO PUBLIC LICENSE\n                    Version 2, December 2004\n\n Copyright (C) 2004 Sam Hocevar <sam@hocevar.net>\n\n Everyone is permitted to copy and distribute verbatim or modified\n copies of this license document, and changing it is allowed as long\n as the name is changed.\n\n            DO WHAT THE FUCK YOU WANT TO PUBLIC LICENSE\n   TERMS AND CONDITIONS FOR COPYING, DISTRIBUTION AND MODIFICATION\n\n  0. You just DO WHAT THE FUCK YOU WANT TO.\n  1. Bla bla bla\n  2. Montesqieu et camembert, vive la France, zut alors!\n\n--------------------------------------------------------------------------------\n\nWTFPLv2 is very permissive, see http://www.wtfpl.net/faq/\n\nHowever, if this WTFPLV2 is REALLY a blocker and is the reason you can't use\nthis project, contact me and I'll dual license it.\n\n--------------------------------------------------------------------------------\n", nullptr);
+	ImGui::EndTabItem();
+}
+#endif

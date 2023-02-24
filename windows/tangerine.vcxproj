@@ -126,7 +126,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;IMGUI_USE_WCHAR32;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>$(SolutionDir)..\third_party\fmt\include;$(SolutionDir)..\third_party\imgui;$(SolutionDir)..\third_party\imgui\backends;$(SolutionDir)..\third_party\sdl2\include;$(SolutionDir)..\third_party\racket\include;$(SolutionDir)..\third_party\lua-5.4.4;$(SolutionDir)..\third_party\stb;$(SolutionDir)..\third_party\ImFileDialog;$(SolutionDir)..\third_party</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)..\third_party\fmt\include;$(SolutionDir)..\third_party\imgui;$(SolutionDir)..\third_party\imgui\backends;$(SolutionDir)..\third_party\sdl2\include;$(SolutionDir)..\third_party\racket\include;$(SolutionDir)..\third_party\lua-5.4.4;$(SolutionDir)..\third_party\stb;$(SolutionDir)..\third_party\ImFileDialog;$(SolutionDir)..\third_party\whereami\src;$(SolutionDir)..\third_party</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
     </ClCompile>
@@ -152,7 +152,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;IMGUI_USE_WCHAR32;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>$(SolutionDir)..\third_party\fmt\include;$(SolutionDir)..\third_party\imgui;$(SolutionDir)..\third_party\imgui\backends;$(SolutionDir)..\third_party\sdl2\include;$(SolutionDir)..\third_party\racket\include;$(SolutionDir)..\third_party\lua-5.4.4;$(SolutionDir)..\third_party\stb;$(SolutionDir)..\third_party\ImFileDialog;$(SolutionDir)..\third_party</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)..\third_party\fmt\include;$(SolutionDir)..\third_party\imgui;$(SolutionDir)..\third_party\imgui\backends;$(SolutionDir)..\third_party\sdl2\include;$(SolutionDir)..\third_party\racket\include;$(SolutionDir)..\third_party\lua-5.4.4;$(SolutionDir)..\third_party\stb;$(SolutionDir)..\third_party\ImFileDialog;$(SolutionDir)..\third_party\whereami\src;$(SolutionDir)..\third_party</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
     </ClCompile>
@@ -239,6 +239,7 @@
     <ClCompile Include="..\third_party\stb\stb.cpp" />
     <ClCompile Include="..\third_party\stb\stb_vorbis.c" />
     <ClCompile Include="..\third_party\voxwriter\VoxWriter.cpp" />
+    <ClCompile Include="..\third_party\whereami\src\whereami.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\shaders\defines.h" />
@@ -328,6 +329,7 @@
     <ClInclude Include="..\third_party\stb\stb_truetype.h" />
     <ClInclude Include="..\third_party\stb\stb_voxel_render.h" />
     <ClInclude Include="..\third_party\voxwriter\VoxWriter.h" />
+    <ClInclude Include="..\third_party\whereami\src\whereami.h" />
     <ClInclude Include="resource.h" />
   </ItemGroup>
   <ItemGroup>

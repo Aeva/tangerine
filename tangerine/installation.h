@@ -16,12 +16,12 @@
 #pragma once
 #include <filesystem>
 #include "embedding.h"
+#include "errors.h"
 
 
 struct TangerinePaths
 {
-	TangerinePaths() {}
-	TangerinePaths(int argc, char* argv[]);
+	StatusCode PopulateInstallationPaths();
 
 	std::filesystem::path ExecutablePath;
 	std::filesystem::path ExecutableDir;

@@ -43,6 +43,9 @@
     <Filter Include="Third Party\stb">
       <UniqueIdentifier>{2f946632-7034-42fc-8695-02895325b470}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Third Party\whereami">
+      <UniqueIdentifier>{7215dd40-bc46-4d0a-8a1d-33c6e26aef41}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\third_party\glad\glad.c">
@@ -245,6 +248,9 @@
     </ClCompile>
     <ClCompile Include="..\tangerine\installation.cpp">
       <Filter>Tangerine</Filter>
+    </ClCompile>
+    <ClCompile Include="..\third_party\whereami\src\whereami.c">
+      <Filter>Third Party\whereami</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -509,6 +515,9 @@
     </ClInclude>
     <ClInclude Include="..\tangerine\installation.h">
       <Filter>Tangerine</Filter>
+    </ClInclude>
+    <ClInclude Include="..\third_party\whereami\src\whereami.h">
+      <Filter>Third Party\whereami</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

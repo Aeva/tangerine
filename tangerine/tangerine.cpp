@@ -1794,7 +1794,7 @@ SDL_GLContext Context = nullptr;
 
 StatusCode Boot(int argc, char* argv[])
 {
-	Installed = TangerinePaths(argc, argv);
+	RETURN_ON_FAIL(Installed.PopulateInstallationPaths());
 	LastOpenDir = Installed.ModelsDir;
 	LoadBookmarks();
 

@@ -130,6 +130,12 @@ target_sources(VoxWriter
 	PUBLIC FILE_SET HEADERS
 	FILES "third_party/voxwriter/VoxWriter.h")
 
+#######################################################################
+## whereami:
+
+add_library(whereami OBJECT "third_party/whereami/src/whereami.c")
+target_include_directories(whereami PUBLIC "third_party/whereami/src/")
+
 
 #######################################################################
 ##+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++##
@@ -151,6 +157,7 @@ target_link_libraries(tangerine PRIVATE
 	imgui
 	ImFileDialog
 	VoxWriter
+	whereami
 	tinfo # see https://gitlab.kitware.com/cmake/cmake/-/issues/23236
 	${CMAKE_THREAD_LIBS_INIT}
 	${CMAKE_DL_LIBS})

@@ -14,52 +14,35 @@
 // limitations under the License.
 
 #include "installation.h"
-
-#if !_WIN64
-#include <unistd.h>
-#endif
+#include "whereami.h"
+#include <iostream>
 
 
-TangerinePaths::TangerinePaths(int argc, char* argv[])
+StatusCode TangerinePaths::PopulateInstallationPaths()
 {
-#if _WIN64
-	// TODO: This is fine for standalone builds, but we will want to do something
-	// else for future library builds.  Maybe GetModuleFileNameW?
-	ExecutablePath = std::filesystem::absolute(argv[0]);
-
-#elif EMBED_RACKET
-	ExecutablePath = std::filesystem::path(racket_get_self_exe_path(argv[0]));
-
-#else
 	{
-		char* Path = nullptr;
-		ssize_t PathLength = 0;
-		ssize_t Allocation = 256;
-
-retry:
-		Path = (char*)malloc(Allocation);
-		PathLength = readlink("/proc/self/exe", Path, Allocation - 1);
-		if (PathLength == (Allocation - 1))
+		int Length = wai_getExecutablePath(NULL, 0, NULL);
+		if (Length > -1)
 		{
+			char* Path = (char*)malloc(Length + 1);
+			wai_getExecutablePath(Path, Length, NULL);
+			Path[Length] = '\0';
+			ExecutablePath = std::filesystem::path(Path);
 			free(Path);
-			Allocation *= 2;
-			goto retry;
-		}
-
-		if (PathLength < 0)
-		{
-			// Possibly in a chroot environment where "/proc" is not available, so fall back to generic approach.
-			ExecutablePath = std::filesystem::absolute(argv[0]);
 		}
 		else
 		{
-			Path[PathLength] = 0;
-			ExecutablePath = std::filesystem::path(Path);
-		}
-
-		free(Path);
-	}
+#if !_WIN64
+			// TODO: Right now our platform coverage is "Windows" and "not Windows == Linux".  More nuance may be needed here in the future.
+			if (!std::filesystem::exists("/proc"))
+			{
+				std::cout << "Proc filesystem not found.\n";
+			}
 #endif
+			std::cout << "Failed to determine Tangerine's filesystem path.\n";
+			return StatusCode::FAIL;
+		}
+	}
 
 	ExecutableDir = ExecutablePath.parent_path();
 
@@ -75,4 +58,6 @@ retry:
 
 	ShadersDir = PkgDataDir / std::filesystem::path("shaders");
 	ModelsDir = PkgDataDir / std::filesystem::path("models");
+
+	return StatusCode::PASS;
 }
