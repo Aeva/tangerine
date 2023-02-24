@@ -52,7 +52,7 @@
       ;; to use a predicate like git-ignored-file?, or something
       ;; like the logic from `nix flake.
       ;; (It even excludes staged files.)
-      (if #f;src-dir
+      (if src-dir
           (git-predicate (canonicalize-path src-dir))
           (lambda (path stat)
             #t)))
