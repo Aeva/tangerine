@@ -14,6 +14,6 @@
 (define deps
   '("base"
     "sandbox-lib"
-    "vec"
+    "vec-lib"
     ["tangerine-x86_64-linux" #:platform #rx"^x86_64-linux(?:-natipkg)?$"]
     ["tangerine-x86_64-win32" #:platform "win32\\x86_64"]))
