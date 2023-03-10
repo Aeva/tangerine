@@ -43,6 +43,16 @@ struct AABB
 		return Max - Min;
 	}
 
+	bool Overlaps(AABB& Other)
+	{
+		return glm::all(glm::lessThanEqual(Other.Min, Max)) && glm::all(glm::lessThanEqual(Min, Other.Max));
+	}
+
+	bool Contains(AABB& Other)
+	{
+		return glm::all(glm::lessThanEqual(Min, Other.Min)) && glm::all(glm::greaterThanEqual(Max, Other.Max));
+	}
+
 	AABB operator+(const glm::vec3& Offset) const
 	{
 		return {
@@ -251,7 +261,7 @@ struct SDFOctree
 
 	static SDFOctree* Create(SDFNode* Evaluator, float TargetSize = 0.25);
 	void Populate(int Depth);
-	~SDFOctree();
+	virtual ~SDFOctree();
 	SDFNode* Descend(const glm::vec3 Point, const bool Exact=true);
 
 	using CallbackType = std::function<void(SDFOctree&)>;
@@ -277,6 +287,24 @@ struct SDFOctree
 		return Node->Sample(Point);
 	}
 
+	SDFOctree() {}
+
 private:
 	SDFOctree(SDFOctree* InParent, SDFNode* InEvaluator, float InTargetSize, AABB InBounds, int Depth);
+};
+
+
+struct PrimalOctree : public SDFOctree
+{
+	float Corners[8];
+
+	static PrimalOctree* Create(SDFNode* Evaluator);
+	virtual ~PrimalOctree();
+
+	void Refine(Boxel Seed);
+	bool Finish();
+
+private:
+	PrimalOctree(PrimalOctree* InParent, SDFNode* InEvaluator, AABB InBounds, Boxel Seed);
+	PrimalOctree(PrimalOctree* Child, Boxel Seed);
 };

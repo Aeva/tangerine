@@ -1417,6 +1417,9 @@ namespace SDF
 // SDFOctree function implementations
 SDFOctree* SDFOctree::Create(SDFNode* Evaluator, float TargetSize)
 {
+#if 1
+	return PrimalOctree::Create(Evaluator);
+#else
 	if (Evaluator->HasFiniteBounds())
 	{
 		// Determine the octree's bounding cube from the evaluator's bounding box.
@@ -1443,6 +1446,7 @@ SDFOctree* SDFOctree::Create(SDFNode* Evaluator, float TargetSize)
 		fmt::print("Unable to construct SDF octree for infinite area evaluator.");
 		return nullptr;
 	}
+#endif
 }
 
 SDFOctree::SDFOctree(SDFOctree* InParent, SDFNode* InEvaluator, float InTargetSize, AABB InBounds, int Depth)
@@ -1623,5 +1627,253 @@ void SDFOctree::Walk(SDFOctree::CallbackType& Callback)
 				Child->Walk(Callback);
 			}
 		}
+	}
+}
+
+
+// PrimalOctree function implementations
+PrimalOctree* PrimalOctree::Create(SDFNode* Evaluator)
+{
+	if (Evaluator->HasFiniteBounds())
+	{
+		std::vector<Boxel> Boxels;
+		Evaluator->GatherBoxels(Boxels);
+
+		PrimalOctree* Root = nullptr;
+
+		if (Boxels.size() > 0)
+		{
+			const Boxel& Seed = Boxels[0];
+			const vec3 Extent = Seed.Extent();
+			const float Span = max(max(Extent.x, Extent.y), Extent.z);
+			vec3 Pivot = Extent * vec3(0.5) + Seed.Min;
+
+			AABB Bounds;
+			Bounds.Min = Pivot - vec3(Span * .5);
+			Bounds.Max = Pivot + vec3(Span * .5);
+
+			Assert(glm::all(glm::lessThanEqual(Bounds.Min, Bounds.Max)));
+
+			Root = new PrimalOctree(nullptr, Evaluator, Bounds, Seed);
+		}
+		if (Root != nullptr)
+		{
+			for (int i = 1; i < Boxels.size(); ++i)
+			{
+				Boxel& Seed = Boxels[i];
+				while (!Root->Bounds.Contains(Seed))
+				{
+					Root = new PrimalOctree(Root, Seed);
+				}
+				Root->Refine(Seed);
+			}
+			if (!Root->Finish())
+			{
+				delete Root;
+				Root = nullptr;
+			}
+		}
+
+		return Root;
+	}
+	else
+	{
+		fmt::print("Unable to construct SDF octree for infinite area evaluator.");
+		return nullptr;
+	}
+}
+
+PrimalOctree::PrimalOctree(PrimalOctree* InParent, SDFNode* InEvaluator, AABB InBounds, Boxel Seed)
+{
+	Parent = InParent;
+	Bounds = InBounds;
+
+	Evaluator = InEvaluator;
+	Evaluator->Hold();
+	LeafCount = Evaluator->LeafCount();
+
+	Assert(Evaluator != nullptr);
+
+	for (int i = 0; i < 8; ++i)
+	{
+		Corners[i] = 0;
+		Children[i] = nullptr;
+	}
+
+	TargetSize = Seed.VoxelSize;
+	Refine(Seed);
+}
+
+PrimalOctree::PrimalOctree(PrimalOctree* Child, Boxel Seed)
+{
+	Parent = nullptr;
+	Child->Parent = this;
+	Evaluator = Child->Evaluator;
+	Evaluator->Hold();
+	LeafCount = Evaluator->LeafCount();
+
+	Assert(Evaluator != nullptr);
+
+	for (int i = 0; i < 8; ++i)
+	{
+		Corners[i] = 0;
+		Children[i] = nullptr;
+	}
+
+	Pivot = Child->Bounds.Max;
+	int ChildIndex = 0;
+
+	// These should must the pivot behavior in PrimalOctree::Refine or bad things will happen:
+	if (Child->Bounds.Max.x > Seed.Max.x)
+	{
+		Pivot.x = Child->Bounds.Min.x;
+		ChildIndex |= 1;
+	}
+	if (Child->Bounds.Max.y > Seed.Max.y)
+	{
+		Pivot.y = Child->Bounds.Min.y;
+		ChildIndex |= 2;
+	}
+	if (Child->Bounds.Max.z > Seed.Max.z)
+	{
+		Pivot.z = Child->Bounds.Min.z;
+		ChildIndex |= 4;
+	}
+
+	Children[ChildIndex] = Child;
+
+	vec3 ChildExtent = Child->Bounds.Extent();
+	Bounds.Min = Pivot - ChildExtent;
+	Bounds.Max = Pivot + ChildExtent;
+}
+
+PrimalOctree::~PrimalOctree()
+{
+	for (int i = 0; i < 8; ++i)
+	{
+		if (Children[i])
+		{
+			delete Children[i];
+			Children[i] = nullptr;
+		}
+	}
+	if (Evaluator)
+	{
+		Evaluator->Release();
+		Evaluator = nullptr;
+	}
+}
+
+void PrimalOctree::Refine(Boxel Seed)
+{
+	vec3 Extent = Bounds.Max - Bounds.Min;
+	float Span = max(max(Extent.x, Extent.y), Extent.z);
+	Pivot = vec3(Span * 0.5) + Bounds.Min;
+
+	if (Bounds.Overlaps(Seed))
+	{
+		TargetSize = glm::min(TargetSize, Seed.VoxelSize);
+		Terminus = Span <= TargetSize;
+	}
+
+	if (!Terminus)
+	{
+		for (int i = 0; i < 8; ++i)
+		{
+			if (Children[i] == nullptr)
+			{
+				AABB ChildBounds = Bounds;
+				if (i & 1)
+				{
+					ChildBounds.Min.x = Pivot.x;
+				}
+				else
+				{
+					ChildBounds.Max.x = Pivot.x;
+				}
+				if (i & 2)
+				{
+					ChildBounds.Min.y = Pivot.y;
+				}
+				else
+				{
+					ChildBounds.Max.y = Pivot.y;
+				}
+				if (i & 4)
+				{
+					ChildBounds.Min.z = Pivot.z;
+				}
+				else
+				{
+					ChildBounds.Max.z = Pivot.z;
+				}
+
+				if (Seed.Overlaps(ChildBounds))
+				{
+					Children[i] = new PrimalOctree(this, Evaluator, ChildBounds, Seed);
+				}
+			}
+
+			if (Children[i] != nullptr)
+			{
+				PrimalOctree* Child = (PrimalOctree*)Children[i];
+				Child->Refine(Seed);
+			}
+		}
+	}
+}
+
+bool PrimalOctree::Finish()
+{
+	if (Evaluator == nullptr)
+	{
+		return false;
+	}
+	else if (Terminus)
+	{
+		const float LX = Bounds.Min.x;
+		const float LY = Bounds.Min.y;
+		const float LZ = Bounds.Min.z;
+		const float HX = Bounds.Max.x;
+		const float HY = Bounds.Max.y;
+		const float HZ = Bounds.Max.z;
+		Corners[0] = Evaluator->Eval(vec3(LX, LY, LZ));
+		Corners[1] = Evaluator->Eval(vec3(HX, LY, LZ));
+		Corners[2] = Evaluator->Eval(vec3(LX, HY, LZ));
+		Corners[3] = Evaluator->Eval(vec3(HX, HY, LZ));
+		Corners[4] = Evaluator->Eval(vec3(LX, LY, HZ));
+		Corners[5] = Evaluator->Eval(vec3(HX, LY, HZ));
+		Corners[6] = Evaluator->Eval(vec3(LX, HY, HZ));
+		Corners[7] = Evaluator->Eval(vec3(HX, HY, HZ));
+
+		int Score = 0;
+		for (int i = 0; i < 8; ++i)
+		{
+			if (Corners[i] >= 0)
+			{
+				++Score;
+			}
+		}
+
+		// Returns false when all corners have the same sign.
+		return Score > 0 && Score < 8;
+	}
+	else
+	{
+		int LiveCount = 8;
+		for (int i = 0; i < 8; ++i)
+		{
+			if (Children[i] != nullptr)
+			{
+				PrimalOctree* Child = (PrimalOctree*)Children[i];
+				if (!Child->Finish())
+				{
+					delete Child;
+					Children[i] = nullptr;
+					--LiveCount;
+				}
+			}
+		}
+		return LiveCount > 0;
 	}
 }
