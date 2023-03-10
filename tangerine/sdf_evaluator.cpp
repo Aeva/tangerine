@@ -446,6 +446,11 @@ struct BrushNode : public SDFNode
 		return Bounds();
 	}
 
+	virtual void GatherBoxels(std::vector<Boxel>& Boxels)
+	{
+		Boxels.emplace_back(Bounds(), 4.0);
+	}
+
 	std::string CompileScale(const bool WithOpcodes, std::vector<float>& TreeParams, std::string& NestedExpr)
 	{
 		if (WithOpcodes)
@@ -756,6 +761,23 @@ struct SetNode : public SDFNode
 		return Combined;
 	}
 
+	virtual void GatherBoxels(std::vector<Boxel>& Boxels)
+	{
+		LHS->GatherBoxels(Boxels);
+		RHS->GatherBoxels(Boxels);
+
+		if (BlendMode)
+		{
+			AABB BoundsLHS = LHS->Bounds();
+			AABB BoundsRHS = RHS->Bounds();
+			AABB Liminal;
+			Liminal.Min = max(BoundsLHS.Min, BoundsRHS.Min) - vec3(Threshold);
+			Liminal.Max = min(BoundsLHS.Max, BoundsRHS.Max) + vec3(Threshold);
+
+			Boxels.emplace_back(Liminal, Threshold / 3.0);
+		}
+	}
+
 	virtual std::string Compile(const bool WithOpcodes, std::vector<float>& TreeParams, std::string& Point)
 	{
 		const std::string CompiledLHS = LHS->Compile(WithOpcodes, TreeParams, Point);
@@ -967,6 +989,11 @@ struct PaintNode : public SDFNode
 		return Child->InnerBounds();
 	}
 
+	virtual void GatherBoxels(std::vector<Boxel>& Boxels)
+	{
+		Child->GatherBoxels(Boxels);
+	}
+
 	virtual std::string Compile(const bool WithOpcodes, std::vector<float>& TreeParams, std::string& Point)
 	{
 		if (WithOpcodes)
@@ -1094,6 +1121,21 @@ struct FlateNode : public SDFNode
 		ChildBounds.Max += vec3(Radius * 2);
 		ChildBounds.Min -= vec3(Radius * 2);
 		return ChildBounds;
+	}
+
+	virtual void GatherBoxels(std::vector<Boxel>& Boxels)
+	{
+		std::vector<Boxel> UnmodifiedBoxels;
+		Child->GatherBoxels(UnmodifiedBoxels);
+		Boxels.reserve(UnmodifiedBoxels.size());
+
+		for (const Boxel& UnmodifiedBoxel : UnmodifiedBoxels)
+		{
+			Boxel Tmp = UnmodifiedBoxel;
+			Tmp.Max += vec3(Radius * 2);
+			Tmp.Min -= vec3(Radius * 2);
+			Boxels.push_back(Tmp);
+		}
 	}
 
 	virtual std::string Compile(const bool WithOpcodes, std::vector<float>& TreeParams, std::string& Point)

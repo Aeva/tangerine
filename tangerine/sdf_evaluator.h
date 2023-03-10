@@ -53,6 +53,23 @@ struct AABB
 };
 
 
+
+// A "Boxel" is an AABB with an ideal Voxel resolution associated to it.
+// This is used to populate an octree for the purpose of meshing.
+struct Boxel : public AABB
+{
+	float VoxelSize;
+
+	Boxel(AABB Bounds, float Divisor)
+	{
+		Min = Bounds.Min;
+		Max = Bounds.Max;
+		glm::vec3 Extent = Bounds.Extent();
+		VoxelSize = glm::min(glm::min(Extent.x, Extent.y), Extent.z) / Divisor;
+	}
+};
+
+
 struct TransformMachine
 {
 	enum class State
@@ -116,6 +133,8 @@ struct SDFNode
 	virtual AABB Bounds() = 0;
 
 	virtual AABB InnerBounds() = 0;
+
+	virtual void GatherBoxels(std::vector<Boxel>& Boxels) = 0;
 
 	virtual std::string Compile(const bool WithOpcodes, std::vector<float>& TreeParams, std::string& Point) = 0;
 
