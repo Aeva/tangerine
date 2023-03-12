@@ -43,12 +43,12 @@ struct AABB
 		return Max - Min;
 	}
 
-	bool Overlaps(AABB& Other)
+	bool Overlaps(const AABB& Other) const
 	{
 		return glm::all(glm::lessThanEqual(Other.Min, Max)) && glm::all(glm::lessThanEqual(Min, Other.Max));
 	}
 
-	bool Contains(AABB& Other)
+	bool Contains(const AABB& Other) const
 	{
 		return glm::all(glm::lessThanEqual(Min, Other.Min)) && glm::all(glm::greaterThanEqual(Max, Other.Max));
 	}

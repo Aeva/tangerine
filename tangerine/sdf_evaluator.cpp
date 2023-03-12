@@ -1641,37 +1641,44 @@ PrimalOctree* PrimalOctree::Create(SDFNode* Evaluator)
 
 		PrimalOctree* Root = nullptr;
 
-		if (Boxels.size() > 0)
+		for (const Boxel& Seed : Boxels)
 		{
-			const Boxel& Seed = Boxels[0];
 			const vec3 Extent = Seed.Extent();
 			const float Span = max(max(Extent.x, Extent.y), Extent.z);
-			vec3 Pivot = Extent * vec3(0.5) + Seed.Min;
 
-			AABB Bounds;
-			Bounds.Min = Pivot - vec3(Span * .5);
-			Bounds.Max = Pivot + vec3(Span * .5);
+			Assert(!isnan(Span));
+			Assert(!glm::all(glm::greaterThan(Seed.Min, Seed.Max)));
 
-			Assert(glm::all(glm::lessThanEqual(Bounds.Min, Bounds.Max)));
-
-			Root = new PrimalOctree(nullptr, Evaluator, Bounds, Seed);
-		}
-		if (Root != nullptr)
-		{
-			for (int i = 1; i < Boxels.size(); ++i)
+			if (!isinf(Span) && glm::all(glm::lessThan(Seed.Min, Seed.Max)))
 			{
-				Boxel& Seed = Boxels[i];
-				while (!Root->Bounds.Contains(Seed))
+				if (Root != nullptr)
 				{
-					Root = new PrimalOctree(Root, Seed);
+					// Append additional Boxels to the octree.
+
+					while (!Root->Bounds.Contains(Seed))
+					{
+						Root = new PrimalOctree(Root, Seed);
+					}
+					Root->Refine(Seed);
 				}
-				Root->Refine(Seed);
+				else
+				{
+					// Create the initial octree from the first valid Boxel.
+
+					vec3 Pivot = Extent * vec3(0.5) + Seed.Min;
+
+					AABB Bounds;
+					Bounds.Min = Pivot - vec3(Span * .5);
+					Bounds.Max = Pivot + vec3(Span * .5);
+
+					Root = new PrimalOctree(nullptr, Evaluator, Bounds, Seed);
+				}
 			}
-			if (!Root->Finish())
-			{
-				delete Root;
-				Root = nullptr;
-			}
+		}
+		if (Root && !Root->Finish())
+		{
+			delete Root;
+			Root = nullptr;
 		}
 
 		return Root;
