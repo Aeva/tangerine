@@ -126,7 +126,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;IMGUI_USE_WCHAR32;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>$(SolutionDir)..\third_party\fmt\include;$(SolutionDir)..\third_party\imgui;$(SolutionDir)..\third_party\imgui\backends;$(SolutionDir)..\third_party\sdl2\include;$(SolutionDir)..\third_party\racket\include;$(SolutionDir)..\third_party\lua-5.4.4;$(SolutionDir)..\third_party\stb;$(SolutionDir)..\third_party\ImFileDialog;$(SolutionDir)..\third_party\whereami\src;$(SolutionDir)..\third_party</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)..\third_party\fmt\include;$(SolutionDir)..\third_party\imgui;$(SolutionDir)..\third_party\imgui\backends;$(SolutionDir)..\third_party\sdl2\include;$(SolutionDir)..\third_party\racket\include;$(SolutionDir)..\third_party\lua-5.4.4;$(SolutionDir)..\third_party\stb;$(SolutionDir)..\third_party\ImFileDialog;$(SolutionDir)..\third_party\whereami\src;$(SolutionDir)..\third_party\predicates;$(SolutionDir)..\third_party</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
     </ClCompile>
@@ -152,7 +152,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;IMGUI_USE_WCHAR32;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>$(SolutionDir)..\third_party\fmt\include;$(SolutionDir)..\third_party\imgui;$(SolutionDir)..\third_party\imgui\backends;$(SolutionDir)..\third_party\sdl2\include;$(SolutionDir)..\third_party\racket\include;$(SolutionDir)..\third_party\lua-5.4.4;$(SolutionDir)..\third_party\stb;$(SolutionDir)..\third_party\ImFileDialog;$(SolutionDir)..\third_party\whereami\src;$(SolutionDir)..\third_party</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)..\third_party\fmt\include;$(SolutionDir)..\third_party\imgui;$(SolutionDir)..\third_party\imgui\backends;$(SolutionDir)..\third_party\sdl2\include;$(SolutionDir)..\third_party\racket\include;$(SolutionDir)..\third_party\lua-5.4.4;$(SolutionDir)..\third_party\stb;$(SolutionDir)..\third_party\ImFileDialog;$(SolutionDir)..\third_party\whereami\src;$(SolutionDir)..\third_party\predicates;$(SolutionDir)..\third_party</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
     </ClCompile>
@@ -185,6 +185,7 @@
     <ClCompile Include="..\tangerine\lua_sdf.cpp" />
     <ClCompile Include="..\tangerine\lua_vec.cpp" />
     <ClCompile Include="..\tangerine\magica.cpp" />
+    <ClCompile Include="..\tangerine\meshing.cpp" />
     <ClCompile Include="..\tangerine\profiling.cpp" />
     <ClCompile Include="..\tangerine\racket_env.cpp" />
     <ClCompile Include="..\tangerine\sdf_evaluator.cpp" />
@@ -236,6 +237,7 @@
     <ClCompile Include="..\third_party\lua-5.4.4\lua\lutf8lib.c" />
     <ClCompile Include="..\third_party\lua-5.4.4\lua\lvm.c" />
     <ClCompile Include="..\third_party\lua-5.4.4\lua\lzio.c" />
+    <ClCompile Include="..\third_party\predicates\predicates.c" />
     <ClCompile Include="..\third_party\stb\stb.cpp" />
     <ClCompile Include="..\third_party\stb\stb_vorbis.c" />
     <ClCompile Include="..\third_party\voxwriter\VoxWriter.cpp" />
@@ -258,6 +260,7 @@
     <ClInclude Include="..\tangerine\lua_sdf.h" />
     <ClInclude Include="..\tangerine\lua_vec.h" />
     <ClInclude Include="..\tangerine\magica.h" />
+    <ClInclude Include="..\tangerine\meshing.h" />
     <ClInclude Include="..\tangerine\profiling.h" />
     <ClInclude Include="..\tangerine\racket_env.h" />
     <ClInclude Include="..\tangerine\sdf_evaluator.h" />
@@ -308,6 +311,7 @@
     <ClInclude Include="..\third_party\lua-5.4.4\lua\lundump.h" />
     <ClInclude Include="..\third_party\lua-5.4.4\lua\lvm.h" />
     <ClInclude Include="..\third_party\lua-5.4.4\lua\lzio.h" />
+    <ClInclude Include="..\third_party\predicates\predicates.h" />
     <ClInclude Include="..\third_party\stb\stb_connected_components.h" />
     <ClInclude Include="..\third_party\stb\stb_c_lexer.h" />
     <ClInclude Include="..\third_party\stb\stb_divide.h" />

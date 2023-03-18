@@ -59,6 +59,14 @@ if (ImGui::BeginTabItem("lua-5.4.4"))
 }
 #endif
 
+#if 1
+if (ImGui::BeginTabItem("predicates"))
+{
+	ImGui::TextUnformatted("Routines for Arbitrary Precision Floating-point Arithmetic\nand Fast Robust Geometric Predicates\n(predicates.c)\n\nMay 18, 1996\n\nPlaced in the public domain by\nJonathan Richard Shewchuk\nSchool of Computer Science\nCarnegie Mellon University\n5000 Forbes Avenue\nPittsburgh, Pennsylvania  15213-3891\njrs@cs.cmu.edu\n\nThis file contains C implementation of algorithms for exact addition\nand multiplication of floating-point numbers, and predicates for\nrobustly performing the orientation and incircle tests used in\ncomputational geometry.  The algorithms and underlying theory are\ndescribed in Jonathan Richard Shewchuk.  \"Adaptive Precision Floating-\nPoint Arithmetic and Fast Robust Geometric Predicates.\"  Technical\nReport CMU-CS-96-140, School of Computer Science, Carnegie Mellon\nUniversity, Pittsburgh, Pennsylvania, May 1996.  (Submitted to\nDiscrete & Computational Geometry.)\n\nThis file, the paper listed above, and other information are available\nfrom the Web page http://www.cs.cmu.edu/~quake/robust.html .\n", nullptr);
+	ImGui::EndTabItem();
+}
+#endif
+
 #if EMBED_RACKET
 if (ImGui::BeginTabItem("racket"))
 {

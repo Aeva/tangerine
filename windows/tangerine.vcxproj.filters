@@ -46,6 +46,9 @@
     <Filter Include="Third Party\whereami">
       <UniqueIdentifier>{7215dd40-bc46-4d0a-8a1d-33c6e26aef41}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Third Party\predicates">
+      <UniqueIdentifier>{5ef2f8b5-3966-4e1d-89f1-9983c440ff2b}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\third_party\glad\glad.c">
@@ -251,6 +254,12 @@
     </ClCompile>
     <ClCompile Include="..\third_party\whereami\src\whereami.c">
       <Filter>Third Party\whereami</Filter>
+    </ClCompile>
+    <ClCompile Include="..\tangerine\meshing.cpp">
+      <Filter>Tangerine</Filter>
+    </ClCompile>
+    <ClCompile Include="..\third_party\predicates\predicates.c">
+      <Filter>Third Party\predicates</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -518,6 +527,12 @@
     </ClInclude>
     <ClInclude Include="..\third_party\whereami\src\whereami.h">
       <Filter>Third Party\whereami</Filter>
+    </ClInclude>
+    <ClInclude Include="..\tangerine\meshing.h">
+      <Filter>Tangerine</Filter>
+    </ClInclude>
+    <ClInclude Include="..\third_party\predicates\predicates.h">
+      <Filter>Third Party\predicates</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
