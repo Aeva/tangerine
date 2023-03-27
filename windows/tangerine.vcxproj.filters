@@ -252,6 +252,9 @@
     <ClCompile Include="..\third_party\whereami\src\whereami.c">
       <Filter>Third Party\whereami</Filter>
     </ClCompile>
+    <ClCompile Include="..\tangerine\surface_nets.cpp">
+      <Filter>Tangerine</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\third_party\glad\glad.h">
@@ -518,6 +521,9 @@
     </ClInclude>
     <ClInclude Include="..\third_party\whereami\src\whereami.h">
       <Filter>Third Party\whereami</Filter>
+    </ClInclude>
+    <ClInclude Include="..\tangerine\surface_nets.h">
+      <Filter>Tangerine</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
