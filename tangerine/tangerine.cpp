@@ -1170,7 +1170,7 @@ void RenderUI(SDL_Window* Window, bool& Live)
 	static bool ExportSkipRefine;
 	static int ExportRefinementSteps;
 	static ExportFormat ExportMeshFormat;
-	static bool ExportPointCloud;
+	static bool ExportPointCloud = false;
 	static float MagicaGridSize = 1.0;
 	static int MagicaColorIndex = 0;
 	static std::string ExportPath;
@@ -1179,7 +1179,7 @@ void RenderUI(SDL_Window* Window, bool& Live)
 	static int NewMaxIterations = 0;
 
 	const bool DefaultExportSkipRefine = false;
-	const float DefaultExportStepSize = 0.01;
+	const float DefaultExportStepSize = 0.05;
 	const float DefaultExportScale = 1.0;
 	const int DefaultExportRefinementSteps = 5;
 	const float DefaultMagicaGridSize = 0.05;

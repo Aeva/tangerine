@@ -24,6 +24,7 @@
 #include <thread>
 #include <string>
 #include <fmt/format.h>
+#include <surface_nets.h>
 #include "threadpool.h"
 #include "extern.h"
 #include "export.h"
@@ -55,7 +56,7 @@ std::atomic_int WriteCount;
 std::atomic_int WriteProgress;
 
 
-void WriteSTL(SDFOctree* Octree, std::string Path, std::vector<vec3> Vertices, std::vector<ivec4> Quads, float Scale)
+void WriteSTL(SDFOctree* Octree, std::string Path, std::vector<vec3> Vertices, std::vector<ivec3> Triangles, float Scale)
 {
 	std::ofstream OutFile;
 	OutFile.open(Path, std::ios::out | std::ios::binary);
@@ -66,17 +67,17 @@ void WriteSTL(SDFOctree* Octree, std::string Path, std::vector<vec3> Vertices, s
 		OutFile << '\0';
 	}
 
-	SecondaryCount.store(Quads.size());
+	SecondaryCount.store(Triangles.size());
 	std::vector<glm::vec3> Normals;
-	Normals.reserve(Quads.size());
-	for (ivec4& Quad : Quads)
+	Normals.reserve(Triangles.size());
+	for (ivec3& Triangle : Triangles)
 	{
 		if (ExportState.load() != 3 || !ExportActive.load())
 		{
 			break;
 		}
 		SecondaryProgress.fetch_add(1);
-		vec3 Center = (Vertices[Quad.x] + Vertices[Quad.y] + Vertices[Quad.z] + Vertices[Quad.w]) / vec3(4.0);
+		vec3 Center = (Vertices[Triangle.x] + Vertices[Triangle.y] + Vertices[Triangle.z]) / vec3(3.0);
 		vec3 Normal = Octree->Gradient(Center);
 		Normals.push_back(Normal);
 	}
@@ -86,34 +87,24 @@ void WriteSTL(SDFOctree* Octree, std::string Path, std::vector<vec3> Vertices, s
 		Vertex *= Scale;
 	}
 
-	WriteCount.store(Quads.size());
-	uint32_t Triangles = Quads.size() * 2;
-	OutFile.write(reinterpret_cast<char*>(&Triangles), 4);
-	for (int q = 0; q < Quads.size(); ++q)
+	WriteCount.store(Triangles.size());
+	uint32_t TriangleCount = Triangles.size();
+	OutFile.write(reinterpret_cast<char*>(&TriangleCount), 4);
+	for (int t = 0; t < Triangles.size(); ++t)
 	{
 		if (ExportState.load() != 3 || !ExportActive.load())
 		{
 			break;
 		}
 		WriteProgress.fetch_add(1);
-		ivec4& Quad = Quads[q];
-		vec3& Normal = Normals[q];
+		ivec3& Triangle = Triangles[t];
+		vec3& Normal = Normals[t];
 		{
 			OutFile.write(reinterpret_cast<char*>(&Normal), 12);
 
-			OutFile.write(reinterpret_cast<char*>(&Vertices[Quad.x]), 12);
-			OutFile.write(reinterpret_cast<char*>(&Vertices[Quad.y]), 12);
-			OutFile.write(reinterpret_cast<char*>(&Vertices[Quad.z]), 12);
-
-			uint16_t Attributes = 0;
-			OutFile.write(reinterpret_cast<char*>(&Attributes), 2);
-		}
-		{
-			OutFile.write(reinterpret_cast<char*>(&Normal), 12);
-
-			OutFile.write(reinterpret_cast<char*>(&Vertices[Quad.x]), 12);
-			OutFile.write(reinterpret_cast<char*>(&Vertices[Quad.z]), 12);
-			OutFile.write(reinterpret_cast<char*>(&Vertices[Quad.w]), 12);
+			OutFile.write(reinterpret_cast<char*>(&Vertices[Triangle.x]), 12);
+			OutFile.write(reinterpret_cast<char*>(&Vertices[Triangle.y]), 12);
+			OutFile.write(reinterpret_cast<char*>(&Vertices[Triangle.z]), 12);
 
 			uint16_t Attributes = 0;
 			OutFile.write(reinterpret_cast<char*>(&Attributes), 2);
@@ -121,7 +112,7 @@ void WriteSTL(SDFOctree* Octree, std::string Path, std::vector<vec3> Vertices, s
 	}
 
 	// Align to 4 bytes for good luck.
-	size_t Written = 84 + 100 * Quads.size();
+	size_t Written = 84 + 100 * Triangles.size();
 	for (int i = 0; i < Written % 4; ++i)
 	{
 		OutFile << '\0';
@@ -190,13 +181,13 @@ std::string PlyHeader(size_t VertexCount, size_t TriangleCount, bool ExportColor
 }
 
 
-void WritePLY(SDFOctree* Octree, std::string Path, std::vector<vec3> Vertices, std::vector<ivec4> Quads, float Scale)
+void WritePLY(SDFOctree* Octree, std::string Path, std::vector<vec3> Vertices, std::vector<ivec3> Triangles, float Scale)
 {
 	const bool ExportColor = Octree->Evaluator->HasPaint();
 	std::string Header;
 	{
 		size_t VertexCount = Vertices.size();
-		size_t TriangleCount = Quads.size() * 2;
+		size_t TriangleCount = Triangles.size();
 		Header = PlyHeader(VertexCount, TriangleCount, ExportColor);
 	}
 
@@ -225,7 +216,7 @@ void WritePLY(SDFOctree* Octree, std::string Path, std::vector<vec3> Vertices, s
 	}
 
 	// Write vertex data.
-	WriteCount.store(Vertices.size() + Quads.size());
+	WriteCount.store(Vertices.size() + Triangles.size());
 	std::ofstream OutFile;
 	OutFile.open(Path, std::ios::out | std::ios::binary);
 	OutFile.write(Header.c_str(), Header.size());
@@ -242,18 +233,12 @@ void WritePLY(SDFOctree* Octree, std::string Path, std::vector<vec3> Vertices, s
 
 	// Write face data.
 	const int8_t FaceVerts = 3;
-	for (int q = 0; q < Quads.size(); ++q)
+	for (ivec3& Triangle : Triangles)
 	{
 		WriteProgress.fetch_add(1);
 		{
-			ivec3 FaceA = Quads[q].xyz;
 			OutFile.write(reinterpret_cast<const char*>(&FaceVerts), 1);
-			OutFile.write(reinterpret_cast<char*>(&FaceA), 12);
-		}
-		{
-			ivec3 FaceB = Quads[q].xzw;
-			OutFile.write(reinterpret_cast<const char*>(&FaceVerts), 1);
-			OutFile.write(reinterpret_cast<char*>(&FaceB), 12);
+			OutFile.write(reinterpret_cast<char*>(&Triangle), 12);
 		}
 	}
 
@@ -263,180 +248,65 @@ void WritePLY(SDFOctree* Octree, std::string Path, std::vector<vec3> Vertices, s
 
 void MeshExportThread(SDFNode* Evaluator, vec3 ModelMin, vec3 ModelMax, vec3 Step, int RefineIterations, std::string Path, ExportFormat Format, float Scale)
 {
-	const vec3 Half = Step / vec3(2.0);
-	const float Diagonal = length(Half);
 	SDFOctree* Octree = SDFOctree::Create(Evaluator, 0.25);
 
-	std::vector<vec3> Vertices;
-	std::map<vec3, int, Vec3Less> VertMemo;
-	std::mutex VerticesCS;
+	// The lower bound needs a margin to prevent clipping.
+	ModelMin -= Step * vec3(2.0);
+	ivec3 Extent = ivec3(ceil((ModelMax - ModelMin) / Step));
 
-	auto NewVert = [&](vec3 Vertex) -> int
+	isosurface::regular_grid_t Grid;
+	Grid.x = ModelMin.x;
+	Grid.y = ModelMin.y;
+	Grid.z = ModelMin.z;
+	Grid.dx = Step.x;
+	Grid.dy = Step.y;
+	Grid.dz = Step.z;
+	Grid.sx = Extent.x;
+	Grid.sy = Extent.y;
+	Grid.sz = Extent.z;
+
+	auto Eval = [&](float X, float Y, float Z) -> float
 	{
-		VerticesCS.lock();
-		auto Found = VertMemo.find(Vertex);
-		if (Found != VertMemo.end())
-		{
-			VerticesCS.unlock();
-			return Found->second;
-		}
-		else
-		{
-			int Next = Vertices.size();
-			VertMemo[Vertex] = Next;
-			Vertices.push_back(Vertex);
-			VerticesCS.unlock();
-			return Next;
-		}
+		return Octree->Eval(vec3(X, Y, Z));
 	};
 
-	std::vector<ivec4> Quads;
-	std::mutex QuadsCS;
-
-	{
-		const vec3 Start = ModelMin;
-		const vec3 Stop = ModelMax + Step;
-		const ivec3 Iterations = ivec3(ceil((Stop - Start) / Step));
-		const int Slice = Iterations.x * Iterations.y;
-		const int TotalCells = Iterations.x * Iterations.y * Iterations.z;
-		VoxelCount.store(TotalCells);
-
-		Pool([&]() \
-		{
-			while (ExportState.load() == 1 && ExportActive.load())
-			{
-				int i = GenerationProgress.fetch_add(1);
-				if (i < TotalCells)
-				{
-					float Z = float(i / Slice) * Step.z + Start.z;
-					float Y = float((i % Slice) / Iterations.x) * Step.y + Start.y;
-					float X = float(i % Iterations.x) * Step.x + Start.x;
-
-					vec3 Cursor = vec3(X, Y, Z) + Half;
-
-					vec4 Dist;
-					{
-						float Coarse = Octree->Eval(vec3(X, Y, Z));
-						if (Coarse > Diagonal * 2.0)
-						{
-							continue;
-						}
-						Dist.x = Octree->Eval(Cursor - vec3(Step.x, 0.0, 0.0));
-						Dist.y = Octree->Eval(Cursor - vec3(0.0, Step.y, 0.0));
-						Dist.z = Octree->Eval(Cursor - vec3(0.0, 0.0, Step.z));
-						Dist.w = Octree->Eval(Cursor);
-					}
-
-					if (sign(Dist.w) != sign(Dist.x))
-					{
-						ivec4 Quad(
-							NewVert(Half * vec3(-1.0, -1.0, -1.0) + Cursor),
-							NewVert(Half * vec3(-1.0, 1.0, -1.0) + Cursor),
-							NewVert(Half * vec3(-1.0, 1.0, 1.0) + Cursor),
-							NewVert(Half * vec3(-1.0, -1.0, 1.0) + Cursor));
-						if (sign(Dist.w) < sign(Dist.x))
-						{
-							Quad = Quad.wzyx;
-						}
-						QuadsCS.lock();
-						Quads.push_back(Quad);
-						QuadsCS.unlock();
-					}
-
-					if (sign(Dist.w) != sign(Dist.y))
-					{
-						ivec4 Quad(
-							NewVert(Half * vec3(-1.0, -1.0, 1.0) + Cursor),
-							NewVert(Half * vec3(1.0, -1.0, 1.0) + Cursor),
-							NewVert(Half * vec3(1.0, -1.0, -1.0) + Cursor),
-							NewVert(Half * vec3(-1.0, -1.0, -1.0) + Cursor));
-						if (sign(Dist.w) < sign(Dist.y))
-						{
-							Quad = Quad.wzyx;
-						}
-						QuadsCS.lock();
-						Quads.push_back(Quad);
-						QuadsCS.unlock();
-					}
-
-					if (sign(Dist.w) != sign(Dist.z))
-					{
-						ivec4 Quad(
-							NewVert(Half * vec3(-1.0, -1.0, -1.0) + Cursor),
-							NewVert(Half * vec3(1.0, -1.0, -1.0) + Cursor),
-							NewVert(Half * vec3(1.0, 1.0, -1.0) + Cursor),
-							NewVert(Half * vec3(-1.0, 1.0, -1.0) + Cursor));
-						if (sign(Dist.w) < sign(Dist.z))
-						{
-							Quad = Quad.wzyx;
-						}
-						QuadsCS.lock();
-						Quads.push_back(Quad);
-						QuadsCS.unlock();
-					}
-				}
-				else
-				{
-					break;
-				}
-			}
-		});
-	}
+	isosurface::mesh ExtractedMesh;
+	isosurface::par_surface_nets(Eval, Grid, ExtractedMesh);
 
 	ExportState.store(2);
-	VertexCount.store(Vertices.size());
 
-	if (RefineIterations > 0)
+	std::vector<vec3> Vertices;
+	Vertices.reserve(ExtractedMesh.vertices_.size());
+
+	std::vector<ivec3> Triangles;
+	Triangles.reserve(ExtractedMesh.faces_.size());
+
+	for (const isosurface::point_t& ExtractedVertex : ExtractedMesh.vertices_)
 	{
-		Pool([&]() \
-		{
-			while (ExportState.load() == 2 && ExportActive.load())
-			{
-				int i = RefinementProgress.fetch_add(1);
-				if (i < Vertices.size())
-				{
-					vec3& Vertex = Vertices[i];
-					vec3 Low = Vertex - vec3(Half);
-					vec3 High = Vertex + vec3(Half);
+		vec3 Vertex(ExtractedVertex.x, ExtractedVertex.y, ExtractedVertex.z);
+		Vertices.push_back(Vertex);
+	}
 
-					vec3 Cursor = Vertex;
-					for (int r = 0; r < RefineIterations; ++r)
-					{
-						vec3 RayDir = Octree->Gradient(Cursor);
-						float Dist = Octree->Eval(Cursor) * -1.0;
-						Cursor += RayDir * Dist;
-					}
-					Cursor = clamp(Cursor, Low, High);
-
-					if (distance(Cursor, Vertex) <= Diagonal)
-					{
-						// TODO: despite the above clamp, some times the Cursor will end up on 0,0,0 when it would be
-						// well outside a half voxel distance.  This branch should at least prevent that, but there is
-						// probably a problem with the Gradient function that is causing this.
-						Vertex = Cursor;
-					}
-				}
-				else
-				{
-					break;
-				}
-			}
-		});
+	for (const isosurface::shared_vertex_mesh::triangle_t& ExtractedTriangle : ExtractedMesh.faces_)
+	{
+		ivec3 Triangle(ExtractedTriangle.v0, ExtractedTriangle.v1, ExtractedTriangle.v2);
+		Triangles.push_back(Triangle);
 	}
 
 	ExportState.store(3);
 
 	if (Format == ExportFormat::STL)
 	{
-		WriteSTL(Octree, Path, Vertices, Quads, Scale);
+		WriteSTL(Octree, Path, Vertices, Triangles, Scale);
 	}
 	else if (Format == ExportFormat::PLY)
 	{
-		WritePLY(Octree, Path, Vertices, Quads, Scale);
+		WritePLY(Octree, Path, Vertices, Triangles, Scale);
 	}
 
-	ExportState.store(0);
 	delete Octree;
+
+	ExportState.store(0);
 }
 
 
@@ -531,8 +401,8 @@ void PointCloudExportThread(SDFNode* Evaluator, vec3 ModelMin, vec3 ModelMax, ve
 
 	if (Format == ExportFormat::PLY)
 	{
-		std::vector<ivec4> NoQuads;
-		WritePLY(Octree, Path, Vertices, NoQuads, Scale);
+		std::vector<ivec3> NoTriangles;
+		WritePLY(Octree, Path, Vertices, NoTriangles, Scale);
 	}
 
 	ExportState.store(0);
