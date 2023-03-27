@@ -46,6 +46,9 @@
     <Filter Include="Third Party\whereami">
       <UniqueIdentifier>{7215dd40-bc46-4d0a-8a1d-33c6e26aef41}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Third Party\naive-surface-nets">
+      <UniqueIdentifier>{a296ea19-3eb6-4178-8262-1bf51fc95c71}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\third_party\glad\glad.c">
@@ -251,6 +254,9 @@
     </ClCompile>
     <ClCompile Include="..\third_party\whereami\src\whereami.c">
       <Filter>Third Party\whereami</Filter>
+    </ClCompile>
+    <ClCompile Include="..\third_party\naive-surface-nets\src\surface_nets.cpp">
+      <Filter>Third Party\naive-surface-nets</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -518,6 +524,24 @@
     </ClInclude>
     <ClInclude Include="..\third_party\whereami\src\whereami.h">
       <Filter>Third Party\whereami</Filter>
+    </ClInclude>
+    <ClInclude Include="..\third_party\naive-surface-nets\include\mesh.h">
+      <Filter>Third Party\naive-surface-nets</Filter>
+    </ClInclude>
+    <ClInclude Include="..\third_party\naive-surface-nets\include\point.h">
+      <Filter>Third Party\naive-surface-nets</Filter>
+    </ClInclude>
+    <ClInclude Include="..\third_party\naive-surface-nets\include\regular_grid.h">
+      <Filter>Third Party\naive-surface-nets</Filter>
+    </ClInclude>
+    <ClInclude Include="..\third_party\naive-surface-nets\include\shared_vertex_mesh.h">
+      <Filter>Third Party\naive-surface-nets</Filter>
+    </ClInclude>
+    <ClInclude Include="..\third_party\naive-surface-nets\include\surface_nets.h">
+      <Filter>Third Party\naive-surface-nets</Filter>
+    </ClInclude>
+    <ClInclude Include="..\third_party\naive-surface-nets\include\triangle.h">
+      <Filter>Third Party\naive-surface-nets</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
