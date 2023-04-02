@@ -1882,6 +1882,13 @@ StatusCode Boot(int argc, char* argv[])
 			else
 			{
 				WindowFlags |= SDL_WINDOW_RESIZABLE;
+
+				SDL_DisplayMode DisplayMode;
+				SDL_GetCurrentDisplayMode(0, &DisplayMode);
+				const int MinDisplaySize = min(DisplayMode.w, DisplayMode.h);
+				const int MaxWindowSize = max(480, MinDisplaySize - 128);
+				WindowWidth = min(WindowWidth, MaxWindowSize);
+				WindowHeight = min(WindowHeight, MaxWindowSize);
 			}
 			Window = SDL_CreateWindow(
 				"Tangerine",
