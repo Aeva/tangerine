@@ -1344,9 +1344,7 @@ void RenderUI(SDL_Window* Window, bool& Live)
 				Assert(Results.size() == 1);
 				ExportPath = Results[0].string();
 				ExportMeshFormat = ExportFormatForPath(ExportPath);
-
-				ExportPointCloud = ExportMeshFormat == ExportFormat::PLY;
-
+				ExportPointCloud = false;
 				ShowExportOptions = true;
 
 				ExportStepSize = DefaultExportStepSize;
