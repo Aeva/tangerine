@@ -3,6 +3,9 @@
 #include "point.h"
 
 #include <vector>
+// BEGIN TANGERINE MOD - Linux build fix
+#include <cstdint>
+// END TANGERINE MOD
 
 namespace isosurface {
 

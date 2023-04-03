@@ -123,6 +123,15 @@ target_include_directories(ImFileDialog
 	PRIVATE "third_party/stb") #/stb_image.h")
 
 #######################################################################
+## naive-surface-nets:
+
+add_library(NaiveSurfaceNets OBJECT
+	"third_party/naive-surface-nets/src/surface_nets.cpp")
+
+target_include_directories(NaiveSurfaceNets
+	PUBLIC "third_party/naive-surface-nets/include")
+
+#######################################################################
 ## VoxWriter:
 
 add_library(VoxWriter OBJECT "third_party/voxwriter/VoxWriter.cpp")
@@ -156,6 +165,7 @@ target_link_libraries(tangerine PRIVATE
 	glm
 	imgui
 	ImFileDialog
+	NaiveSurfaceNets
 	VoxWriter
 	whereami
 	tinfo # see https://gitlab.kitware.com/cmake/cmake/-/issues/23236
