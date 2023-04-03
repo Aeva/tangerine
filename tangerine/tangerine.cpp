@@ -1347,7 +1347,25 @@ void RenderUI(SDL_Window* Window, bool& Live)
 				ExportPointCloud = false;
 				ShowExportOptions = true;
 
-				ExportStepSize = DefaultExportStepSize;
+				const glm::vec3 ModelExtent = ModelBounds.Extent();
+				const float ModelVolume = ModelExtent.x * ModelExtent.y * ModelExtent.z;
+				const float MinDimension = min(min(ModelExtent.x, ModelExtent.y), ModelExtent.z);
+				if (ModelVolume > 0)
+				{
+					// This is intended to calculate an export resolution that strikes a nice
+					// balance between high resolution vs fast, using the model's volume as a
+					// rough proxy for export time, so that if a user clicks through the default
+					// options they won't be waiting long to get a hopefully useful mesh export.
+					const float IdealByMinSide = MinDimension / 10.0;
+					const float IdealByVolume = ModelVolume / 2048.0;
+					ExportStepSize = min(IdealByMinSide, IdealByVolume);
+				}
+				else
+				{
+					// The export is nonsense in this case, so just do whatever.
+					ExportStepSize = DefaultExportStepSize;
+				}
+
 				for (int i = 0; i < 3; ++i)
 				{
 					ExportSplitStep[i] = ExportStepSize;
