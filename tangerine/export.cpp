@@ -271,7 +271,7 @@ void MeshExportThread(SDFNode* Evaluator, vec3 ModelMin, vec3 ModelMax, vec3 Ste
 	};
 
 	isosurface::mesh ExtractedMesh;
-	isosurface::par_surface_nets(Eval, Grid, ExtractedMesh);
+	isosurface::par_surface_nets(Eval, Grid, ExtractedMesh, ExportActive, ExportState, GenerationProgress, VoxelCount);
 
 	ExportState.store(2);
 

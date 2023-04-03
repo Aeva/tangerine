@@ -2,6 +2,7 @@
 #include "regular_grid.h"
 
 #include <functional>
+#include <atomic>
 
 namespace isosurface {
 
@@ -17,6 +18,17 @@ void par_surface_nets(
 	std::function<float(float x, float y, float z)> const& implicit_function,
 	regular_grid_t const& grid,
 	mesh& out_mesh,
+	float const isovalue = 0.f
+);
+
+void par_surface_nets(
+	std::function<float(float x, float y, float z)> const& implicit_function,
+	regular_grid_t const& grid,
+	mesh& out_mesh,
+	std::atomic_bool& ExportActive,
+	std::atomic_int& ExportState,
+	std::atomic_int& Progress,
+	std::atomic_int& Estimate,
 	float const isovalue = 0.f
 );
 

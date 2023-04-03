@@ -819,11 +819,18 @@ std::array<std::array<std::size_t, 3>, 3> get_adjacent_cubes_of_edge(
  * @param isovalue
  * @return
  */
- // BEGIN TANGERINE MOD - Modify function to remove LIBIGL dependency
-void par_surface_nets(
+// BEGIN TANGERINE MOD - Modify function to remove LIBIGL dependency
+// I also moved the implementation of par_surface_nets out into its own implementation
+// function for adding optional progress atomics
+template<bool atomic_controls>
+void par_surface_nets_inner(
     std::function<float(float x, float y, float z)> const& implicit_function,
     regular_grid_t const& grid,
     isosurface::mesh& mesh,
+    std::atomic_bool& ExportActive,
+    std::atomic_int& ExportState,
+    std::atomic_int& Progress,
+    std::atomic_int& Estimate,
     float const isovalue)
 {
 // END TANGERINE MOD
@@ -851,12 +858,23 @@ void par_surface_nets(
     std::vector<std::size_t> ks(longest_dimension_size, 0u);
     std::iota(ks.begin(), ks.end(), 0u);
 
+// BEGIN TANGERINE MOD - Atomic progress controls
+    Estimate.store(longest_dimension_size);
+// END TANGERINE MOD
+
     std::mutex sync;
     std::for_each(std::execution::par, ks.cbegin(), ks.cend(), [&](std::size_t k) {
         for (std::size_t j = 0; j < grid.sy; ++j)
         {
             for (std::size_t i = 0; i < grid.sx; ++i)
             {
+// BEGIN TANGERINE MOD - Atomic progress controls
+                if (atomic_controls && (!ExportActive.load() || ExportState.load() != 1))
+                {
+                    return;
+                }
+// END TANGERINE MOD
+
                 if (is_x_longest_dimension)
                 {
                     std::swap(i, k);
@@ -964,13 +982,32 @@ void par_surface_nets(
                 mesh.add_vertex(mesh_vertex);
             }
         }
+// BEGIN TANGERINE MOD - Atomic progress controls
+        if (atomic_controls)
+        {
+            Progress.fetch_add(1);
+        }
+// END TANGERINE MOD
     });
+
+// BEGIN TANGERINE MOD - Atomic progress controls
+    if (atomic_controls)
+    {
+        Estimate.fetch_add(active_cube_to_vertex_index_map.size());
+    }
+// END TANGERINE MOD
 
     std::for_each(
         std::execution::par,
         active_cube_to_vertex_index_map.cbegin(),
         active_cube_to_vertex_index_map.cend(),
         [&](std::pair<std::size_t const, std::uint64_t> const& key_value) {
+// BEGIN TANGERINE MOD - Atomic progress controls
+            if (atomic_controls && (!ExportActive.load() || ExportState.load() != 1))
+            {
+                return;
+            }
+// END TANGERINE MOD
             std::size_t const active_cube_index = key_value.first;
             std::uint64_t const vertex_index    = key_value.second;
 
@@ -1079,6 +1116,12 @@ void par_surface_nets(
                 mesh.add_face({v0, v1, v2});
                 mesh.add_face({v0, v2, v3});
             }
+// BEGIN TANGERINE MOD - Atomic progress controls
+            if (atomic_controls)
+            {
+                Progress.fetch_add(1);
+            }
+// END TANGERINE MOD
         });
     // clang-format on
 // BEGIN TANGERINE MOD - Modify function to remove LIBIGL dependency
@@ -1087,6 +1130,41 @@ void par_surface_nets(
 #endif
 // END TANGERINE MOD
 }
+
+// BEGIN TANGERINE MOD - Moving internals to another function to add progress atomics
+/**
+ * @brief Implements naive surface nets algorithm in parallel
+ * @param implicit_function
+ * @param grid
+ * @param isovalue
+ * @return
+ */
+void par_surface_nets(
+    std::function<float(float x, float y, float z)> const& implicit_function,
+    regular_grid_t const& grid,
+    isosurface::mesh& mesh,
+    float const isovalue)
+{
+    std::atomic_bool ExportActive(true);
+    std::atomic_int ExportState(1);
+    std::atomic_int Progress(0);
+    std::atomic_int Estimate(0);
+    par_surface_nets_inner<false>(implicit_function, grid, mesh, ExportActive, ExportState, Progress, Estimate, isovalue);
+}
+
+void par_surface_nets(
+    std::function<float(float x, float y, float z)> const& implicit_function,
+    regular_grid_t const& grid,
+    mesh& mesh,
+    std::atomic_bool& ExportActive,
+    std::atomic_int& ExportState,
+    std::atomic_int& Progress,
+    std::atomic_int& Estimate,
+    float const isovalue)
+{
+    par_surface_nets_inner<true>(implicit_function, grid, mesh, ExportActive, ExportState, Progress, Estimate, isovalue);
+}
+// END TANGERINE MOD
 
 /**
  * @brief
