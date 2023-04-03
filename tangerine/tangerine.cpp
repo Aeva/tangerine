@@ -1600,15 +1600,25 @@ void RenderUI(SDL_Window* Window, bool& Live)
 			ImGui::OpenPopup("Export Progress");
 			if (ImGui::BeginPopupModal("Export Progress", nullptr, ImGuiWindowFlags_NoSavedSettings))
 			{
-				ImGui::ProgressBar(Progress.Generation, ImVec2(-FLT_MIN, 0), "Mesh Generation");
-				ImGui::ProgressBar(Progress.Refinement, ImVec2(-FLT_MIN, 0), "Mesh Refinement");
+				if (ExportPointCloud)
+				{
+					ImGui::ProgressBar(Progress.Generation, ImVec2(-FLT_MIN, 0), "Voxel Search");
+					ImGui::ProgressBar(Progress.Refinement, ImVec2(-FLT_MIN, 0), "Point Refinement");
+				}
+				else
+				{
+					ImGui::ProgressBar(Progress.Generation, ImVec2(-FLT_MIN, 0), "Naive Surface Nets");
+				}
 				ImGui::ProgressBar(Progress.Secondary, ImVec2(-FLT_MIN, 0), "Vertex Attributes");
 				ImGui::ProgressBar(Progress.Write, ImVec2(-FLT_MIN, 0), "Saving");
-				if (ImGui::Button("Good Enough"))
+				if (ExportPointCloud)
 				{
-					CancelExport(false);
+					if (ImGui::Button("Good Enough"))
+					{
+						CancelExport(false);
+					}
+					ImGui::SameLine();
 				}
-				ImGui::SameLine();
 				if (ImGui::Button("Halt"))
 				{
 					CancelExport(true);
