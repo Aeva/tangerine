@@ -27,6 +27,10 @@
 #include <imgui_impl_opengl3.h>
 #include <ImFileDialog.h>
 
+#if !_WIN64
+#include <stdlib.h>
+#endif
+
 #include "events.h"
 #include "sdf_evaluator.h"
 #include "sdf_rendering.h"
@@ -1880,6 +1884,17 @@ StatusCode Boot(int argc, char* argv[])
 				Cursor += 1;
 				continue;
 			}
+			else if (Args[Cursor] == "--llvmpipe")
+			{
+#if _WIN46
+				std::cout << "The \"--llvmpipe\" option is only available on Linux.\n";
+#else
+				char* FallbackEnv = (char*)"LIBGL_ALWAYS_SOFTWARE=1";
+				putenv(FallbackEnv);
+#endif
+				Cursor += 1;
+				continue;
+			}
 			else
 			{
 				std::cout << "Invalid commandline arg(s).\n";
@@ -2393,3 +2408,4 @@ int main(int argc, char* argv[])
 	return 0;
 }
 #endif
+
