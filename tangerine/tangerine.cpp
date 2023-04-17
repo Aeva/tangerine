@@ -1,5 +1,5 @@
 
-// Copyright 2022 Aeva Palecek
+// Copyright 2023 Aeva Palecek
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -27,10 +27,6 @@
 #include <imgui_impl_opengl3.h>
 #include <ImFileDialog.h>
 
-#if !_WIN64
-#include <stdlib.h>
-#endif
-
 #include "events.h"
 #include "sdf_evaluator.h"
 #include "sdf_rendering.h"
@@ -43,6 +39,10 @@
 #include "lua_env.h"
 #include "racket_env.h"
 #include "tangerine.h"
+
+#if !_WIN64
+#include "linux.h"
+#endif
 
 #include <iostream>
 #include <iterator>
@@ -1834,6 +1834,10 @@ StatusCode Boot(int argc, char* argv[])
 		Args.push_back(argv[i]);
 	}
 
+#if !_WIN64
+	bool RequestSoftwareDriver = false;
+#endif
+
 	int WindowWidth = 900;
 	int WindowHeight = 900;
 	HeadlessMode = false;
@@ -1886,11 +1890,10 @@ StatusCode Boot(int argc, char* argv[])
 			}
 			else if (Args[Cursor] == "--llvmpipe")
 			{
-#if _WIN46
+#if _WIN64
 				std::cout << "The \"--llvmpipe\" option is only available on Linux.\n";
 #else
-				char* FallbackEnv = (char*)"LIBGL_ALWAYS_SOFTWARE=1";
-				putenv(FallbackEnv);
+				RequestSoftwareDriver = true;
 #endif
 				Cursor += 1;
 				continue;
@@ -1902,7 +1905,9 @@ StatusCode Boot(int argc, char* argv[])
 			}
 		}
 	}
-
+#if !_WIN64
+	Linux::DriverCheck(RequestSoftwareDriver);
+#endif
 	{
 		std::cout << "Setting up SDL2... ";
 		SDL_SetMainReady();
