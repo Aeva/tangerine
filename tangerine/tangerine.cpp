@@ -2173,8 +2173,23 @@ void MainLoop()
 				static bool LastExportState = false;
 				bool ExportInProgress = GetExportProgress().Stage != 0;
 
-				bool RequestDraw = RealtimeMode || ShowStatsOverlay || RenderableModels.size() == 0 || IncompleteModels.size() > 0 || LastExportState != ExportInProgress;
+				static size_t LastRenderableCount = 0;
+				bool ModelsChanged = LastRenderableCount != RenderableModels.size();
+
+				for (SDFModel* Model : RenderableModels)
+				{
+					if (Model->Dirty)
+					{
+						Model->Dirty = false;
+						ModelsChanged = true;
+					}
+				}
+
+				bool FullRedraw = RealtimeMode || ModelsChanged || ShowStatsOverlay || RenderableModels.size() == 0;
+				bool RedrawUI = ExportInProgress || LastExportState != ExportInProgress;
+
 				LastExportState = ExportInProgress;
+				LastRenderableCount = RenderableModels.size();
 
 				BeginEvent("Process Input");
 				while (SDL_PollEvent(&Event))
@@ -2186,9 +2201,25 @@ void MainLoop()
 						Live = false;
 						break;
 					}
+					else if (Event.type == SDL_WINDOWEVENT)
+					{
+						switch (Event.window.event)
+						{
+							case SDL_WINDOWEVENT_SHOWN:
+							case SDL_WINDOWEVENT_EXPOSED:
+							case SDL_WINDOWEVENT_RESIZED:
+							case SDL_WINDOWEVENT_SIZE_CHANGED:
+							case SDL_WINDOWEVENT_MAXIMIZED:
+							case SDL_WINDOWEVENT_RESTORED:
+								FullRedraw = true;
+								break;
+							default:
+								break;
+						}
+					}
 					else
 					{
-						RequestDraw = true;
+						RedrawUI = true;
 					}
 					static bool Dragging = false;
 					if (!io.WantCaptureMouse && HasMouseFocus && RenderableModels.size() > 0)
@@ -2198,6 +2229,7 @@ void MainLoop()
 						case SDL_MOUSEMOTION:
 							if (Dragging)
 							{
+								FullRedraw = true;
 								MouseMotionX = Event.motion.xrel;
 								MouseMotionY = Event.motion.yrel;
 							}
@@ -2209,14 +2241,14 @@ void MainLoop()
 						case SDL_MOUSEBUTTONDOWN:
 							if (DeliverMouseButton(MouseEvent(Event.button, RayOrigin, MouseRay)))
 							{
-								Dragging = true;
+								FullRedraw = true;
 								SDL_SetRelativeMouseMode(SDL_TRUE);
 							}
 							break;
 						case SDL_MOUSEBUTTONUP:
 							if (Dragging)
 							{
-								Dragging = false;
+								FullRedraw = false;
 								SDL_SetRelativeMouseMode(SDL_FALSE);
 							}
 							else
@@ -2329,11 +2361,10 @@ void MainLoop()
 						LastTimePoint = CurrentTimePoint;
 					}
 					MainEnvironment->Advance(DeltaTime, ElapsedTime);
-					RequestDraw = true;
 					EndEvent();
 				}
 
-				if (RequestDraw || ExportInProgress)
+				if (FullRedraw || RedrawUI)
 				{
 					{
 						BeginEvent("Update UI");
@@ -2349,7 +2380,7 @@ void MainLoop()
 						}
 						GetRenderableModels(RenderableModels);
 					}
-					RenderFrame(ScreenWidth, ScreenHeight, RenderableModels, LastView, RequestDraw);
+					RenderFrame(ScreenWidth, ScreenHeight, RenderableModels, LastView, FullRedraw);
 					{
 						BeginEvent("Dear ImGui Draw");
 						glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Dear ImGui");

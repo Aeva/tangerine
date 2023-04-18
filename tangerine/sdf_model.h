@@ -29,6 +29,9 @@ struct SDFModel
 	TransformMachine Transform;
 	Buffer TransformBuffer;
 
+	// This is used to indicate that something about the model changed that requires a full redraw.
+	bool Dirty = true;
+
 	std::map<std::string, size_t> ProgramTemplateSourceMap;
 	std::vector<ProgramTemplate> ProgramTemplates;
 

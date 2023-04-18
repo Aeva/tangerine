@@ -804,6 +804,7 @@ int LuaHideModel(lua_State* L)
 {
 	LuaModel* Self = GetSDFModel(L, 1);
 	Self->Visible = false;
+	Self->Dirty = true;
 	return 1;
 };
 
@@ -812,6 +813,7 @@ int LuaShowModel(lua_State* L)
 {
 	LuaModel* Self = GetSDFModel(L, 1);
 	Self->Visible = true;
+	Self->Dirty = true;
 	return 1;
 };
 
@@ -822,6 +824,7 @@ int LuaModelMove(lua_State* L)
 	int NextArg = 2;
 	glm::vec3 Offset = GetVec3(L, NextArg);
 	Self->Transform.Move(Offset);
+	Self->Dirty = true;
 	lua_pop(L, 3);
 	return 1;
 }
@@ -835,6 +838,7 @@ int LuaModelMoveX(lua_State* L)
 		0.0,
 		0.0);
 	Self->Transform.Move(Offset);
+	Self->Dirty = true;
 	lua_pop(L, 1);
 	return 1;
 }
@@ -848,6 +852,7 @@ int LuaModelMoveY(lua_State* L)
 		(float)luaL_checknumber(L, 2),
 		0.0);
 	Self->Transform.Move(Offset);
+	Self->Dirty = true;
 	lua_pop(L, 1);
 	return 1;
 }
@@ -861,6 +866,7 @@ int LuaModelMoveZ(lua_State* L)
 		0.0,
 		(float)luaL_checknumber(L, 2));
 	Self->Transform.Move(Offset);
+	Self->Dirty = true;
 	lua_pop(L, 1);
 	return 1;
 }
@@ -875,6 +881,7 @@ int LuaModelRotate(lua_State* L)
 		(float)luaL_checknumber(L, 3),
 		(float)luaL_checknumber(L, 4));
 	Self->Transform.Rotate(Quat);
+	Self->Dirty = true;
 	lua_pop(L, 4);
 	return 1;
 }
@@ -888,6 +895,7 @@ int LuaModelRotateX(lua_State* L)
 	float S = sin(R);
 	float C = cos(R);
 	Self->Transform.Rotate(glm::quat(C, S, 0, 0));
+	Self->Dirty = true;
 	lua_pop(L, 1);
 	return 1;
 }
@@ -901,6 +909,7 @@ int LuaModelRotateY(lua_State* L)
 	float S = sin(R);
 	float C = cos(R);
 	Self->Transform.Rotate(glm::quat(C, 0, S, 0));
+	Self->Dirty = true;
 	lua_pop(L, 1);
 	return 1;
 }
@@ -914,6 +923,7 @@ int LuaModelRotateZ(lua_State* L)
 	float S = sin(R);
 	float C = cos(R);
 	Self->Transform.Rotate(glm::quat(C, 0, 0, S));
+	Self->Dirty = true;
 	lua_pop(L, 1);
 	return 1;
 }
@@ -923,6 +933,7 @@ int LuaModelResetTransform(lua_State* L)
 {
 	LuaModel* Self = GetSDFModel(L, 1);
 	Self->Transform.Reset();
+	Self->Dirty = true;
 	return 1;
 }
 
