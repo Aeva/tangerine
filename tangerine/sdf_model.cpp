@@ -43,7 +43,7 @@ void GetIncompleteModels(std::vector<SDFModel*>& Incomplete)
 
 	for (SDFModel* Model : LiveModels)
 	{
-		if (Model->HasPendingShaders())
+		if (Model->Painter->HasPendingShaders())
 		{
 			Incomplete.push_back(Model);
 		}
@@ -58,7 +58,7 @@ void GetRenderableModels(std::vector<SDFModel*>& Renderable)
 
 	for (SDFModel* Model : LiveModels)
 	{
-		if (Model->HasCompleteShaders())
+		if (Model->Painter->HasCompleteShaders())
 		{
 			Renderable.push_back(Model);
 		}
@@ -171,19 +171,19 @@ RayHit SDFModel::RayMarch(glm::vec3 RayStart, glm::vec3 RayDir, int MaxIteration
 }
 
 
-bool SDFModel::HasPendingShaders()
+bool Drawable::HasPendingShaders()
 {
 	return PendingShaders.size() > 0;
 }
 
 
-bool SDFModel::HasCompleteShaders()
+bool Drawable::HasCompleteShaders()
 {
 	return CompiledTemplates.size() > 0;
 }
 
 
-void SDFModel::CompileNextShader()
+void Drawable::CompileNextShader()
 {
 	BeginEvent("Compile Shader");
 
@@ -205,7 +205,10 @@ SDFModel::SDFModel(SDFNode* InEvaluator, const float VoxelSize)
 {
 	InEvaluator->Hold();
 	Evaluator = InEvaluator;
-	Compile(VoxelSize);
+
+	Painter = new Drawable();
+	Painter->Hold();
+	Painter->Compile(InEvaluator, VoxelSize);
 
 	TransformBuffer.DebugName = "Instance Transforms Buffer";
 
@@ -230,15 +233,12 @@ SDFModel::~SDFModel()
 	if (Evaluator)
 	{
 		Evaluator->Release();
-
-		for (ProgramTemplate& ProgramFamily : ProgramTemplates)
-		{
-			ProgramFamily.Release();
-		}
+		Evaluator = nullptr;
 	}
 
-	ProgramTemplates.clear();
-	ProgramTemplateSourceMap.clear();
-	PendingShaders.clear();
-	CompiledTemplates.clear();
+	if (Painter)
+	{
+		Painter->Release();
+		Painter = nullptr;
+	}
 }

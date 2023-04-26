@@ -534,9 +534,9 @@ void CompileNewShaders(std::vector<SDFModel*>& IncompleteModels, const double La
 
 	for (SDFModel* Model : IncompleteModels)
 	{
-		while (Model->HasPendingShaders())
+		while (Model->Painter->HasPendingShaders())
 		{
-			Model->CompileNextShader();
+			Model->Painter->CompileNextShader();
 
 			std::chrono::duration<double, std::milli> Delta = Clock::now() - ProcessingStart;
 			ShaderCompilerConvergenceMs += Delta.count();
@@ -1592,7 +1592,7 @@ void RenderUI(SDL_Window* Window, bool& Live)
 			std::vector<ProgramTemplate*> AllProgramTemplates;
 			for (SDFModel* LiveModels : LiveModels)
 			{
-				for (ProgramTemplate& ProgramFamily : LiveModels->ProgramTemplates)
+				for (ProgramTemplate& ProgramFamily : LiveModels->Painter->ProgramTemplates)
 				{
 					AllProgramTemplates.push_back(&ProgramFamily);
 				}
@@ -2013,7 +2013,7 @@ StatusCode Boot(int argc, char* argv[])
 				glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, Width, Height, 0, (Format == 0) ? GL_BGRA : GL_RGBA, GL_UNSIGNED_BYTE, Data);
 				glGenerateMipmap(GL_TEXTURE_2D);
 				glBindTexture(GL_TEXTURE_2D, 0);
-				return (void*)Texture;
+				return (void*)(size_t(Texture));
 			};
 			ifd::FileDialog::Instance().DeleteTexture = [](void* OpaqueHandle)
 			{
@@ -2377,7 +2377,7 @@ void MainLoop()
 							std::vector<float> Upload;
 							for (SDFModel* Model : RenderableModels)
 							{
-								for (ProgramTemplate* CompiledTemplate : Model->CompiledTemplates)
+								for (ProgramTemplate* CompiledTemplate : Model->Painter->CompiledTemplates)
 								{
 									double ElapsedTimeMs = CompiledTemplate->DepthQuery.ReadMs();
 									Upload.push_back(float(ElapsedTimeMs));

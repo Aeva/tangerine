@@ -21,25 +21,72 @@
 #include "sdf_rendering.h"
 
 
-struct SDFModel
+struct Drawable
 {
-	SDFNode* Evaluator = nullptr;
-
-	bool Visible = true;
-	TransformMachine Transform;
-	Buffer TransformBuffer;
-
 	std::map<std::string, size_t> ProgramTemplateSourceMap;
 	std::vector<ProgramTemplate> ProgramTemplates;
 
 	std::vector<size_t> PendingShaders;
 	std::vector<ProgramTemplate*> CompiledTemplates;
 
-	int MouseListenFlags = 0;
-
 	bool HasPendingShaders();
 	bool HasCompleteShaders();
 	void CompileNextShader();
+
+	void Draw(
+		const bool ShowOctree,
+		const bool ShowLeafCount,
+		const bool ShowHeatmap,
+		const bool Wireframe,
+		struct ShaderProgram* DebugShader);
+
+	void Hold()
+	{
+		++RefCount;
+	}
+
+	void Release()
+	{
+		Assert(RefCount > 0);
+		--RefCount;
+		if (RefCount == 0)
+		{
+			for (ProgramTemplate& ProgramFamily : ProgramTemplates)
+			{
+				ProgramFamily.Release();
+			}
+
+			ProgramTemplates.clear();
+			ProgramTemplateSourceMap.clear();
+			PendingShaders.clear();
+			CompiledTemplates.clear();
+
+			delete this;
+		}
+	}
+
+	void Compile(SDFNode* Evaluator, const float VoxelSize);
+
+private:
+	size_t AddProgramTemplate(std::string Source, std::string Pretty, int LeafCount);
+	void AddProgramVariant(size_t ShaderIndex, uint32_t SubtreeIndex, const std::vector<float>& Params, const std::vector<AABB>& Voxels);
+	ProgramBuffer* PendingVoxels = nullptr;
+
+protected:
+	size_t RefCount = 0;
+};
+
+
+struct SDFModel
+{
+	SDFNode* Evaluator = nullptr;
+	Drawable* Painter = nullptr;
+
+	bool Visible = true;
+	TransformMachine Transform;
+	Buffer TransformBuffer;
+
+	int MouseListenFlags = 0;
 
 	void Draw(
 		const bool ShowOctree,
@@ -71,12 +118,6 @@ struct SDFModel
 			delete this;
 		}
 	}
-
-private:
-	void Compile(const float VoxelSize);
-	size_t AddProgramTemplate(std::string Source, std::string Pretty, int LeafCount);
-	void AddProgramVariant(size_t ShaderIndex, uint32_t SubtreeIndex, const std::vector<float>& Params, const std::vector<AABB>& Voxels);
-	ProgramBuffer* PendingVoxels = nullptr;
 
 protected:
 	size_t RefCount = 0;

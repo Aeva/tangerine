@@ -149,28 +149,13 @@ struct TransformUpload
 };
 
 
-void SDFModel::Draw(
+void Drawable::Draw(
 	const bool ShowOctree,
 	const bool ShowLeafCount,
 	const bool ShowHeatmap,
 	const bool Wireframe,
 	ShaderProgram* DebugShader)
 {
-	if (!Visible)
-	{
-		return;
-	}
-
-	int NextOctreeID = 0;
-
-	Transform.Fold();
-	TransformUpload TransformData = {
-		Transform.LastFold,
-		Transform.LastFoldInverse
-	};
-	TransformBuffer.Upload((void*)&TransformData, sizeof(TransformUpload));
-	TransformBuffer.Bind(GL_UNIFORM_BUFFER, 1);
-
 	const bool DebugView = ShowOctree || ShowLeafCount || Wireframe;
 	if (!DebugView)
 	{
@@ -184,6 +169,8 @@ void SDFModel::Draw(
 		OctreeDebugOptions.Upload((void*)&BufferData, sizeof(BufferData));
 		OctreeDebugOptions.Bind(GL_UNIFORM_BUFFER, 3);
 	}
+
+	int NextOctreeID = 0;
 
 	for (ProgramTemplate* ProgramFamily : CompiledTemplates)
 	{
@@ -239,4 +226,28 @@ void SDFModel::Draw(
 		glPopDebugGroup();
 		EndEvent();
 	}
+}
+
+
+void SDFModel::Draw(
+	const bool ShowOctree,
+	const bool ShowLeafCount,
+	const bool ShowHeatmap,
+	const bool Wireframe,
+	ShaderProgram* DebugShader)
+{
+	if (!Visible || !Painter)
+	{
+		return;
+	}
+
+	Transform.Fold();
+	TransformUpload TransformData = {
+		Transform.LastFold,
+		Transform.LastFoldInverse
+	};
+	TransformBuffer.Upload((void*)&TransformData, sizeof(TransformUpload));
+	TransformBuffer.Bind(GL_UNIFORM_BUFFER, 1);
+
+	Painter->Draw(ShowOctree, ShowLeafCount, ShowHeatmap, Wireframe, DebugShader);
 }

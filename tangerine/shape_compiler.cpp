@@ -66,7 +66,7 @@ void UseRoundedStackSize()
 
 
 // Iterate over a voxel grid and generate sources and parameter buffers to populate a new model.
-void SDFModel::Compile(const float VoxelSize)
+void Drawable::Compile(SDFNode* Evaluator, const float VoxelSize)
 {
 	BeginEvent("VoxelFinder");
 	SetTreeEvaluator(Evaluator);
@@ -180,7 +180,7 @@ void SDFModel::Compile(const float VoxelSize)
 }
 
 
-size_t SDFModel::AddProgramTemplate(std::string InSource, std::string InPretty, int LeafCount)
+size_t Drawable::AddProgramTemplate(std::string InSource, std::string InPretty, int LeafCount)
 {
 	std::string& Source = InSource;
 	std::string& Pretty = InPretty;
@@ -206,7 +206,7 @@ size_t SDFModel::AddProgramTemplate(std::string InSource, std::string InPretty, 
 }
 
 
-void SDFModel::AddProgramVariant(size_t ShaderIndex, uint32_t SubtreeIndex, const std::vector<float>& Params, const std::vector<AABB>& Voxels)
+void Drawable::AddProgramVariant(size_t ShaderIndex, uint32_t SubtreeIndex, const std::vector<float>& Params, const std::vector<AABB>& Voxels)
 {
 	// TODO: ProgramVariants is currently a vector, but should it be a map...?
 	ProgramTemplates[ShaderIndex].ProgramVariants.emplace_back(ShaderIndex, SubtreeIndex, Params.size(), Params.data(), Voxels);
