@@ -23,6 +23,46 @@
 
 struct Drawable
 {
+	struct CacheKey
+	{
+		SDFNode* Evaluator = nullptr;
+
+		CacheKey(SDFNode* InEvaluator)
+		{
+			Evaluator = InEvaluator;
+			Evaluator->Hold();
+		}
+
+		CacheKey(const CacheKey& Other)
+		{
+			Evaluator = Other.Evaluator;
+			Evaluator->Hold();
+		}
+
+		~CacheKey()
+		{
+			Evaluator->Release();
+			Evaluator = nullptr;
+		}
+
+		bool operator==(CacheKey& Other)
+		{
+			if (this->Evaluator == Other.Evaluator)
+			{
+				return true;
+			}
+			else
+			{
+				return *(this->Evaluator) == *(Other.Evaluator);
+			}
+		}
+
+		bool operator!=(CacheKey& Other)
+		{
+			return this->Evaluator != Other.Evaluator;
+		}
+	};
+
 	std::map<std::string, size_t> ProgramTemplateSourceMap;
 	std::vector<ProgramTemplate> ProgramTemplates;
 
@@ -45,25 +85,7 @@ struct Drawable
 		++RefCount;
 	}
 
-	void Release()
-	{
-		Assert(RefCount > 0);
-		--RefCount;
-		if (RefCount == 0)
-		{
-			for (ProgramTemplate& ProgramFamily : ProgramTemplates)
-			{
-				ProgramFamily.Release();
-			}
-
-			ProgramTemplates.clear();
-			ProgramTemplateSourceMap.clear();
-			PendingShaders.clear();
-			CompiledTemplates.clear();
-
-			delete this;
-		}
-	}
+	void Release();
 
 	void Compile(SDFNode* Evaluator, const float VoxelSize);
 

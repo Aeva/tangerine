@@ -20,6 +20,9 @@
 std::vector<SDFModel*> LiveModels;
 
 
+std::vector<std::pair<Drawable::CacheKey, Drawable*>> DrawableCache;
+
+
 std::vector<SDFModel*>& GetLiveModels()
 {
 	return LiveModels;
@@ -162,15 +165,6 @@ bool DeliverMouseScroll(glm::vec3 Origin, glm::vec3 RayDir, int ScrollX, int Scr
 }
 
 
-RayHit SDFModel::RayMarch(glm::vec3 RayStart, glm::vec3 RayDir, int MaxIterations, float Epsilon)
-{
-	glm::vec3 RelativeOrigin = Transform.ApplyInverse(RayStart);
-	glm::mat3 Rotation = (glm::mat3)Transform.LastFoldInverse;
-	glm::vec3 RelativeRayDir = Rotation * RayDir;
-	return Evaluator->RayMarch(RelativeOrigin, RelativeRayDir, 1000);
-}
-
-
 bool Drawable::HasPendingShaders()
 {
 	return PendingShaders.size() > 0;
@@ -201,14 +195,67 @@ void Drawable::CompileNextShader()
 }
 
 
+void Drawable::Release()
+{
+	Assert(RefCount > 0);
+	--RefCount;
+	if (RefCount == 0)
+	{
+		for (auto Iterator = DrawableCache.begin(); Iterator != DrawableCache.end(); ++Iterator)
+		{
+			if (Iterator->second == this)
+			{
+				DrawableCache.erase(Iterator);
+				break;
+			}
+		}
+
+		for (ProgramTemplate& ProgramFamily : ProgramTemplates)
+		{
+			ProgramFamily.Release();
+		}
+
+		ProgramTemplates.clear();
+		ProgramTemplateSourceMap.clear();
+		PendingShaders.clear();
+		CompiledTemplates.clear();
+
+		delete this;
+	}
+}
+
+
+RayHit SDFModel::RayMarch(glm::vec3 RayStart, glm::vec3 RayDir, int MaxIterations, float Epsilon)
+{
+	glm::vec3 RelativeOrigin = Transform.ApplyInverse(RayStart);
+	glm::mat3 Rotation = (glm::mat3)Transform.LastFoldInverse;
+	glm::vec3 RelativeRayDir = Rotation * RayDir;
+	return Evaluator->RayMarch(RelativeOrigin, RelativeRayDir, 1000);
+}
+
+
 SDFModel::SDFModel(SDFNode* InEvaluator, const float VoxelSize)
 {
 	InEvaluator->Hold();
 	Evaluator = InEvaluator;
 
-	Painter = new Drawable();
-	Painter->Hold();
-	Painter->Compile(InEvaluator, VoxelSize);
+	Drawable::CacheKey Key(Evaluator);
+	for (auto& Entry : DrawableCache)
+	{
+		if (Entry.first == Key)
+		{
+			Painter = Entry.second;
+			Painter->Hold();
+			break;
+		}
+	}
+	if (!Painter)
+	{
+		Painter = new Drawable();
+		Painter->Hold();
+		Painter->Compile(InEvaluator, VoxelSize);
+		DrawableCache.emplace_back(Key, Painter);
+	}
 
 	TransformBuffer.DebugName = "Instance Transforms Buffer";
 
