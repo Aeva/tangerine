@@ -307,18 +307,11 @@ SDFModel::SDFModel(SDFNode* InEvaluator, const float VoxelSize)
 			SodapopDrawable* MeshPainter = new SodapopDrawable();
 			MeshPainter->Hold();
 			// TODO
-			Painter = MeshPainter;
+			Painter = (Drawable*)MeshPainter;
 			DrawableCache.emplace_back(Key, Painter);
 		}
 #endif // RENDERER_SODAPOP
 	}
-
-#if RENDERER_SODAPOP
-	if (CurrentRenderer == Renderer::Sodapop)
-	{
-		// TODO!
-	}
-#endif // RENDERER_SODAPOP
 
 	TransformBuffer.DebugName = "Instance Transforms Buffer";
 

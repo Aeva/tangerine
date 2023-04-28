@@ -125,6 +125,10 @@ ShaderProgram GatherDepthShader;
 ShaderProgram ResolveOutputShader;
 ShaderProgram OctreeDebugShader;
 
+#if RENDERER_SODAPOP
+ShaderProgram SodapopShader;
+#endif
+
 Buffer ViewInfo("ViewInfo Buffer");
 Buffer OutlinerOptions("Outliner Options Buffer");
 
@@ -517,6 +521,13 @@ StatusCode SetupRenderer()
 		  {GL_FRAGMENT_SHADER, GeneratedShader("math.glsl", "", "octree_debug.fs.glsl")} },
 		"Octree Debug Shader"));
 
+#if RENDERER_SODAPOP
+	RETURN_ON_FAIL(SodapopShader.Setup(
+		{ {GL_VERTEX_SHADER, ShaderSource("sodapop.vs.glsl", true)},
+		  {GL_FRAGMENT_SHADER, ShaderSource("sodapop.fs.glsl", true)} },
+		"Sodapop Shader"));
+#endif // RENDERER_SODAPOP
+
 	DepthTimeQuery.Create();
 	GridBgTimeQuery.Create();
 	OutlinerTimeQuery.Create();
@@ -809,6 +820,12 @@ void RenderFrame(int ScreenWidth, int ScreenHeight, std::vector<SDFModel*>& Rend
 				{
 					DebugShader = &OctreeDebugShader;
 				}
+#if RENDERER_SODAPOP
+				if (CurrentRenderer == Renderer::Sodapop)
+				{
+					SodapopShader.Activate();
+				}
+#endif // RENDERER_SODAPOP
 				for (SDFModel* Model : RenderableModels)
 				{
 					Model->Draw(ShowOctree, ShowLeafCount, ShowHeatmap, ShowWireframe, DebugShader);
