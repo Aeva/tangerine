@@ -540,9 +540,10 @@ void CompileNewShaders(std::vector<SDFModel*>& IncompleteModels, const double La
 
 	for (SDFModel* Model : IncompleteModels)
 	{
-		while (Model->Painter->HasPendingShaders())
+		VoxelDrawable* Painter = (VoxelDrawable*)(Model->Painter);
+		while (Painter->HasPendingShaders())
 		{
-			Model->Painter->CompileNextShader();
+			Painter->CompileNextShader();
 
 			std::chrono::duration<double, std::milli> Delta = Clock::now() - ProcessingStart;
 			ShaderCompilerConvergenceMs += Delta.count();
@@ -1495,7 +1496,8 @@ void RenderUI(SDL_Window* Window, bool& Live)
 		ImGui::End();
 	}
 
-	if (ShowChangeIterations)
+#if RENDERER_COMPILER
+	if (ShowChangeIterations && CurrentRenderer == Renderer::ShapeCompiler)
 	{
 		ImGuiWindowFlags WindowFlags = \
 			ImGuiWindowFlags_AlwaysAutoResize |
@@ -1520,6 +1522,7 @@ void RenderUI(SDL_Window* Window, bool& Live)
 		}
 		ImGui::End();
 	}
+#endif // RENDERER_COMPILER
 
 	if (ShowLeafCount)
 	{
@@ -1650,9 +1653,10 @@ void RenderUI(SDL_Window* Window, bool& Live)
 		if (ImGui::Begin("Shader Permutations", &ShowPrettyTrees, WindowFlags))
 		{
 			std::vector<ProgramTemplate*> AllProgramTemplates;
-			for (SDFModel* LiveModels : LiveModels)
+			for (SDFModel* LiveModel : LiveModels)
 			{
-				for (ProgramTemplate& ProgramFamily : LiveModels->Painter->ProgramTemplates)
+				VoxelDrawable* Painter = (VoxelDrawable*)(LiveModel->Painter);
+				for (ProgramTemplate& ProgramFamily : Painter->ProgramTemplates)
 				{
 					AllProgramTemplates.push_back(&ProgramFamily);
 				}
@@ -1934,6 +1938,7 @@ StatusCode Boot(int argc, char* argv[])
 				continue;
 			}
 #endif
+#if RENDERER_COMPILER
 			else if (Args[Cursor] == "--iterations" && (Cursor + 1) < Args.size())
 			{
 				const int MaxIterations = atoi(Args[Cursor + 1].c_str());
@@ -1949,6 +1954,7 @@ StatusCode Boot(int argc, char* argv[])
 				Cursor += 1;
 				continue;
 			}
+#endif
 			else if (Args[Cursor] == "--llvmpipe")
 			{
 #if _WIN64
@@ -2449,7 +2455,8 @@ void MainLoop()
 							std::vector<float> Upload;
 							for (SDFModel* Model : RenderableModels)
 							{
-								for (ProgramTemplate* CompiledTemplate : Model->Painter->CompiledTemplates)
+								VoxelDrawable* Painter = (VoxelDrawable*)(Model->Painter);
+								for (ProgramTemplate* CompiledTemplate : Painter->CompiledTemplates)
 								{
 									double ElapsedTimeMs = CompiledTemplate->DepthQuery.ReadMs();
 									Upload.push_back(float(ElapsedTimeMs));

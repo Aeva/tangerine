@@ -1,5 +1,5 @@
 
-// Copyright 2022 Aeva Palecek
+// Copyright 2023 Aeva Palecek
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,6 +14,7 @@
 // limitations under the License.
 
 #include "sdf_model.h"
+#include "sdf_rendering.h"
 #include "profiling.h"
 
 
@@ -44,13 +45,19 @@ void GetIncompleteModels(std::vector<SDFModel*>& Incomplete)
 	Incomplete.clear();
 	Incomplete.reserve(LiveModels.size());
 
-	for (SDFModel* Model : LiveModels)
+#if RENDERER_COMPILER
+	if (CurrentRenderer == Renderer::ShapeCompiler)
 	{
-		if (Model->Painter && Model->Painter->HasPendingShaders())
+		for (SDFModel* Model : LiveModels)
 		{
-			Incomplete.push_back(Model);
+			VoxelDrawable* VoxelPainter = (VoxelDrawable*)(Model->Painter);
+			if (VoxelPainter->HasPendingShaders())
+			{
+				Incomplete.push_back(Model);
+			}
 		}
 	}
+#endif // RENDERER_COMPILER
 }
 
 
@@ -59,13 +66,19 @@ void GetRenderableModels(std::vector<SDFModel*>& Renderable)
 	Renderable.clear();
 	Renderable.reserve(LiveModels.size());
 
-	for (SDFModel* Model : LiveModels)
+#if RENDERER_COMPILER
+	if (CurrentRenderer == Renderer::ShapeCompiler)
 	{
-		if (Model->Painter && Model->Painter->HasCompleteShaders())
+		for (SDFModel* Model : LiveModels)
 		{
-			Renderable.push_back(Model);
+			VoxelDrawable* VoxelPainter = (VoxelDrawable*)(Model->Painter);
+			if (VoxelPainter->HasCompleteShaders())
+			{
+				Renderable.push_back(Model);
+			}
 		}
 	}
+#endif // RENDERER_COMPILER
 }
 
 
@@ -165,19 +178,20 @@ bool DeliverMouseScroll(glm::vec3 Origin, glm::vec3 RayDir, int ScrollX, int Scr
 }
 
 
-bool Drawable::HasPendingShaders()
+#if RENDERER_COMPILER
+bool VoxelDrawable::HasPendingShaders()
 {
 	return PendingShaders.size() > 0;
 }
 
 
-bool Drawable::HasCompleteShaders()
+bool VoxelDrawable::HasCompleteShaders()
 {
 	return CompiledTemplates.size() > 0;
 }
 
 
-void Drawable::CompileNextShader()
+void VoxelDrawable::CompileNextShader()
 {
 	BeginEvent("Compile Shader");
 
@@ -195,7 +209,7 @@ void Drawable::CompileNextShader()
 }
 
 
-void Drawable::Release()
+void VoxelDrawable::Release()
 {
 	Assert(RefCount > 0);
 	--RefCount;
@@ -223,6 +237,31 @@ void Drawable::Release()
 		delete this;
 	}
 }
+#endif // RENDERER_COMPILER
+
+
+#if RENDERER_SODAPOP
+void SodapopDrawable::Release()
+{
+	Assert(RefCount > 0);
+	--RefCount;
+	if (RefCount == 0)
+	{
+		for (auto Iterator = DrawableCache.begin(); Iterator != DrawableCache.end(); ++Iterator)
+		{
+			if (Iterator->second == this)
+			{
+				DrawableCache.erase(Iterator);
+				break;
+			}
+		}
+
+		// TODO
+
+		delete this;
+	}
+}
+#endif // RENDERER_SODAPOP
 
 
 RayHit SDFModel::RayMarch(glm::vec3 RayStart, glm::vec3 RayDir, int MaxIterations, float Epsilon)
@@ -239,28 +278,40 @@ SDFModel::SDFModel(SDFNode* InEvaluator, const float VoxelSize)
 	InEvaluator->Hold();
 	Evaluator = InEvaluator;
 
-#if RENDERER_COMPILER
-	if (CurrentRenderer == Renderer::ShapeCompiler)
+	Drawable::CacheKey Key(Evaluator);
+	for (auto& Entry : DrawableCache)
 	{
-		Drawable::CacheKey Key(Evaluator);
-		for (auto& Entry : DrawableCache)
+		if (Entry.first == Key)
 		{
-			if (Entry.first == Key)
-			{
-				Painter = Entry.second;
-				Painter->Hold();
-				break;
-			}
-		}
-		if (!Painter)
-		{
-			Painter = new Drawable();
+			Painter = Entry.second;
 			Painter->Hold();
-			Painter->Compile(InEvaluator, VoxelSize);
-			DrawableCache.emplace_back(Key, Painter);
+			break;
 		}
 	}
+
+	if (!Painter)
+	{
+#if RENDERER_COMPILER
+		if (CurrentRenderer == Renderer::ShapeCompiler)
+		{
+			VoxelDrawable* VoxelPainter = new VoxelDrawable();
+			VoxelPainter->Hold();
+			VoxelPainter->Compile(InEvaluator, VoxelSize);
+			Painter = (Drawable*)VoxelPainter;
+			DrawableCache.emplace_back(Key, Painter);
+		}
 #endif // RENDERER_COMPILER
+#if RENDERER_SODAPOP
+		if (CurrentRenderer == Renderer::Sodapop)
+		{
+			SodapopDrawable* MeshPainter = new SodapopDrawable();
+			MeshPainter->Hold();
+			// TODO
+			Painter = MeshPainter;
+			DrawableCache.emplace_back(Key, Painter);
+		}
+#endif // RENDERER_SODAPOP
+	}
 
 #if RENDERER_SODAPOP
 	if (CurrentRenderer == Renderer::Sodapop)

@@ -1,5 +1,5 @@
 
-// Copyright 2022 Aeva Palecek
+// Copyright 2023 Aeva Palecek
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -63,6 +63,28 @@ struct Drawable
 		}
 	};
 
+	void Hold()
+	{
+		++RefCount;
+	}
+
+	virtual void Draw(
+		const bool ShowOctree,
+		const bool ShowLeafCount,
+		const bool ShowHeatmap,
+		const bool Wireframe,
+		struct ShaderProgram* DebugShader) = 0;
+
+	virtual void Release() = 0;
+
+protected:
+	size_t RefCount = 0;
+};
+
+
+#if RENDERER_COMPILER
+struct VoxelDrawable final : Drawable
+{
 	std::map<std::string, size_t> ProgramTemplateSourceMap;
 	std::vector<ProgramTemplate> ProgramTemplates;
 
@@ -73,30 +95,38 @@ struct Drawable
 	bool HasCompleteShaders();
 	void CompileNextShader();
 
-	void Draw(
+	void Compile(SDFNode* Evaluator, const float VoxelSize);
+
+	virtual void Draw(
 		const bool ShowOctree,
 		const bool ShowLeafCount,
 		const bool ShowHeatmap,
 		const bool Wireframe,
 		struct ShaderProgram* DebugShader);
 
-	void Hold()
-	{
-		++RefCount;
-	}
-
-	void Release();
-
-	void Compile(SDFNode* Evaluator, const float VoxelSize);
+	virtual void Release();
 
 private:
 	size_t AddProgramTemplate(std::string Source, std::string Pretty, int LeafCount);
 	void AddProgramVariant(size_t ShaderIndex, uint32_t SubtreeIndex, const std::vector<float>& Params, const std::vector<AABB>& Voxels);
 	ProgramBuffer* PendingVoxels = nullptr;
-
-protected:
-	size_t RefCount = 0;
 };
+#endif // RENDERER_COMPILER
+
+
+#if RENDERER_SODAPOP
+struct SodapopDrawable final : Drawable
+{
+	virtual void Draw(
+		const bool ShowOctree,
+		const bool ShowLeafCount,
+		const bool ShowHeatmap,
+		const bool Wireframe,
+		struct ShaderProgram* DebugShader);
+
+	virtual void Release();
+};
+#endif // RENDERER_SODAPOP
 
 
 struct SDFModel

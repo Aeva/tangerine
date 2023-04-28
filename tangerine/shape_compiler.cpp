@@ -1,5 +1,5 @@
 
-// Copyright 2022 Aeva Palecek
+// Copyright 2023 Aeva Palecek
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -26,6 +26,7 @@
 using namespace glm;
 
 
+#if RENDERER_COMPILER
 using ParamsVec = std::vector<float>;
 using BoundsVec = std::vector<AABB>;
 using ParamsMap = std::map<ParamsVec, BoundsVec>;
@@ -66,7 +67,7 @@ void UseRoundedStackSize()
 
 
 // Iterate over a voxel grid and generate sources and parameter buffers to populate a new model.
-void Drawable::Compile(SDFNode* Evaluator, const float VoxelSize)
+void VoxelDrawable::Compile(SDFNode* Evaluator, const float VoxelSize)
 {
 	BeginEvent("VoxelFinder");
 	SetTreeEvaluator(Evaluator);
@@ -180,7 +181,7 @@ void Drawable::Compile(SDFNode* Evaluator, const float VoxelSize)
 }
 
 
-size_t Drawable::AddProgramTemplate(std::string InSource, std::string InPretty, int LeafCount)
+size_t VoxelDrawable::AddProgramTemplate(std::string InSource, std::string InPretty, int LeafCount)
 {
 	std::string& Source = InSource;
 	std::string& Pretty = InPretty;
@@ -206,12 +207,13 @@ size_t Drawable::AddProgramTemplate(std::string InSource, std::string InPretty, 
 }
 
 
-void Drawable::AddProgramVariant(size_t ShaderIndex, uint32_t SubtreeIndex, const std::vector<float>& Params, const std::vector<AABB>& Voxels)
+void VoxelDrawable::AddProgramVariant(size_t ShaderIndex, uint32_t SubtreeIndex, const std::vector<float>& Params, const std::vector<AABB>& Voxels)
 {
 	// TODO: ProgramVariants is currently a vector, but should it be a map...?
 	ProgramTemplates[ShaderIndex].ProgramVariants.emplace_back(ShaderIndex, SubtreeIndex, Params.size(), Params.data(), Voxels);
 	ProgramBuffer& Program = ProgramTemplates[ShaderIndex].ProgramVariants.back();
 }
+#endif // RENDERER_COMPILER
 
 
 void CompileEvaluator(SDFNode* Evaluator, const float VoxelSize)

@@ -1,5 +1,5 @@
 
-// Copyright 2022 Aeva Palecek
+// Copyright 2023 Aeva Palecek
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -27,9 +27,17 @@ struct OctreeDebugOptionsUpload
 };
 
 
+struct TransformUpload
+{
+	glm::mat4 LocalToWorld;
+	glm::mat4 WorldToLocal;
+};
+
+
 Buffer OctreeDebugOptions("Octree Debug Options Buffer");
 
 
+#if RENDERER_COMPILER
 ProgramBuffer::ProgramBuffer(uint32_t ShaderIndex, uint32_t SubtreeIndex, size_t ParamCount, const float* InParams, const std::vector<AABB>& InVoxels)
 {
 	++ParamCount;
@@ -142,14 +150,7 @@ void ProgramTemplate::Release()
 }
 
 
-struct TransformUpload
-{
-	glm::mat4 LocalToWorld;
-	glm::mat4 WorldToLocal;
-};
-
-
-void Drawable::Draw(
+void VoxelDrawable::Draw(
 	const bool ShowOctree,
 	const bool ShowLeafCount,
 	const bool ShowHeatmap,
@@ -227,6 +228,20 @@ void Drawable::Draw(
 		EndEvent();
 	}
 }
+#endif // RENDERER_COMPILER
+
+
+#if RENDERER_SODAPOP
+void SodapopDrawable::Draw(
+	const bool ShowOctree,
+	const bool ShowLeafCount,
+	const bool ShowHeatmap,
+	const bool Wireframe,
+	ShaderProgram* DebugShader)
+{
+	// TODO
+}
+#endif //RENDERER_SODAPOP
 
 
 void SDFModel::Draw(

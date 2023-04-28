@@ -1,5 +1,5 @@
 
-// Copyright 2022 Aeva Palecek
+// Copyright 2023 Aeva Palecek
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -63,6 +63,7 @@ static_assert(false, "Tangerine must be built with at least one renderer enabled
 #endif
 
 
+#if RENDERER_COMPILER
 // This object tracks a buffer containing the bytecode that is used to render part of a model's
 // evaluator, and the voxels that will draw this program.  This bytecode buffer is used by both
 // the shader interpreter and the compiled shader.
@@ -115,3 +116,4 @@ struct ProgramTemplate
 	void Reset();
 	void Release();
 };
+#endif // RENDERER_COMPILER
