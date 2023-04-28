@@ -21,6 +21,48 @@
 #include "gl_async.h"
 
 
+// These can be used to control at compile time what renderer is available.
+// It is recommended to only build with the ones you need, so that the compiler
+// can optimize away some polymorphism.
+
+#ifndef RENDERER_COMPILER
+#define RENDERER_COMPILER 1
+#endif
+
+#ifndef RENDERER_SODAPOP
+#define RENDERER_SODAPOP 1
+#endif
+
+
+#define MULTI_RENDERER (RENDERER_COMPILER && RENDERER_SODAPOP)
+
+
+enum class Renderer : uint32_t
+{
+#if RENDERER_COMPILER
+	ShapeCompiler,
+#endif
+#if RENDERER_SODAPOP
+	Sodapop,
+#endif
+	// -----------
+	Count
+};
+
+#if MULTI_RENDERER
+extern Renderer CurrentRenderer;
+
+#elif RENDERER_COMPILER
+const Renderer CurrentRenderer = Renderer::ShapeCompiler;
+
+#elif RENDERER_SODAPOP
+const Renderer CurrentRenderer = Renderer::Sodapop;
+
+#else
+static_assert(false, "Tangerine must be built with at least one renderer enabled!");
+#endif
+
+
 // This object tracks a buffer containing the bytecode that is used to render part of a model's
 // evaluator, and the voxels that will draw this program.  This bytecode buffer is used by both
 // the shader interpreter and the compiled shader.

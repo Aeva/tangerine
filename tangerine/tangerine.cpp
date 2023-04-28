@@ -83,6 +83,11 @@ using Clock = std::chrono::high_resolution_clock;
 bool HeadlessMode;
 
 
+#if MULTI_RENDERER
+Renderer CurrentRenderer = Renderer::ShapeCompiler;
+#endif
+
+
 ScriptEnvironment* MainEnvironment = nullptr;
 
 
@@ -523,6 +528,7 @@ StatusCode SetupRenderer()
 
 double ShaderCompilerConvergenceMs = 0.0;
 Clock::time_point ShaderCompilerStart;
+#if RENDERER_COMPILER
 void CompileNewShaders(std::vector<SDFModel*>& IncompleteModels, const double LastInnerFrameDeltaMs)
 {
 	BeginEvent("Compile New Shaders");
@@ -551,6 +557,7 @@ timeout:
 	glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
 	EndEvent();
 }
+#endif // RENDERER_COMPILER
 
 
 bool UsePerspective = true;
@@ -1004,6 +1011,18 @@ void ReloadModel()
 }
 
 
+void SetRenderer(Renderer NewRenderer)
+{
+#if MULTI_RENDERER
+	if (NewRenderer != CurrentRenderer)
+	{
+		CurrentRenderer = NewRenderer;
+		ReloadModel();
+	}
+#endif
+}
+
+
 void ReadInputModel(Language Runtime)
 {
 	std::istreambuf_iterator<char> begin(std::cin), end;
@@ -1217,6 +1236,22 @@ void RenderUI(SDL_Window* Window, bool& Live)
 		}
 		if (ImGui::BeginMenu("View"))
 		{
+			if (ImGui::BeginMenu("Renderer"))
+			{
+#if RENDERER_COMPILER
+				if (ImGui::MenuItem("Shape Compiler", nullptr, CurrentRenderer == Renderer::ShapeCompiler))
+				{
+					SetRenderer(Renderer::ShapeCompiler);
+				}
+#endif
+#if RENDERER_SODAPOP
+				if (ImGui::MenuItem("Sodapop", nullptr, CurrentRenderer == Renderer::Sodapop))
+				{
+					SetRenderer(Renderer::Sodapop);
+				}
+#endif
+				ImGui::EndMenu();
+			}
 			if (ImGui::BeginMenu("Background"))
 			{
 				if (ImGui::MenuItem("Solid Color", nullptr, BackgroundMode == -1))
@@ -1229,25 +1264,30 @@ void RenderUI(SDL_Window* Window, bool& Live)
 				}
 				ImGui::EndMenu();
 			}
-			if (ImGui::BeginMenu("Foreground"))
+#if RENDERER_COMPILER
+			if (CurrentRenderer == Renderer::ShapeCompiler)
 			{
-				if (ImGui::MenuItem("PBRBR", nullptr, ForegroundMode == 0))
+				if (ImGui::BeginMenu("Foreground"))
 				{
-					ForegroundMode = 0;
+					if (ImGui::MenuItem("PBRBR", nullptr, ForegroundMode == 0))
+					{
+						ForegroundMode = 0;
+					}
+					if (ImGui::MenuItem("Metalic", nullptr, ForegroundMode == 1))
+					{
+						ForegroundMode = 1;
+					}
+					if (ImGui::MenuItem("Vaporwave", nullptr, ForegroundMode == 2))
+					{
+						ForegroundMode = 2;
+					}
+					ImGui::EndMenu();
 				}
-				if (ImGui::MenuItem("Metalic", nullptr, ForegroundMode == 1))
+				if (ImGui::MenuItem("Highlight Edges", nullptr, &HighlightEdges))
 				{
-					ForegroundMode = 1;
 				}
-				if (ImGui::MenuItem("Vaporwave", nullptr, ForegroundMode == 2))
-				{
-					ForegroundMode = 2;
-				}
-				ImGui::EndMenu();
 			}
-			if (ImGui::MenuItem("Highlight Edges", nullptr, &HighlightEdges))
-			{
-			}
+#endif // RENDERER_COMPILER
 			if (ImGui::MenuItem("Recenter"))
 			{
 				ResetCamera = true;
@@ -1258,52 +1298,57 @@ void RenderUI(SDL_Window* Window, bool& Live)
 			}
 			ImGui::EndMenu();
 		}
-		if (ImGui::BeginMenu("Debug"))
+#if RENDERER_COMPILER
+		if (CurrentRenderer == Renderer::ShapeCompiler)
 		{
-			bool DebugOff = !(ShowSubtrees || ShowHeatmap || ShowOctree || ShowLeafCount);
-			if (ImGui::MenuItem("Off", nullptr, &DebugOff))
+			if (ImGui::BeginMenu("Debug"))
 			{
-				ShowSubtrees = false;
-				ShowOctree = false;
-				ShowHeatmap = false;
-				ShowLeafCount = false;
+				bool DebugOff = !(ShowSubtrees || ShowHeatmap || ShowOctree || ShowLeafCount);
+				if (ImGui::MenuItem("Off", nullptr, &DebugOff))
+				{
+					ShowSubtrees = false;
+					ShowOctree = false;
+					ShowHeatmap = false;
+					ShowLeafCount = false;
+				}
+				if (ImGui::MenuItem("Shader Groups", nullptr, &ShowSubtrees))
+				{
+					ShowOctree = false;
+					ShowHeatmap = false;
+					ShowLeafCount = false;
+				}
+				if (ImGui::MenuItem("Shader Heatmap", nullptr, &ShowHeatmap))
+				{
+					ShowOctree = false;
+					ShowSubtrees = false;
+					ShowLeafCount = false;
+				}
+				if (ImGui::MenuItem("Octree", nullptr, &ShowOctree))
+				{
+					ShowHeatmap = false;
+					ShowSubtrees = false;
+					ShowLeafCount = false;
+				}
+				if (ImGui::MenuItem("CSG Leaf Count", nullptr, &ShowLeafCount))
+				{
+					ShowOctree = false;
+					ShowHeatmap = false;
+					ShowSubtrees = false;
+				}
+				ImGui::Separator();
+				if (ImGui::MenuItem("Wireframe", nullptr, &ShowWireframe))
+				{
+				}
+				if (ImGui::MenuItem("Freeze Culling", nullptr, &FreezeCulling))
+				{
+				}
+				if (ImGui::MenuItem("Force Redraw", nullptr, &RealtimeMode))
+				{
+				}
+				ImGui::EndMenu();
 			}
-			if (ImGui::MenuItem("Shader Groups", nullptr, &ShowSubtrees))
-			{
-				ShowOctree = false;
-				ShowHeatmap = false;
-				ShowLeafCount = false;
-			}
-			if (ImGui::MenuItem("Shader Heatmap", nullptr, &ShowHeatmap))
-			{
-				ShowOctree = false;
-				ShowSubtrees = false;
-				ShowLeafCount = false;
-			}
-			if (ImGui::MenuItem("Octree", nullptr, &ShowOctree))
-			{
-				ShowHeatmap = false;
-				ShowSubtrees = false;
-				ShowLeafCount = false;
-			}
-			if (ImGui::MenuItem("CSG Leaf Count", nullptr, &ShowLeafCount))
-			{
-				ShowOctree = false;
-				ShowHeatmap = false;
-				ShowSubtrees = false;
-			}
-			ImGui::Separator();
-			if (ImGui::MenuItem("Wireframe", nullptr, &ShowWireframe))
-			{
-			}
-			if (ImGui::MenuItem("Freeze Culling", nullptr, &FreezeCulling))
-			{
-			}
-			if (ImGui::MenuItem("Force Redraw", nullptr, &RealtimeMode))
-			{
-			}
-			ImGui::EndMenu();
 		}
+#endif // RENDERER_COMPILER
 		if (ImGui::BeginMenu("Window"))
 		{
 			if (ImGui::MenuItem("Camera Parameters", nullptr, &ShowFocusOverlay))
@@ -1312,9 +1357,14 @@ void RenderUI(SDL_Window* Window, bool& Live)
 			if (ImGui::MenuItem("Performance Stats", nullptr, &ShowStatsOverlay))
 			{
 			}
-			if (ImGui::MenuItem("CSG Subtrees", nullptr, &ShowPrettyTrees))
+#if RENDERER_COMPILER
+			if (CurrentRenderer == Renderer::ShapeCompiler)
 			{
+				if (ImGui::MenuItem("CSG Subtrees", nullptr, &ShowPrettyTrees))
+				{
+				}
 			}
+#endif // RENDERER_COMPILER
 			ImGui::EndMenu();
 		}
 		if (ImGui::BeginMenu("Help"))
@@ -1322,8 +1372,6 @@ void RenderUI(SDL_Window* Window, bool& Live)
 			if (ImGui::MenuItem("Open Source Licenses", nullptr, &ShowLicenses))
 			{
 			}
-
-
 			ImGui::EndMenu();
 		}
 
@@ -1382,31 +1430,42 @@ void RenderUI(SDL_Window* Window, bool& Live)
 			ifd::FileDialog::Instance().Close();
 		}
 
-		bool ToggleInterpreted = false;
-		if (Interpreted)
+#if RENDERER_COMPILER
+		if (CurrentRenderer == Renderer::ShapeCompiler)
 		{
-			if (ImGui::MenuItem("[Interpreted Shaders]", nullptr, &ToggleInterpreted))
+			bool ToggleInterpreted = false;
+			if (Interpreted)
 			{
-				Interpreted = false;
-				ReloadModel();
+				if (ImGui::MenuItem("[Interpreted Shaders]", nullptr, &ToggleInterpreted))
+				{
+					Interpreted = false;
+					ReloadModel();
+				}
 			}
-		}
-		else
-		{
-			if (ImGui::MenuItem("[Compiled Shaders]", nullptr, &ToggleInterpreted))
+			else
 			{
-				Interpreted = true;
-				ReloadModel();
+				if (ImGui::MenuItem("[Compiled Shaders]", nullptr, &ToggleInterpreted))
+				{
+					Interpreted = true;
+					ReloadModel();
+				}
 			}
-		}
 
-		bool ChangeIterations = false;
-		std::string IterationsLabel = fmt::format("[Max Iterations: {}]", MaxIterations);
-		if (ImGui::MenuItem(IterationsLabel.c_str(), nullptr, &ChangeIterations))
-		{
-			ShowChangeIterations = true;
-			NewMaxIterations = MaxIterations;
+			bool ChangeIterations = false;
+			std::string IterationsLabel = fmt::format("[Max Iterations: {}]", MaxIterations);
+			if (ImGui::MenuItem(IterationsLabel.c_str(), nullptr, &ChangeIterations))
+			{
+				ShowChangeIterations = true;
+				NewMaxIterations = MaxIterations;
+			}
 		}
+#endif
+#if RENDERER_SODAPOP
+		if (CurrentRenderer == Renderer::Sodapop)
+		{
+			ImGui::Text("[Sodapop]");
+		}
+#endif
 
 		ImGui::EndMainMenuBar();
 	}
@@ -1577,7 +1636,8 @@ void RenderUI(SDL_Window* Window, bool& Live)
 	}
 
 	std::vector<SDFModel*>& LiveModels = GetLiveModels();
-	if (ShowPrettyTrees && LiveModels.size() > 0)
+#if RENDERER_COMPILER
+	if (ShowPrettyTrees && LiveModels.size() > 0 && CurrentRenderer == Renderer::ShapeCompiler)
 	{
 		ImGuiWindowFlags WindowFlags = \
 			ImGuiWindowFlags_HorizontalScrollbar |
@@ -1610,6 +1670,7 @@ void RenderUI(SDL_Window* Window, bool& Live)
 		}
 		ImGui::End();
 	}
+#endif // RENDERER_COMPILER
 
 	{
 		ExportProgress Progress = GetExportProgress();
@@ -2067,12 +2128,17 @@ StatusCode Boot(int argc, char* argv[])
 			MouseMotionX = 45;
 			MouseMotionY = 45;
 
-			std::vector<SDFModel*> IncompleteModels;
-			GetIncompleteModels(IncompleteModels);
-			if (IncompleteModels.size() > 0)
+#if RENDERER_COMPILER
+			if (CurrentRenderer == Renderer::ShapeCompiler)
 			{
-				CompileNewShaders(IncompleteModels, LastInnerFrameDeltaMs);
+				std::vector<SDFModel*> IncompleteModels;
+				GetIncompleteModels(IncompleteModels);
+				if (IncompleteModels.size() > 0)
+				{
+					CompileNewShaders(IncompleteModels, LastInnerFrameDeltaMs);
+				}
 			}
+#endif
 			std::vector<SDFModel*> RenderableModels;
 			GetRenderableModels(RenderableModels);
 
@@ -2342,11 +2408,16 @@ void MainLoop()
 						EndEvent();
 					}
 					{
-						GetIncompleteModels(IncompleteModels);
-						if (IncompleteModels.size() > 0)
+#if RENDERER_COMPILER
+						if (CurrentRenderer == Renderer::ShapeCompiler)
 						{
-							CompileNewShaders(IncompleteModels, LastInnerFrameDeltaMs);
+							GetIncompleteModels(IncompleteModels);
+							if (IncompleteModels.size() > 0)
+							{
+								CompileNewShaders(IncompleteModels, LastInnerFrameDeltaMs);
+							}
 						}
+#endif
 						GetRenderableModels(RenderableModels);
 					}
 					RenderFrame(ScreenWidth, ScreenHeight, RenderableModels, LastView, RequestDraw);
@@ -2371,7 +2442,8 @@ void MainLoop()
 						OutlinerElapsedTimeMs = OutlinerTimeQuery.ReadMs();
 						UiElapsedTimeMs = UiTimeQuery.ReadMs();
 
-						if (ShowHeatmap)
+#if RENDERER_COMPILER
+						if (ShowHeatmap && CurrentRenderer == Renderer::ShapeCompiler)
 						{
 							float Range = 0.0;
 							std::vector<float> Upload;
@@ -2392,6 +2464,7 @@ void MainLoop()
 
 							DepthTimeBuffer.Upload(Upload.data(), Upload.size() * sizeof(float));
 						}
+#endif // RENDERER_COMPILER
 						EndEvent();
 					}
 				}

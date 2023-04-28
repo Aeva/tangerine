@@ -46,7 +46,7 @@ void GetIncompleteModels(std::vector<SDFModel*>& Incomplete)
 
 	for (SDFModel* Model : LiveModels)
 	{
-		if (Model->Painter->HasPendingShaders())
+		if (Model->Painter && Model->Painter->HasPendingShaders())
 		{
 			Incomplete.push_back(Model);
 		}
@@ -61,7 +61,7 @@ void GetRenderableModels(std::vector<SDFModel*>& Renderable)
 
 	for (SDFModel* Model : LiveModels)
 	{
-		if (Model->Painter->HasCompleteShaders())
+		if (Model->Painter && Model->Painter->HasCompleteShaders())
 		{
 			Renderable.push_back(Model);
 		}
@@ -239,23 +239,35 @@ SDFModel::SDFModel(SDFNode* InEvaluator, const float VoxelSize)
 	InEvaluator->Hold();
 	Evaluator = InEvaluator;
 
-	Drawable::CacheKey Key(Evaluator);
-	for (auto& Entry : DrawableCache)
+#if RENDERER_COMPILER
+	if (CurrentRenderer == Renderer::ShapeCompiler)
 	{
-		if (Entry.first == Key)
+		Drawable::CacheKey Key(Evaluator);
+		for (auto& Entry : DrawableCache)
 		{
-			Painter = Entry.second;
+			if (Entry.first == Key)
+			{
+				Painter = Entry.second;
+				Painter->Hold();
+				break;
+			}
+		}
+		if (!Painter)
+		{
+			Painter = new Drawable();
 			Painter->Hold();
-			break;
+			Painter->Compile(InEvaluator, VoxelSize);
+			DrawableCache.emplace_back(Key, Painter);
 		}
 	}
-	if (!Painter)
+#endif // RENDERER_COMPILER
+
+#if RENDERER_SODAPOP
+	if (CurrentRenderer == Renderer::Sodapop)
 	{
-		Painter = new Drawable();
-		Painter->Hold();
-		Painter->Compile(InEvaluator, VoxelSize);
-		DrawableCache.emplace_back(Key, Painter);
+		// TODO!
 	}
+#endif // RENDERER_SODAPOP
 
 	TransformBuffer.DebugName = "Instance Transforms Buffer";
 
