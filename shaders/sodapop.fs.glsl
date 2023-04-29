@@ -23,12 +23,14 @@ layout(location = 0) out vec4 OutColor;
 
 void main()
 {
-#if 0
+#if 1
 	if (any(lessThan(Barycenter, vec3(0.05))))
 	{
 		OutColor = vec4(1.0);
 	}
 	else
+#endif
+#if 0
 	{
 		OutColor = vec4(0.0, 0.0, 0.0, 1.0);
 	}

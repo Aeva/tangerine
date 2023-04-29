@@ -18,6 +18,8 @@
 
 #include "sdf_model.h"
 
+#include <fmt/format.h>
+#include <cstdint>
 #include <iostream>
 #include <deque>
 #include <mutex>
@@ -100,7 +102,10 @@ void Sodapop::Teardown()
 
 	MeshingJob::Drain(PendingMeshingJobs);
 
-	std::cout << "Waiting for pending meshing jobs to drain.  This may take a while.\n";
+	if (MeshingThreadsActive.load() > 0)
+	{
+		std::cout << "Waiting for pending meshing jobs to drain.  This may take a while.\n";
+	}
 	for (auto& Thread : ActiveThreads)
 	{
 		Thread.join();
@@ -129,29 +134,50 @@ void MeshingThread()
 
 		if (ModelVolume > 0)
 		{
-			const float MinDimension = glm::min(glm::min(ModelExtent.x, ModelExtent.y), ModelExtent.z);
-
-			// These are arbitrary
-			const float IdealByMinSide = MinDimension / 8.0;
-			const float IdealByVolume = ModelVolume / 512.0;
-			glm::vec3 Step = glm::vec3(glm::min(IdealByMinSide, IdealByVolume));
-
-			glm::vec3 ModelMin = Bounds.Min;
-			glm::vec3 ModelMax = Bounds.Max;
-
-			ModelMin -= Step * glm::vec3(2.0);
-			glm::ivec3 Extent = glm::ivec3(glm::ceil((ModelMax - ModelMin) / Step));
-
 			isosurface::regular_grid_t Grid;
-			Grid.x = ModelMin.x;
-			Grid.y = ModelMin.y;
-			Grid.z = ModelMin.z;
-			Grid.dx = Step.x;
-			Grid.dy = Step.y;
-			Grid.dz = Step.z;
-			Grid.sx = Extent.x;
-			Grid.sy = Extent.y;
-			Grid.sz = Extent.z;
+
+			float Refinement = 1.0;
+			const int Limit = 128;
+
+			float Guess = 15.0;
+			const int Target = 8192;
+
+			for (int Attempt = 0; Attempt < Limit; ++Attempt)
+			{
+				glm::vec3 Step = ModelExtent / glm::vec3(Guess);
+
+				glm::vec3 ModelMin = Bounds.Min;
+				glm::vec3 ModelMax = Bounds.Max;
+
+				ModelMin -= Step * glm::vec3(2.0);
+				glm::ivec3 Extent = glm::ivec3(glm::ceil((ModelMax - ModelMin) / Step));
+
+				Grid.x = ModelMin.x;
+				Grid.y = ModelMin.y;
+				Grid.z = ModelMin.z;
+				Grid.dx = Step.x;
+				Grid.dy = Step.y;
+				Grid.dz = Step.z;
+				Grid.sx = Extent.x;
+				Grid.sy = Extent.y;
+				Grid.sz = Extent.z;
+
+				int Volume = Extent.x * Extent.y * Extent.z;
+
+				if (Volume == Target)
+				{
+					break;
+				}
+				if (Volume < Target)
+				{
+					Guess += Refinement;
+				}
+				else if (Volume > Target)
+				{
+					Refinement *= 0.9;
+					Guess -= Refinement;
+				}
+			}
 
 			SDFOctree* Octree = SDFOctree::Create(Packet.Evaluator, 0.25);
 
@@ -202,6 +228,8 @@ void Sodapop::Schedule(SodapopDrawable* Drawable, SDFNode* Evaluator)
 		PendingMeshingJobs.Push(Packet);
 	}
 
+	fmt::print("[{}] New background meshing job.\n", (void*)Drawable);
+
 	static const int MaxThreadCount = std::max(int(std::thread::hardware_concurrency()) - 1, 1);
 	if (MeshingThreadsActive.load() < MaxThreadCount)
 	{
@@ -217,10 +245,11 @@ repeat:
 	MeshingJob Completed;
 	if (CompletedMeshingJobs.TryPop(Completed))
 	{
-		std::cout << "FNORD\n"
-			<< " - verts: " << Completed.Drawable->Positions.size() << "\n"
-			<< " - faces: " << Completed.Drawable->Indices.size() / 3 << "\n";
-		// TODO
+		void* JobPtr = (void*)(Completed.Drawable);
+		size_t Triangles = Completed.Drawable->Indices.size() / 3;
+		size_t Vertices = Completed.Drawable->Positions.size();
+		fmt::print("[{}] Created {} triangles with {} vertices.\n", JobPtr, Triangles, Vertices);
+
 		Completed.Drawable->Release();
 		Completed.Evaluator->Release();
 		goto repeat;
