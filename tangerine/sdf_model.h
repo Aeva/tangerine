@@ -20,6 +20,11 @@
 #include "sdf_evaluator.h"
 #include "sdf_rendering.h"
 
+#if RENDERER_SODAPOP
+#include "sodapop.h"
+#include <atomic>
+#endif
+
 
 struct Drawable
 {
@@ -117,6 +122,15 @@ private:
 #if RENDERER_SODAPOP
 struct SodapopDrawable final : Drawable
 {
+	Buffer IndexBuffer;
+	Buffer PositionBuffer;
+
+	std::vector<uint32_t> Indices;
+	std::vector<glm::vec4> Positions;
+
+	std::atomic_bool MeshReady = false;
+	bool MeshUploaded = false;
+
 	virtual void Draw(
 		const bool ShowOctree,
 		const bool ShowLeafCount,
@@ -139,6 +153,11 @@ struct SDFModel
 	Buffer TransformBuffer;
 
 	int MouseListenFlags = 0;
+
+#if RENDERER_SODAPOP
+	Buffer ColorBuffer;
+	std::vector<glm::vec4> Colors;
+#endif
 
 	void Draw(
 		const bool ShowOctree,
@@ -166,6 +185,9 @@ struct SDFModel
 		--RefCount;
 		if (RefCount == 0)
 		{
+#if RENDERER_SODAPOP
+			ColorBuffer.Release();
+#endif
 			TransformBuffer.Release();
 			delete this;
 		}

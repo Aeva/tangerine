@@ -13,6 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "sodapop.h"
 #include <glad/glad.h>
 
 #ifdef MINIMAL_DLL
@@ -133,8 +134,12 @@ Buffer ViewInfo("ViewInfo Buffer");
 Buffer OutlinerOptions("Outliner Options Buffer");
 
 Buffer DepthTimeBuffer("Subtree Heatmap Buffer");
+
 GLuint DepthPass;
 GLuint ColorPass;
+#if RENDERER_SODAPOP
+GLuint ForwardPass;
+#endif
 GLuint FinalPass = 0;
 
 GLuint DepthBuffer;
@@ -207,6 +212,9 @@ void AllocateRenderTargets(int ScreenWidth, int ScreenHeight)
 	{
 		glDeleteFramebuffers(1, &DepthPass);
 		glDeleteFramebuffers(1, &ColorPass);
+#if RENDERER_SODAPOP
+		glDeleteFramebuffers(1, &ForwardPass);
+#endif // RENDERER_SODAPOP
 		glDeleteTextures(1, &DepthBuffer);
 		glDeleteTextures(1, &PositionBuffer);
 		glDeleteTextures(1, &NormalBuffer);
@@ -365,6 +373,18 @@ void AllocateRenderTargets(int ScreenWidth, int ScreenHeight)
 		GLenum ColorAttachments[1] = { GL_COLOR_ATTACHMENT0 };
 		glNamedFramebufferDrawBuffers(ColorPass, 1, ColorAttachments);
 	}
+
+#if RENDERER_SODAPOP
+	// Forward rendering pass
+	{
+		glCreateFramebuffers(1, &ForwardPass);
+		glObjectLabel(GL_FRAMEBUFFER, ForwardPass, -1, "Forward Rendering Pass");
+		glNamedFramebufferTexture(ForwardPass, GL_DEPTH_ATTACHMENT, DepthBuffer, 0);
+		glNamedFramebufferTexture(ForwardPass, GL_COLOR_ATTACHMENT0, ColorBuffer, 0);
+		GLenum ColorAttachments[1] = { GL_COLOR_ATTACHMENT0 };
+		glNamedFramebufferDrawBuffers(ForwardPass, 1, ColorAttachments);
+	}
+#endif // RENDERER_SODAPOP
 
 	// Final pass
 	if (HeadlessMode)
@@ -526,6 +546,8 @@ StatusCode SetupRenderer()
 		{ {GL_VERTEX_SHADER, ShaderSource("sodapop.vs.glsl", true)},
 		  {GL_FRAGMENT_SHADER, ShaderSource("sodapop.fs.glsl", true)} },
 		"Sodapop Shader"));
+
+	RETURN_ON_FAIL(Sodapop::Setup());
 #endif // RENDERER_SODAPOP
 
 	DepthTimeQuery.Create();
@@ -791,60 +813,59 @@ void RenderFrame(int ScreenWidth, int ScreenHeight, std::vector<SDFModel*>& Rend
 
 	if (RenderableModels.size() > 0)
 	{
-		if (FullRedraw)
+#if RENDERER_COMPILER
+		if (CurrentRenderer == Renderer::ShapeCompiler)
 		{
-			BeginEvent("Depth");
-			glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Depth");
-			DepthTimeQuery.Start();
-			glBindFramebuffer(GL_FRAMEBUFFER, DepthPass);
+			if (FullRedraw)
+			{
+				BeginEvent("Depth");
+				glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Depth");
+				DepthTimeQuery.Start();
+				glBindFramebuffer(GL_FRAMEBUFFER, DepthPass);
 #if ENABLE_OCCLUSION_CULLING
-			glBindTextureUnit(1, DepthPyramidBuffer);
+				glBindTextureUnit(1, DepthPyramidBuffer);
 #endif
-			glDepthMask(GL_TRUE);
-			glEnable(GL_DEPTH_TEST);
-			glDepthFunc(GL_GREATER);
-			glClear(GL_DEPTH_BUFFER_BIT);
-			if (ShowLeafCount)
-			{
-				glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
-				glClear(GL_COLOR_BUFFER_BIT);
-			}
-			if (ShowHeatmap)
-			{
-				DepthTimeQuery.Stop();
-			}
+				glDepthMask(GL_TRUE);
+				glEnable(GL_DEPTH_TEST);
+				glDepthFunc(GL_GREATER);
+				glClear(GL_DEPTH_BUFFER_BIT);
+				if (ShowLeafCount)
+				{
+					glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+					glClear(GL_COLOR_BUFFER_BIT);
+				}
+				if (ShowHeatmap)
+				{
+					DepthTimeQuery.Stop();
+				}
 
-			{
-				struct ShaderProgram* DebugShader = nullptr;
-				if (ShowOctree || ShowLeafCount)
 				{
-					DebugShader = &OctreeDebugShader;
+					struct ShaderProgram* DebugShader = nullptr;
+					if (ShowOctree || ShowLeafCount)
+					{
+						DebugShader = &OctreeDebugShader;
+					}
+					for (SDFModel* Model : RenderableModels)
+					{
+						Model->Draw(ShowOctree, ShowLeafCount, ShowHeatmap, ShowWireframe, DebugShader);
+					}
 				}
-#if RENDERER_SODAPOP
-				if (CurrentRenderer == Renderer::Sodapop)
-				{
-					SodapopShader.Activate();
-				}
-#endif // RENDERER_SODAPOP
-				for (SDFModel* Model : RenderableModels)
-				{
-					Model->Draw(ShowOctree, ShowLeafCount, ShowHeatmap, ShowWireframe, DebugShader);
-				}
-			}
 
-			if (!ShowHeatmap)
-			{
-				DepthTimeQuery.Stop();
+				if (!ShowHeatmap)
+				{
+					DepthTimeQuery.Stop();
+				}
+				glPopDebugGroup();
+				EndEvent();
 			}
-			glPopDebugGroup();
-			EndEvent();
-		}
 #if ENABLE_OCCLUSION_CULLING
-		if (!FreezeCulling)
-		{
-			UpdateDepthPyramid(ScreenWidth, ScreenHeight);
-		}
+			if (!FreezeCulling)
+			{
+				UpdateDepthPyramid(ScreenWidth, ScreenHeight);
+			}
 #endif
+		}
+#endif // RENDERER_COMPILER
 		{
 			glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Background");
 			glBindFramebuffer(GL_FRAMEBUFFER, ColorPass);
@@ -866,6 +887,30 @@ void RenderFrame(int ScreenWidth, int ScreenHeight, std::vector<SDFModel*>& Rend
 			GridBgTimeQuery.Stop();
 			glPopDebugGroup();
 		}
+#if RENDERER_SODAPOP
+		if (CurrentRenderer == Renderer::Sodapop)
+		{
+			glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Sodapop");
+			glBindFramebuffer(GL_FRAMEBUFFER, ForwardPass);
+			DepthTimeQuery.Start();
+			glDepthMask(GL_TRUE);
+			glEnable(GL_DEPTH_TEST);
+			glDepthFunc(GL_GREATER);
+			glClear(GL_DEPTH_BUFFER_BIT);
+
+			SodapopShader.Activate();
+
+			for (SDFModel* Model : RenderableModels)
+			{
+				Model->Draw(false, false, false, false, nullptr);
+			}
+
+			DepthTimeQuery.Stop();
+			glPopDebugGroup();
+		}
+#endif // RENDERER_SODAPOP
+#if RENDERER_COMPILER
+		if (CurrentRenderer == Renderer::ShapeCompiler)
 		{
 			glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Paint");
 			OutlinerTimeQuery.Start();
@@ -881,6 +926,7 @@ void RenderFrame(int ScreenWidth, int ScreenHeight, std::vector<SDFModel*>& Rend
 			OutlinerTimeQuery.Stop();
 			glPopDebugGroup();
 		}
+#endif // RENDERER_COMPILER
 		{
 			glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Resolve Output");
 			glDisable(GL_DEPTH_TEST);
@@ -897,6 +943,7 @@ void RenderFrame(int ScreenWidth, int ScreenHeight, std::vector<SDFModel*>& Rend
 		glDepthMask(GL_FALSE);
 		glDisable(GL_DEPTH_TEST);
 		glBindFramebuffer(GL_FRAMEBUFFER, FinalPass);
+		glBindTextureUnit(1, ColorBuffer);
 		NoiseShader.Activate();
 		glDrawArrays(GL_TRIANGLES, 0, 3);
 		glPopDebugGroup();
@@ -2199,6 +2246,9 @@ void Teardown()
 	{
 		delete MainEnvironment;
 	}
+#if RENDERER_SODAPOP
+	Sodapop::Teardown();
+#endif
 	{
 		JoinWorkerThreads();
 		UnloadAllModels();
@@ -2492,6 +2542,13 @@ void MainLoop()
 						EndEvent();
 					}
 				}
+#if RENDERER_SODAPOP
+				{
+					BeginEvent("Sodapop::Advance");
+					Sodapop::Advance();
+					EndEvent();
+				}
+#endif // RENDERER_SODAPOP
 				EndEvent();
 			}
 		}

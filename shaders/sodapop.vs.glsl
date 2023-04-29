@@ -18,15 +18,25 @@
 layout(std140, binding = 0)
 uniform ViewInfoBlock
 {
+	mat4 WorldToLastView;
 	mat4 WorldToView;
+	mat4 ViewToWorld;
 	mat4 ViewToClip;
+	mat4 ClipToView;
+	vec4 CameraOrigin;
+	vec4 ScreenSize;
+	vec4 ModelMin;
+	vec4 ModelMax;
+	float CurrentTime;
+	bool Perspective;
 };
 
 
 layout(std140, binding = 1)
-uniform ModelInfoBlock
+uniform InstanceDataBlock
 {
 	mat4 LocalToWorld;
+	mat4 WorldToLocal;
 };
 
 

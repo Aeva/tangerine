@@ -16,6 +16,7 @@
 #include "sdf_rendering.h"
 #include "sdf_model.h"
 #include "profiling.h"
+#include <iostream>
 
 
 struct OctreeDebugOptionsUpload
@@ -239,7 +240,23 @@ void SodapopDrawable::Draw(
 	const bool Wireframe,
 	ShaderProgram* DebugShader)
 {
-	// TODO
+	if (!MeshReady.load())
+	{
+		return;
+	}
+	if (!MeshUploaded)
+	{
+		IndexBuffer.Upload(Indices.data(), Indices.size() * sizeof(uint32_t));
+		PositionBuffer.Upload(Positions.data(), Positions.size() * sizeof(glm::vec4));
+		MeshUploaded = true;
+	}
+
+	IndexBuffer.Bind(GL_SHADER_STORAGE_BUFFER, 2);
+	PositionBuffer.Bind(GL_SHADER_STORAGE_BUFFER, 3);
+
+	PositionBuffer.Bind(GL_SHADER_STORAGE_BUFFER, 4); // HACK
+
+	glDrawArrays(GL_TRIANGLES, 0, Indices.size());
 }
 #endif //RENDERER_SODAPOP
 

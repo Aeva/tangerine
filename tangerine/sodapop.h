@@ -1,4 +1,3 @@
---------------------------------------------------------------------------------
 
 // Copyright 2023 Aeva Palecek
 //
@@ -14,31 +13,23 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#pragma once
 
-in vec3 VertexColor;
-in vec3 Barycenter;
-
-layout(location = 0) out vec4 OutColor;
+#include "errors.h"
+#include "sdf_rendering.h"
 
 
-void main()
+#if RENDERER_SODAPOP
+struct SDFNode;
+struct SodapopDrawable;
+
+
+namespace Sodapop
 {
-#if 0
-	if (any(lessThan(Barycenter, vec3(0.05))))
-	{
-		OutColor = vec4(1.0);
-	}
-	else
-	{
-		OutColor = vec4(0.0, 0.0, 0.0, 1.0);
-	}
-#elif 1
-	{
-		OutColor = vec4(fract(VertexColor), 1.0);
-	}
-#else
-	{
-		OutColor = vec4(VertexColor, 1.0);
-	}
-#endif
+	StatusCode Setup();
+	void Teardown();
+	void Advance();
+
+	void Schedule(SodapopDrawable* Drawable, SDFNode* Evaluator);
 }
+#endif

@@ -16,6 +16,7 @@
 #include "sdf_model.h"
 #include "sdf_rendering.h"
 #include "profiling.h"
+#include "sodapop.h"
 
 
 std::vector<SDFModel*> LiveModels;
@@ -58,6 +59,19 @@ void GetIncompleteModels(std::vector<SDFModel*>& Incomplete)
 		}
 	}
 #endif // RENDERER_COMPILER
+#if RENDERER_SODAPOP
+	if (CurrentRenderer == Renderer::Sodapop)
+	{
+		for (SDFModel* Model : LiveModels)
+		{
+			SodapopDrawable* Painter = (SodapopDrawable*)(Model->Painter);
+			if (!Painter->MeshReady.load())
+			{
+				Incomplete.push_back(Model);
+			}
+		}
+	}
+#endif // RENDERER_SODAPOP
 }
 
 
@@ -79,6 +93,19 @@ void GetRenderableModels(std::vector<SDFModel*>& Renderable)
 		}
 	}
 #endif // RENDERER_COMPILER
+#if RENDERER_SODAPOP
+	if (CurrentRenderer == Renderer::Sodapop)
+	{
+		for (SDFModel* Model : LiveModels)
+		{
+			SodapopDrawable* Painter = (SodapopDrawable*)(Model->Painter);
+			if (Painter->MeshReady.load())
+			{
+				Renderable.push_back(Model);
+			}
+		}
+	}
+#endif // RENDERER_SODAPOP
 }
 
 
@@ -256,8 +283,6 @@ void SodapopDrawable::Release()
 			}
 		}
 
-		// TODO
-
 		delete this;
 	}
 }
@@ -306,7 +331,7 @@ SDFModel::SDFModel(SDFNode* InEvaluator, const float VoxelSize)
 		{
 			SodapopDrawable* MeshPainter = new SodapopDrawable();
 			MeshPainter->Hold();
-			// TODO
+			Sodapop::Schedule(MeshPainter, Evaluator);
 			Painter = (Drawable*)MeshPainter;
 			DrawableCache.emplace_back(Key, Painter);
 		}
