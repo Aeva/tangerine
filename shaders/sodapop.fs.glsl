@@ -23,24 +23,11 @@ layout(location = 0) out vec4 OutColor;
 
 void main()
 {
-#if 1
+	OutColor = vec4(VertexColor, 1.0);
+#if 0
 	if (any(lessThan(Barycenter, vec3(0.05))))
 	{
-		OutColor = vec4(1.0);
-	}
-	else
-#endif
-#if 0
-	{
-		OutColor = vec4(0.0, 0.0, 0.0, 1.0);
-	}
-#elif 1
-	{
-		OutColor = vec4(fract(VertexColor), 1.0);
-	}
-#else
-	{
-		OutColor = vec4(VertexColor, 1.0);
+		OutColor.xyz = vec3(1.0) - step(vec3(0.5), VertexColor);
 	}
 #endif
 }

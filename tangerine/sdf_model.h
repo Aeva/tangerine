@@ -124,9 +124,11 @@ struct SodapopDrawable final : Drawable
 {
 	Buffer IndexBuffer;
 	Buffer PositionBuffer;
+	Buffer ColorBuffer;
 
 	std::vector<uint32_t> Indices;
 	std::vector<glm::vec4> Positions;
+	std::vector<glm::vec4> Colors;
 
 	std::atomic_bool MeshReady = false;
 	bool MeshUploaded = false;
@@ -154,11 +156,6 @@ struct SDFModel
 
 	int MouseListenFlags = 0;
 
-#if RENDERER_SODAPOP
-	Buffer ColorBuffer;
-	std::vector<glm::vec4> Colors;
-#endif
-
 	void Draw(
 		const bool ShowOctree,
 		const bool ShowLeafCount,
@@ -185,9 +182,6 @@ struct SDFModel
 		--RefCount;
 		if (RefCount == 0)
 		{
-#if RENDERER_SODAPOP
-			ColorBuffer.Release();
-#endif
 			TransformBuffer.Release();
 			delete this;
 		}

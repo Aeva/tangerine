@@ -189,8 +189,6 @@ void MeshingThread()
 			isosurface::mesh Mesh;
 			isosurface::surface_nets(Eval, Grid, Mesh);
 
-			delete Octree;
-
 			Packet.Drawable->Positions.reserve(Mesh.vertices_.size());
 			Packet.Drawable->Indices.reserve(Mesh.faces_.size() * 3);
 
@@ -207,6 +205,14 @@ void MeshingThread()
 				Packet.Drawable->Indices.push_back(ExtractedTriangle.v2);
 			}
 
+			Packet.Drawable->Colors.reserve(Packet.Drawable->Positions.size());
+			for (const glm::vec4& Position : Packet.Drawable->Positions )
+			{
+				glm::vec3 Color = Packet.Evaluator->Sample(Position.xyz);
+				Packet.Drawable->Colors.push_back(glm::vec4(Color, 1.0));
+			}
+
+			delete Octree;
 			Packet.Drawable->MeshReady.store(true);
 		}
 

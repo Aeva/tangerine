@@ -248,13 +248,15 @@ void SodapopDrawable::Draw(
 	{
 		IndexBuffer.Upload(Indices.data(), Indices.size() * sizeof(uint32_t));
 		PositionBuffer.Upload(Positions.data(), Positions.size() * sizeof(glm::vec4));
+		ColorBuffer.Upload(Colors.data(), Colors.size() * sizeof(glm::vec4));
 		MeshUploaded = true;
 	}
 
 	IndexBuffer.Bind(GL_SHADER_STORAGE_BUFFER, 2);
 	PositionBuffer.Bind(GL_SHADER_STORAGE_BUFFER, 3);
+	ColorBuffer.Bind(GL_SHADER_STORAGE_BUFFER, 4);
 
-	PositionBuffer.Bind(GL_SHADER_STORAGE_BUFFER, 4); // HACK
+	// TODO per-instance colors
 
 	glDrawArrays(GL_TRIANGLES, 0, Indices.size());
 }
