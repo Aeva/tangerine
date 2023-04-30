@@ -15,7 +15,7 @@
 
 #pragma once
 
-#include <glad/glad.h>
+#include <glad/gl.h>
 #include <vector>
 #include <string>
 #include <map>

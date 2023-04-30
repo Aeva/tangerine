@@ -4,6 +4,7 @@ import subprocess
 def opengl_params(debug):
     extensions = \
     sorted([
+        # For OpenGL 4.2
         "GL_ARB_buffer_storage",
         "GL_ARB_clear_texture",
         "GL_ARB_clip_control",
@@ -16,57 +17,24 @@ def opengl_params(debug):
         "GL_ARB_shader_storage_buffer_object",
         "GL_ARB_multi_draw_indirect",
         "GL_KHR_debug",
+
+        # For OpenGL ES 2
+        "GL_EXT_clip_control",
+        "GL_EXT_debug_label",
+        "GL_KHR_debug",
+        "GL_OES_vertex_array_object",
     ])
     return {
         "out-path" : "glad",
-        "profile" : "core",
-        "api" : "gl=4.2",
-        "generator" : "c-debug" if debug else "c",
-        "spec" : "gl",
-        "extensions" : f"{','.join(extensions)}",
-    }
-
-
-def wgl_params(debug):
-    extensions = \
-    sorted([
-        "WGL_EXT_extensions_string",
-        "WGL_ARB_extensions_string",
-        "WGL_ARB_create_context",
-        "WGL_ARB_create_context_profile",
-        "WGL_ARB_pixel_format",
-        "WGL_ARB_pbuffer",
-    ])
-    return {
-        "out-path" : "glad",
-        "api" : "wgl=1.0",
-        "generator" : "c-debug" if debug else "c",
-        "spec" : "wgl",
-        "extensions" : f"{','.join(extensions)}",
-    }
-
-
-def glx_params(debug):
-    extensions = \
-    sorted([
-        "GLX_ARB_create_context",
-        "GLX_ARB_create_context_profile",
-    ])
-    return {
-        "out-path" : "glad",
-        "api" : "glx=1.4",
-        "generator" : "c-debug" if debug else "c",
-        "spec" : "glx",
+        "api" : "gl:core=4.2,gles2",
         "extensions" : f"{','.join(extensions)}",
     }
 
 
 def download_glad(params):
-    glad = ["python", "-m glad", "--local-files"] + [f" --{n}={v}" for (n,v) in params.items()]
+    glad = ["python", "-m glad", "--merge"] + [f" --{n}={v}" for (n,v) in params.items()] + ["c"]
     subprocess.call(" ".join(glad), shell=True)
 
 
 if __name__ == "__main__":
-    download_glad(wgl_params(False))
-    download_glad(glx_params(False))
     download_glad(opengl_params(False))

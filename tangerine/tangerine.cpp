@@ -14,7 +14,7 @@
 // limitations under the License.
 
 #include "sodapop.h"
-#include <glad/glad.h>
+#include <glad/gl.h>
 
 #ifdef MINIMAL_DLL
 #define SDL_MAIN_HANDLED
@@ -2102,7 +2102,7 @@ StatusCode Boot(int argc, char* argv[])
 	}
 	{
 		std::cout << "Setting up OpenGL... ";
-		if (gladLoadGL())
+		if (gladLoadGL((GLADloadfunc) SDL_GL_GetProcAddress))
 		{
 			std::cout << "Done!\n";
 		}

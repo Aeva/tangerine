@@ -13,8 +13,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <glad/glad.h>
-#if _WIN64
+#include <glad/gl.h>
+#if _WIN64 && ENABLE_ASYNC_SHADER_COMPILE
 #include <glad/glad_wgl.h>
 #include <processthreadsapi.h>
 #endif

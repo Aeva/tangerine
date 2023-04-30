@@ -78,7 +78,8 @@ target_include_directories(fmt PUBLIC "third_party/fmt/include")
 #######################################################################
 ## GLAD:
 
-add_library(glad OBJECT "third_party/glad/glad.c")
+add_library(glad OBJECT "third_party/glad/src/gl.c")
+target_include_directories(glad PUBLIC "third_party/glad/include")
 
 #######################################################################
 ## GLM:
