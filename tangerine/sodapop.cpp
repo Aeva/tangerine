@@ -20,7 +20,6 @@
 
 #include <fmt/format.h>
 #include <cstdint>
-#include <iostream>
 #include <deque>
 #include <mutex>
 #include <atomic>
@@ -102,9 +101,10 @@ void Sodapop::Teardown()
 
 	MeshingJob::Drain(PendingMeshingJobs);
 
-	if (MeshingThreadsActive.load() > 0)
+	const int WaitingThreads = MeshingThreadsActive.load();
+	if (WaitingThreads > 0)
 	{
-		std::cout << "Waiting for pending meshing jobs to drain.  This may take a while.\n";
+		fmt::print("Halting {} active meshing threads...\n", WaitingThreads);
 	}
 	for (auto& Thread : ActiveThreads)
 	{
@@ -187,7 +187,7 @@ void MeshingThread()
 			};
 
 			isosurface::mesh Mesh;
-			isosurface::surface_nets(Eval, Grid, Mesh);
+			isosurface::surface_nets(Eval, Grid, Mesh, Live);
 
 			Packet.Drawable->Positions.reserve(Mesh.vertices_.size());
 			Packet.Drawable->Indices.reserve(Mesh.faces_.size() * 3);

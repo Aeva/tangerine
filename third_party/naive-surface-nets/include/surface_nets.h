@@ -11,6 +11,7 @@ void surface_nets(
 	std::function<float(float x, float y, float z)> const& implicit_function,
 	regular_grid_t const& grid,
 	mesh& out_mesh,
+	std::atomic_bool& Live,
 	float const isovalue = 0.f
 );
 

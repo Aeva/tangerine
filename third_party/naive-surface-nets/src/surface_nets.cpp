@@ -31,6 +31,7 @@ void surface_nets(
     std::function<float(float x, float y, float z)> const& implicit_function,
     regular_grid_t const& grid,
     isosurface::mesh& mesh,
+	std::atomic_bool& Live,
     float const isovalue)
 {
 // END TANGERINE MOD
@@ -91,6 +92,9 @@ void surface_nets(
 	for (std::size_t j = 0; j < grid.sy; ++j)
 	for (std::size_t i = 0; i < grid.sx; ++i)
 	{
+// BEGIN TANGERINE MOD - Added thread abort mechanism.
+		if (!Live.load()) return;
+// END TANGERINE MOD - Added thread abort mechanism.
 		/*
 		*
 		* Visit every voxel in the regular grid with the following configuration
@@ -222,6 +226,9 @@ void surface_nets(
 		// visit every bipolar edge
 		for (std::size_t e = 0; e < 12; ++e)
 		{
+// BEGIN TANGERINE MOD - Added thread abort mechanism.
+			if (!Live.load()) return;
+// END TANGERINE MOD - Added thread abort mechanism.
 			if (!edge_bipolarity_array[e])
 				continue;
 
@@ -306,6 +313,9 @@ void surface_nets(
 	*/
 	for (auto const& key_value : active_cube_to_vertex_index_map)
 	{
+// BEGIN TANGERINE MOD - Added thread abort mechanism.
+		if (!Live.load()) return;
+// END TANGERINE MOD - Added thread abort mechanism.
 		std::size_t   const active_cube_index = key_value.first;
 		std::uint64_t const vertex_index = key_value.second;
 
@@ -488,6 +498,9 @@ void surface_nets(
 		// look at each potentially generated quad
 		for (std::size_t i = 0; i < 3; ++i)
 		{
+// BEGIN TANGERINE MOD - Added thread abort mechanism.
+			if (!Live.load()) return;
+// END TANGERINE MOD - Added thread abort mechanism.
 			auto const neighbor1 = get_active_cube_index(
 				neighbor_grid_positions[quad_neighbors[i][0]][0],
 				neighbor_grid_positions[quad_neighbors[i][0]][1],
