@@ -99,7 +99,6 @@ std::filesystem::path LastOpenDir;
 
 extern SDL_Window* Window;
 extern SDL_GLContext Context;
-extern GraphicsAPI GraphicsBackend;
 
 
 void ClearTreeEvaluator()
@@ -486,16 +485,22 @@ struct OutlinerOptionsUpload
 
 void SetPipelineDefaults()
 {
-	// For drawing without a VBO bound.
-	GLuint NullVAO;
-	glGenVertexArrays(1, &NullVAO);
-	glBindVertexArray(NullVAO);
+	if (GraphicsBackend == GraphicsAPI::OpenGL4_2)
+	{
+		// For drawing without a VBO bound.
+		GLuint NullVAO;
+		glGenVertexArrays(1, &NullVAO);
+		glBindVertexArray(NullVAO);
 
-	glDisable(GL_DITHER);
-	glEnable(GL_CULL_FACE);
-	glEnable(GL_DEPTH_TEST);
-	glClipControl(GL_LOWER_LEFT, GL_ZERO_TO_ONE);
-	glDepthRange(1.0, 0.0);
+		// These don't appear to be available in ES2 :(
+		glClipControl(GL_LOWER_LEFT, GL_ZERO_TO_ONE);
+		glDepthRange(1.0, 0.0);
+	}
+	{
+		glDisable(GL_DITHER);
+		glEnable(GL_CULL_FACE);
+		glEnable(GL_DEPTH_TEST);
+	}
 }
 
 
@@ -505,6 +510,10 @@ StatusCode SetupRenderer()
 	SetPipelineDefaults();
 
 	glClearColor(0.0, 0.0, 0.0, 1.0);
+
+	if (GraphicsBackend == GraphicsAPI::OpenGL4_2) // HACK
+	{
+
 	glClearDepth(0.0);
 
 #if VISUALIZE_CLUSTER_COVERAGE
@@ -552,6 +561,8 @@ StatusCode SetupRenderer()
 
 	RETURN_ON_FAIL(Sodapop::Setup());
 #endif // RENDERER_SODAPOP
+
+	} // end HACK
 
 	DepthTimeQuery.Create();
 	GridBgTimeQuery.Create();
@@ -2448,7 +2459,16 @@ void MainLoop()
 #endif
 						GetRenderableModels(RenderableModels);
 					}
-					RenderFrame(ScreenWidth, ScreenHeight, RenderableModels, LastView, RequestDraw);
+					if (GraphicsBackend == GraphicsAPI::OpenGL4_2) // HACK
+					{
+						RenderFrame(ScreenWidth, ScreenHeight, RenderableModels, LastView, RequestDraw);
+					}
+					else
+					{
+						// HACK
+						glClearColor(0.5f, 1.0f, 0.0f, 0.0f);
+						glClear(GL_COLOR_BUFFER_BIT);
+					}
 					{
 						BeginEvent("Dear ImGui Draw");
 						glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Dear ImGui");

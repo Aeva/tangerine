@@ -140,9 +140,13 @@
 #endif
 
 // Desktop GL 2.0+ has glPolygonMode() which GL ES and WebGL don't have.
+// BEGIN TANGERINE MOD - Delete "polygon mode" to prevent crashing on ES2
+#if 0
 #ifdef GL_POLYGON_MODE
 #define IMGUI_IMPL_HAS_POLYGON_MODE
 #endif
+#endif
+// END TANGERINE MOD - Delete "polygon mode" to prevent crashing on ES2
 
 // Desktop GL 3.2+ has glDrawElementsBaseVertex() which GL ES and WebGL don't have.
 #if !defined(IMGUI_IMPL_OPENGL_ES2) && !defined(IMGUI_IMPL_OPENGL_ES3) && defined(GL_VERSION_3_2)

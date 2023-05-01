@@ -19,7 +19,9 @@
 #include "gl_boilerplate.h"
 
 
-#define ENABLE_DEBUG_CONTEXTS 0
+#ifndef ENABLE_DEBUG_CONTEXTS
+#define ENABLE_DEBUG_CONTEXTS 1
+#endif
 
 
 void ConnectDebugCallback(size_t Thread);

@@ -26,6 +26,9 @@ enum class GraphicsAPI
 };
 
 
+extern GraphicsAPI GraphicsBackend;
+
+
 StatusCode BootGL(int& WindowWidth, int& WindowHeight, bool HeadlessMode, bool CreateDebugContext);
 
 

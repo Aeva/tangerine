@@ -18,6 +18,7 @@
 #include <filesystem>
 #include <map>
 #include <mutex>
+#include "gl_init.h"
 #include "gl_boilerplate.h"
 #include "profiling.h"
 #include "installation.h"
@@ -573,56 +574,75 @@ void Buffer::Bind(GLenum Target)
 
 void TimingQuery::Create(size_t SampleCount)
 {
-	Release();
-	glGenQueries(1, &QueryID);
-	Samples.resize(SampleCount);
-	for (double& Sample : Samples)
+	if (GraphicsBackend == GraphicsAPI::OpenGL4_2)
 	{
-		Sample = 0.0;
+		Release();
+		glGenQueries(1, &QueryID);
+		Samples.resize(SampleCount);
+		for (double& Sample : Samples)
+		{
+			Sample = 0.0;
+		}
 	}
 }
 
 
 void TimingQuery::Release()
 {
-	if (QueryID != 0)
+	if (GraphicsBackend == GraphicsAPI::OpenGL4_2)
 	{
-		glDeleteQueries(1, &QueryID);
-		QueryID = 0;
+		if (QueryID != 0)
+		{
+			glDeleteQueries(1, &QueryID);
+			QueryID = 0;
+		}
 	}
 }
 
 
 void TimingQuery::Start()
 {
-	glBeginQuery(GL_TIME_ELAPSED, QueryID);
-	Pending = true;
+	if (GraphicsBackend == GraphicsAPI::OpenGL4_2)
+	{
+		glBeginQuery(GL_TIME_ELAPSED, QueryID);
+		Pending = true;
+	}
 }
 
 
 void TimingQuery::Stop()
 {
-	glEndQuery(GL_TIME_ELAPSED);
+	if (GraphicsBackend == GraphicsAPI::OpenGL4_2)
+	{
+		glEndQuery(GL_TIME_ELAPSED);
+	}
 }
 
 
 double TimingQuery::ReadMs()
 {
-	double TimeMs = 0.0;
-
-	if (Pending)
+	if (GraphicsBackend == GraphicsAPI::OpenGL4_2)
 	{
-		Pending = false;
-		GLint TimeNs = 0;
-		glGetQueryObjectiv(QueryID, GL_QUERY_RESULT, &TimeNs);
-		Samples[Cursor] = double(TimeNs) / 1000000.0;
-		Cursor = ++Cursor % Samples.size();
-	}
+		double TimeMs = 0.0;
 
-	for (const double& Sample : Samples)
+		if (Pending)
+		{
+			Pending = false;
+			GLint TimeNs = 0;
+			glGetQueryObjectiv(QueryID, GL_QUERY_RESULT, &TimeNs);
+			Samples[Cursor] = double(TimeNs) / 1000000.0;
+			Cursor = ++Cursor % Samples.size();
+		}
+
+		for (const double& Sample : Samples)
+		{
+			TimeMs += Sample;
+		}
+
+		return TimeMs / double(Samples.size());
+	}
+	else
 	{
-		TimeMs += Sample;
+		return 0.0;
 	}
-
-	return TimeMs / double(Samples.size());
 }
