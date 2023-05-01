@@ -31,16 +31,6 @@
 
 SDL_Window* Window = nullptr;
 SDL_GLContext Context = nullptr;
-
-
-enum class GraphicsAPI
-{
-	Invalid,
-	OpenGL4_2,
-	OpenGLES2
-};
-
-
 GraphicsAPI GraphicsBackend = GraphicsAPI::Invalid;
 
 

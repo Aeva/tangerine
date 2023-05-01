@@ -17,6 +17,15 @@
 
 #include "errors.h"
 
+
+enum class GraphicsAPI
+{
+	Invalid,
+	OpenGL4_2,
+	OpenGLES2
+};
+
+
 StatusCode BootGL(int& WindowWidth, int& WindowHeight, bool HeadlessMode, bool CreateDebugContext);
 
 

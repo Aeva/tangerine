@@ -97,7 +97,10 @@
 
 // GL includes
 #if defined(IMGUI_IMPL_OPENGL_ES2)
-#include <GLES2/gl2.h>
+// BEGIN TANGERINE MOD - Force using Glad as the GL loader
+#include <glad/gl.h>
+//#include <GLES2/gl2.h>
+// END TANGERINE MOD - Force using Glad as the GL loader
 #if defined(__EMSCRIPTEN__)
 #ifndef GL_GLEXT_PROTOTYPES
 #define GL_GLEXT_PROTOTYPES

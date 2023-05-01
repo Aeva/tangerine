@@ -99,6 +99,7 @@ std::filesystem::path LastOpenDir;
 
 extern SDL_Window* Window;
 extern SDL_GLContext Context;
+extern GraphicsAPI GraphicsBackend;
 
 
 void ClearTreeEvaluator()
@@ -2075,7 +2076,15 @@ StatusCode Boot(int argc, char* argv[])
 		ImGuiStyle& Style = ImGui::GetStyle();
 		Style.FrameBorderSize = 1.0f;
 		ImGui_ImplSDL2_InitForOpenGL(Window, Context);
-		ImGui_ImplOpenGL3_Init("#version 130");
+
+		if (GraphicsBackend == GraphicsAPI::OpenGLES2)
+		{
+			ImGui_ImplOpenGL3_Init("#version 100");
+		}
+		else
+		{
+			ImGui_ImplOpenGL3_Init("#version 130");
+		}
 
 		// Required by ImFileDialog
 		{

@@ -94,7 +94,7 @@ file(GLOB TANGERINE_IMGUI_FILES CONFIGURE_DEPENDS
 	"third_party/imgui/backends/imgui_impl_opengl3.cpp"
 	"third_party/imgui/backends/imgui_impl_sdl.cpp")
 add_library(imgui OBJECT "${TANGERINE_IMGUI_FILES}")
-target_link_libraries(imgui PUBLIC SDL2::SDL2)
+target_link_libraries(imgui PUBLIC SDL2::SDL2 glad)
 # some complexity to make both <imgui/imgui.h> and "imgui.h" work
 # FIXME same problem with glm ... can we just move the source?
 target_include_directories(imgui PUBLIC
