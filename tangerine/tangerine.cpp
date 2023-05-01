@@ -1318,7 +1318,8 @@ void RenderUI(SDL_Window* Window, bool& Live)
 			if (ImGui::BeginMenu("Renderer"))
 			{
 #if RENDERER_COMPILER
-				if (ImGui::MenuItem("Shape Compiler", nullptr, CurrentRenderer == Renderer::ShapeCompiler))
+				const bool AllowShapeCompiler = GraphicsBackend == GraphicsAPI::OpenGL4_2;
+				if (ImGui::MenuItem("Shape Compiler", nullptr, CurrentRenderer == Renderer::ShapeCompiler, AllowShapeCompiler))
 				{
 					SetRenderer(Renderer::ShapeCompiler);
 				}
@@ -2063,6 +2064,10 @@ StatusCode Boot(int argc, char* argv[])
 		if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER) == 0)
 		{
 			RETURN_ON_FAIL(BootGL(WindowWidth, WindowHeight, HeadlessMode, CreateDebugContext));
+			if (GraphicsBackend != GraphicsAPI::OpenGL4_2)
+			{
+				CurrentRenderer = Renderer::Sodapop;
+			}
 		}
 		else
 		{
