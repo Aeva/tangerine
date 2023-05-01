@@ -28,6 +28,8 @@
 #include <imgui_impl_opengl3.h>
 #include <ImFileDialog.h>
 
+#include "gl_init.h"
+
 #include "events.h"
 #include "sdf_evaluator.h"
 #include "sdf_rendering.h"
@@ -72,10 +74,6 @@
 #define min(a, b) (a < b ? a : b)
 #define max(a, b) (a > b ? a : b)
 
-
-#define MINIMUM_VERSION_MAJOR 4
-#define MINIMUM_VERSION_MINOR 2
-
 #define ASYNC_SHADER_COMPILE 0
 
 using Clock = std::chrono::high_resolution_clock;
@@ -97,6 +95,10 @@ SDFNode* TreeEvaluator = nullptr;
 
 TangerinePaths Installed;
 std::filesystem::path LastOpenDir;
+
+
+extern SDL_Window* Window;
+extern SDL_GLContext Context;
 
 
 void ClearTreeEvaluator()
@@ -1948,9 +1950,6 @@ void SaveBookmarks()
 }
 
 
-SDL_Window* Window = nullptr;
-SDL_GLContext Context = nullptr;
-
 StatusCode Boot(int argc, char* argv[])
 {
 	RETURN_ON_FAIL(Installed.PopulateInstallationPaths());
@@ -1966,6 +1965,7 @@ StatusCode Boot(int argc, char* argv[])
 #if !_WIN64
 	bool RequestSoftwareDriver = false;
 #endif
+	bool CreateDebugContext = false;
 
 	int WindowWidth = 900;
 	int WindowHeight = 900;
@@ -2029,6 +2029,12 @@ StatusCode Boot(int argc, char* argv[])
 				Cursor += 1;
 				continue;
 			}
+			else if (Args[Cursor] == "--debug-gl")
+			{
+				CreateDebugContext = true;
+				Cursor += 1;
+				continue;
+			}
 			else
 			{
 				std::cout << "Invalid commandline arg(s).\n";
@@ -2044,74 +2050,14 @@ StatusCode Boot(int argc, char* argv[])
 		SDL_SetMainReady();
 		if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER) == 0)
 		{
-			SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
-			SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, MINIMUM_VERSION_MAJOR);
-			SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, MINIMUM_VERSION_MINOR);
-			SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
-#if ENABLE_DEBUG_CONTEXTS
-			SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_DEBUG_FLAG);
-#endif
-			Uint32 WindowFlags = SDL_WINDOW_OPENGL;
-			if (HeadlessMode)
-			{
-				WindowFlags |= SDL_WINDOW_HIDDEN;
-			}
-			else
-			{
-				WindowFlags |= SDL_WINDOW_RESIZABLE;
-
-				SDL_DisplayMode DisplayMode;
-				SDL_GetCurrentDisplayMode(0, &DisplayMode);
-				const int MinDisplaySize = min(DisplayMode.w, DisplayMode.h);
-				const int MaxWindowSize = max(480, MinDisplaySize - 128);
-				WindowWidth = min(WindowWidth, MaxWindowSize);
-				WindowHeight = min(WindowHeight, MaxWindowSize);
-			}
-			Window = SDL_CreateWindow(
-				"Tangerine",
-				SDL_WINDOWPOS_CENTERED,
-				SDL_WINDOWPOS_CENTERED,
-				WindowWidth, WindowHeight,
-				WindowFlags);
+			RETURN_ON_FAIL(BootGL(WindowWidth, WindowHeight, HeadlessMode, CreateDebugContext));
 		}
 		else
 		{
 			std::cout << "Failed to initialize SDL2.\n";
 			return StatusCode::FAIL;
 		}
-		if (Window == nullptr)
-		{
-			std::cout << "Failed to create SDL2 window.\n";
-			return StatusCode::FAIL;
-		}
-		else
-		{
-			Context = SDL_GL_CreateContext(Window);
-			if (Context == nullptr)
-			{
-				std::cout << "Failed to create SDL2 OpenGL Context.\n";
-				return StatusCode::FAIL;
-			}
-			else
-			{
-				SDL_GL_MakeCurrent(Window, Context);
-				SDL_GL_SetSwapInterval(1);
-				std::cout << "Done!\n";
-			}
-		}
 	}
-	{
-		std::cout << "Setting up OpenGL... ";
-		if (gladLoadGL((GLADloadfunc) SDL_GL_GetProcAddress))
-		{
-			std::cout << "Done!\n";
-		}
-		else
-		{
-			std::cout << "Failed to setup OpenGL.\n";
-		}
-	}
-	ConnectDebugCallback(0);
 	{
 		MainEnvironment = new NullEnvironment();
 #if EMBED_RACKET
@@ -2120,6 +2066,7 @@ StatusCode Boot(int argc, char* argv[])
 	}
 	{
 		std::cout << "Setting up Dear ImGui... ";
+		std::cout.flush();
 		IMGUI_CHECKVERSION();
 		ImGui::CreateContext();
 		ImGuiIO& io = ImGui::GetIO();
@@ -2167,7 +2114,6 @@ StatusCode Boot(int argc, char* argv[])
 #endif
 		std::cout << "Done!\n";
 	}
-	std::cout << "Using device: " << glGetString(GL_RENDERER) << " " << glGetString(GL_VERSION) << "\n";
 
 	if (SetupRenderer() == StatusCode::FAIL)
 	{
@@ -2261,8 +2207,8 @@ void Teardown()
 				ImGui_ImplSDL2_Shutdown();
 				ImGui::DestroyContext();
 			}
-			SDL_GL_DeleteContext(Context);
 		}
+		TeardownGL();
 		if (Window)
 		{
 			SDL_DestroyWindow(Window);

@@ -54,6 +54,7 @@ void Search(std::string Sequence, const char* Pattern, int& Result)
 
 void Linux::DriverCheck(bool RequestSoftwareDriver)
 {
+#if 1
 	if (!RequestSoftwareDriver)
 	{
 		std::string Found = "";
@@ -100,6 +101,7 @@ void Linux::DriverCheck(bool RequestSoftwareDriver)
 			}
 		}
 	}
+#endif
 
 	if (RequestSoftwareDriver)
 	{
