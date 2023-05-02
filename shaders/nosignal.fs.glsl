@@ -1,3 +1,4 @@
+--------------------------------------------------------------------------------
 
 // Copyright 2023 Aeva Palecek
 //
@@ -13,23 +14,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#pragma once
 
-#include "errors.h"
+// This shader is a modest replacement for noise.fs.glsl, because GLES does
+// not support all the math ops used by the original shader's PRNG.
 
+varying vec2 UV;
 
-enum class GraphicsAPI
+void main()
 {
-	Invalid,
-	OpenGL4_2,
-	OpenGLES2
-};
+	//gl_FragColor = vec4(UV, 0.5, 1);
+	vec3 Low = vec3(0.0, 0.0, 0.05);
+	vec3 High = vec3(0.12, 0.1, 0.1);
+	float AlphaH = abs(UV.x - .5) * 2.0;
 
+	float AlphaV = mix(UV.y * UV.y, UV.y, AlphaH * AlphaH);
 
-extern GraphicsAPI GraphicsBackend;
-
-
-StatusCode BootGL(int& WindowWidth, int& WindowHeight, bool HeadlessMode, bool ForceES2, bool CreateDebugContext);
-
-
-void TeardownGL();
+	gl_FragColor = vec4(mix(High, Low, AlphaV), 1.0);
+}

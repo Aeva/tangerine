@@ -101,48 +101,54 @@ StatusCode CreateWindowGL(int& WindowWidth, int& WindowHeight, bool HeadlessMode
 }
 
 
-StatusCode BootGL(int& WindowWidth, int& WindowHeight, bool HeadlessMode, bool CreateDebugContext)
+StatusCode BootGL(int& WindowWidth, int& WindowHeight, bool HeadlessMode, bool ForceES2, bool CreateDebugContext)
 {
 	GraphicsBackend = GraphicsAPI::Invalid;
 
-	StatusCode Result = CreateWindowGL<GraphicsAPI::OpenGL4_2>(
-		WindowWidth, WindowHeight, HeadlessMode, CreateDebugContext);
-	if (Result == StatusCode::PASS)
+	if (!ForceES2)
 	{
-		Context = SDL_GL_CreateContext(Window);
-	}
-	if (Context)
-	{
-		SDL_GL_MakeCurrent(Window, Context);
-		SDL_GL_SetSwapInterval(1);
-		std::cout << "Done!\n";
-
-		std::cout << "Setting up OpenGL... ";
-		if (gladLoadGL((GLADloadfunc) SDL_GL_GetProcAddress))
+		StatusCode Result = CreateWindowGL<GraphicsAPI::OpenGL4_2>(
+			WindowWidth, WindowHeight, HeadlessMode, CreateDebugContext);
+		if (Result == StatusCode::PASS)
 		{
-			GraphicsBackend = GraphicsAPI::OpenGL4_2;
-			std::cout << "Created OpenGL 4.2 Rendering Context.\n";
+			Context = SDL_GL_CreateContext(Window);
+		}
+		if (Context)
+		{
+			SDL_GL_MakeCurrent(Window, Context);
+			SDL_GL_SetSwapInterval(1);
+			std::cout << "Done!\n";
+
+			std::cout << "Setting up OpenGL... ";
+			if (gladLoadGL((GLADloadfunc) SDL_GL_GetProcAddress))
+			{
+				GraphicsBackend = GraphicsAPI::OpenGL4_2;
+				std::cout << "Created OpenGL 4.2 Rendering Context.\n";
+			}
 		}
 	}
 
 	if (GraphicsBackend == GraphicsAPI::Invalid)
 	{
-		std::cout << "Failed to create OpenGL 4.2 Rendering Context!\n";
-
-		if (Context)
+		if (!ForceES2)
 		{
-			SDL_GL_DeleteContext(Context);
-			Context = nullptr;
-		}
-		if (Window)
-		{
-			SDL_DestroyWindow(Window);
-			Window = nullptr;
+			std::cout << "Failed to create OpenGL 4.2 Rendering Context!\n";
+
+			if (Context)
+			{
+				SDL_GL_DeleteContext(Context);
+				Context = nullptr;
+			}
+			if (Window)
+			{
+				SDL_DestroyWindow(Window);
+				Window = nullptr;
+			}
+
+			std::cout << "Setting up SDL2... ";
 		}
 
-		std::cout << "Setting up SDL2... ";
-
-		Result = CreateWindowGL<GraphicsAPI::OpenGLES2>(
+		StatusCode Result = CreateWindowGL<GraphicsAPI::OpenGLES2>(
 			WindowWidth, WindowHeight, HeadlessMode, CreateDebugContext);
 		if (Result == StatusCode::PASS)
 		{

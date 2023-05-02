@@ -510,59 +510,65 @@ StatusCode SetupRenderer()
 	SetPipelineDefaults();
 
 	glClearColor(0.0, 0.0, 0.0, 1.0);
+	glClearDepthf(0.0);
 
-	if (GraphicsBackend == GraphicsAPI::OpenGL4_2) // HACK
+	if (GraphicsBackend == GraphicsAPI::OpenGL4_2)
 	{
-
-	glClearDepth(0.0);
-
 #if VISUALIZE_CLUSTER_COVERAGE
-	RETURN_ON_FAIL(ClusterCoverageShader.Setup(
-		{ {GL_VERTEX_SHADER, ShaderSource("cluster_coverage.vs.glsl", true)},
-		  {GL_FRAGMENT_SHADER, ShaderSource("cluster_coverage.fs.glsl", true)} },
-		"Cluster Coverage Shader"));
+		RETURN_ON_FAIL(ClusterCoverageShader.Setup(
+			{ {GL_VERTEX_SHADER, ShaderSource("cluster_coverage.vs.glsl", true)},
+			{GL_FRAGMENT_SHADER, ShaderSource("cluster_coverage.fs.glsl", true)} },
+			"Cluster Coverage Shader"));
 #else
 
-	RETURN_ON_FAIL(PaintShader.Setup(
-		{ {GL_VERTEX_SHADER, ShaderSource("splat.vs.glsl", true)},
-		  {GL_FRAGMENT_SHADER, ShaderSource("outliner.fs.glsl", true)} },
-		"Outliner Shader"));
+		RETURN_ON_FAIL(PaintShader.Setup(
+			{ {GL_VERTEX_SHADER, ShaderSource("splat.vs.glsl", true)},
+			{GL_FRAGMENT_SHADER, ShaderSource("outliner.fs.glsl", true)} },
+			"Outliner Shader"));
 
-	RETURN_ON_FAIL(BgShader.Setup(
-		{ {GL_VERTEX_SHADER, ShaderSource("splat.vs.glsl", true)},
-		  {GL_FRAGMENT_SHADER, ShaderSource("bg.fs.glsl", true)} },
-		"Background Shader"));
+		RETURN_ON_FAIL(BgShader.Setup(
+			{ {GL_VERTEX_SHADER, ShaderSource("splat.vs.glsl", true)},
+			{GL_FRAGMENT_SHADER, ShaderSource("bg.fs.glsl", true)} },
+			"Background Shader"));
 #endif
 
-	RETURN_ON_FAIL(GatherDepthShader.Setup(
-		{ {GL_COMPUTE_SHADER, ShaderSource("gather_depth.cs.glsl", true)} },
-		"Depth Pyramid Shader"));
+		RETURN_ON_FAIL(GatherDepthShader.Setup(
+			{ {GL_COMPUTE_SHADER, ShaderSource("gather_depth.cs.glsl", true)} },
+			"Depth Pyramid Shader"));
 
-	RETURN_ON_FAIL(ResolveOutputShader.Setup(
-		{ {GL_VERTEX_SHADER, ShaderSource("splat.vs.glsl", true)},
-		  {GL_FRAGMENT_SHADER, ShaderSource("resolve.fs.glsl", true)} },
-		"Resolve BackBuffer Shader"));
+		RETURN_ON_FAIL(ResolveOutputShader.Setup(
+			{ {GL_VERTEX_SHADER, ShaderSource("splat.vs.glsl", true)},
+			{GL_FRAGMENT_SHADER, ShaderSource("resolve.fs.glsl", true)} },
+			"Resolve BackBuffer Shader"));
 
-	RETURN_ON_FAIL(NoiseShader.Setup(
-		{ {GL_VERTEX_SHADER, ShaderSource("splat.vs.glsl", true)},
-		  {GL_FRAGMENT_SHADER, ShaderSource("noise.fs.glsl", true)} },
-		"Noise Shader"));
+		RETURN_ON_FAIL(NoiseShader.Setup(
+			{ {GL_VERTEX_SHADER, ShaderSource("splat.vs.glsl", true)},
+			{GL_FRAGMENT_SHADER, ShaderSource("noise.fs.glsl", true)} },
+			"Noise Shader"));
 
-	RETURN_ON_FAIL(OctreeDebugShader.Setup(
-		{ {GL_VERTEX_SHADER, ShaderSource("cluster_draw.vs.glsl", true)},
-		  {GL_FRAGMENT_SHADER, GeneratedShader("math.glsl", "", "octree_debug.fs.glsl")} },
-		"Octree Debug Shader"));
+		RETURN_ON_FAIL(OctreeDebugShader.Setup(
+			{ {GL_VERTEX_SHADER, ShaderSource("cluster_draw.vs.glsl", true)},
+			{GL_FRAGMENT_SHADER, GeneratedShader("math.glsl", "", "octree_debug.fs.glsl")} },
+			"Octree Debug Shader"));
 
 #if RENDERER_SODAPOP
-	RETURN_ON_FAIL(SodapopShader.Setup(
-		{ {GL_VERTEX_SHADER, ShaderSource("sodapop.vs.glsl", true)},
-		  {GL_FRAGMENT_SHADER, ShaderSource("sodapop.fs.glsl", true)} },
-		"Sodapop Shader"));
+		RETURN_ON_FAIL(SodapopShader.Setup(
+			{ {GL_VERTEX_SHADER, ShaderSource("sodapop.vs.glsl", true)},
+			{GL_FRAGMENT_SHADER, ShaderSource("sodapop.fs.glsl", true)} },
+			"Sodapop Shader"));
+#endif // RENDERER_SODAPOP
+	}
+	else if (GraphicsBackend == GraphicsAPI::OpenGLES2)
+	{
+		RETURN_ON_FAIL(NoiseShader.Setup(
+			{ {GL_VERTEX_SHADER, ShaderSource("splat.vs.glsl", true)},
+			{GL_FRAGMENT_SHADER, ShaderSource("nosignal.fs.glsl", true)} },
+			"No Signal Shader"));
+	}
 
+#if RENDERER_SODAPOP
 	RETURN_ON_FAIL(Sodapop::Setup());
 #endif // RENDERER_SODAPOP
-
-	} // end HACK
 
 	DepthTimeQuery.Create();
 	GridBgTimeQuery.Create();
@@ -678,6 +684,41 @@ void RenderFrame(int ScreenWidth, int ScreenHeight, std::vector<SDFModel*>& Rend
 
 	static int FrameNumber = 0;
 	++FrameNumber;
+
+
+	if (GraphicsBackend == GraphicsAPI::OpenGLES2)
+	{
+		// HACK - this just draws a quick and dirty null signal screen and then returns.
+
+		glViewport(0, 0, ScreenWidth, ScreenHeight);
+
+		glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Dead Channel");
+		glDepthMask(GL_FALSE);
+		glDisable(GL_DEPTH_TEST);
+		glBindFramebuffer(GL_FRAMEBUFFER, FinalPass);
+		NoiseShader.Activate();
+
+		static glm::vec2 SplatVerts[3] = \
+		{
+			glm::vec2(-1.0, -1.0),
+			glm::vec2(3.0, -1.0),
+			glm::vec2(-1.0, 3.0)
+		};
+
+		GLint ClipAttrib = glGetAttribLocation(NoiseShader.ProgramID, "Clip");
+		glVertexAttribPointer(ClipAttrib, 2, GL_FLOAT, GL_FALSE, 0, (void*)(&SplatVerts));
+		glEnableVertexAttribArray(ClipAttrib);
+
+		glDrawArrays(GL_TRIANGLES, 0, 3);
+		glPopDebugGroup();
+
+		std::chrono::duration<double, std::milli> InnerFrameDelta = Clock::now() - FrameStartTimePoint;
+		LastInnerFrameDeltaMs = float(InnerFrameDelta.count());
+
+		EndEvent();
+		return;
+	}
+
 
 	static int Width = 0;
 	static int Height = 0;
@@ -1978,6 +2019,7 @@ StatusCode Boot(int argc, char* argv[])
 #if !_WIN64
 	bool RequestSoftwareDriver = false;
 #endif
+	bool ForceES2 = false;
 	bool CreateDebugContext = false;
 
 	int WindowWidth = 900;
@@ -2042,6 +2084,12 @@ StatusCode Boot(int argc, char* argv[])
 				Cursor += 1;
 				continue;
 			}
+			else if (Args[Cursor] == "--es2")
+			{
+				ForceES2 = true;
+				Cursor += 1;
+				continue;
+			}
 			else if (Args[Cursor] == "--debug-gl")
 			{
 				CreateDebugContext = true;
@@ -2063,7 +2111,7 @@ StatusCode Boot(int argc, char* argv[])
 		SDL_SetMainReady();
 		if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER) == 0)
 		{
-			RETURN_ON_FAIL(BootGL(WindowWidth, WindowHeight, HeadlessMode, CreateDebugContext));
+			RETURN_ON_FAIL(BootGL(WindowWidth, WindowHeight, HeadlessMode, ForceES2, CreateDebugContext));
 			if (GraphicsBackend != GraphicsAPI::OpenGL4_2)
 			{
 				CurrentRenderer = Renderer::Sodapop;
@@ -2464,15 +2512,8 @@ void MainLoop()
 #endif
 						GetRenderableModels(RenderableModels);
 					}
-					if (GraphicsBackend == GraphicsAPI::OpenGL4_2) // HACK
 					{
 						RenderFrame(ScreenWidth, ScreenHeight, RenderableModels, LastView, RequestDraw);
-					}
-					else
-					{
-						// HACK
-						glClearColor(0.5f, 1.0f, 0.0f, 0.0f);
-						glClear(GL_COLOR_BUFFER_BIT);
 					}
 					{
 						BeginEvent("Dear ImGui Draw");

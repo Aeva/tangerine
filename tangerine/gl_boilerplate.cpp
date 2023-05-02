@@ -258,7 +258,7 @@ StatusCode RouteSource(std::vector<std::string>& BreadCrumbs, std::vector<std::s
 }
 
 
-const std::string GetShaderExtensions(GLenum ShaderType)
+const std::string GetShaderExtensionsGL4(GLenum ShaderType)
 {
 	std::string Version = "#version 420\n";
 
@@ -311,6 +311,57 @@ const std::string GetShaderExtensions(GLenum ShaderType)
 
 	default:
 		return Version + ComputeExtensions + ShaderTypeDefine;
+	}
+}
+
+
+const std::string GetShaderExtensionsES2(GLenum ShaderType)
+{
+	std::string Version = "#version 100\n";
+
+	std::string VertexPrecision = \
+		"precision highp float;\n";
+
+	std::string FragmentPrecision = \
+		"#ifdef GL_FRAGMENT_PRECISION_HIGH\n" \
+		"precision highp float;\n" \
+		"#else\n" \
+		"precision mediump float;\n" \
+		"#endif\n";
+
+	static const std::string ShaderTypeMeta = \
+		"#define VERTEX_SHADER " + std::to_string(GL_VERTEX_SHADER) + "\n" + \
+		"#define FRAGMENT_SHADER " + std::to_string(GL_FRAGMENT_SHADER) + "\n";
+
+	const std::string ShaderTypeDefine = ShaderTypeMeta + "#define SHADER_TYPE " + std::to_string(ShaderType) + "\n";
+
+	switch (ShaderType)
+	{
+	case GL_VERTEX_SHADER:
+		return Version + VertexPrecision + ShaderTypeDefine;
+
+	case GL_FRAGMENT_SHADER:
+		return Version + FragmentPrecision + ShaderTypeDefine;
+
+	default:
+		return Version + ShaderTypeDefine;
+	}
+}
+
+
+const std::string GetShaderExtensions(GLenum ShaderType)
+{
+	if (GraphicsBackend == GraphicsAPI::OpenGL4_2)
+	{
+		return GetShaderExtensionsGL4(ShaderType);
+	}
+	else if (GraphicsBackend == GraphicsAPI::OpenGLES2)
+	{
+		return GetShaderExtensionsES2(ShaderType);
+	}
+	else
+	{
+		return "";
 	}
 }
 
