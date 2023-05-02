@@ -56,6 +56,7 @@ int GLAD_GL_ARB_shader_storage_buffer_object = 0;
 int GLAD_GL_EXT_debug_label = 0;
 int GLAD_GL_KHR_debug = 0;
 int GLAD_GL_EXT_clip_control = 0;
+int GLAD_GL_OES_element_index_uint = 0;
 int GLAD_GL_OES_vertex_array_object = 0;
 
 
@@ -2042,6 +2043,7 @@ static int glad_gl_find_extensions_gles2( int version) {
     GLAD_GL_EXT_debug_label = glad_gl_has_extension(version, exts, num_exts_i, exts_i, "GL_EXT_debug_label");
     GLAD_GL_KHR_debug = glad_gl_has_extension(version, exts, num_exts_i, exts_i, "GL_KHR_debug");
     GLAD_GL_EXT_clip_control = glad_gl_has_extension(version, exts, num_exts_i, exts_i, "GL_EXT_clip_control");
+    GLAD_GL_OES_element_index_uint = glad_gl_has_extension(version, exts, num_exts_i, exts_i, "GL_OES_element_index_uint");
     GLAD_GL_OES_vertex_array_object = glad_gl_has_extension(version, exts, num_exts_i, exts_i, "GL_OES_vertex_array_object");
 
     glad_gl_free_extensions(exts_i, num_exts_i);
