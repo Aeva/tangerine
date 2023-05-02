@@ -15,6 +15,17 @@
 // limitations under the License.
 
 
+#if GL_ES
+
+varying vec3 Color;
+
+void main()
+{
+	gl_FragColor = vec4(Color, 1.0);
+}
+
+#else
+
 in vec3 VertexColor;
 in vec3 Barycenter;
 
@@ -31,3 +42,5 @@ void main()
 	}
 #endif
 }
+
+#endif

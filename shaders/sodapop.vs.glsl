@@ -15,6 +15,25 @@
 // limitations under the License.
 
 
+#if GL_ES
+
+attribute vec4 LocalPosition;
+attribute vec4 VertexColor;
+uniform mat4 WorldToView;
+uniform mat4 LocalToWorld;
+uniform mat4 ViewToClip;
+
+varying vec3 Color;
+
+void main()
+{
+	vec4 ViewPosition = WorldToView * LocalToWorld * vec4(LocalPosition.xyz, 1.0);
+	gl_Position = ViewToClip * ViewPosition;
+	Color = VertexColor.rgb;
+}
+
+#else
+
 layout(std140, binding = 0)
 uniform ViewInfoBlock
 {
@@ -84,3 +103,4 @@ void main()
 	Barycenter = vec3(0.0);
 	Barycenter[gl_VertexID % 3] = 1.0;
 }
+#endif

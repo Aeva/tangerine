@@ -80,6 +80,10 @@ struct Drawable
 		const bool Wireframe,
 		struct ShaderProgram* DebugShader) = 0;
 
+	virtual void Draw(
+		const int PositionBinding,
+		const int ColorBinding) = 0;
+
 	virtual void Release() = 0;
 
 protected:
@@ -108,6 +112,13 @@ struct VoxelDrawable final : Drawable
 		const bool ShowHeatmap,
 		const bool Wireframe,
 		struct ShaderProgram* DebugShader);
+
+	virtual void Draw(
+		const int PositionBinding,
+		const int ColorBinding)
+	{
+		// Unused
+	};
 
 	virtual void Release();
 
@@ -140,6 +151,10 @@ struct SodapopDrawable final : Drawable
 		const bool Wireframe,
 		struct ShaderProgram* DebugShader);
 
+	virtual void Draw(
+		const int PositionBinding,
+		const int ColorBinding);
+
 	virtual void Release();
 };
 #endif // RENDERER_SODAPOP
@@ -162,6 +177,11 @@ struct SDFModel
 		const bool ShowHeatmap,
 		const bool Wireframe,
 		struct ShaderProgram* DebugShader);
+
+	void Draw(
+		const int LocalToWorldBinding,
+		const int PositionBinding,
+		const int ColorBinding);
 
 	RayHit RayMarch(glm::vec3 RayStart, glm::vec3 RayDir, int MaxIterations = 1000, float Epsilon = 0.001);
 

@@ -260,6 +260,28 @@ void SodapopDrawable::Draw(
 
 	glDrawArrays(GL_TRIANGLES, 0, Indices.size());
 }
+
+
+void SodapopDrawable::Draw(
+	const int PositionBinding,
+	const int ColorBinding)
+{
+	if (!MeshReady.load())
+	{
+		return;
+	}
+	if (!MeshUploaded)
+	{
+		// TODO store the position and index buffers in a VBO
+		MeshUploaded = true;
+	}
+
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+	glVertexAttribPointer(PositionBinding, 4, GL_FLOAT, GL_FALSE, 0, Positions.data());
+	glVertexAttribPointer(ColorBinding, 4, GL_FLOAT, GL_FALSE, 0, Colors.data());
+	glDrawElements(GL_TRIANGLES, Indices.size(), GL_UNSIGNED_INT, (void*)Indices.data());
+}
 #endif //RENDERER_SODAPOP
 
 
@@ -284,4 +306,21 @@ void SDFModel::Draw(
 	TransformBuffer.Bind(GL_UNIFORM_BUFFER, 1);
 
 	Painter->Draw(ShowOctree, ShowLeafCount, ShowHeatmap, Wireframe, DebugShader);
+}
+
+
+void SDFModel::Draw(
+		const int LocalToWorldBinding,
+		const int PositionBinding,
+		const int ColorBinding)
+{
+	if (!Visible || !Painter)
+	{
+		return;
+	}
+
+	Transform.Fold();
+	glUniformMatrix4fv(LocalToWorldBinding, 1, false, (const GLfloat*)(&Transform.LastFold));
+
+	Painter->Draw(PositionBinding, ColorBinding);
 }

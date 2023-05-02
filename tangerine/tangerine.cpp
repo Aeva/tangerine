@@ -494,9 +494,9 @@ void SetPipelineDefaults()
 
 		// These don't appear to be available in ES2 :(
 		glClipControl(GL_LOWER_LEFT, GL_ZERO_TO_ONE);
-		glDepthRange(1.0, 0.0);
 	}
 	{
+		glDepthRangef(1.0, 0.0);
 		glDisable(GL_DITHER);
 		glEnable(GL_CULL_FACE);
 		glEnable(GL_DEPTH_TEST);
@@ -550,13 +550,6 @@ StatusCode SetupRenderer()
 			{ {GL_VERTEX_SHADER, ShaderSource("cluster_draw.vs.glsl", true)},
 			{GL_FRAGMENT_SHADER, GeneratedShader("math.glsl", "", "octree_debug.fs.glsl")} },
 			"Octree Debug Shader"));
-
-#if RENDERER_SODAPOP
-		RETURN_ON_FAIL(SodapopShader.Setup(
-			{ {GL_VERTEX_SHADER, ShaderSource("sodapop.vs.glsl", true)},
-			{GL_FRAGMENT_SHADER, ShaderSource("sodapop.fs.glsl", true)} },
-			"Sodapop Shader"));
-#endif // RENDERER_SODAPOP
 	}
 	else if (GraphicsBackend == GraphicsAPI::OpenGLES2)
 	{
@@ -567,6 +560,11 @@ StatusCode SetupRenderer()
 	}
 
 #if RENDERER_SODAPOP
+	RETURN_ON_FAIL(SodapopShader.Setup(
+		{ {GL_VERTEX_SHADER, ShaderSource("sodapop.vs.glsl", true)},
+		{GL_FRAGMENT_SHADER, ShaderSource("sodapop.fs.glsl", true)} },
+		"Sodapop Shader"));
+
 	RETURN_ON_FAIL(Sodapop::Setup());
 #endif // RENDERER_SODAPOP
 
@@ -661,6 +659,14 @@ float PresentFrequency = 0.0;
 float PresentDeltaMs = 0.0;
 double LastInnerFrameDeltaMs = 0.0;
 glm::vec3 CameraFocus = glm::vec3(0.0, 0.0, 0.0);
+
+
+void RenderFrameGL4(int ScreenWidth, int ScreenHeight, std::vector<SDFModel*>& RenderableModels, ViewInfoUpload& UploadedView, bool FullRedraw);
+
+
+void RenderFrameES2(int ScreenWidth, int ScreenHeight, std::vector<SDFModel*>& RenderableModels, ViewInfoUpload& UploadedView, bool FullRedraw);
+
+
 void RenderFrame(int ScreenWidth, int ScreenHeight, std::vector<SDFModel*>& RenderableModels, ViewInfoUpload& UploadedView, bool FullRedraw = true)
 {
 	BeginEvent("RenderFrame");
@@ -686,40 +692,6 @@ void RenderFrame(int ScreenWidth, int ScreenHeight, std::vector<SDFModel*>& Rend
 	++FrameNumber;
 
 
-	if (GraphicsBackend == GraphicsAPI::OpenGLES2)
-	{
-		// HACK - this just draws a quick and dirty null signal screen and then returns.
-
-		glViewport(0, 0, ScreenWidth, ScreenHeight);
-
-		glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Dead Channel");
-		glDepthMask(GL_FALSE);
-		glDisable(GL_DEPTH_TEST);
-		glBindFramebuffer(GL_FRAMEBUFFER, FinalPass);
-		NoiseShader.Activate();
-
-		static glm::vec2 SplatVerts[3] = \
-		{
-			glm::vec2(-1.0, -1.0),
-			glm::vec2(3.0, -1.0),
-			glm::vec2(-1.0, 3.0)
-		};
-
-		GLint ClipAttrib = glGetAttribLocation(NoiseShader.ProgramID, "Clip");
-		glVertexAttribPointer(ClipAttrib, 2, GL_FLOAT, GL_FALSE, 0, (void*)(&SplatVerts));
-		glEnableVertexAttribArray(ClipAttrib);
-
-		glDrawArrays(GL_TRIANGLES, 0, 3);
-		glPopDebugGroup();
-
-		std::chrono::duration<double, std::milli> InnerFrameDelta = Clock::now() - FrameStartTimePoint;
-		LastInnerFrameDeltaMs = float(InnerFrameDelta.count());
-
-		EndEvent();
-		return;
-	}
-
-
 	static int Width = 0;
 	static int Height = 0;
 	{
@@ -728,7 +700,10 @@ void RenderFrame(int ScreenWidth, int ScreenHeight, std::vector<SDFModel*>& Rend
 			Width = ScreenWidth;
 			Height = ScreenHeight;
 			glViewport(0, 0, Width, Height);
-			AllocateRenderTargets(Width, Height);
+			if (GraphicsBackend == GraphicsAPI::OpenGL4_2)
+			{
+				AllocateRenderTargets(Width, Height);
+			}
 		}
 	}
 
@@ -756,13 +731,6 @@ void RenderFrame(int ScreenWidth, int ScreenHeight, std::vector<SDFModel*>& Rend
 			float(CurrentTime),
 			UsePerspective,
 		};
-		ViewInfo.Upload((void*)&UploadedView, sizeof(UploadedView));
-		ViewInfo.Bind(GL_UNIFORM_BUFFER, 0);
-
-		if (!FreezeCulling)
-		{
-			WorldToLastView = WorldToView;
-		}
 	}
 	else
 	{
@@ -818,14 +786,35 @@ void RenderFrame(int ScreenWidth, int ScreenHeight, std::vector<SDFModel*>& Rend
 			float(CurrentTime),
 			UsePerspective,
 		};
-		ViewInfo.Upload((void*)&UploadedView, sizeof(UploadedView));
-		ViewInfo.Bind(GL_UNIFORM_BUFFER, 0);
-
-		if (!FreezeCulling)
-		{
-			WorldToLastView = WorldToView;
-		}
 	}
+
+	if (!FreezeCulling)
+	{
+		WorldToLastView = UploadedView.WorldToView;
+	}
+
+	if (GraphicsBackend == GraphicsAPI::OpenGL4_2)
+	{
+		RenderFrameGL4(ScreenWidth, ScreenHeight, RenderableModels, UploadedView, FullRedraw);
+	}
+	else if (GraphicsBackend == GraphicsAPI::OpenGLES2)
+	{
+		RenderFrameES2(ScreenWidth, ScreenHeight, RenderableModels, UploadedView, FullRedraw);
+	}
+
+	{
+		std::chrono::duration<double, std::milli> InnerFrameDelta = Clock::now() - FrameStartTimePoint;
+		LastInnerFrameDeltaMs = float(InnerFrameDelta.count());
+	}
+
+	EndEvent();
+}
+
+
+void RenderFrameGL4(int ScreenWidth, int ScreenHeight, std::vector<SDFModel*>& RenderableModels, ViewInfoUpload& UploadedView, bool FullRedraw)
+{
+	ViewInfo.Upload((void*)&UploadedView, sizeof(UploadedView));
+	ViewInfo.Bind(GL_UNIFORM_BUFFER, 0);
 
 	{
 		GLuint OutlinerFlags = 0;
@@ -1003,13 +992,93 @@ void RenderFrame(int ScreenWidth, int ScreenHeight, std::vector<SDFModel*>& Rend
 		glDrawArrays(GL_TRIANGLES, 0, 3);
 		glPopDebugGroup();
 	}
+}
 
+
+void RenderFrameES2(int ScreenWidth, int ScreenHeight, std::vector<SDFModel*>& RenderableModels, ViewInfoUpload& UploadedView, bool FullRedraw)
+{
+	glBindFramebuffer(GL_FRAMEBUFFER, FinalPass);
+
+#if RENDERER_SODAPOP
+	if (CurrentRenderer == Renderer::Sodapop && RenderableModels.size() > 0)
 	{
-		std::chrono::duration<double, std::milli> InnerFrameDelta = Clock::now() - FrameStartTimePoint;
-		LastInnerFrameDeltaMs = float(InnerFrameDelta.count());
-	}
+		{
+			glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Background");
+			glEnable(GL_DEPTH_TEST);
+			glDepthMask(GL_FALSE);
+			glDepthFunc(GL_EQUAL);
+			switch (BackgroundMode)
+			{
+				// TODO port the bg shader to ES2
+#if 0
+			case 0:
+				BgShader.Activate();
+				glDrawArrays(GL_TRIANGLES, 0, 3);
+				break;
+#endif
+			default:
+				BackgroundMode = -1;
+				glClearColor(BackgroundColor.r, BackgroundColor.g, BackgroundColor.b, 1.0f);
+				glClear(GL_COLOR_BUFFER_BIT);
+			}
+			glPopDebugGroup();
+		}
+		{
+			glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Sodapop");
+			glDepthMask(GL_TRUE);
+			glEnable(GL_DEPTH_TEST);
+			glDepthFunc(GL_GREATER);
+			glClear(GL_DEPTH_BUFFER_BIT);
 
-	EndEvent();
+			SodapopShader.Activate();
+
+			auto UploadMatrix = [&](const char* Name, const glm::mat4* Value)
+			{
+				const GLint Location = glGetUniformLocation(SodapopShader.ProgramID, Name);
+				glUniformMatrix4fv(Location, 1, false, (const GLfloat*)Value);
+			};
+
+			UploadMatrix("WorldToView", &UploadedView.WorldToView);
+			UploadMatrix("ViewToClip", &UploadedView.ViewToClip);
+
+			const GLint LocalToWorldBinding = glGetUniformLocation(SodapopShader.ProgramID, "LocalToWorld");
+
+			const GLint PositionBinding = glGetAttribLocation(SodapopShader.ProgramID, "LocalPosition");
+			glEnableVertexAttribArray(PositionBinding);
+
+			const GLint ColorBinding = glGetAttribLocation(SodapopShader.ProgramID, "VertexColor");
+			glEnableVertexAttribArray(ColorBinding);
+
+			for (SDFModel* Model : RenderableModels)
+			{
+				Model->Draw(LocalToWorldBinding, PositionBinding, ColorBinding);
+			}
+
+			glPopDebugGroup();
+		}
+	}
+	else
+#endif // RENDERER_SODAPOP
+	{
+		glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Dead Channel");
+		glDepthMask(GL_FALSE);
+		glDisable(GL_DEPTH_TEST);
+		NoiseShader.Activate();
+
+		static glm::vec2 SplatVerts[3] = \
+		{
+			glm::vec2(-1.0, -1.0),
+			glm::vec2(3.0, -1.0),
+			glm::vec2(-1.0, 3.0)
+		};
+
+		GLint ClipAttrib = glGetAttribLocation(NoiseShader.ProgramID, "Clip");
+		glVertexAttribPointer(ClipAttrib, 2, GL_FLOAT, GL_FALSE, 0, (void*)(&SplatVerts));
+		glEnableVertexAttribArray(ClipAttrib);
+
+		glDrawArrays(GL_TRIANGLES, 0, 3);
+		glPopDebugGroup();
+	}
 }
 
 

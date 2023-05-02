@@ -22,6 +22,7 @@ def opengl_params(debug):
         "GL_EXT_clip_control",
         "GL_EXT_debug_label",
         "GL_KHR_debug",
+        "GL_OES_element_index_uint",
         "GL_OES_vertex_array_object",
     ])
     return {
