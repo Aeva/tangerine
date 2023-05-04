@@ -280,7 +280,7 @@ void SodapopDrawable::Draw(
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 	glVertexAttribPointer(PositionBinding, 4, GL_FLOAT, GL_FALSE, 0, Positions.data());
 	glVertexAttribPointer(ColorBinding, 4, GL_FLOAT, GL_FALSE, 0, Colors.data());
-	glDrawElements(GL_TRIANGLES, Indices.size(), GL_UNSIGNED_INT, (void*)Indices.data());
+	glDrawElements(GL_TRIANGLES, Indices.size(), GL_UNSIGNED_INT, Indices.data());
 }
 #endif //RENDERER_SODAPOP
 

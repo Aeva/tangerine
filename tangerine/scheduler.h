@@ -15,28 +15,26 @@
 
 #pragma once
 
-#include "scheduler.h"
-#include "sdf_rendering.h"
+#include <atomic>
 
 
-#if RENDERER_SODAPOP
-
-
-struct MeshingJob : AsyncTask
+struct AsyncTask
 {
-	struct SodapopDrawable* Painter;
-	struct SDFOctree* Octree;
-
-	static void Enqueue(struct SDFModel* Model);
-
-	virtual void Run();
-
-	virtual void Done();
-
-	virtual void Abort();
-
-	virtual ~MeshingJob();
+	virtual void Run() = 0;
+	virtual void Done() = 0;
+	virtual void Abort() = 0;
+	virtual ~AsyncTask() {};
 };
 
 
-#endif // RENDERER_SODAPOP
+namespace Scheduler
+{
+	void Setup();
+	void Teardown();
+	void Advance();
+
+	std::atomic_bool& GetState();
+
+	bool Live();
+	void Enqueue(AsyncTask* Task);
+}

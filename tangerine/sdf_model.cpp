@@ -17,6 +17,7 @@
 #include "sdf_rendering.h"
 #include "profiling.h"
 #include "sodapop.h"
+#include "scheduler.h"
 
 
 std::vector<SDFModel*> LiveModels;
@@ -331,9 +332,9 @@ SDFModel::SDFModel(SDFNode* InEvaluator, const float VoxelSize)
 		{
 			SodapopDrawable* MeshPainter = new SodapopDrawable();
 			MeshPainter->Hold();
-			Sodapop::Schedule(MeshPainter, Evaluator);
 			Painter = (Drawable*)MeshPainter;
 			DrawableCache.emplace_back(Key, Painter);
+			MeshingJob::Enqueue(this);
 		}
 #endif // RENDERER_SODAPOP
 	}

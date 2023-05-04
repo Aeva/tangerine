@@ -19,8 +19,8 @@
 
 attribute vec4 LocalPosition;
 attribute vec4 VertexColor;
-uniform mat4 WorldToView;
 uniform mat4 LocalToWorld;
+uniform mat4 WorldToView;
 uniform mat4 ViewToClip;
 
 varying vec3 Color;

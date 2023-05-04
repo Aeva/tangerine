@@ -13,7 +13,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "sodapop.h"
 #include <glad/gl.h>
 
 #ifdef MINIMAL_DLL
@@ -29,6 +28,7 @@
 #include <ImFileDialog.h>
 
 #include "gl_init.h"
+#include "scheduler.h"
 
 #include "events.h"
 #include "sdf_evaluator.h"
@@ -564,8 +564,6 @@ StatusCode SetupRenderer()
 		{ {GL_VERTEX_SHADER, ShaderSource("sodapop.vs.glsl", true)},
 		{GL_FRAGMENT_SHADER, ShaderSource("sodapop.fs.glsl", true)} },
 		"Sodapop Shader"));
-
-	RETURN_ON_FAIL(Sodapop::Setup());
 #endif // RENDERER_SODAPOP
 
 	DepthTimeQuery.Create();
@@ -2075,6 +2073,8 @@ void SaveBookmarks()
 
 StatusCode Boot(int argc, char* argv[])
 {
+	Scheduler::Setup();
+
 	RETURN_ON_FAIL(Installed.PopulateInstallationPaths());
 	LastOpenDir = Installed.ModelsDir;
 	LoadBookmarks();
@@ -2329,14 +2329,12 @@ StatusCode Boot(int argc, char* argv[])
 void Teardown()
 {
 	std::cout << "Shutting down...\n";
+	Scheduler::Teardown();
 
 	if (MainEnvironment)
 	{
 		delete MainEnvironment;
 	}
-#if RENDERER_SODAPOP
-	Sodapop::Teardown();
-#endif
 	{
 		JoinWorkerThreads();
 		UnloadAllModels();
@@ -2632,13 +2630,11 @@ void MainLoop()
 						EndEvent();
 					}
 				}
-#if RENDERER_SODAPOP
 				{
-					BeginEvent("Sodapop::Advance");
-					Sodapop::Advance();
+					BeginEvent("Scheduler::Advance");
+					Scheduler::Advance();
 					EndEvent();
 				}
-#endif // RENDERER_SODAPOP
 				EndEvent();
 			}
 		}
