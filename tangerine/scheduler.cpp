@@ -37,9 +37,17 @@ static std::mutex OutboxCS;
 static std::deque<AsyncTask*> Outbox;
 
 
+template <bool DedicatedThread>
 void WorkerThread(const int InThreadIndex)
 {
-	ThreadIndex = InThreadIndex;
+	if (DedicatedThread)
+	{
+		ThreadIndex = InThreadIndex;
+	}
+	else
+	{
+		Assert(ThreadIndex == InThreadIndex);
+	}
 
 	while (State.load())
 	{
@@ -65,7 +73,14 @@ void WorkerThread(const int InThreadIndex)
 		}
 		else
 		{
-			std::this_thread::yield();
+			if (DedicatedThread)
+			{
+				std::this_thread::yield();
+			}
+			else
+			{
+				break;
+			}
 		}
 	}
 }
@@ -101,6 +116,11 @@ void Scheduler::Advance()
 	Assert(ThreadIndex == 0);
 	Assert(State.load())
 	{
+		if (Pool.size() == 0)
+		{
+			WorkerThread<false>(ThreadIndex);
+		}
+
 		OutboxCS.lock();
 		while (!Outbox.empty())
 		{
@@ -116,18 +136,22 @@ void Scheduler::Advance()
 }
 
 
-void Scheduler::Setup()
+void Scheduler::Setup(const bool ForceSingleThread)
 {
 	Assert(!State.load());
 	ThreadIndex = 0; // Main thread;
 
 	State.store(true);
-	const int ThreadCount = std::max(int(std::thread::hardware_concurrency()), 2);
-	for (int ThreadIndex = 1; ThreadIndex < ThreadCount; ++ThreadIndex)
+
+	if (!ForceSingleThread)
 	{
-		// This is meant to be one thread per reported thread of execution, assuming a dual
-		// core processor or better.  This includes the main thread, so we start at index 1.
-		Pool.emplace_back(WorkerThread, ThreadIndex);
+		const int ThreadCount = std::max(int(std::thread::hardware_concurrency()), 2);
+		for (int ThreadIndex = 1; ThreadIndex < ThreadCount; ++ThreadIndex)
+		{
+			// This is meant to be one thread per reported thread of execution, assuming a dual
+			// core processor or better.  This includes the main thread, so we start at index 1.
+			Pool.emplace_back(WorkerThread<true>, ThreadIndex);
+		}
 	}
 }
 

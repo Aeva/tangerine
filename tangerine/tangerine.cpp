@@ -2073,8 +2073,6 @@ void SaveBookmarks()
 
 StatusCode Boot(int argc, char* argv[])
 {
-	Scheduler::Setup();
-
 	RETURN_ON_FAIL(Installed.PopulateInstallationPaths());
 	LastOpenDir = Installed.ModelsDir;
 	LoadBookmarks();
@@ -2090,6 +2088,7 @@ StatusCode Boot(int argc, char* argv[])
 #endif
 	bool ForceES2 = false;
 	bool CreateDebugContext = false;
+	bool ForceSingleThread = false;
 
 	int WindowWidth = 900;
 	int WindowHeight = 900;
@@ -2165,6 +2164,12 @@ StatusCode Boot(int argc, char* argv[])
 				Cursor += 1;
 				continue;
 			}
+			else if (Args[Cursor] == "--single-thread")
+			{
+				ForceSingleThread = true;
+				Cursor += 1;
+				continue;
+			}
 			else
 			{
 				std::cout << "Invalid commandline arg(s).\n";
@@ -2172,6 +2177,8 @@ StatusCode Boot(int argc, char* argv[])
 			}
 		}
 	}
+	Scheduler::Setup(ForceSingleThread);
+
 #if !_WIN64
 	Linux::DriverCheck(RequestSoftwareDriver);
 #endif

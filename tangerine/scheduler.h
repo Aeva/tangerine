@@ -29,7 +29,7 @@ struct AsyncTask
 
 namespace Scheduler
 {
-	void Setup();
+	void Setup(const bool ForceSingleThread);
 	void Teardown();
 	void Advance();
 
