@@ -13,16 +13,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#if _DEBUG
+#include "errors.h"
+#if WITH_ASSERTIONS
+#include <fmt/format.h>
 #include <cstdlib>
 #include <iostream>
-#include "errors.h"
 
-void Assert(bool Condition)
+
+void AssertInner(bool Condition, const char* File, const int Line)
 {
 	if (!Condition)
 	{
-		std::cout << "ASSERTION FAILURE\n";
+		fmt::print("ASSERTION FAILURE: {}:{}\n", File, Line);
+		std::cout.flush();
 		BreakPoint();
 		std::abort();
 	}

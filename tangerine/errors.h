@@ -15,7 +15,6 @@
 
 #pragma once
 
-
 enum class StatusCode
 {
 	PASS,
@@ -23,8 +22,14 @@ enum class StatusCode
 };
 
 
-#if _DEBUG
-void Assert(bool Condition);
+#ifndef WITH_ASSERTIONS
+#define WITH_ASSERTIONS 1
+#endif
+
+
+#if WITH_ASSERTIONS
+void AssertInner(bool Condition, const char* File, const int Line);
+#define Assert(CONDITION) AssertInner(CONDITION, __FILE__, __LINE__);
 #else
 #define Assert(...)
 #endif
