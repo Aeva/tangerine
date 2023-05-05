@@ -114,6 +114,7 @@ void ClearTreeEvaluator()
 AABB ModelBounds = { glm::vec3(0.0), glm::vec3(0.0) };
 void SetTreeEvaluator(SDFNode* InTreeEvaluator)
 {
+	Assert(InTreeEvaluator != TreeEvaluator);
 	ClearTreeEvaluator();
 	TreeEvaluator = InTreeEvaluator;
 	TreeEvaluator->Hold();

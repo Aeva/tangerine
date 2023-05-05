@@ -25,9 +25,8 @@
 struct MeshingJob : AsyncTask
 {
 	struct SodapopDrawable* Painter;
-	struct SDFOctree* Octree;
 
-	static void Enqueue(struct SDFModel* Model);
+	static void Enqueue(SodapopDrawable*);
 
 	virtual void Run();
 

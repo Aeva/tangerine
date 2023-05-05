@@ -23,7 +23,20 @@
 std::vector<SDFModel*> LiveModels;
 
 
-std::vector<std::pair<Drawable::CacheKey, Drawable*>> DrawableCache;
+// FIXME
+// Originally this was meant to have a wrapped evaluator for the key type, with
+// the idea being that equivalent evaluators would be matched as equal.  This
+// required having the key type hold and release references to the evaluator.
+// Anyways, std::vector resizes were triggering the destructor inappropriately,
+// resulting in a premature call to release on the wrapped evaluator!  This
+// would cause evalutors to seemingly randomly be freed early, segfaults, and
+// so on.
+// To work around this, this cache just takes a pointer disguised as a size_t.
+// This allows instances created from the same SDFNode to be deduplicated, but
+// nothing else.
+// I should probably make all of the refcounted stuff immobile to prevent these
+// kinds of issues.
+std::vector<std::pair<size_t, Drawable*>> DrawableCache;
 
 
 std::vector<SDFModel*>& GetLiveModels()
@@ -275,6 +288,8 @@ void SodapopDrawable::Release()
 	--RefCount;
 	if (RefCount == 0)
 	{
+		Evaluator->Release();
+
 		for (auto Iterator = DrawableCache.begin(); Iterator != DrawableCache.end(); ++Iterator)
 		{
 			if (Iterator->second == this)
@@ -304,7 +319,7 @@ SDFModel::SDFModel(SDFNode* InEvaluator, const float VoxelSize)
 	InEvaluator->Hold();
 	Evaluator = InEvaluator;
 
-	Drawable::CacheKey Key(Evaluator);
+	size_t Key = (size_t)Evaluator;
 	for (auto& Entry : DrawableCache)
 	{
 		if (Entry.first == Key)
@@ -330,11 +345,12 @@ SDFModel::SDFModel(SDFNode* InEvaluator, const float VoxelSize)
 #if RENDERER_SODAPOP
 		if (CurrentRenderer == Renderer::Sodapop)
 		{
-			SodapopDrawable* MeshPainter = new SodapopDrawable();
-			MeshPainter->Hold();
+			SodapopDrawable* MeshPainter = new SodapopDrawable(Evaluator);
 			Painter = (Drawable*)MeshPainter;
-			DrawableCache.emplace_back(Key, Painter);
-			MeshingJob::Enqueue(this);
+			Painter->Hold();
+
+			DrawableCache.emplace_back(Key, Painter); // FIX ME - resize triggers deletes
+			MeshingJob::Enqueue(MeshPainter);
 		}
 #endif // RENDERER_SODAPOP
 	}

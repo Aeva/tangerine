@@ -28,46 +28,6 @@
 
 struct Drawable
 {
-	struct CacheKey
-	{
-		SDFNode* Evaluator = nullptr;
-
-		CacheKey(SDFNode* InEvaluator)
-		{
-			Evaluator = InEvaluator;
-			Evaluator->Hold();
-		}
-
-		CacheKey(const CacheKey& Other)
-		{
-			Evaluator = Other.Evaluator;
-			Evaluator->Hold();
-		}
-
-		~CacheKey()
-		{
-			Evaluator->Release();
-			Evaluator = nullptr;
-		}
-
-		bool operator==(CacheKey& Other)
-		{
-			if (this->Evaluator == Other.Evaluator)
-			{
-				return true;
-			}
-			else
-			{
-				return *(this->Evaluator) == *(Other.Evaluator);
-			}
-		}
-
-		bool operator!=(CacheKey& Other)
-		{
-			return this->Evaluator != Other.Evaluator;
-		}
-	};
-
 	void Hold()
 	{
 		++RefCount;
@@ -133,6 +93,8 @@ private:
 #if RENDERER_SODAPOP
 struct SodapopDrawable final : Drawable
 {
+	SDFNode* Evaluator = nullptr;
+
 	Buffer IndexBuffer;
 	Buffer PositionBuffer;
 	Buffer ColorBuffer;
@@ -141,8 +103,15 @@ struct SodapopDrawable final : Drawable
 	std::vector<glm::vec4> Positions;
 	std::vector<glm::vec4> Colors;
 
-	std::atomic_bool MeshReady = false;
+	std::atomic_bool MeshReady;
 	bool MeshUploaded = false;
+
+	SodapopDrawable(SDFNode* InEvaluator)
+	{
+		Evaluator = InEvaluator;
+		Evaluator->Hold();
+		MeshReady.store(false);
+	}
 
 	virtual void Draw(
 		const bool ShowOctree,

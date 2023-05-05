@@ -23,21 +23,21 @@
 #include <atomic>
 
 
-void MeshingJob::Enqueue(SDFModel* Model)
+void MeshingJob::Enqueue(SodapopDrawable* Painter)
 {
-	SetTreeEvaluator(Model->Evaluator);
+	Assert(Painter != nullptr);
+	Painter->Hold();
 
 	MeshingJob* Task = new MeshingJob();
-	Task->Painter = (SodapopDrawable*)Model->Painter;
-	Task->Painter->Hold();
-	Task->Octree = SDFOctree::Create(Model->Evaluator, 0.25);
+	Task->Painter = Painter;
+
 	Scheduler::Enqueue(Task);
 }
 
 
 void MeshingJob::Run()
 {
-	AABB Bounds = Octree->Evaluator->Bounds();
+	AABB Bounds = Painter->Evaluator->Bounds();
 
 	const glm::vec3 ModelExtent = Bounds.Extent();
 	const float ModelVolume = ModelExtent.x * ModelExtent.y * ModelExtent.z;
@@ -91,7 +91,7 @@ void MeshingJob::Run()
 
 		auto Eval = [&](float X, float Y, float Z) -> float
 		{
-			return Octree->Eval(glm::vec3(X, Y, Z));
+			return Painter->Evaluator->Eval(glm::vec3(X, Y, Z));
 		};
 
 		isosurface::mesh Mesh;
@@ -116,7 +116,7 @@ void MeshingJob::Run()
 		Painter->Colors.reserve(Painter->Positions.size());
 		for (const glm::vec4& Position : Painter->Positions )
 		{
-			glm::vec3 Color = Octree->Evaluator->Sample(Position.xyz);
+			glm::vec3 Color = Painter->Evaluator->Sample(Position.xyz);
 			Painter->Colors.push_back(glm::vec4(Color, 1.0));
 		}
 
@@ -131,6 +131,7 @@ void MeshingJob::Done()
 	size_t Triangles = Painter->Indices.size() / 3;
 	size_t Vertices = Painter->Positions.size();
 	fmt::print("[{}] Created {} triangles with {} vertices.\n", JobPtr, Triangles, Vertices);
+	SetTreeEvaluator(Painter->Evaluator);
 }
 
 
@@ -142,7 +143,6 @@ void MeshingJob::Abort()
 
 MeshingJob::~MeshingJob()
 {
-	delete Octree;
 	Painter->Release();
 }
 

@@ -101,7 +101,7 @@ bool Scheduler::Live()
 void Scheduler::Enqueue(AsyncTask* Task)
 {
 	Assert(ThreadIndex == 0);
-	Assert(State.load())
+	Assert(State.load());
 	{
 		InboxCS.lock();
 		Inbox.push_back(Task);
@@ -114,7 +114,7 @@ void Scheduler::Enqueue(AsyncTask* Task)
 void Scheduler::Advance()
 {
 	Assert(ThreadIndex == 0);
-	Assert(State.load())
+	Assert(State.load());
 	{
 		if (Pool.size() == 0)
 		{
