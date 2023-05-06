@@ -32,6 +32,7 @@ namespace Scheduler
 	void Setup(const bool ForceSingleThread);
 	void Teardown();
 	void Advance();
+	void Purge();
 
 	std::atomic_bool& GetState();
 

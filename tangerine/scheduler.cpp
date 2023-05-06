@@ -156,13 +156,9 @@ void Scheduler::Setup(const bool ForceSingleThread)
 }
 
 
-void Scheduler::Teardown()
+void DiscardInbox()
 {
 	Assert(ThreadIndex == 0);
-	Assert(State.load());
-	State.store(false);
-
-	fmt::print("Shutting down the thread pool.\n");
 
 	InboxCS.lock();
 	for (AsyncTask* Task : Inbox)
@@ -171,12 +167,12 @@ void Scheduler::Teardown()
 		delete Task;
 	}
 	InboxCS.unlock();
+}
 
-	for (std::thread& Worker : Pool)
-	{
-		Worker.join();
-	}
-	Pool.clear();
+
+void DiscardOutbox()
+{
+	Assert(ThreadIndex == 0);
 
 	OutboxCS.lock();
 	for (AsyncTask* Task : Outbox)
@@ -185,4 +181,34 @@ void Scheduler::Teardown()
 		delete Task;
 	}
 	OutboxCS.unlock();
+}
+
+
+void Scheduler::Teardown()
+{
+	Assert(ThreadIndex == 0);
+	Assert(State.load());
+	State.store(false);
+
+	fmt::print("Shutting down the thread pool.\n");
+
+	DiscardInbox();
+
+	for (std::thread& Worker : Pool)
+	{
+		Worker.join();
+	}
+	Pool.clear();
+
+	DiscardOutbox();
+}
+
+
+void Scheduler::Purge()
+{
+	Assert(ThreadIndex == 0);
+	Assert(State.load());
+
+	DiscardInbox();
+	DiscardOutbox();
 }

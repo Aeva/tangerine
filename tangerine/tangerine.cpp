@@ -1126,6 +1126,8 @@ void LoadModelCommon(std::function<void()> LoadingCallback)
 	UnloadAllModels();
 
 	ClearTreeEvaluator();
+	Scheduler::Purge();
+
 	FixedCamera = false;
 
 	BackgroundColor = DefaultBackgroundColor;
