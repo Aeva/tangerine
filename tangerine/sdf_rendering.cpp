@@ -263,8 +263,10 @@ void SodapopDrawable::Draw(
 
 
 void SodapopDrawable::Draw(
+	glm::vec3 CameraOrigin,
 	const int PositionBinding,
-	const int ColorBinding)
+	const int ColorBinding,
+	SDFModel* Instance)
 {
 	if (!MeshReady.load())
 	{
@@ -276,10 +278,34 @@ void SodapopDrawable::Draw(
 		MeshUploaded = true;
 	}
 
+	if (Instance->Colors.size() == 0)
+	{
+		Instance->Colors.resize(Colors.size());
+	}
+
+	if (!glm::all(glm::equal(Instance->LastCameraOrigin, CameraOrigin)))
+	{
+		Instance->LastCameraOrigin = CameraOrigin;
+		// TODO this should go in the thread pool.
+		glm::vec4 LocalEye = Instance->Transform.LastFoldInverse * glm::vec4(CameraOrigin, 1.0);
+		for (int i = 0; i < Instance->Colors.size(); ++i)
+		{
+			glm::vec3 BaseColor = Colors[i].xyz;
+
+			// Palecek 2022, "PBR Based Rendering"
+			glm::vec3 V = glm::normalize(LocalEye.xyz - Positions[i].xyz);
+			glm::vec3 N = Instance->Evaluator->Gradient(Positions[i].xyz);
+			float D = glm::pow(glm::max(glm::dot(N, glm::normalize(N * 0.75f + V)), 0.0f), 2.0f);
+			float F = 1.0 - glm::max(glm::dot(N, V), 0.0f);
+			float BSDF = D + F * 0.25;
+			Instance->Colors[i] = glm::vec4(BaseColor * BSDF, 1.0);
+		}
+	}
+
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 	glVertexAttribPointer(PositionBinding, 4, GL_FLOAT, GL_FALSE, 0, Positions.data());
-	glVertexAttribPointer(ColorBinding, 4, GL_FLOAT, GL_FALSE, 0, Colors.data());
+	glVertexAttribPointer(ColorBinding, 4, GL_FLOAT, GL_FALSE, 0, Instance->Colors.data());
 	glDrawElements(GL_TRIANGLES, Indices.size(), GL_UNSIGNED_INT, Indices.data());
 }
 #endif //RENDERER_SODAPOP
@@ -310,9 +336,10 @@ void SDFModel::Draw(
 
 
 void SDFModel::Draw(
-		const int LocalToWorldBinding,
-		const int PositionBinding,
-		const int ColorBinding)
+	glm::vec3 CameraOrigin,
+	const int LocalToWorldBinding,
+	const int PositionBinding,
+	const int ColorBinding)
 {
 	if (!Visible || !Painter)
 	{
@@ -322,5 +349,5 @@ void SDFModel::Draw(
 	Transform.Fold();
 	glUniformMatrix4fv(LocalToWorldBinding, 1, false, (const GLfloat*)(&Transform.LastFold));
 
-	Painter->Draw(PositionBinding, ColorBinding);
+	Painter->Draw(CameraOrigin, PositionBinding, ColorBinding, this);
 }

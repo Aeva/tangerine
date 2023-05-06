@@ -50,7 +50,7 @@ void MeshingJob::Run()
 		const int Limit = 128;
 
 		float Guess = 15.0;
-		const int Target = 8192;
+		const int Target = 8196;
 
 		for (int Attempt = 0; Attempt < Limit; ++Attempt)
 		{

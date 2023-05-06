@@ -1050,7 +1050,7 @@ void RenderFrameES2(int ScreenWidth, int ScreenHeight, std::vector<SDFModel*>& R
 
 			for (SDFModel* Model : RenderableModels)
 			{
-				Model->Draw(LocalToWorldBinding, PositionBinding, ColorBinding);
+				Model->Draw(UploadedView.CameraOrigin.xyz, LocalToWorldBinding, PositionBinding, ColorBinding);
 			}
 
 			glPopDebugGroup();

@@ -41,8 +41,10 @@ struct Drawable
 		struct ShaderProgram* DebugShader) = 0;
 
 	virtual void Draw(
+		glm::vec3 CameraOrigin,
 		const int PositionBinding,
-		const int ColorBinding) = 0;
+		const int ColorBinding,
+		struct SDFModel* Instance) = 0;
 
 	virtual void Release() = 0;
 
@@ -74,8 +76,10 @@ struct VoxelDrawable final : Drawable
 		struct ShaderProgram* DebugShader);
 
 	virtual void Draw(
+		glm::vec3 CameraOrigin,
 		const int PositionBinding,
-		const int ColorBinding)
+		const int ColorBinding,
+		struct SDFModel* Instance)
 	{
 		// Unused
 	};
@@ -121,8 +125,10 @@ struct SodapopDrawable final : Drawable
 		struct ShaderProgram* DebugShader);
 
 	virtual void Draw(
+		glm::vec3 CameraOrigin,
 		const int PositionBinding,
-		const int ColorBinding);
+		const int ColorBinding,
+		struct SDFModel* Instance);
 
 	virtual void Release();
 };
@@ -140,6 +146,11 @@ struct SDFModel
 
 	int MouseListenFlags = 0;
 
+#if RENDERER_SODAPOP
+	glm::vec3 LastCameraOrigin = glm::vec3(0.0, 0.0, 0.0);
+	std::vector<glm::vec4> Colors;
+#endif // RENDERER_SODAPOP
+
 	void Draw(
 		const bool ShowOctree,
 		const bool ShowLeafCount,
@@ -148,6 +159,7 @@ struct SDFModel
 		struct ShaderProgram* DebugShader);
 
 	void Draw(
+		glm::vec3 CameraOrigin,
 		const int LocalToWorldBinding,
 		const int PositionBinding,
 		const int ColorBinding);
