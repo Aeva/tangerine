@@ -2577,10 +2577,10 @@ void MainLoop()
 						EndEvent();
 					}
 					{
+						GetIncompleteModels(IncompleteModels);
 #if RENDERER_COMPILER
 						if (CurrentRenderer == Renderer::ShapeCompiler)
 						{
-							GetIncompleteModels(IncompleteModels);
 							if (IncompleteModels.size() > 0)
 							{
 								CompileNewShaders(IncompleteModels, LastInnerFrameDeltaMs);
