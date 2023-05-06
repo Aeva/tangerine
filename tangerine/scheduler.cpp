@@ -25,6 +25,10 @@
 #include <vector>
 #include <deque>
 
+#include <chrono>
+
+using Clock = std::chrono::high_resolution_clock;
+
 
 static std::atomic_bool State;
 static std::vector<std::thread> Pool;
@@ -49,6 +53,8 @@ void WorkerThread(const int InThreadIndex)
 		Assert(ThreadIndex == InThreadIndex);
 	}
 
+	Clock::time_point ThreadStart = Clock::now();
+
 	while (State.load())
 	{
 		AsyncTask* Task = nullptr;
@@ -69,6 +75,11 @@ void WorkerThread(const int InThreadIndex)
 				OutboxCS.lock();
 				Outbox.push_back(Task);
 				OutboxCS.unlock();
+			}
+			std::chrono::duration<double, std::milli> Delta = Clock::now() - ThreadStart;
+			if (!DedicatedThread && Delta.count() > 8.0 )
+			{
+				break;
 			}
 		}
 		else
@@ -166,6 +177,7 @@ void DiscardInbox()
 		Task->Abort();
 		delete Task;
 	}
+	Inbox.clear();
 	InboxCS.unlock();
 }
 
@@ -180,6 +192,7 @@ void DiscardOutbox()
 		Task->Abort();
 		delete Task;
 	}
+	Outbox.clear();
 	OutboxCS.unlock();
 }
 
