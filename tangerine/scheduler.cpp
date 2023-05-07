@@ -94,21 +94,23 @@ void WorkerThread(const int InThreadIndex)
 				Outbox.push_back(Task);
 				OutboxCS.unlock();
 			}
-			std::chrono::duration<double, std::milli> Delta = Clock::now() - ThreadStart;
-			if (!DedicatedThread && Delta.count() > 8.0 )
-			{
-				break;
-			}
 		}
 		else
 		{
+#if RENDERER_SODAPOP
+			Sodapop::Hammer();
+#endif
 			if (DedicatedThread)
 			{
 				std::this_thread::yield();
 			}
 			else
 			{
-				break;
+				std::chrono::duration<double, std::milli> Delta = Clock::now() - ThreadStart;
+				if (Delta.count() > 8.0 )
+				{
+					break;
+				}
 			}
 		}
 	}

@@ -350,7 +350,7 @@ SDFModel::SDFModel(SDFNode* InEvaluator, const float VoxelSize)
 			Painter->Hold();
 
 			DrawableCache.emplace_back(Key, Painter); // FIX ME - resize triggers deletes
-			MeshingJob::Enqueue(MeshPainter);
+			Sodapop::Populate(MeshPainter);
 		}
 #endif // RENDERER_SODAPOP
 	}

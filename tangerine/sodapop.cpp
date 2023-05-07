@@ -17,13 +17,24 @@
 #if RENDERER_SODAPOP
 
 #include "errors.h"
+#include "scheduler.h"
 #include "sdf_model.h"
 #include <fmt/format.h>
 #include <surface_nets.h>
 #include <atomic>
 
 
-void MeshingJob::Enqueue(SodapopDrawable* Painter)
+struct MeshingJob : AsyncTask
+{
+	SodapopDrawable* Painter;
+	virtual void Run();
+	virtual void Done();
+	virtual void Abort();
+	virtual ~MeshingJob();
+};
+
+
+void Sodapop::Populate(SodapopDrawable* Painter)
 {
 	Assert(Painter != nullptr);
 	Painter->Hold();
@@ -144,6 +155,69 @@ void MeshingJob::Abort()
 MeshingJob::~MeshingJob()
 {
 	Painter->Release();
+}
+
+
+std::map<size_t, SDFModel*> AttachedModels;
+
+
+struct AttachModelTask : AsyncTask
+{
+	SDFModel* Instance;
+	virtual void Run()
+	{
+		size_t Key = (size_t)Instance;
+		auto Result = AttachedModels.insert(std::pair{Key, Instance});
+
+		fmt::print("[{}] Attached model.\n", (void*)this);
+	};
+	virtual void Done() {}
+	virtual void Abort() {}
+};
+
+
+struct DetachModelTask : AsyncTask
+{
+	SDFModel* Instance;
+	virtual void Run()
+	{
+		size_t Key = (size_t)Instance;
+		AttachedModels.erase(Key);
+
+		fmt::print("[{}] Detached model.\n", (void*)this);
+	};
+	virtual void Done()
+	{
+		Instance->Release();
+	};
+	virtual void Abort() {}
+};
+
+
+void Sodapop::Attach(SDFModel* Instance)
+{
+	Instance->Hold();
+	AttachModelTask* Task = new AttachModelTask();
+	Task->Instance = Instance;
+	//
+
+	Scheduler::Enqueue(Task, true);
+}
+
+
+void Sodapop::Detach(SDFModel* Instance)
+{
+	DetachModelTask* Task = new DetachModelTask();
+	Task->Instance = Instance;
+	//
+
+	Scheduler::Enqueue(Task, true);
+}
+
+
+void Sodapop::Hammer()
+{
+
 }
 
 

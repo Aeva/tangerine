@@ -15,27 +15,22 @@
 
 #pragma once
 
-#include "scheduler.h"
 #include "sdf_rendering.h"
 
 
 #if RENDERER_SODAPOP
 
+struct SodapopDrawable;
+struct SDFModel;
 
-struct MeshingJob : AsyncTask
+
+namespace Sodapop
 {
-	struct SodapopDrawable* Painter;
-
-	static void Enqueue(SodapopDrawable*);
-
-	virtual void Run();
-
-	virtual void Done();
-
-	virtual void Abort();
-
-	virtual ~MeshingJob();
-};
+	void Populate(SodapopDrawable* MeshPainter);
+	void Attach(SDFModel* Instance);
+	void Detach(SDFModel* Instance);
+	void Hammer();
+}
 
 
 #endif // RENDERER_SODAPOP
