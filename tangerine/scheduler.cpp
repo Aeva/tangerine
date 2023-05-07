@@ -36,6 +36,7 @@ static thread_local int ThreadIndex = -1;
 
 static std::mutex InboxCS;
 static std::deque<AsyncTask*> Inbox;
+static std::atomic_int InboxFence = 0;
 
 static std::mutex OutboxCS;
 static std::deque<AsyncTask*> Outbox;
@@ -59,18 +60,35 @@ void WorkerThread(const int InThreadIndex)
 	{
 		AsyncTask* Task = nullptr;
 		{
+			++InboxFence;
 			InboxCS.lock();
 			if (Inbox.size() > 0)
 			{
 				Task = Inbox.front();
 				Inbox.pop_front();
+
+				if (Task->IsFence)
+				{
+					// Wait until all thread pool threads are blocked on the inbox mutex...
+					while (InboxFence.load() < Pool.size())
+					{
+						std::this_thread::yield();
+					}
+
+					// ... then execute the task before releasing the inbox mutex.
+					Task->Run();
+				}
 			}
+			--InboxFence;
 			InboxCS.unlock();
 		}
 
 		if (Task)
 		{
-			Task->Run();
+			if (!Task->IsFence)
+			{
+				Task->Run();
+			}
 			{
 				OutboxCS.lock();
 				Outbox.push_back(Task);
@@ -109,11 +127,12 @@ bool Scheduler::Live()
 }
 
 
-void Scheduler::Enqueue(AsyncTask* Task)
+void Scheduler::Enqueue(AsyncTask* Task, bool IsFence)
 {
 	Assert(ThreadIndex == 0);
 	Assert(State.load());
 	{
+		Task->IsFence = IsFence;
 		InboxCS.lock();
 		Inbox.push_back(Task);
 		InboxCS.unlock();

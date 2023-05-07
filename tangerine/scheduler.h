@@ -24,6 +24,9 @@ struct AsyncTask
 	virtual void Done() = 0;
 	virtual void Abort() = 0;
 	virtual ~AsyncTask() {};
+
+	// This will be set by Scheduler::Enqueue.
+	bool IsFence = false;
 };
 
 
@@ -37,5 +40,5 @@ namespace Scheduler
 	std::atomic_bool& GetState();
 
 	bool Live();
-	void Enqueue(AsyncTask* Task);
+	void Enqueue(AsyncTask* Task, bool IsFence = false);
 }
