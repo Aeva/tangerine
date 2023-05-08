@@ -1807,23 +1807,28 @@ void RenderUI(SDL_Window* Window, bool& Live)
 			ImGui::Text(" %.0f hz\n", round(PresentFrequency));
 			ImGui::Text(" %.1f ms\n", PresentDeltaMs);
 
-			ImGui::Separator();
-			ImGui::Text("GPU Timeline\n");
-			double TotalTimeMs = \
-				DepthElapsedTimeMs +
-				GridBgElapsedTimeMs +
-				OutlinerElapsedTimeMs +
-				UiElapsedTimeMs;
-			ImGui::Text("   Depth: %.2f ms\n", DepthElapsedTimeMs);
-			ImGui::Text("   'Sky': %.2f ms\n", GridBgElapsedTimeMs);
-			ImGui::Text(" Outline: %.2f ms\n", OutlinerElapsedTimeMs);
-			ImGui::Text("      UI: %.2f ms\n", UiElapsedTimeMs);
-			ImGui::Text("   Total: %.2f ms\n", TotalTimeMs);
+#if RENDERER_COMPILER
+			if (ShowChangeIterations && CurrentRenderer == Renderer::ShapeCompiler)
+			{
+				ImGui::Separator();
+				ImGui::Text("GPU Timeline\n");
+				double TotalTimeMs = \
+					DepthElapsedTimeMs +
+					GridBgElapsedTimeMs +
+					OutlinerElapsedTimeMs +
+					UiElapsedTimeMs;
+				ImGui::Text("   Depth: %.2f ms\n", DepthElapsedTimeMs);
+				ImGui::Text("   'Sky': %.2f ms\n", GridBgElapsedTimeMs);
+				ImGui::Text(" Outline: %.2f ms\n", OutlinerElapsedTimeMs);
+				ImGui::Text("      UI: %.2f ms\n", UiElapsedTimeMs);
+				ImGui::Text("   Total: %.2f ms\n", TotalTimeMs);
 
-			ImGui::Separator();
-			ImGui::Text("Model Loading\n");
-			ImGui::Text("  Processing: %.3f s\n", ModelProcessingStallMs / 1000.0);
-			ImGui::Text(" Convergence: %.3f s\n", ShaderCompilerConvergenceMs / 1000.0);
+				ImGui::Separator();
+				ImGui::Text("Model Loading\n");
+				ImGui::Text("  Processing: %.3f s\n", ModelProcessingStallMs / 1000.0);
+				ImGui::Text(" Convergence: %.3f s\n", ShaderCompilerConvergenceMs / 1000.0);
+			}
+#endif // RENDERER_COMPILER
 		}
 		ImGui::End();
 	}
