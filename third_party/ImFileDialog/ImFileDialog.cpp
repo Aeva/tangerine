@@ -923,7 +923,7 @@ namespace ifd {
 		delete node;
 		node = nullptr;
 	}
-	void FileDialog::m_setDirectory(const std::filesystem::path& p, bool addHistory)
+	void FileDialog::m_setDirectory(const std::filesystem::path p, bool addHistory)
 	{
 		bool isSameDir = m_currentDirectory == p;
 

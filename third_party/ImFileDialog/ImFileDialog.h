@@ -131,7 +131,7 @@ namespace ifd {
 		unsigned int m_sortColumn;
 		unsigned int m_sortDirection;
 		std::vector<FileData> m_content;
-		void m_setDirectory(const std::filesystem::path& p, bool addHistory = true);
+		void m_setDirectory(const std::filesystem::path p, bool addHistory = true);
 		void m_sortContent(unsigned int column, unsigned int sortDirection);
 		void m_renderContent();
 
