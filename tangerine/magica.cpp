@@ -21,7 +21,7 @@
 #include "threadpool.h"
 #include "extern.h"
 #include "magica.h"
-#include "voxwriter/VoxWriter.h"
+#include "VoxWriter.h"
 
 
 void VoxExport(SDFNode* Evaluator, std::string& Path, float GridSize, int ColorIndex)

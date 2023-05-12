@@ -84,7 +84,7 @@ target_include_directories(glad PUBLIC "third_party/glad/include")
 #######################################################################
 ## GLM:
 
-add_subdirectory("third_party/glm")
+add_subdirectory("third_party/glm-0.9.9.8/")
 
 #######################################################################
 ## ImGui:
@@ -138,6 +138,7 @@ target_include_directories(NaiveSurfaceNets
 add_library(VoxWriter OBJECT "third_party/voxwriter/VoxWriter.cpp")
 target_sources(VoxWriter
 	PUBLIC FILE_SET HEADERS
+	BASE_DIRS "third_party/voxwriter/"
 	FILES "third_party/voxwriter/VoxWriter.h")
 
 #######################################################################

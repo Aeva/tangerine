@@ -1680,7 +1680,7 @@ void RenderUI(SDL_Window* Window, bool& Live)
 			ImGuiTabBarFlags TabBarFlags = ImGuiTabBarFlags_None;
 			if (ImGui::BeginTabBar("Open Source Licenses", TabBarFlags))
 			{
-#include "licenses.inl"
+#include "../third_party/licenses.inl"
 			}
 		}
 		ImGui::End();

@@ -18,6 +18,8 @@
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #define GLM_FORCE_SWIZZLE
 #define GLM_FORCE_INTRINSICS
+#define GLM_FORCE_SINGLE_ONLY
+#define GLM_ENABLE_EXPERIMENTAL
 #include <glm/vec3.hpp>
 #include <glm/vec4.hpp>
 #include <glm/mat4x4.hpp>
