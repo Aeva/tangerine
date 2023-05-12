@@ -36,7 +36,7 @@ vec3 GetVec3(lua_State* L, int& NextArg)
 	if (Vec)
 	{
 		++NextArg;
-		return Vec->Vector.xyz;
+		return Vec->Vector.xyz();
 	}
 	else
 	{
@@ -315,7 +315,7 @@ int VecCross(lua_State* L)
 	}
 	LuaVec* NewVec = CreateVec(L, min(LHS->Size, RHS->Size));
 	NewVec->Size = 3;
-	NewVec->Vector = vec4(cross(vec3(LHS->Vector.xyz), vec3(RHS->Vector.xyz)), 0.0);
+	NewVec->Vector = vec4(cross(vec3(LHS->Vector.xyz()), vec3(RHS->Vector.xyz())), 0.0);
 	return 1;
 }
 

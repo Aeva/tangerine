@@ -290,11 +290,11 @@ void SodapopDrawable::Draw(
 		glm::vec4 LocalEye = Instance->Transform.LastFoldInverse * glm::vec4(CameraOrigin, 1.0);
 		for (int i = 0; i < Instance->Colors.size(); ++i)
 		{
-			glm::vec3 BaseColor = Colors[i].xyz;
+			glm::vec3 BaseColor = Colors[i].xyz();
 
 			// Palecek 2022, "PBR Based Rendering"
-			glm::vec3 V = glm::normalize(LocalEye.xyz - Positions[i].xyz);
-			glm::vec3 N = Instance->Evaluator->Gradient(Positions[i].xyz);
+			glm::vec3 V = glm::normalize(LocalEye.xyz() - Positions[i].xyz());
+			glm::vec3 N = Instance->Evaluator->Gradient(Positions[i].xyz());
 			float D = glm::pow(glm::max(glm::dot(N, glm::normalize(N * 0.75f + V)), 0.0f), 2.0f);
 			float F = 1.0 - glm::max(glm::dot(N, V), 0.0f);
 			float BSDF = D + F * 0.25;

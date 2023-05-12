@@ -77,7 +77,7 @@ struct ProgramBuffer
 		VoxelUpload(const AABB& Bounds)
 		{
 			Extent = glm::vec4((Bounds.Max - Bounds.Min) * glm::vec3(0.5), 0.0);
-			Center = glm::vec4(Extent.xyz + Bounds.Min, 0.0);
+			Center = glm::vec4(Extent.xyz() + Bounds.Min, 0.0);
 		}
 	};
 

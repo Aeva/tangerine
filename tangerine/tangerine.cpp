@@ -1050,7 +1050,7 @@ void RenderFrameES2(int ScreenWidth, int ScreenHeight, std::vector<SDFModel*>& R
 
 			for (SDFModel* Model : RenderableModels)
 			{
-				Model->Draw(UploadedView.CameraOrigin.xyz, LocalToWorldBinding, PositionBinding, ColorBinding);
+				Model->Draw(UploadedView.CameraOrigin.xyz(), LocalToWorldBinding, PositionBinding, ColorBinding);
 			}
 
 			glPopDebugGroup();
@@ -1342,15 +1342,15 @@ void WorldSpaceRay(const ViewInfoUpload& View, int ScreenX, int ScreenY, int Scr
 			1.0f);
 		ViewPosition = View.ClipToView * ClipPosition;
 
-		glm::vec4 ViewOrigin = glm::vec4(ViewPosition.xy, 0.0, ViewPosition.w);
+		glm::vec4 ViewOrigin = glm::vec4(ViewPosition.xy(), 0.0, ViewPosition.w);
 		glm::vec4 WorldOrigin = View.ViewToWorld * ViewOrigin;
-		Origin = glm::vec3(WorldOrigin.xyz) / WorldOrigin.w;
+		Origin = glm::vec3(WorldOrigin.xyz()) / WorldOrigin.w;
 	}
 
 	{
 		glm::vec4 WorldPosition = View.ViewToWorld * ViewPosition;
 		WorldPosition /= WorldPosition.w;
-		glm::vec3 Ray = glm::vec3(WorldPosition.xyz) - glm::vec3(Origin);
+		glm::vec3 Ray = glm::vec3(WorldPosition.xyz()) - glm::vec3(Origin);
 		Direction = glm::normalize(Ray);
 	}
 }
@@ -2184,6 +2184,20 @@ StatusCode Boot(int argc, char* argv[])
 				return StatusCode::FAIL;
 			}
 		}
+	}
+	{
+#if _DEBUG
+		const char* BuildName = "Debug";
+#else
+		const char* BuildName = "Release";
+#endif
+#if defined(_MSC_VER)
+		fmt::print("{} build [MSVC {}]\n", BuildName, _MSC_VER);
+#elif defined(__clang__)
+		fmt::print("{} build [clang {}.{}]\n", BuildName, __clang_major__, __clang_minor__);
+#elif defined(__GNUC__) || defined(__MINGW32__)
+		fmt::print("{} build [GCC {}.{}]\n", BuildName, __GNUC__, __GNUC_MINOR__);
+#endif
 	}
 	Scheduler::Setup(ForceSingleThread);
 

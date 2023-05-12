@@ -59,7 +59,7 @@ void VoxExport(SDFNode* Evaluator, std::string& Path, float GridSize, int ColorI
 			glm::vec3 Alpha = glm::vec3(x + .5, y + .5, z + .5) / glm::vec3(Size);
 			glm::vec3 Point = glm::mix(Bounds.Min, Bounds.Max, Alpha);
 			float Dist = Evaluator->Eval(Point);
-			if (abs(Dist) <= Radius)
+			if (std::abs(Dist) <= Radius)
 			{
 				MagicCS.lock();
 				Writer.AddVoxel(x, y, z, abs(ColorIndex) % 255 + 1);

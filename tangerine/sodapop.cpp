@@ -127,7 +127,7 @@ void MeshingJob::Run()
 		Painter->Colors.reserve(Painter->Positions.size());
 		for (const glm::vec4& Position : Painter->Positions )
 		{
-			glm::vec3 Color = Painter->Evaluator->Sample(Position.xyz);
+			glm::vec3 Color = Painter->Evaluator->Sample(Position.xyz());
 			Painter->Colors.push_back(glm::vec4(Color, 1.0));
 		}
 

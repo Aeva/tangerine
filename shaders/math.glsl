@@ -40,6 +40,13 @@
 #define OPCODE_PUSH   (OPCODE_RETURN - 1)
 
 
+#ifdef GLM_FORCE_PURE
+#define SWIZ(expr) expr()
+#else
+#define SWIZ(expr) expr
+#endif
+
+
 float SphereBrush(vec3 Point, float Radius)
 {
 	return length(Point) - Radius;
@@ -77,13 +84,13 @@ float BoxBrush(vec3 Point, float ExtentX, float ExtentY, float ExtentZ)
 
 float TorusBrush(vec3 Point, float MajorRadius, float MinorRadius)
 {
-	return length(vec2(length(vec2(Point.xy)) - MajorRadius, Point.z)) - MinorRadius;
+	return length(vec2(length(vec2(SWIZ(Point.xy))) - MajorRadius, Point.z)) - MinorRadius;
 }
 
 
 float CylinderBrush(vec3 Point, float Radius, float Extent)
 {
-	vec2 D = abs(vec2(length(vec2(Point.xy)), Point.z)) - vec2(Radius, Extent);
+	vec2 D = abs(vec2(length(vec2(SWIZ(Point.xy))), Point.z)) - vec2(Radius, Extent);
 	return min(max(D.x, D.y), 0.0) + length(max(D, 0.0));
 }
 
@@ -103,7 +110,7 @@ float Plane(vec3 Point, float NormalX, float NormalY, float NormalZ)
 float ConeBrush(vec3 Point, float Tangent, float Height)
 {
 	vec2 Q = Height * vec2(Tangent, -1.0);
-	vec2 W = vec2(length(vec2(Point.xy)), Height * -.5 + Point.z);
+	vec2 W = vec2(length(vec2(SWIZ(Point.xy))), Height * -.5 + Point.z);
 	vec2 A = W - Q * clamp(float(dot(W, Q) / dot(Q, Q)), 0.0f, 1.0f);
 	vec2 B = W - Q * vec2(clamp(float(W.x / Q.x), 0.0f, 1.0f), 1.0);
 	float K = sign(Q.y);
@@ -115,7 +122,7 @@ float ConeBrush(vec3 Point, float Tangent, float Height)
 
 float ConinderBrush(vec3 Point, float RadiusL, float RadiusH, float Height)
 {
-	vec2 Q = vec2(length(vec2(Point.xy)), Point.z);
+	vec2 Q = vec2(length(vec2(SWIZ(Point.xy))), Point.z);
 	vec2 K1 = vec2(RadiusH, Height);
 	vec2 K2 = vec2(RadiusH - RadiusL,2.0 * Height);
 	vec2 CA = vec2(Q.x - min(Q.x, (Q.y < 0.0) ? RadiusL : RadiusH), abs(Q.y) - Height);

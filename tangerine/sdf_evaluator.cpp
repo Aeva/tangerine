@@ -62,17 +62,17 @@ vec3 SDFNode::Gradient(vec3 Point)
 #if 1
 	// Tetrahedral method
 	vec3 Gradient =
-		Offset.xyy * Eval(Point + Offset.xyy) +
-		Offset.yyx * Eval(Point + Offset.yyx) +
-		Offset.yxy * Eval(Point + Offset.yxy) +
-		Offset.xxx * Eval(Point + Offset.xxx);
+		Offset.xyy() * Eval(Point + Offset.xyy()) +
+		Offset.yyx() * Eval(Point + Offset.yyx()) +
+		Offset.yxy() * Eval(Point + Offset.yxy()) +
+		Offset.xxx() * Eval(Point + Offset.xxx());
 
 #else
 	// Central differences method
 	vec3 Gradient(
-		Eval(Point + Offset.xyy) - Eval(Point - Offset.xyy),
-		Eval(Point + Offset.yxy) - Eval(Point - Offset.yxy),
-		Eval(Point + Offset.yyx) - Eval(Point - Offset.yyx));
+		Eval(Point + Offset.xyy()) - Eval(Point - Offset.xyy()),
+		Eval(Point + Offset.yxy()) - Eval(Point - Offset.yxy()),
+		Eval(Point + Offset.yyx()) - Eval(Point - Offset.yyx()));
 #endif
 
 	float LengthSquared = dot(Gradient, Gradient);
@@ -81,9 +81,9 @@ vec3 SDFNode::Gradient(vec3 Point)
 		// Gradient is zero.  Let's try again with a worse method.
 		float Dist = Eval(Point);
 		return normalize(vec3(
-			Eval(Point + Offset.xyy) - Dist,
-			Eval(Point + Offset.yxy) - Dist,
-			Eval(Point + Offset.yyx) - Dist));
+			Eval(Point + Offset.xyy()) - Dist,
+			Eval(Point + Offset.yxy()) - Dist,
+			Eval(Point + Offset.yyx()) - Dist));
 	}
 	else
 	{
@@ -232,14 +232,14 @@ vec3 TransformMachine::ApplyInverse(vec3 Point)
 {
 	Fold();
 	vec4 Tmp = LastFoldInverse * vec4(Point, 1.0);
-	return Tmp.xyz / Tmp.www;
+	return Tmp.xyz() / Tmp.www();
 }
 
 vec3 TransformMachine::Apply(vec3 Point)
 {
 	Fold();
 	vec4 Tmp = LastFold * vec4(Point, 1.0);
-	return Tmp.xyz / Tmp.www;
+	return Tmp.xyz() / Tmp.www();
 }
 
 AABB TransformMachine::Apply(const AABB InBounds)
@@ -313,7 +313,7 @@ bool TransformMachine::operator==(TransformMachine& Other)
 
 AABB TransformMachine::ApplyOffset(const AABB InBounds)
 {
-	vec3 Offset = LastFold[3].xyz;
+	vec3 Offset = LastFold[3].xyz();
 	return {
 		InBounds.Min + Offset,
 		InBounds.Max + Offset
@@ -328,12 +328,12 @@ AABB TransformMachine::ApplyMatrix(const AABB InBounds)
 	const vec3 Points[7] = \
 	{
 		B,
-			vec3(B.x, A.yz),
+			vec3(B.x, A.yz()),
 			vec3(A.x, B.y, A.z),
-			vec3(A.xy, B.z),
-			vec3(A.x, B.yz),
+			vec3(A.xy(), B.z),
+			vec3(A.x, B.yz()),
 			vec3(B.x, A.y, B.z),
-			vec3(B.xy, A.z)
+			vec3(B.xy(), A.z)
 	};
 
 	AABB Bounds;
