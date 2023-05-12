@@ -105,6 +105,7 @@ struct SodapopDrawable final : Drawable
 
 	std::vector<uint32_t> Indices;
 	std::vector<glm::vec4> Positions;
+	std::vector<glm::vec4> Normals;
 	std::vector<glm::vec4> Colors;
 
 	std::atomic_bool MeshReady;

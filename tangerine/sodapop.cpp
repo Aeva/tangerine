@@ -22,6 +22,11 @@
 #include <fmt/format.h>
 #include <surface_nets.h>
 #include <atomic>
+#include <random>
+
+
+static std::default_random_engine RNGesus;
+static std::uniform_real_distribution<double> Roll(-1.0, std::nextafter(1.0, DBL_MAX));
 
 
 struct MeshingJob : AsyncTask
@@ -61,7 +66,7 @@ void MeshingJob::Run()
 		const int Limit = 128;
 
 		float Guess = 15.0;
-		const int Target = 8196;
+		const int Target = 10000;
 
 		for (int Attempt = 0; Attempt < Limit; ++Attempt)
 		{
@@ -109,26 +114,71 @@ void MeshingJob::Run()
 		isosurface::surface_nets(Eval, Grid, Mesh, Scheduler::GetState());
 
 		Painter->Positions.reserve(Mesh.vertices_.size());
+		Painter->Normals.reserve(Mesh.vertices_.size());
 		Painter->Indices.reserve(Mesh.faces_.size() * 3);
 
 		for (const isosurface::point_t& ExtractedVertex : Mesh.vertices_)
 		{
 			glm::vec4 Vertex(ExtractedVertex.x, ExtractedVertex.y, ExtractedVertex.z, 1.0);
 			Painter->Positions.push_back(Vertex);
+			Painter->Normals.push_back(glm::vec4(0.0, 0.0, 0.0, 0.0));
 		}
 
-		for (const isosurface::shared_vertex_mesh::triangle_t& ExtractedTriangle : Mesh.faces_)
+		for (const isosurface::shared_vertex_mesh::triangle_t& Face : Mesh.faces_)
 		{
-			Painter->Indices.push_back(ExtractedTriangle.v0);
-			Painter->Indices.push_back(ExtractedTriangle.v1);
-			Painter->Indices.push_back(ExtractedTriangle.v2);
+			Painter->Indices.push_back(Face.v0);
+			Painter->Indices.push_back(Face.v1);
+			Painter->Indices.push_back(Face.v2);
+
+			glm::vec3 A = Painter->Positions[Face.v0].xyz();
+			glm::vec3 B = Painter->Positions[Face.v1].xyz();
+			glm::vec3 C = Painter->Positions[Face.v2].xyz();
+			glm::vec3 AB = glm::normalize(A - B);
+			glm::vec3 AC = glm::normalize(A - C);
+			glm::vec4 N = glm::vec4(glm::normalize(glm::cross(AB, AC)), 1);
+
+			if (!glm::any(glm::isnan(N)))
+			{
+				Painter->Normals[Face.v0] += N;
+				Painter->Normals[Face.v1] += N;
+				Painter->Normals[Face.v2] += N;
+			}
 		}
+
+		for (glm::vec4& Normal : Painter->Normals)
+		{
+			Normal = glm::vec4(glm::normalize(Normal.xyz() / Normal.w), 1.0);
+		}
+
+		glm::vec3 JitterSpan = glm::vec3(Grid.dx, Grid.dy, Grid.dz) * glm::vec3(0.5);
 
 		Painter->Colors.reserve(Painter->Positions.size());
 		for (const glm::vec4& Position : Painter->Positions )
 		{
-			glm::vec3 Color = Painter->Evaluator->Sample(Position.xyz());
-			Painter->Colors.push_back(glm::vec4(Color, 1.0));
+			// HACK taking a random average within the approximate voxel bounds of a vert
+			// goes a long ways to improve the readability of some models.  However, the
+			// correct thing to do here might be a little more like how we calculate normals.
+			// For each triangle, sample randomly within the triangle, and accumualte the
+			// samples into vertex buckets.  Although, the accumulated values should probably
+			// be weighted by their barycentric coordinates or something like that.
+
+			const int Count = 20;
+			std::vector<glm::vec3> Samples;
+			Samples.reserve(Count);
+			glm::vec3 Average = glm::vec3(0.0);
+			for (int i = 0; i < Count; ++i)
+			{
+				glm::vec3 Jitter = JitterSpan * glm::vec3(Roll(RNGesus), Roll(RNGesus), Roll(RNGesus));
+				glm::vec3 Tmp = Position.xyz();
+				glm::vec3 Sample = Painter->Evaluator->Sample(Tmp + Jitter);
+				if (!glm::any(glm::isnan(Sample)))
+				{
+					Samples.push_back(Sample);
+					Average += Sample;
+				}
+			}
+			Average /= glm::vec3(float(Samples.size()));
+			Painter->Colors.push_back(glm::vec4(Average, 1.0));
 		}
 
 		Painter->MeshReady.store(true);
