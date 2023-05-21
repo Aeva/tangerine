@@ -1,5 +1,5 @@
 
-// Copyright 2022 Aeva Palecek
+// Copyright 2023 Aeva Palecek
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -72,6 +72,8 @@ int LuaOpenEnv(lua_State* L)
 
 LuaEnvironment::LuaEnvironment()
 {
+	GlobalModel.reset();
+
 	AdvanceCallbackRef = LUA_REFNIL;
 	L = luaL_newstate();
 	luaL_openlibs(L);
@@ -149,8 +151,8 @@ void LuaEnvironment::LoadLuaModelCommon()
 	void* LuaData = luaL_testudata(L, -1, "tangerine.sdf");
 	if (LuaData)
 	{
-		SDFNodeShared* Model = (SDFNodeShared*)LuaData;
-		CompileEvaluator(*Model);
+		SDFNodeShared& Evaluator = *static_cast<SDFNodeShared*>(LuaData);
+		GlobalModel = SDFModel::Create(Evaluator);
 	}
 	lua_pop(L, 1);
 }

@@ -23,5 +23,3 @@ extern bool Interpreted;
 void OverrideMaxIterations(int MaxIterationsOverride);
 void UseInterpreter();
 void UseRoundedStackSize();
-
-void CompileEvaluator(SDFNodeShared Evaluator, const float VoxelSize = 0.25);

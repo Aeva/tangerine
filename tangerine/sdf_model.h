@@ -171,7 +171,7 @@ struct SDFModel
 
 	RayHit RayMarch(glm::vec3 RayStart, glm::vec3 RayDir, int MaxIterations = 1000, float Epsilon = 0.001);
 
-	static SDFModelShared Create(SDFNodeShared& InEvaluator, const float VoxelSize);
+	static SDFModelShared Create(SDFNodeShared& InEvaluator, const float VoxelSize = 0.25);
 	SDFModel(SDFModel&& Other) = delete;
 	virtual ~SDFModel();
 

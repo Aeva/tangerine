@@ -1,5 +1,5 @@
 
-// Copyright 2022 Aeva Palecek
+// Copyright 2023 Aeva Palecek
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@
 #include "embedding.h"
 #if EMBED_LUA
 #include <string>
+#include "sdf_model.h"
 
 struct LuaEnvironment : public ScriptEnvironment
 {
@@ -42,6 +43,7 @@ struct LuaEnvironment : public ScriptEnvironment
 	bool HandleError(int Error);
 private:
 	int AdvanceCallbackRef;
+	SDFModelShared GlobalModel;
 
 	void LoadLuaModelCommon();
 };

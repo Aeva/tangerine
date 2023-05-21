@@ -109,6 +109,12 @@ void SetTreeEvaluator(SDFNodeShared& InTreeEvaluator)
 }
 
 
+void ClearTreeEvaluator()
+{
+	TreeEvaluator.reset();
+}
+
+
 ShaderProgram PaintShader;
 ShaderProgram NoiseShader;
 ShaderProgram BgShader;
@@ -1112,7 +1118,7 @@ void LoadModelCommon(std::function<void()> LoadingCallback)
 	BeginEvent("Load Model");
 	UnloadAllModels();
 
-	TreeEvaluator.reset();
+	ClearTreeEvaluator();
 	Scheduler::Purge();
 
 	FixedCamera = false;

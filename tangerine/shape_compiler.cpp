@@ -216,13 +216,6 @@ void VoxelDrawable::AddProgramVariant(size_t ShaderIndex, uint32_t SubtreeIndex,
 #endif // RENDERER_COMPILER
 
 
-void CompileEvaluator(SDFNodeShared Evaluator, const float VoxelSize)
-{
-	SDFModel::Create(Evaluator, VoxelSize);
-	//new SDFModel(Evaluator, VoxelSize);
-}
-
-
 // TODO : this needs to be reworked to be compatible with SDFNodeShared
 #if 0
 extern "C" TANGERINE_API void VoxelCompiler(void* Handle, const float VoxelSize)
