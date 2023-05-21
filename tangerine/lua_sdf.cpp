@@ -1,5 +1,5 @@
 
-// Copyright 2022 Aeva Palecek
+// Copyright 2023 Aeva Palecek
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -29,35 +29,34 @@
 std::default_random_engine RNGesus;
 
 
-SDFNode* GetSDFNode(lua_State* L, int Arg)
+SDFNodeShared* GetSDFNode(lua_State* L, int Arg)
 {
-	SDFNode** Node = (SDFNode**)luaL_checkudata(L, Arg, "tangerine.sdf");
-	return *Node;
+	SDFNodeShared* Node = (SDFNodeShared*)luaL_checkudata(L, Arg, "tangerine.sdf");
+	return Node;
 }
 
 
-LuaModel* GetSDFModel(lua_State* L, int Arg)
+LuaModelShared* GetSDFModel(lua_State* L, int Arg)
 {
-	LuaModel** Model = (LuaModel**)luaL_checkudata(L, Arg, "tangerine.model");
-	return *Model;
+	LuaModelShared* Model = (LuaModelShared*)luaL_checkudata(L, Arg, "tangerine.model");
+	return Model;
 }
 
 
-int WrapSDFNode(lua_State* L, SDFNode* NewNode)
+int WrapSDFNode(lua_State* L, SDFNodeShared& NewNode)
 {
-	SDFNode** Wrapper = (SDFNode**)lua_newuserdata(L, sizeof(SDFNode*));
+	SDFNodeShared* Wrapper = (SDFNodeShared*)lua_newuserdata(L, sizeof(SDFNodeShared));
 	luaL_getmetatable(L, "tangerine.sdf");
 	lua_setmetatable(L, -2);
-	*Wrapper = NewNode;
-	NewNode->Hold();
+	new (Wrapper) SDFNodeShared(NewNode);
 	return 1;
 }
 
 
 int LuaMoveInner(lua_State* L, float X, float Y, float Z)
 {
-	SDFNode* Node = GetSDFNode(L, 1);
-	SDFNode* NewNode = Node->Copy();
+	SDFNodeShared& Node = *GetSDFNode(L, 1);
+	SDFNodeShared NewNode = Node->Copy();
 	NewNode->Move(glm::vec3(X, Y, Z));
 	return WrapSDFNode(L, NewNode);
 }
@@ -89,8 +88,8 @@ int LuaMove(lua_State* L)
 	int NextArg = 2;
 	glm::vec3 Offset = GetVec3(L, NextArg);
 
-	SDFNode* Node = GetSDFNode(L, 1);
-	SDFNode* NewNode = Node->Copy();
+	SDFNodeShared& Node = *GetSDFNode(L, 1);
+	SDFNodeShared NewNode = Node->Copy();
 	NewNode->Move(Offset);
 	return WrapSDFNode(L, NewNode);
 }
@@ -101,8 +100,8 @@ int LuaAlign(lua_State* L)
 	int NextArg = 2;
 	glm::vec3 Anchors = GetVec3(L, NextArg);
 
-	SDFNode* Node = GetSDFNode(L, 1);
-	SDFNode* NewNode = Node->Copy();
+	SDFNodeShared& Node = *GetSDFNode(L, 1);
+	SDFNodeShared NewNode = Node->Copy();
 	SDF::Align(NewNode, Anchors);
 	return WrapSDFNode(L, NewNode);
 }
@@ -110,8 +109,8 @@ int LuaAlign(lua_State* L)
 
 int LuaRotateInner(lua_State* L, float X, float Y, float Z, float W = 1.0)
 {
-	SDFNode* Node = GetSDFNode(L, 1);
-	SDFNode* NewNode = Node->Copy();
+	SDFNodeShared& Node = *GetSDFNode(L, 1);
+	SDFNodeShared NewNode = Node->Copy();
 	NewNode->Rotate(glm::quat(W, X, Y, Z));
 	return WrapSDFNode(L, NewNode);
 }
@@ -120,8 +119,8 @@ int LuaRotateInner(lua_State* L, float X, float Y, float Z, float W = 1.0)
 int LuaRotateX(lua_State* L)
 {
 	float Degrees = (float)luaL_checknumber(L, 2);
-	SDFNode* Node = GetSDFNode(L, 1);
-	SDFNode* NewNode = Node->Copy();
+	SDFNodeShared& Node = *GetSDFNode(L, 1);
+	SDFNodeShared NewNode = Node->Copy();
 	SDF::RotateX(NewNode, Degrees);
 	return WrapSDFNode(L, NewNode);
 }
@@ -130,8 +129,8 @@ int LuaRotateX(lua_State* L)
 int LuaRotateY(lua_State* L)
 {
 	float Degrees = (float)luaL_checknumber(L, 2);
-	SDFNode* Node = GetSDFNode(L, 1);
-	SDFNode* NewNode = Node->Copy();
+	SDFNodeShared& Node = *GetSDFNode(L, 1);
+	SDFNodeShared NewNode = Node->Copy();
 	SDF::RotateY(NewNode, Degrees);
 	return WrapSDFNode(L, NewNode);
 }
@@ -140,8 +139,8 @@ int LuaRotateY(lua_State* L)
 int LuaRotateZ(lua_State* L)
 {
 	float Degrees = (float)luaL_checknumber(L, 2);
-	SDFNode* Node = GetSDFNode(L, 1);
-	SDFNode* NewNode = Node->Copy();
+	SDFNodeShared& Node = *GetSDFNode(L, 1);
+	SDFNodeShared NewNode = Node->Copy();
 	SDF::RotateZ(NewNode, Degrees);
 	return WrapSDFNode(L, NewNode);
 }
@@ -154,8 +153,8 @@ int LuaRotate(lua_State* L)
 		(float)luaL_checknumber(L, 2),
 		(float)luaL_checknumber(L, 3),
 		(float)luaL_checknumber(L, 4));
-	SDFNode* Node = GetSDFNode(L, 1);
-	SDFNode* NewNode = Node->Copy();
+	SDFNodeShared& Node = *GetSDFNode(L, 1);
+	SDFNodeShared NewNode = Node->Copy();
 	NewNode->Rotate(Quat);
 	return WrapSDFNode(L, NewNode);
 }
@@ -164,8 +163,8 @@ int LuaRotate(lua_State* L)
 int LuaScale(lua_State* L)
 {
 	float Scale = (float)luaL_checknumber(L, 2);
-	SDFNode* Node = GetSDFNode(L, 1);
-	SDFNode* NewNode = Node->Copy();
+	SDFNodeShared& Node = *GetSDFNode(L, 1);
+	SDFNodeShared NewNode = Node->Copy();
 	NewNode->Scale(Scale);
 	return WrapSDFNode(L, NewNode);
 }
@@ -174,8 +173,8 @@ int LuaScale(lua_State* L)
 int LuaFlate(lua_State* L)
 {
 	float Radius = (float)luaL_checknumber(L, 2) * .5;
-	SDFNode* Node = GetSDFNode(L, 1);
-	SDFNode* NewNode = SDF::Flate(Node, Radius);
+	SDFNodeShared& Node = *GetSDFNode(L, 1);
+	SDFNodeShared NewNode = SDF::Flate(Node, Radius);
 	return WrapSDFNode(L, NewNode);
 }
 
@@ -195,8 +194,8 @@ int LuaPaint(lua_State* L)
 		Color = GetVec3(L, NextArg);
 	}
 
-	SDFNode* Node = GetSDFNode(L, 1);
-	SDFNode* NewNode = Node->Copy();
+	SDFNodeShared& Node = *GetSDFNode(L, 1);
+	SDFNodeShared NewNode = Node->Copy();
 	NewNode->ApplyMaterial(Color, Force);
 	return WrapSDFNode(L, NewNode);
 }
@@ -205,7 +204,7 @@ int LuaPaint(lua_State* L)
 int LuaSphere(lua_State* L)
 {
 	float Radius = luaL_checknumber(L, 1) * .5;
-	SDFNode* NewNode = SDF::Sphere(Radius);
+	SDFNodeShared NewNode = SDF::Sphere(Radius);
 	return WrapSDFNode(L, NewNode);
 }
 
@@ -214,7 +213,7 @@ int LuaEllipsoid(lua_State* L)
 {
 	int NextArg = 1;
 	glm::vec3 Radipodes = GetVec3(L, NextArg) * glm::vec3(0.5);
-	SDFNode* NewNode = SDF::Ellipsoid(Radipodes.x, Radipodes.y, Radipodes.z);
+	SDFNodeShared NewNode = SDF::Ellipsoid(Radipodes.x, Radipodes.y, Radipodes.z);
 	return WrapSDFNode(L, NewNode);
 }
 
@@ -223,7 +222,7 @@ int LuaBox(lua_State* L)
 {
 	int NextArg = 1;
 	glm::vec3 Extent = GetVec3(L, NextArg) * glm::vec3(0.5);
-	SDFNode* NewNode = SDF::Box(Extent.x, Extent.y, Extent.z);
+	SDFNodeShared NewNode = SDF::Box(Extent.x, Extent.y, Extent.z);
 	return WrapSDFNode(L, NewNode);
 }
 
@@ -231,7 +230,7 @@ int LuaBox(lua_State* L)
 int LuaCube(lua_State* L)
 {
 	float Extent = luaL_checknumber(L, 1) * .5;
-	SDFNode* NewNode = SDF::Box(Extent, Extent, Extent);
+	SDFNodeShared NewNode = SDF::Box(Extent, Extent, Extent);
 	return WrapSDFNode(L, NewNode);
 }
 
@@ -240,7 +239,7 @@ int LuaTorus(lua_State* L)
 {
 	float MajorRadius = luaL_checknumber(L, 1) * .5;
 	float MinorRadius = luaL_checknumber(L, 2) * .5;
-	SDFNode* NewNode = SDF::Torus(MajorRadius - MinorRadius, MinorRadius);
+	SDFNodeShared NewNode = SDF::Torus(MajorRadius - MinorRadius, MinorRadius);
 	return WrapSDFNode(L, NewNode);
 }
 
@@ -249,7 +248,7 @@ int LuaCylinder(lua_State* L)
 {
 	float Radius = luaL_checknumber(L, 1) * .5;
 	float Extent = luaL_checknumber(L, 2) * .5;
-	SDFNode* NewNode = SDF::Cylinder(Radius, Extent);
+	SDFNodeShared NewNode = SDF::Cylinder(Radius, Extent);
 	return WrapSDFNode(L, NewNode);
 }
 
@@ -258,7 +257,7 @@ int LuaPlane(lua_State* L)
 {
 	int NextArg = 1;
 	glm::vec3 Normal = GetVec3(L, NextArg);
-	SDFNode* NewNode = SDF::Plane(Normal.x, Normal.y, Normal.z);
+	SDFNodeShared NewNode = SDF::Plane(Normal.x, Normal.y, Normal.z);
 	return WrapSDFNode(L, NewNode);
 }
 
@@ -267,7 +266,7 @@ int LuaCone(lua_State* L)
 {
 	float Radius = luaL_checknumber(L, 1) * .5;
 	float Height = luaL_checknumber(L, 2);
-	SDFNode* NewNode = SDF::Cone(Radius, Height);
+	SDFNodeShared NewNode = SDF::Cone(Radius, Height);
 	return WrapSDFNode(L, NewNode);
 }
 
@@ -277,7 +276,7 @@ int LuaConinder(lua_State* L)
 	int NextArg = 1;
 	// RadiusL, RadiusH, and Height
 	glm::vec3 Params = GetVec3(L, NextArg) * glm::vec3(.5, .5, 1.0);
-	SDFNode* NewNode = SDF::Coninder(Params.x, Params.y, Params.z);
+	SDFNodeShared NewNode = SDF::Coninder(Params.x, Params.y, Params.z);
 	return WrapSDFNode(L, NewNode);
 }
 
@@ -291,7 +290,7 @@ enum class SetFamily : uint32_t
 
 
 template<SetFamily Family>
-SDFNode* Operator(SDFNode* LHS, SDFNode* RHS)
+SDFNodeShared Operator(SDFNodeShared& LHS, SDFNodeShared& RHS)
 {
 	if (Family == SetFamily::Union)
 	{
@@ -309,7 +308,7 @@ SDFNode* Operator(SDFNode* LHS, SDFNode* RHS)
 
 
 template<SetFamily Family>
-SDFNode* Operator(float Threshold, SDFNode* LHS, SDFNode* RHS)
+SDFNodeShared Operator(float Threshold, SDFNodeShared& LHS, SDFNodeShared& RHS)
 {
 	if (Family == SetFamily::Union)
 	{
@@ -329,14 +328,14 @@ SDFNode* Operator(float Threshold, SDFNode* LHS, SDFNode* RHS)
 template<SetFamily Family>
 int LuaOperator(lua_State* L)
 {
-	SDFNode** LHS = (SDFNode**)luaL_checkudata(L, 1, "tangerine.sdf");
-	SDFNode** RHS = (SDFNode**)luaL_checkudata(L, 2, "tangerine.sdf");
-	SDFNode* NewNode = Operator<Family>(*LHS, *RHS);
+	SDFNodeShared* LHS = (SDFNodeShared*)luaL_checkudata(L, 1, "tangerine.sdf");
+	SDFNodeShared* RHS = (SDFNodeShared*)luaL_checkudata(L, 2, "tangerine.sdf");
+	SDFNodeShared NewNode = Operator<Family>(*LHS, *RHS);
 
 	int Args = lua_gettop(L);
 	for (int i = 3; i <= Args; ++i)
 	{
-		SDFNode** Next = (SDFNode**)luaL_checkudata(L, i, "tangerine.sdf");
+		SDFNodeShared* Next = (SDFNodeShared*)luaL_checkudata(L, i, "tangerine.sdf");
 		NewNode = Operator<Family>(NewNode, *Next);
 	}
 
@@ -350,14 +349,14 @@ int LuaBlendOperator(lua_State* L)
 	float Threshold = (float)luaL_checknumber(L, -1);
 	lua_pop(L, 1);
 
-	SDFNode** LHS = (SDFNode**)luaL_checkudata(L, 1, "tangerine.sdf");
-	SDFNode** RHS = (SDFNode**)luaL_checkudata(L, 2, "tangerine.sdf");
-	SDFNode* NewNode = Operator<Family>(Threshold, *LHS, *RHS);
+	SDFNodeShared* LHS = (SDFNodeShared*)luaL_checkudata(L, 1, "tangerine.sdf");
+	SDFNodeShared* RHS = (SDFNodeShared*)luaL_checkudata(L, 2, "tangerine.sdf");
+	SDFNodeShared NewNode = Operator<Family>(Threshold, *LHS, *RHS);
 
 	int Args = lua_gettop(L);
 	for (int i = 3; i <= Args; ++i)
 	{
-		SDFNode** Next = (SDFNode**)luaL_checkudata(L, i, "tangerine.sdf");
+		SDFNodeShared* Next = (SDFNodeShared*)luaL_checkudata(L, i, "tangerine.sdf");
 		NewNode = Operator<Family>(Threshold, NewNode, *Next);
 	}
 
@@ -367,7 +366,7 @@ int LuaBlendOperator(lua_State* L)
 
 int LuaEval(lua_State* L)
 {
-	SDFNode* Node = GetSDFNode(L, 1);
+	SDFNodeShared& Node = *GetSDFNode(L, 1);
 	int NextArg = 2;
 	glm::vec3 Point = GetVec3(L, NextArg);
 
@@ -379,7 +378,7 @@ int LuaEval(lua_State* L)
 
 int LuaGradient(lua_State* L)
 {
-	SDFNode* Node = GetSDFNode(L, 1);
+	SDFNodeShared& Node = *GetSDFNode(L, 1);
 	int NextArg = 2;
 	glm::vec3 Point = GetVec3(L, NextArg);
 	glm::vec3 Gradient = Node->Gradient(Point);
@@ -390,7 +389,7 @@ int LuaGradient(lua_State* L)
 
 int LuaPickColor(lua_State* L)
 {
-	SDFNode* Node = GetSDFNode(L, 1);
+	SDFNodeShared& Node = *GetSDFNode(L, 1);
 	int NextArg = 2;
 	glm::vec3 Point = GetVec3(L, NextArg);
 	glm::vec4 Color = Node->Sample(Point);
@@ -402,7 +401,7 @@ int LuaPickColor(lua_State* L)
 template <bool Magnet>
 int LuaRayCast(lua_State* L)
 {
-	SDFNode* Node = GetSDFNode(L, 1);
+	SDFNodeShared& Node = *GetSDFNode(L, 1);
 
 	int NextArg = 2;
 	glm::vec3 Origin = GetVec3(L, NextArg);
@@ -443,7 +442,7 @@ int LuaRayCast(lua_State* L)
 
 int LuaPivotTowards(lua_State* L)
 {
-	SDFNode* Node = GetSDFNode(L, 1);
+	SDFNodeShared& Node = *GetSDFNode(L, 1);
 
 	float MaxDist = (float)luaL_checknumber(L, 2);
 	float Margin = (float)luaL_checknumber(L, 3);
@@ -667,14 +666,13 @@ int LuaShuffleSequence(lua_State* L)
 
 int LuaInstanceModel(lua_State* L)
 {
-	SDFNode* Evaluator = GetSDFNode(L, 1);
-	LuaModel* NewModel = new LuaModel(L, Evaluator, 0.25);
+	SDFNodeShared& Evaluator = *GetSDFNode(L, 1);
+	LuaModelShared NewModel = LuaModel::Create(L, Evaluator, 0.25);
 
-	LuaModel** Wrapper = (LuaModel**)lua_newuserdata(L, sizeof(LuaModel*));
+	LuaModelShared* Wrapper = (LuaModelShared*)lua_newuserdata(L, sizeof(LuaModelShared));
 	luaL_getmetatable(L, "tangerine.model");
 	lua_setmetatable(L, -2);
-	*Wrapper = NewModel;
-	NewModel->Hold();
+	new (Wrapper) LuaModelShared(NewModel);
 	return 1;
 }
 
@@ -741,7 +739,7 @@ const luaL_Reg LuaSDFType[] = \
 
 int IndexSDFNode(lua_State* L)
 {
-	SDFNode** Self = (SDFNode**)luaL_checkudata(L, 1, "tangerine.sdf");
+	SDFNodeShared* Self = (SDFNodeShared*)luaL_checkudata(L, 1, "tangerine.sdf");
 	const char* Key = luaL_checklstring(L, 2, nullptr);
 
 	for (const luaL_Reg& Reg : LuaSDFType)
@@ -763,11 +761,8 @@ int IndexSDFNode(lua_State* L)
 
 int SDFNodeGC(lua_State* L)
 {
-	SDFNode** Self = (SDFNode**)luaL_checkudata(L, 1, "tangerine.sdf");
-	if (Self)
-	{
-		(*Self)->Release();
-	}
+	SDFNodeShared* Self = (SDFNodeShared*)luaL_checkudata(L, 1, "tangerine.sdf");
+	Self->reset();
 	return 0;
 }
 
@@ -780,7 +775,7 @@ const luaL_Reg LuaSDFMeta[] = \
 };
 
 
-LuaModel::LuaModel(lua_State* L, SDFNode* InEvaluator, const float VoxelSize)
+LuaModel::LuaModel(lua_State* L, SDFNodeShared& InEvaluator, const float VoxelSize)
 	: SDFModel(InEvaluator, VoxelSize)
 	, Env(LuaEnvironment::GetScriptEnvironment(L))
 {
@@ -788,6 +783,15 @@ LuaModel::LuaModel(lua_State* L, SDFNode* InEvaluator, const float VoxelSize)
 	{
 		MouseCallbackRefs[i] = LUA_REFNIL;
 	}
+}
+
+
+LuaModelShared LuaModel::Create(lua_State* L, SDFNodeShared& InEvaluator, const float VoxelSize)
+{
+	LuaModelShared NewModel(new LuaModel(L, InEvaluator, VoxelSize));
+	SDFModelShared Up = std::static_pointer_cast<SDFModel>(NewModel);
+	SDFModel::RegisterNewModel(Up);
+	return NewModel;
 }
 
 
@@ -802,7 +806,7 @@ LuaModel::~LuaModel()
 
 int LuaHideModel(lua_State* L)
 {
-	LuaModel* Self = GetSDFModel(L, 1);
+	LuaModelShared& Self = *GetSDFModel(L, 1);
 	Self->Visible = false;
 	return 1;
 };
@@ -810,7 +814,7 @@ int LuaHideModel(lua_State* L)
 
 int LuaShowModel(lua_State* L)
 {
-	LuaModel* Self = GetSDFModel(L, 1);
+	LuaModelShared& Self = *GetSDFModel(L, 1);
 	Self->Visible = true;
 	return 1;
 };
@@ -818,7 +822,7 @@ int LuaShowModel(lua_State* L)
 
 int LuaModelMove(lua_State* L)
 {
-	LuaModel* Self = GetSDFModel(L, 1);
+	LuaModelShared& Self = *GetSDFModel(L, 1);
 	int NextArg = 2;
 	glm::vec3 Offset = GetVec3(L, NextArg);
 	Self->Transform.Move(Offset);
@@ -829,7 +833,7 @@ int LuaModelMove(lua_State* L)
 
 int LuaModelMoveX(lua_State* L)
 {
-	LuaModel* Self = GetSDFModel(L, 1);
+	LuaModelShared& Self = *GetSDFModel(L, 1);
 	glm::vec3 Offset(
 		(float)luaL_checknumber(L, 2),
 		0.0,
@@ -842,7 +846,7 @@ int LuaModelMoveX(lua_State* L)
 
 int LuaModelMoveY(lua_State* L)
 {
-	LuaModel* Self = GetSDFModel(L, 1);
+	LuaModelShared& Self = *GetSDFModel(L, 1);
 	glm::vec3 Offset(
 		0.0,
 		(float)luaL_checknumber(L, 2),
@@ -855,7 +859,7 @@ int LuaModelMoveY(lua_State* L)
 
 int LuaModelMoveZ(lua_State* L)
 {
-	LuaModel* Self = GetSDFModel(L, 1);
+	LuaModelShared& Self = *GetSDFModel(L, 1);
 	glm::vec3 Offset(
 		0.0,
 		0.0,
@@ -868,7 +872,7 @@ int LuaModelMoveZ(lua_State* L)
 
 int LuaModelRotate(lua_State* L)
 {
-	LuaModel* Self = GetSDFModel(L, 1);
+	LuaModelShared& Self = *GetSDFModel(L, 1);
 	glm::quat Quat(
 		(float)luaL_checknumber(L, 5),
 		(float)luaL_checknumber(L, 2),
@@ -882,7 +886,7 @@ int LuaModelRotate(lua_State* L)
 
 int LuaModelRotateX(lua_State* L)
 {
-	LuaModel* Self = GetSDFModel(L, 1);
+	LuaModelShared& Self = *GetSDFModel(L, 1);
 	float Degrees = (float)luaL_checknumber(L, 2);
 	float R = glm::radians(Degrees) * .5;
 	float S = sin(R);
@@ -895,7 +899,7 @@ int LuaModelRotateX(lua_State* L)
 
 int LuaModelRotateY(lua_State* L)
 {
-	LuaModel* Self = GetSDFModel(L, 1);
+	LuaModelShared& Self = *GetSDFModel(L, 1);
 	float Degrees = (float)luaL_checknumber(L, 2);
 	float R = glm::radians(Degrees) * .5;
 	float S = sin(R);
@@ -908,7 +912,7 @@ int LuaModelRotateY(lua_State* L)
 
 int LuaModelRotateZ(lua_State* L)
 {
-	LuaModel* Self = GetSDFModel(L, 1);
+	LuaModelShared& Self = *GetSDFModel(L, 1);
 	float Degrees = (float)luaL_checknumber(L, 2);
 	float R = glm::radians(Degrees) * .5;
 	float S = sin(R);
@@ -921,7 +925,7 @@ int LuaModelRotateZ(lua_State* L)
 
 int LuaModelResetTransform(lua_State* L)
 {
-	LuaModel* Self = GetSDFModel(L, 1);
+	LuaModelShared& Self = *GetSDFModel(L, 1);
 	Self->Transform.Reset();
 	return 1;
 }
@@ -952,7 +956,7 @@ void LuaModel::SetMouseEventCallback(int EventIndex)
 template<int EventIndex>
 int SetOnMouseEvent(lua_State* L)
 {
-	LuaModel* Self = GetSDFModel(L, 1);
+	LuaModelShared& Self = *GetSDFModel(L, 1);
 	Self->SetMouseEventCallback(EventIndex);
 	return 1;
 }
@@ -1039,7 +1043,7 @@ const luaL_Reg LuaModelType[] = \
 
 int IndexSDFModel(lua_State* L)
 {
-	LuaModel* Self = GetSDFModel(L, 1);
+	LuaModelShared& Self = *GetSDFModel(L, 1);
 	const char* Key = luaL_checklstring(L, 2, nullptr);
 
 	for (const luaL_Reg& Reg : LuaModelType)
@@ -1061,8 +1065,8 @@ int IndexSDFModel(lua_State* L)
 
 int SDFModelGC(lua_State* L)
 {
-	LuaModel* Self = GetSDFModel(L, 1);
-	Self->Release();
+	LuaModelShared* Self = GetSDFModel(L, 1);
+	Self->reset();
 	return 0;
 }
 

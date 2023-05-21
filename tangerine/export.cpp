@@ -246,7 +246,7 @@ void WritePLY(SDFOctree* Octree, std::string Path, std::vector<vec3> Vertices, s
 }
 
 
-void MeshExportThread(SDFNode* Evaluator, vec3 ModelMin, vec3 ModelMax, vec3 Step, int RefineIterations, std::string Path, ExportFormat Format, float Scale)
+void MeshExportThread(SDFNodeShared Evaluator, vec3 ModelMin, vec3 ModelMax, vec3 Step, int RefineIterations, std::string Path, ExportFormat Format, float Scale)
 {
 	SDFOctree* Octree = SDFOctree::Create(Evaluator, 0.25);
 
@@ -310,7 +310,7 @@ void MeshExportThread(SDFNode* Evaluator, vec3 ModelMin, vec3 ModelMax, vec3 Ste
 }
 
 
-void PointCloudExportThread(SDFNode* Evaluator, vec3 ModelMin, vec3 ModelMax, vec3 Step, int RefineIterations, std::string Path, ExportFormat Format, float Scale)
+void PointCloudExportThread(SDFNodeShared Evaluator, vec3 ModelMin, vec3 ModelMax, vec3 Step, int RefineIterations, std::string Path, ExportFormat Format, float Scale)
 {
 	const vec3 Half = Step / vec3(2.0);
 	const float Diagonal = length(Half);
@@ -422,7 +422,7 @@ ExportProgress GetExportProgress()
 }
 
 
-void MeshExport(SDFNode* Evaluator, std::string Path, vec3 ModelMin, vec3 ModelMax, vec3 Step, int RefineIterations, ExportFormat Format, bool ExportPointCloud, float Scale)
+void MeshExport(SDFNodeShared Evaluator, std::string Path, vec3 ModelMin, vec3 ModelMax, vec3 Step, int RefineIterations, ExportFormat Format, bool ExportPointCloud, float Scale)
 {
 	ExportActive.store(true);
 	ExportState.store(0);
@@ -451,7 +451,7 @@ void CancelExport(bool Halt)
 }
 
 
-void ExportCommon(SDFNode* Evaluator, float GridSize, int RefineIterations, const char* Path, ExportFormat Format, float Scale = 1.0)
+void ExportCommon(SDFNodeShared Evaluator, float GridSize, int RefineIterations, const char* Path, ExportFormat Format, float Scale = 1.0)
 {
 	AABB Bounds = Evaluator->Bounds();
 	float Step = 1.0 / GridSize;
@@ -466,13 +466,16 @@ void ExportCommon(SDFNode* Evaluator, float GridSize, int RefineIterations, cons
 }
 
 
+// TODO: these need to be reworked to be usable with SDFNodeShared
+#if 0
 extern "C" TANGERINE_API void ExportSTL(SDFNode* Evaluator, float GridSize, int RefineIterations, const char* Path)
 {
 	ExportCommon(Evaluator, GridSize, RefineIterations, Path, ExportFormat::STL);
 }
 
 
-extern "C" TANGERINE_API void ExportPLY(SDFNode * Evaluator, float GridSize, int RefineIterations, const char* Path)
+extern "C" TANGERINE_API void ExportPLY(SDFNode* Evaluator, float GridSize, int RefineIterations, const char* Path)
 {
 	ExportCommon(Evaluator, GridSize, RefineIterations, Path, ExportFormat::PLY);
 }
+#endif

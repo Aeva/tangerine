@@ -22,14 +22,17 @@
 
 struct SodapopDrawable;
 struct SDFModel;
+using SodapopDrawableShared = std::shared_ptr<SodapopDrawable>;
 
 
 namespace Sodapop
 {
-	void Populate(SodapopDrawable* MeshPainter);
-	void Attach(SDFModel* Instance);
-	void Detach(SDFModel* Instance);
+	void Populate(SodapopDrawableShared MeshPainter);
+#if 0
+	void Attach(SDFModelShared Instance);
+	void Detach(SDFModelShared Instance);
 	void Hammer();
+#endif
 }
 
 

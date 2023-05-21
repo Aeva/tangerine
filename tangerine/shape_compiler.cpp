@@ -67,7 +67,7 @@ void UseRoundedStackSize()
 
 
 // Iterate over a voxel grid and generate sources and parameter buffers to populate a new model.
-void VoxelDrawable::Compile(SDFNode* Evaluator, const float VoxelSize)
+void VoxelDrawable::Compile(SDFNodeShared& Evaluator, const float VoxelSize)
 {
 	BeginEvent("VoxelFinder");
 	SetTreeEvaluator(Evaluator);
@@ -216,13 +216,17 @@ void VoxelDrawable::AddProgramVariant(size_t ShaderIndex, uint32_t SubtreeIndex,
 #endif // RENDERER_COMPILER
 
 
-void CompileEvaluator(SDFNode* Evaluator, const float VoxelSize)
+void CompileEvaluator(SDFNodeShared Evaluator, const float VoxelSize)
 {
-	new SDFModel(Evaluator, VoxelSize);
+	SDFModel::Create(Evaluator, VoxelSize);
+	//new SDFModel(Evaluator, VoxelSize);
 }
 
 
+// TODO : this needs to be reworked to be compatible with SDFNodeShared
+#if 0
 extern "C" TANGERINE_API void VoxelCompiler(void* Handle, const float VoxelSize)
 {
 	CompileEvaluator((SDFNode*)Handle, VoxelSize);
 }
+#endif

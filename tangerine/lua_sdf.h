@@ -1,5 +1,5 @@
 
-// Copyright 2022 Aeva Palecek
+// Copyright 2023 Aeva Palecek
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -22,16 +22,23 @@
 #include "sdf_model.h"
 #include <lua/lua.hpp>
 
+
+using LuaModelShared = std::shared_ptr<struct LuaModel>;
+
+
 struct LuaModel : public SDFModel
 {
 	LuaEnvironment* Env = nullptr;
 	int MouseCallbackRefs[MOUSE_EVENTS];
 
-	LuaModel(lua_State* L, SDFNode* InEvaluator, const float VoxelSize);
+	static LuaModelShared Create(lua_State* L, SDFNodeShared& InEvaluator, const float VoxelSize);
 	virtual ~LuaModel();
 	virtual void OnMouseEvent(MouseEvent& Event, bool Picked);
 
 	void SetMouseEventCallback(int EventFlag);
+
+protected:
+	LuaModel(lua_State* L, SDFNodeShared& InEvaluator, const float VoxelSize);
 };
 
 

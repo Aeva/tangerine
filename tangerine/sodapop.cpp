@@ -31,7 +31,7 @@ static std::uniform_real_distribution<double> Roll(-1.0, std::nextafter(1.0, DBL
 
 struct MeshingJob : AsyncTask
 {
-	SodapopDrawable* Painter;
+	SodapopDrawableShared Painter;
 	virtual void Run();
 	virtual void Done();
 	virtual void Abort();
@@ -39,11 +39,8 @@ struct MeshingJob : AsyncTask
 };
 
 
-void Sodapop::Populate(SodapopDrawable* Painter)
+void Sodapop::Populate(SodapopDrawableShared Painter)
 {
-	Assert(Painter != nullptr);
-	Painter->Hold();
-
 	MeshingJob* Task = new MeshingJob();
 	Task->Painter = Painter;
 
@@ -204,19 +201,20 @@ void MeshingJob::Abort()
 
 MeshingJob::~MeshingJob()
 {
-	Painter->Release();
+	Painter.reset();
 }
 
 
-std::map<size_t, SDFModel*> AttachedModels;
+#if 0
+std::map<size_t, SDFModelWeakRef> AttachedModels;
 
 
 struct AttachModelTask : AsyncTask
 {
-	SDFModel* Instance;
+	SDFModelWeakRef Instance;
 	virtual void Run()
 	{
-		size_t Key = (size_t)Instance;
+		size_t Key = (size_t)(Instance.get());
 		auto Result = AttachedModels.insert(std::pair{Key, Instance});
 
 		fmt::print("[{}] Attached model.\n", (void*)this);
@@ -228,10 +226,10 @@ struct AttachModelTask : AsyncTask
 
 struct DetachModelTask : AsyncTask
 {
-	SDFModel* Instance;
+	SDFModelWeakRef Instance;
 	virtual void Run()
 	{
-		size_t Key = (size_t)Instance;
+		size_t Key = (size_t)(Instance.get());
 		AttachedModels.erase(Key);
 
 		fmt::print("[{}] Detached model.\n", (void*)this);
@@ -264,11 +262,11 @@ void Sodapop::Detach(SDFModel* Instance)
 	Scheduler::Enqueue(Task, true);
 }
 
-
 void Sodapop::Hammer()
 {
 
 }
+#endif
 
 
 #endif // RENDERER_SODAPOP

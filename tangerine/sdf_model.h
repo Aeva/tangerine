@@ -26,13 +26,13 @@
 #endif
 
 
+struct SDFModel;
+using SDFModelShared = std::shared_ptr<SDFModel>;
+using SDFModelWeakRef = std::weak_ptr<SDFModel>;
+
+
 struct Drawable
 {
-	void Hold()
-	{
-		++RefCount;
-	}
-
 	virtual void Draw(
 		const bool ShowOctree,
 		const bool ShowLeafCount,
@@ -44,13 +44,14 @@ struct Drawable
 		glm::vec3 CameraOrigin,
 		const int PositionBinding,
 		const int ColorBinding,
-		struct SDFModel* Instance) = 0;
+		SDFModel* Instance) = 0;
 
-	virtual void Release() = 0;
-
-protected:
-	size_t RefCount = 0;
+	virtual ~Drawable()
+	{
+	}
 };
+
+using DrawableShared = std::shared_ptr<Drawable>;
 
 
 #if RENDERER_COMPILER
@@ -66,7 +67,7 @@ struct VoxelDrawable final : Drawable
 	bool HasCompleteShaders();
 	void CompileNextShader();
 
-	void Compile(SDFNode* Evaluator, const float VoxelSize);
+	void Compile(SDFNodeShared& Evaluator, const float VoxelSize);
 
 	virtual void Draw(
 		const bool ShowOctree,
@@ -79,25 +80,27 @@ struct VoxelDrawable final : Drawable
 		glm::vec3 CameraOrigin,
 		const int PositionBinding,
 		const int ColorBinding,
-		struct SDFModel* Instance)
+		SDFModel* Instance)
 	{
 		// Unused
 	};
 
-	virtual void Release();
+	virtual ~VoxelDrawable();
 
 private:
 	size_t AddProgramTemplate(std::string Source, std::string Pretty, int LeafCount);
 	void AddProgramVariant(size_t ShaderIndex, uint32_t SubtreeIndex, const std::vector<float>& Params, const std::vector<AABB>& Voxels);
 	ProgramBuffer* PendingVoxels = nullptr;
 };
+
+using VoxelDrawableShared = std::shared_ptr<VoxelDrawable>;
 #endif // RENDERER_COMPILER
 
 
 #if RENDERER_SODAPOP
 struct SodapopDrawable final : Drawable
 {
-	SDFNode* Evaluator = nullptr;
+	SDFNodeShared Evaluator = nullptr;
 
 	Buffer IndexBuffer;
 	Buffer PositionBuffer;
@@ -111,10 +114,9 @@ struct SodapopDrawable final : Drawable
 	std::atomic_bool MeshReady;
 	bool MeshUploaded = false;
 
-	SodapopDrawable(SDFNode* InEvaluator)
+	SodapopDrawable(SDFNodeShared& InEvaluator)
 	{
 		Evaluator = InEvaluator;
-		Evaluator->Hold();
 		MeshReady.store(false);
 	}
 
@@ -129,17 +131,19 @@ struct SodapopDrawable final : Drawable
 		glm::vec3 CameraOrigin,
 		const int PositionBinding,
 		const int ColorBinding,
-		struct SDFModel* Instance);
+		SDFModel* Instance);
 
-	virtual void Release();
+	virtual ~SodapopDrawable();
 };
+
+using SodapopDrawableShared = std::shared_ptr<SodapopDrawable>;
 #endif // RENDERER_SODAPOP
 
 
 struct SDFModel
 {
-	SDFNode* Evaluator = nullptr;
-	Drawable* Painter = nullptr;
+	SDFNodeShared Evaluator = nullptr;
+	DrawableShared Painter = nullptr;
 
 	bool Visible = true;
 	TransformMachine Transform;
@@ -167,42 +171,27 @@ struct SDFModel
 
 	RayHit RayMarch(glm::vec3 RayStart, glm::vec3 RayDir, int MaxIterations = 1000, float Epsilon = 0.001);
 
-	SDFModel(SDFNode* InEvaluator, const float VoxelSize);
+	static SDFModelShared Create(SDFNodeShared& InEvaluator, const float VoxelSize);
 	SDFModel(SDFModel&& Other) = delete;
 	virtual ~SDFModel();
 
 	virtual void OnMouseEvent(MouseEvent& Event, bool Picked) {};
 
-	void Hold()
-	{
-		++RefCount;
-	}
-
-	void Release()
-	{
-		Assert(RefCount > 0);
-		--RefCount;
-		if (RefCount == 0)
-		{
-			TransformBuffer.Release();
-			delete this;
-		}
-	}
-
 protected:
-	size_t RefCount = 0;
+	static void RegisterNewModel(SDFModelShared& NewModel);
+	SDFModel(SDFNodeShared& InEvaluator, const float VoxelSize);
 };
 
 
-std::vector<SDFModel*>& GetLiveModels();
+std::vector<SDFModelWeakRef>& GetLiveModels();
 void UnloadAllModels();
 
-void GetIncompleteModels(std::vector<SDFModel*>& Incomplete);
-void GetRenderableModels(std::vector<SDFModel*>& Renderable);
+void GetIncompleteModels(std::vector<SDFModelShared>& Incomplete);
+void GetRenderableModels(std::vector<SDFModelShared>& Renderable);
 
 bool DeliverMouseMove(glm::vec3 Origin, glm::vec3 RayDir, int MouseX, int MouseY);
 bool DeliverMouseButton(MouseEvent Event);
 bool DeliverMouseScroll(glm::vec3 Origin, glm::vec3 RayDir, int ScrollX, int ScrollY);
 
 void ClearTreeEvaluator();
-void SetTreeEvaluator(SDFNode* InTreeEvaluator);
+void SetTreeEvaluator(SDFNodeShared& InTreeEvaluator);

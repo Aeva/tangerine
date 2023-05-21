@@ -149,8 +149,8 @@ void LuaEnvironment::LoadLuaModelCommon()
 	void* LuaData = luaL_testudata(L, -1, "tangerine.sdf");
 	if (LuaData)
 	{
-		SDFNode* Model = *(SDFNode**)LuaData;
-		CompileEvaluator(Model);
+		SDFNodeShared* Model = (SDFNodeShared*)LuaData;
+		CompileEvaluator(*Model);
 	}
 	lua_pop(L, 1);
 }

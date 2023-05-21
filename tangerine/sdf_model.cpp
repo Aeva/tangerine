@@ -20,7 +20,7 @@
 #include "scheduler.h"
 
 
-std::vector<SDFModel*> LiveModels;
+std::vector<SDFModelWeakRef> LiveModels;
 
 
 // FIXME
@@ -36,10 +36,10 @@ std::vector<SDFModel*> LiveModels;
 // nothing else.
 // I should probably make all of the refcounted stuff immobile to prevent these
 // kinds of issues.
-std::vector<std::pair<size_t, Drawable*>> DrawableCache;
+std::vector<std::pair<size_t, DrawableShared>> DrawableCache;
 
 
-std::vector<SDFModel*>& GetLiveModels()
+std::vector<SDFModelWeakRef>& GetLiveModels()
 {
 	return LiveModels;
 }
@@ -47,15 +47,11 @@ std::vector<SDFModel*>& GetLiveModels()
 
 void UnloadAllModels()
 {
-	for (SDFModel* Model : LiveModels)
-	{
-		delete Model;
-	}
 	LiveModels.clear();
 }
 
 
-void GetIncompleteModels(std::vector<SDFModel*>& Incomplete)
+void GetIncompleteModels(std::vector<SDFModelShared>& Incomplete)
 {
 	Incomplete.clear();
 	Incomplete.reserve(LiveModels.size());
@@ -63,12 +59,16 @@ void GetIncompleteModels(std::vector<SDFModel*>& Incomplete)
 #if RENDERER_COMPILER
 	if (CurrentRenderer == Renderer::ShapeCompiler)
 	{
-		for (SDFModel* Model : LiveModels)
+		for (SDFModelWeakRef& WeakRef : LiveModels)
 		{
-			VoxelDrawable* VoxelPainter = (VoxelDrawable*)(Model->Painter);
-			if (VoxelPainter->HasPendingShaders())
+			SDFModelShared Model = WeakRef.lock();
+			if (Model)
 			{
-				Incomplete.push_back(Model);
+				VoxelDrawableShared Painter = std::static_pointer_cast<VoxelDrawable>(Model->Painter);
+				if (Painter->HasPendingShaders())
+				{
+					Incomplete.push_back(Model);
+				}
 			}
 		}
 	}
@@ -76,12 +76,16 @@ void GetIncompleteModels(std::vector<SDFModel*>& Incomplete)
 #if RENDERER_SODAPOP
 	if (CurrentRenderer == Renderer::Sodapop)
 	{
-		for (SDFModel* Model : LiveModels)
+		for (SDFModelWeakRef& WeakRef : LiveModels)
 		{
-			SodapopDrawable* Painter = (SodapopDrawable*)(Model->Painter);
-			if (!Painter->MeshReady.load())
+			SDFModelShared Model = WeakRef.lock();
+			if (Model)
 			{
-				Incomplete.push_back(Model);
+				SodapopDrawableShared Painter = std::static_pointer_cast<SodapopDrawable>(Model->Painter);
+				if (!Painter->MeshReady.load())
+				{
+					Incomplete.push_back(Model);
+				}
 			}
 		}
 	}
@@ -89,7 +93,7 @@ void GetIncompleteModels(std::vector<SDFModel*>& Incomplete)
 }
 
 
-void GetRenderableModels(std::vector<SDFModel*>& Renderable)
+void GetRenderableModels(std::vector<SDFModelShared>& Renderable)
 {
 	Renderable.clear();
 	Renderable.reserve(LiveModels.size());
@@ -97,12 +101,16 @@ void GetRenderableModels(std::vector<SDFModel*>& Renderable)
 #if RENDERER_COMPILER
 	if (CurrentRenderer == Renderer::ShapeCompiler)
 	{
-		for (SDFModel* Model : LiveModels)
+		for (SDFModelWeakRef& WeakRef : LiveModels)
 		{
-			VoxelDrawable* VoxelPainter = (VoxelDrawable*)(Model->Painter);
-			if (VoxelPainter->HasCompleteShaders())
+			SDFModelShared Model = WeakRef.lock();
+			if (Model)
 			{
-				Renderable.push_back(Model);
+				VoxelDrawableShared Painter = std::static_pointer_cast<VoxelDrawable>(Model->Painter);
+				if (Painter->HasCompleteShaders())
+				{
+					Renderable.push_back(Model);
+				}
 			}
 		}
 	}
@@ -110,12 +118,16 @@ void GetRenderableModels(std::vector<SDFModel*>& Renderable)
 #if RENDERER_SODAPOP
 	if (CurrentRenderer == Renderer::Sodapop)
 	{
-		for (SDFModel* Model : LiveModels)
+		for (SDFModelWeakRef& WeakRef : LiveModels)
 		{
-			SodapopDrawable* Painter = (SodapopDrawable*)(Model->Painter);
-			if (Painter->MeshReady.load())
+			SDFModelShared Model = WeakRef.lock();
+			if (Model)
 			{
-				Renderable.push_back(Model);
+				SodapopDrawableShared Painter = std::static_pointer_cast<SodapopDrawable>(Model->Painter);
+				if (Painter->MeshReady.load())
+				{
+					Renderable.push_back(Model);
+				}
 			}
 		}
 	}
@@ -144,13 +156,13 @@ bool DeliverMouseButton(MouseEvent Event)
 	bool ReturnToSender = true;
 
 	float Nearest = std::numeric_limits<float>::infinity();
-	SDFModel* NearestMatch = nullptr;
-	std::vector<SDFModel*> MouseUpRecipients;
+	SDFModelShared NearestMatch = nullptr;
+	std::vector<SDFModelShared> MouseUpRecipients;
 
 	const bool Press = Event.Type == MOUSE_DOWN;
 	const bool Release = Event.Type == MOUSE_UP;
 
-	for (SDFModel* Model : LiveModels)
+	for (SDFModelWeakRef& WeakRef : LiveModels)
 	{
 		// TODO:
 		// I'm unsure if this is how I want to handle mouse button event routing.
@@ -170,21 +182,25 @@ bool DeliverMouseButton(MouseEvent Event)
 		// This is probably fine at least until the events can be forwarded back to
 		// the script envs.
 
-		if (MatchEvent(*Model, Event))
+		SDFModelShared Model = WeakRef.lock();
+		if (Model)
 		{
-			if (Release)
+			if (MatchEvent(*Model, Event))
 			{
-				MouseUpRecipients.push_back(Model);
-			}
-			if (Model->Visible)
-			{
-				RayHit Query = Model->RayMarch(Event.RayOrigin, Event.RayDir);
-				if (Query.Hit && Query.Travel < Nearest)
+				if (Release)
 				{
-					Nearest = Query.Travel;
-					NearestMatch = Model;
-					Event.AnyHit = true;
-					Event.Cursor = Query.Position;
+					MouseUpRecipients.push_back(Model);
+				}
+				if (Model->Visible)
+				{
+					RayHit Query = Model->RayMarch(Event.RayOrigin, Event.RayDir);
+					if (Query.Hit && Query.Travel < Nearest)
+					{
+						Nearest = Query.Travel;
+						NearestMatch = Model;
+						Event.AnyHit = true;
+						Event.Cursor = Query.Position;
+					}
 				}
 			}
 		}
@@ -199,7 +215,7 @@ bool DeliverMouseButton(MouseEvent Event)
 	if (MouseUpRecipients.size() > 0)
 	{
 		ReturnToSender = false;
-		for (SDFModel* Recipient : MouseUpRecipients)
+		for (SDFModelShared& Recipient : MouseUpRecipients)
 		{
 			Recipient->OnMouseEvent(Event, Recipient == NearestMatch);
 		}
@@ -250,56 +266,42 @@ void VoxelDrawable::CompileNextShader()
 }
 
 
-void VoxelDrawable::Release()
+VoxelDrawable::~VoxelDrawable()
 {
-	Assert(RefCount > 0);
-	--RefCount;
-	if (RefCount == 0)
+	for (auto Iterator = DrawableCache.begin(); Iterator != DrawableCache.end(); ++Iterator)
 	{
-		for (auto Iterator = DrawableCache.begin(); Iterator != DrawableCache.end(); ++Iterator)
+		if (Iterator->second.get() == this)
 		{
-			if (Iterator->second == this)
-			{
-				DrawableCache.erase(Iterator);
-				break;
-			}
+			DrawableCache.erase(Iterator);
+			break;
 		}
-
-		for (ProgramTemplate& ProgramFamily : ProgramTemplates)
-		{
-			ProgramFamily.Release();
-		}
-
-		ProgramTemplates.clear();
-		ProgramTemplateSourceMap.clear();
-		PendingShaders.clear();
-		CompiledTemplates.clear();
-
-		delete this;
 	}
+
+	for (ProgramTemplate& ProgramFamily : ProgramTemplates)
+	{
+		ProgramFamily.Release();
+	}
+
+	ProgramTemplates.clear();
+	ProgramTemplateSourceMap.clear();
+	PendingShaders.clear();
+	CompiledTemplates.clear();
 }
 #endif // RENDERER_COMPILER
 
 
 #if RENDERER_SODAPOP
-void SodapopDrawable::Release()
+SodapopDrawable::~SodapopDrawable()
 {
-	Assert(RefCount > 0);
-	--RefCount;
-	if (RefCount == 0)
+	Evaluator.reset();
+
+	for (auto Iterator = DrawableCache.begin(); Iterator != DrawableCache.end(); ++Iterator)
 	{
-		Evaluator->Release();
-
-		for (auto Iterator = DrawableCache.begin(); Iterator != DrawableCache.end(); ++Iterator)
+		if (Iterator->second.get() == this)
 		{
-			if (Iterator->second == this)
-			{
-				DrawableCache.erase(Iterator);
-				break;
-			}
+			DrawableCache.erase(Iterator);
+			break;
 		}
-
-		delete this;
 	}
 }
 #endif // RENDERER_SODAPOP
@@ -314,18 +316,16 @@ RayHit SDFModel::RayMarch(glm::vec3 RayStart, glm::vec3 RayDir, int MaxIteration
 }
 
 
-SDFModel::SDFModel(SDFNode* InEvaluator, const float VoxelSize)
+SDFModel::SDFModel(SDFNodeShared& InEvaluator, const float VoxelSize)
 {
-	InEvaluator->Hold();
 	Evaluator = InEvaluator;
 
-	size_t Key = (size_t)Evaluator;
+	size_t Key = (size_t)(Evaluator.get());
 	for (auto& Entry : DrawableCache)
 	{
 		if (Entry.first == Key)
 		{
 			Painter = Entry.second;
-			Painter->Hold();
 			break;
 		}
 	}
@@ -335,55 +335,54 @@ SDFModel::SDFModel(SDFNode* InEvaluator, const float VoxelSize)
 #if RENDERER_COMPILER
 		if (CurrentRenderer == Renderer::ShapeCompiler)
 		{
-			VoxelDrawable* VoxelPainter = new VoxelDrawable();
-			VoxelPainter->Hold();
-			VoxelPainter->Compile(InEvaluator, VoxelSize);
-			Painter = (Drawable*)VoxelPainter;
+			VoxelDrawableShared VoxelPainter = std::make_shared<VoxelDrawable>();
+			VoxelPainter->Compile(Evaluator, VoxelSize);
+			Painter = std::static_pointer_cast<Drawable>(VoxelPainter);
 			DrawableCache.emplace_back(Key, Painter);
 		}
 #endif // RENDERER_COMPILER
 #if RENDERER_SODAPOP
 		if (CurrentRenderer == Renderer::Sodapop)
 		{
-			SodapopDrawable* MeshPainter = new SodapopDrawable(Evaluator);
-			Painter = (Drawable*)MeshPainter;
-			Painter->Hold();
-
-			DrawableCache.emplace_back(Key, Painter); // FIX ME - resize triggers deletes
+			SodapopDrawableShared MeshPainter = std::make_shared<SodapopDrawable>(Evaluator);
+			Painter = std::static_pointer_cast<Drawable>(MeshPainter);
+			DrawableCache.emplace_back(Key, Painter);
 			Sodapop::Populate(MeshPainter);
 		}
 #endif // RENDERER_SODAPOP
 	}
 
 	TransformBuffer.DebugName = "Instance Transforms Buffer";
+}
 
-	LiveModels.push_back(this);
+
+void SDFModel::RegisterNewModel(SDFModelShared& NewModel)
+{
+	LiveModels.emplace_back(NewModel);
+}
+
+
+SDFModelShared SDFModel::Create(SDFNodeShared& InEvaluator, const float VoxelSize)
+{
+	SDFModelShared NewModel(new SDFModel(InEvaluator, VoxelSize));
+	SDFModel::RegisterNewModel(NewModel);
+	return NewModel;
 }
 
 
 SDFModel::~SDFModel()
 {
-	Assert(RefCount == 0);
+	TransformBuffer.Release();
 
 	for (int i = 0; i < LiveModels.size(); ++i)
 	{
-		if (LiveModels[i] == this)
+		if (LiveModels[i].expired())
 		{
 			LiveModels.erase(LiveModels.begin() + i);
 			break;
 		}
 	}
 
-	// If the Evaluator is nullptr, then this SDFModel was moved into a new instance, and less stuff needs to be deleted.
-	if (Evaluator)
-	{
-		Evaluator->Release();
-		Evaluator = nullptr;
-	}
-
-	if (Painter)
-	{
-		Painter->Release();
-		Painter = nullptr;
-	}
+	Evaluator.reset();
+	Painter.reset();
 }

@@ -1,5 +1,5 @@
 
-// Copyright 2022 Aeva Palecek
+// Copyright 2023 Aeva Palecek
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -419,7 +419,7 @@ struct BrushNode : public SDFNode
 		return BrushFn(Transform.ApplyInverse(Point)) * Transform.AccumulatedScale;
 	}
 
-	virtual SDFNode* Clip(vec3 Point, float Radius)
+	virtual SDFNodeShared Clip(vec3 Point, float Radius)
 	{
 		if (Eval(Point) <= Radius)
 		{
@@ -431,9 +431,9 @@ struct BrushNode : public SDFNode
 		}
 	}
 
-	virtual SDFNode* Copy()
+	virtual SDFNodeShared Copy()
 	{
-		return new BrushNode(Opcode, BrushFnName, NodeParams, BrushFn, BrushAABB, Transform, Color);
+		return SDFNodeShared(new BrushNode(Opcode, BrushFnName, NodeParams, BrushFn, BrushAABB, Transform, Color));
 	}
 
 	virtual AABB Bounds()
@@ -588,18 +588,16 @@ struct SetNode : public SDFNode
 {
 	uint32_t Opcode;
 	SetMixin SetFn;
-	SDFNode* LHS;
-	SDFNode* RHS;
+	SDFNodeShared LHS;
+	SDFNodeShared RHS;
 	float Threshold;
 
-	SetNode(SetMixin& InSetFn, SDFNode* InLHS, SDFNode* InRHS, float InThreshold)
+	SetNode(SetMixin& InSetFn, SDFNodeShared InLHS, SDFNodeShared InRHS, float InThreshold)
 		: SetFn(InSetFn)
 		, LHS(InLHS)
 		, RHS(InRHS)
 		, Threshold(InThreshold)
 	{
-		LHS->Hold();
-		RHS->Hold();
 		Opcode = (uint32_t)Family;
 		if (BlendMode)
 		{
@@ -623,7 +621,7 @@ struct SetNode : public SDFNode
 			RHS->Eval(Point));
 	}
 
-	virtual SDFNode* Clip(vec3 Point, float Radius)
+	virtual SDFNodeShared Clip(vec3 Point, float Radius)
 	{
 		if (Eval(Point) <= Radius)
 		{
@@ -634,19 +632,19 @@ struct SetNode : public SDFNode
 				// should be deleted.  If we don't return a new blending set node here, fail through
 				// to the regular set operator behavior to return an operand, when applicable.
 
-				SDFNode* NewLHS = LHS->Clip(Point, Radius + Threshold);
-				SDFNode* NewRHS = RHS->Clip(Point, Radius + Threshold);
+				SDFNodeShared NewLHS = LHS->Clip(Point, Radius + Threshold);
+				SDFNodeShared NewRHS = RHS->Clip(Point, Radius + Threshold);
 				if (NewLHS && NewRHS)
 				{
-					return new SetNode<Family, BlendMode>(SetFn, NewLHS, NewRHS, Threshold);
+					return SDFNodeShared(new SetNode<Family, BlendMode>(SetFn, NewLHS, NewRHS, Threshold));
 				}
 				else if (NewLHS)
 				{
-					delete NewLHS;
+					NewLHS.reset();
 				}
 				else if (NewRHS)
 				{
-					delete NewRHS;
+					NewRHS.reset();
 				}
 				if (Family == SetFamily::Inter)
 				{
@@ -654,13 +652,13 @@ struct SetNode : public SDFNode
 				}
 			}
 
-			SDFNode* NewLHS = LHS->Clip(Point, Radius);
-			SDFNode* NewRHS = RHS->Clip(Point, Radius);
+			SDFNodeShared NewLHS = LHS->Clip(Point, Radius);
+			SDFNodeShared NewRHS = RHS->Clip(Point, Radius);
 
 			if (NewLHS && NewRHS)
 			{
 				// Note, this shouldn't be possible to hit when BlendMode == true.
-				return new SetNode<Family, BlendMode>(SetFn, NewLHS, NewRHS, Threshold);
+				return SDFNodeShared(new SetNode<Family, BlendMode>(SetFn, NewLHS, NewRHS, Threshold));
 			}
 			else if (Family == SetFamily::Union)
 			{
@@ -672,7 +670,7 @@ struct SetNode : public SDFNode
 				// We can only return the LHS side, which may be nullptr.
 				if (NewRHS)
 				{
-					delete NewRHS;
+					NewRHS.reset();
 				}
 				return NewLHS;
 			}
@@ -681,11 +679,11 @@ struct SetNode : public SDFNode
 				// Neither operand is valid.
 				if (NewLHS)
 				{
-					delete NewLHS;
+					NewLHS.reset();
 				}
 				else if (NewRHS)
 				{
-					delete NewRHS;
+					NewRHS.reset();
 				}
 				return nullptr;
 			}
@@ -693,9 +691,9 @@ struct SetNode : public SDFNode
 		return nullptr;
 	}
 
-	virtual SDFNode* Copy()
+	virtual SDFNodeShared Copy()
 	{
-		return new SetNode<Family, BlendMode>(SetFn, LHS->Copy(), RHS->Copy(), Threshold);
+		return SDFNodeShared(new SetNode<Family, BlendMode>(SetFn, LHS->Copy(), RHS->Copy(), Threshold));
 	}
 
 	virtual AABB Bounds()
@@ -834,35 +832,27 @@ struct SetNode : public SDFNode
 
 	virtual void Move(vec3 Offset)
 	{
-		for (SDFNode* Child : { LHS, RHS })
-		{
-			Child->Move(Offset);
-		}
+		LHS->Move(Offset);
+		RHS->Move(Offset);
 	}
 
 	virtual void Rotate(quat Rotation)
 	{
-		for (SDFNode* Child : { LHS, RHS })
-		{
-			Child->Rotate(Rotation);
-		}
+		LHS->Rotate(Rotation);
+		RHS->Rotate(Rotation);
 	}
 
 	virtual void Scale(float Scale)
 	{
 		Threshold *= Scale;
-		for (SDFNode* Child : { LHS, RHS })
-		{
-			Child->Scale(Scale);
-		}
+		LHS->Scale(Scale);
+		RHS->Scale(Scale);
 	}
 
 	virtual void ApplyMaterial(glm::vec3 Color, bool Force)
 	{
-		for (SDFNode* Child : { LHS, RHS })
-		{
-			Child->ApplyMaterial(Color, Force);
-		}
+		LHS->ApplyMaterial(Color, Force);
+		RHS->ApplyMaterial(Color, Force);
 	}
 
 	virtual bool HasPaint()
@@ -914,147 +904,21 @@ struct SetNode : public SDFNode
 
 	virtual ~SetNode()
 	{
-		Assert(RefCount == 0);
-		LHS->Release();
-		RHS->Release();
+		LHS.reset();
+		RHS.reset();
 	}
 };
-
-
-#if 0
-struct PaintNode : public SDFNode
-{
-	vec3 Color;
-	SDFNode* Child;
-
-	PaintNode(vec3 InColor, SDFNode* InChild)
-		: Color(InColor)
-		, Child(InChild)
-	{
-		Child->Hold();
-	}
-
-	virtual float Eval(vec3 Point)
-	{
-		return Child->Eval(Point);
-	}
-
-	virtual SDFNode* Clip(vec3 Point, float Radius)
-	{
-		SDFNode* NewChild = Child->Clip(Point, Radius);
-		if (NewChild)
-		{
-			return new PaintNode(Color, NewChild);
-		}
-		else
-		{
-			return nullptr;
-		}
-	}
-
-	virtual SDFNode* Copy()
-	{
-		return new PaintNode(Color, Child->Copy());
-	}
-
-	virtual AABB Bounds()
-	{
-		return Child->Bounds();
-	}
-
-	virtual AABB InnerBounds()
-	{
-		return Child->InnerBounds();
-	}
-
-	virtual std::string Compile(const bool WithOpcodes, std::vector<float>& TreeParams, std::string& Point)
-	{
-		if (WithOpcodes)
-		{
-			TreeParams.push_back(AsFloat(OPCODE_PAINT));
-		}
-		const int Offset = (int)TreeParams.size();
-		TreeParams.push_back(Color.r);
-		TreeParams.push_back(Color.g);
-		TreeParams.push_back(Color.b);
-		std::string ColorParams = MakeParamList(Offset, 3);
-		return fmt::format("MaterialDist(vec3({}), {})", ColorParams, Child->Compile(WithOpcodes, TreeParams, Point));
-	}
-
-	virtual uint32_t StackSize(const uint32_t Depth)
-	{
-		return Child->StackSize(Depth);
-	}
-
-	virtual std::string Pretty()
-	{
-		return Child->Pretty();
-	}
-
-	virtual void Move(vec3 Offset)
-	{
-		Child->Move(Offset);
-	}
-
-	virtual void Rotate(quat Rotation)
-	{
-		Child->Rotate(Rotation);
-	}
-
-	virtual void Scale(float Scale)
-	{
-		Child->Rotate(Rotation);
-	}
-
-	virtual bool HasPaint()
-	{
-		return true;
-	}
-
-	virtual bool HasFiniteBounds()
-	{
-		return Child->HasFiniteBounds();
-	}
-
-	virtual vec4 Sample(vec3 Point)
-	{
-		return vec4(Color, 1.0);
-	}
-
-	virtual int LeafCount()
-	{
-		return Child->LeafCount();
-	}
-
-	virtual bool operator==(SDFNode& Other)
-	{
-		PaintNode* OtherPaint = dynamic_cast<PaintNode*>(&Other);
-		if (OtherPaint)
-		{
-			return Color == OtherPaint->Color && *Child == *(OtherPaint->Child);
-		}
-		return false;
-	}
-
-	virtual ~PaintNode()
-	{
-		Assert(RefCount == 0);
-		Child->Release();
-	}
-};
-#endif
 
 
 struct FlateNode : public SDFNode
 {
-	SDFNode* Child;
+	SDFNodeShared Child;
 	float Radius;
 
-	FlateNode(SDFNode* InChild, float InRadius)
+	FlateNode(SDFNodeShared InChild, float InRadius)
 		: Child(InChild)
 		, Radius(InRadius)
 	{
-		Child->Hold();
 	}
 
 	virtual float Eval(vec3 Point)
@@ -1062,12 +926,12 @@ struct FlateNode : public SDFNode
 		return Child->Eval(Point) - Radius;
 	}
 
-	virtual SDFNode* Clip(vec3 Point, float ClipRadius)
+	virtual SDFNodeShared Clip(vec3 Point, float ClipRadius)
 	{
 		if (Eval(Point) <= ClipRadius)
 		{
-			SDFNode* NewChild = Child->Clip(Point, ClipRadius + Radius);
-			return new FlateNode(NewChild, Radius);
+			SDFNodeShared NewChild = Child->Clip(Point, ClipRadius + Radius);
+			return SDFNodeShared(new FlateNode(NewChild, Radius));
 		}
 		else
 		{
@@ -1075,9 +939,9 @@ struct FlateNode : public SDFNode
 		}
 	}
 
-	virtual SDFNode* Copy()
+	virtual SDFNodeShared Copy()
 	{
-		return new FlateNode(Child->Copy(), Radius);
+		return SDFNodeShared(new FlateNode(Child->Copy(), Radius));
 	}
 
 	virtual AABB Bounds()
@@ -1166,8 +1030,7 @@ struct FlateNode : public SDFNode
 
 	virtual ~FlateNode()
 	{
-		Assert(RefCount == 0);
-		Child->Release();
+		Child.reset();
 	}
 };
 
@@ -1180,7 +1043,7 @@ AABB SymmetricalBounds(vec3 High)
 
 namespace SDF
 {
-	void Align(SDFNode* Tree, vec3 Anchors)
+	void Align(SDFNodeShared& Tree, vec3 Anchors)
 	{
 		const vec3 Alignment = Anchors * vec3(0.5) + vec3(0.5);
 		const AABB Bounds = Tree->InnerBounds();
@@ -1189,7 +1052,7 @@ namespace SDF
 	}
 
 	// The following functions perform rotations on SDFNode trees.
-	void RotateX(SDFNode* Tree, float Degrees)
+	void RotateX(SDFNodeShared& Tree, float Degrees)
 	{
 		float R = radians(Degrees) * .5;
 		float S = sin(R);
@@ -1197,7 +1060,7 @@ namespace SDF
 		Tree->Rotate(quat(C, S, 0, 0));
 	}
 
-	void RotateY(SDFNode* Tree, float Degrees)
+	void RotateY(SDFNodeShared& Tree, float Degrees)
 	{
 		float R = radians(Degrees) * .5;
 		float S = sin(R);
@@ -1205,7 +1068,7 @@ namespace SDF
 		Tree->Rotate(quat(C, 0, S, 0));
 	}
 
-	void RotateZ(SDFNode* Tree, float Degrees)
+	void RotateZ(SDFNodeShared& Tree, float Degrees)
 	{
 		float R = radians(Degrees) * .5;
 		float S = sin(R);
@@ -1215,17 +1078,17 @@ namespace SDF
 
 
 	// The following functions construct Brush nodes.
-	SDFNode* Sphere(float Radius)
+	SDFNodeShared Sphere(float Radius)
 	{
 		std::array<float, 1> Params = { Radius };
 
 		BrushMixin Eval = std::bind(SDFMath::SphereBrush, _1, Radius);
 
 		AABB Bounds = SymmetricalBounds(vec3(Radius));
-		return new BrushNode(OPCODE_SPHERE, "SphereBrush", Params, Eval, Bounds);
+		return SDFNodeShared(new BrushNode(OPCODE_SPHERE, "SphereBrush", Params, Eval, Bounds));
 	}
 
-	SDFNode* Ellipsoid(float RadipodeX, float RadipodeY, float RadipodeZ)
+	SDFNodeShared Ellipsoid(float RadipodeX, float RadipodeY, float RadipodeZ)
 	{
 		std::array<float, 3> Params = { RadipodeX, RadipodeY, RadipodeZ };
 
@@ -1233,10 +1096,10 @@ namespace SDF
 		BrushMixin Eval = std::bind((EllipsoidBrushPtr)SDFMath::EllipsoidBrush, _1, vec3(RadipodeX, RadipodeY, RadipodeZ));
 
 		AABB Bounds = SymmetricalBounds(vec3(RadipodeX, RadipodeY, RadipodeZ));
-		return new BrushNode(OPCODE_ELLIPSOID, "EllipsoidBrush", Params, Eval, Bounds);
+		return SDFNodeShared(new BrushNode(OPCODE_ELLIPSOID, "EllipsoidBrush", Params, Eval, Bounds));
 	}
 
-	SDFNode* Box(float ExtentX, float ExtentY, float ExtentZ)
+	SDFNodeShared Box(float ExtentX, float ExtentY, float ExtentZ)
 	{
 		std::array<float, 3> Params = { ExtentX, ExtentY, ExtentZ };
 
@@ -1244,10 +1107,10 @@ namespace SDF
 		BrushMixin Eval = std::bind((BoxBrushPtr)SDFMath::BoxBrush, _1, vec3(ExtentX, ExtentY, ExtentZ));
 
 		AABB Bounds = SymmetricalBounds(vec3(ExtentX, ExtentY, ExtentZ));
-		return new BrushNode(OPCODE_BOX, "BoxBrush", Params, Eval, Bounds);
+		return SDFNodeShared(new BrushNode(OPCODE_BOX, "BoxBrush", Params, Eval, Bounds));
 	}
 
-	SDFNode* Torus(float MajorRadius, float MinorRadius)
+	SDFNodeShared Torus(float MajorRadius, float MinorRadius)
 	{
 		std::array<float, 2> Params = { MajorRadius, MinorRadius };
 
@@ -1256,20 +1119,20 @@ namespace SDF
 		float Radius = MajorRadius + MinorRadius;
 		AABB Bounds = SymmetricalBounds(vec3(Radius, Radius, MinorRadius));
 
-		return new BrushNode(OPCODE_TORUS, "TorusBrush", Params, Eval, Bounds);
+		return SDFNodeShared(new BrushNode(OPCODE_TORUS, "TorusBrush", Params, Eval, Bounds));
 	}
 
-	SDFNode* Cylinder(float Radius, float Extent)
+	SDFNodeShared Cylinder(float Radius, float Extent)
 	{
 		std::array<float, 2> Params = { Radius, Extent };
 
 		BrushMixin Eval = std::bind(SDFMath::CylinderBrush, _1, Radius, Extent);
 
 		AABB Bounds = SymmetricalBounds(vec3(Radius, Radius, Extent));
-		return new BrushNode(OPCODE_CYLINDER, "CylinderBrush", Params, Eval, Bounds);
+		return SDFNodeShared(new BrushNode(OPCODE_CYLINDER, "CylinderBrush", Params, Eval, Bounds));
 	}
 
-	SDFNode* Plane(float NormalX, float NormalY, float NormalZ)
+	SDFNodeShared Plane(float NormalX, float NormalY, float NormalZ)
 	{
 		vec3 Normal = normalize(vec3(NormalX, NormalY, NormalZ));
 		std::array<float, 3> Params = { Normal.x, Normal.y, Normal.z };
@@ -1302,10 +1165,10 @@ namespace SDF
 		{
 			Unbound.Max.z = 0.0;
 		}
-		return new BrushNode(OPCODE_PLANE, "Plane", Params, Eval, Unbound);
+		return SDFNodeShared(new BrushNode(OPCODE_PLANE, "Plane", Params, Eval, Unbound));
 	}
 
-	SDFNode* Cone(float Radius, float Height)
+	SDFNodeShared Cone(float Radius, float Height)
 	{
 		float Tangent = Radius / Height;
 		std::array<float, 2> Params = { Tangent, Height };
@@ -1313,10 +1176,10 @@ namespace SDF
 		BrushMixin Eval = std::bind(SDFMath::ConeBrush, _1, Tangent, Height);
 
 		AABB Bounds = SymmetricalBounds(vec3(Radius, Radius, Height * .5));
-		return new BrushNode(OPCODE_CONE, "ConeBrush", Params, Eval, Bounds);
+		return SDFNodeShared(new BrushNode(OPCODE_CONE, "ConeBrush", Params, Eval, Bounds));
 	}
 
-	SDFNode* Coninder(float RadiusL, float RadiusH, float Height)
+	SDFNodeShared Coninder(float RadiusL, float RadiusH, float Height)
 	{
 		float HalfHeight = Height * .5;
 		std::array<float, 3> Params = { RadiusL, RadiusH, HalfHeight };
@@ -1325,55 +1188,55 @@ namespace SDF
 
 		float MaxRadius = max(RadiusL, RadiusH);
 		AABB Bounds = SymmetricalBounds(vec3(MaxRadius, MaxRadius, HalfHeight));
-		return new BrushNode(OPCODE_CONINDER, "ConinderBrush", Params, Eval, Bounds);
+		return SDFNodeShared(new BrushNode(OPCODE_CONINDER, "ConinderBrush", Params, Eval, Bounds));
 	}
 
 	// The following functions construct CSG set operator nodes.
-	SDFNode* Union(SDFNode* LHS, SDFNode* RHS)
+	SDFNodeShared Union(SDFNodeShared& LHS, SDFNodeShared& RHS)
 	{
 		SetMixin Eval = std::bind(SDFMath::UnionOp, _1, _2);
-		return new SetNode<SetFamily::Union, false>(Eval, LHS, RHS, 0.0);
+		return SDFNodeShared(new SetNode<SetFamily::Union, false>(Eval, LHS, RHS, 0.0));
 	}
 
-	SDFNode* Diff(SDFNode* LHS, SDFNode* RHS)
+	SDFNodeShared Diff(SDFNodeShared& LHS, SDFNodeShared& RHS)
 	{
 		SetMixin Eval = std::bind(SDFMath::DiffOp, _1, _2);
-		return new SetNode<SetFamily::Diff, false>(Eval, LHS, RHS, 0.0);
+		return SDFNodeShared(new SetNode<SetFamily::Diff, false>(Eval, LHS, RHS, 0.0));
 	}
 
-	SDFNode* Inter(SDFNode* LHS, SDFNode* RHS)
+	SDFNodeShared Inter(SDFNodeShared& LHS, SDFNodeShared& RHS)
 	{
 		SetMixin Eval = std::bind(SDFMath::InterOp, _1, _2);
-		return new SetNode<SetFamily::Inter, false>(Eval, LHS, RHS, 0.0);
+		return SDFNodeShared(new SetNode<SetFamily::Inter, false>(Eval, LHS, RHS, 0.0));
 	}
 
-	SDFNode* BlendUnion(float Threshold, SDFNode* LHS, SDFNode* RHS)
+	SDFNodeShared BlendUnion(float Threshold, SDFNodeShared& LHS, SDFNodeShared& RHS)
 	{
 		SetMixin Eval = std::bind(SDFMath::SmoothUnionOp, _1, _2, Threshold);
-		return new SetNode<SetFamily::Union, true>(Eval, (SDFNode*)LHS, (SDFNode*)RHS, Threshold);
+		return SDFNodeShared(new SetNode<SetFamily::Union, true>(Eval, LHS, RHS, Threshold));
 	}
 
-	SDFNode* BlendDiff(float Threshold, SDFNode* LHS, SDFNode* RHS)
+	SDFNodeShared BlendDiff(float Threshold, SDFNodeShared& LHS, SDFNodeShared& RHS)
 	{
 		SetMixin Eval = std::bind(SDFMath::SmoothDiffOp, _1, _2, Threshold);
-		return new SetNode<SetFamily::Diff, true>(Eval, (SDFNode*)LHS, (SDFNode*)RHS, Threshold);
+		return SDFNodeShared(new SetNode<SetFamily::Diff, true>(Eval, LHS, RHS, Threshold));
 	}
 
-	SDFNode* BlendInter(float Threshold, SDFNode* LHS, SDFNode* RHS)
+	SDFNodeShared BlendInter(float Threshold, SDFNodeShared& LHS, SDFNodeShared& RHS)
 	{
 		SetMixin Eval = std::bind(SDFMath::SmoothInterOp, _1, _2, Threshold);
-		return new SetNode<SetFamily::Inter, true>(Eval, (SDFNode*)LHS, (SDFNode*)RHS, Threshold);
+		return SDFNodeShared(new SetNode<SetFamily::Inter, true>(Eval, LHS, RHS, Threshold));
 	}
 
-	SDFNode* Flate(SDFNode* Node, float Radius)
+	SDFNodeShared Flate(SDFNodeShared& Node, float Radius)
 	{
-		return new FlateNode(Node, Radius);
+		return SDFNodeShared(new FlateNode(Node, Radius));
 	}
 }
 
 
 // SDFOctree function implementations
-SDFOctree* SDFOctree::Create(SDFNode* Evaluator, float TargetSize)
+SDFOctree* SDFOctree::Create(SDFNodeShared& Evaluator, float TargetSize)
 {
 	if (Evaluator->HasFiniteBounds())
 	{
@@ -1403,7 +1266,7 @@ SDFOctree* SDFOctree::Create(SDFNode* Evaluator, float TargetSize)
 	}
 }
 
-SDFOctree::SDFOctree(SDFOctree* InParent, SDFNode* InEvaluator, float InTargetSize, AABB InBounds, int Depth)
+SDFOctree::SDFOctree(SDFOctree* InParent, SDFNodeShared& InEvaluator, float InTargetSize, AABB InBounds, int Depth)
 	: Parent(InParent)
 	, TargetSize(InTargetSize)
 	, Bounds(InBounds)
@@ -1416,7 +1279,6 @@ SDFOctree::SDFOctree(SDFOctree* InParent, SDFNode* InEvaluator, float InTargetSi
 	Evaluator = InEvaluator->Clip(Pivot, Radius);
 	if (Evaluator)
 	{
-		Evaluator->Hold();
 		LeafCount = Evaluator->LeafCount();
 	}
 	else
@@ -1487,8 +1349,7 @@ void SDFOctree::Populate(int Depth)
 
 	if (Live.size() == 0)
 	{
-		Evaluator->Release();
-		Evaluator = nullptr;
+		Evaluator.reset();
 		Penultimate = false;
 		Terminus = true;
 	}
@@ -1528,14 +1389,10 @@ SDFOctree::~SDFOctree()
 			Children[i] = nullptr;
 		}
 	}
-	if (Evaluator)
-	{
-		Evaluator->Release();
-		Evaluator = nullptr;
-	}
+	Evaluator.reset();
 }
 
-SDFNode* SDFOctree::Descend(const vec3 Point, const bool Exact)
+SDFNodeShared SDFOctree::Descend(const vec3 Point, const bool Exact)
 {
 	if (!Terminus)
 	{
@@ -1555,7 +1412,7 @@ SDFNode* SDFOctree::Descend(const vec3 Point, const bool Exact)
 		SDFOctree* Child = Children[i];
 		if (Child)
 		{
-			SDFNode* Found = Child->Descend(Point);
+			SDFNodeShared Found = Child->Descend(Point);
 			return Found || !Exact ? Found : Evaluator;
 		}
 		else if (!Exact)

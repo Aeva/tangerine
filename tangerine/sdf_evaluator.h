@@ -1,5 +1,5 @@
 
-// Copyright 2022 Aeva Palecek
+// Copyright 2023 Aeva Palecek
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,6 +15,7 @@
 
 #pragma once
 
+#include <memory>
 #include <functional>
 #include <vector>
 #include <string>
@@ -105,13 +106,17 @@ struct RayHit
 };
 
 
+struct SDFNode;
+using SDFNodeShared = std::shared_ptr<SDFNode>;
+
+
 struct SDFNode
 {
 	virtual float Eval(glm::vec3 Point) = 0;
 
-	virtual SDFNode* Clip(glm::vec3 Point, float Radius) = 0;
+	virtual SDFNodeShared Clip(glm::vec3 Point, float Radius) = 0;
 
-	virtual SDFNode* Copy() = 0;
+	virtual SDFNodeShared Copy() = 0;
 
 	virtual AABB Bounds() = 0;
 
@@ -152,70 +157,51 @@ struct SDFNode
 		return !(*this == Other);
 	}
 
-	void Hold()
-	{
-		++RefCount;
-	}
-
-	void Release()
-	{
-		Assert(RefCount > 0);
-		--RefCount;
-		if (RefCount == 0)
-		{
-			delete this;
-		}
-	}
-
 	virtual ~SDFNode()
 	{
-		Assert(RefCount == 0);
 	};
-
-protected:
-	size_t RefCount = 0;
 };
 
 
 namespace SDF
 {
-	void Align(SDFNode* Tree, glm::vec3 Anchors);
+	void Align(SDFNodeShared& Tree, glm::vec3 Anchors);
 
-	void RotateX(SDFNode* Tree, float Degrees);
+	void RotateX(SDFNodeShared& Tree, float Degrees);
 
-	void RotateY(SDFNode* Tree, float Degrees);
+	void RotateY(SDFNodeShared& Tree, float Degrees);
 
-	void RotateZ(SDFNode* Tree, float Degrees);
+	void RotateZ(SDFNodeShared& Tree, float Degrees);
 
-	SDFNode* Sphere(float Radius);
+	SDFNodeShared Sphere(float Radius);
 
-	SDFNode* Ellipsoid(float RadipodeX, float RadipodeY, float RadipodeZ);
+	SDFNodeShared Ellipsoid(float RadipodeX, float RadipodeY, float RadipodeZ);
 
-	SDFNode* Box(float ExtentX, float ExtentY, float ExtentZ);
+	SDFNodeShared Box(float ExtentX, float ExtentY, float ExtentZ);
 
-	SDFNode* Torus(float MajorRadius, float MinorRadius);
+	SDFNodeShared Torus(float MajorRadius, float MinorRadius);
 
-	SDFNode* Cylinder(float Radius, float Extent);
+	SDFNodeShared Cylinder(float Radius, float Extent);
 
-	SDFNode* Plane(float NormalX, float NormalY, float NormalZ);
+	SDFNodeShared Plane(float NormalX, float NormalY, float NormalZ);
 
-	SDFNode* Cone(float Radius, float Height);
+	SDFNodeShared Cone(float Radius, float Height);
 
-	SDFNode* Coninder(float RadiusL, float RadiusH, float Height);
+	SDFNodeShared Coninder(float RadiusL, float RadiusH, float Height);
 
-	SDFNode* Union(SDFNode* LHS, SDFNode* RHS);
+	SDFNodeShared Union(SDFNodeShared& LHS, SDFNodeShared& RHS);
 
-	SDFNode* Diff(SDFNode* LHS, SDFNode* RHS);
+	SDFNodeShared Diff(SDFNodeShared& LHS, SDFNodeShared& RHS);
 
-	SDFNode* Inter(SDFNode* LHS, SDFNode* RHS);
+	SDFNodeShared Inter(SDFNodeShared& LHS, SDFNodeShared& RHS);
 
-	SDFNode* BlendUnion(float Threshold, SDFNode* LHS, SDFNode* RHS);
+	SDFNodeShared BlendUnion(float Threshold, SDFNodeShared& LHS, SDFNodeShared& RHS);
 
-	SDFNode* BlendDiff(float Threshold, SDFNode* LHS, SDFNode* RHS);
+	SDFNodeShared BlendDiff(float Threshold, SDFNodeShared& LHS, SDFNodeShared& RHS);
 
-	SDFNode* BlendInter(float Threshold, SDFNode* LHS, SDFNode* RHS);
+	SDFNodeShared BlendInter(float Threshold, SDFNodeShared& LHS, SDFNodeShared& RHS);
 
-	SDFNode* Flate(SDFNode* Node, float Radius);
+	SDFNodeShared Flate(SDFNodeShared& Node, float Radius);
 }
 
 
@@ -226,21 +212,21 @@ struct SDFOctree
 	float TargetSize;
 	bool Terminus;
 	int LeafCount;
-	SDFNode* Evaluator;
+	SDFNodeShared Evaluator;
 	SDFOctree* Children[8];
 	SDFOctree* Parent;
 
-	static SDFOctree* Create(SDFNode* Evaluator, float TargetSize = 0.25);
+	static SDFOctree* Create(SDFNodeShared& Evaluator, float TargetSize = 0.25);
 	void Populate(int Depth);
 	~SDFOctree();
-	SDFNode* Descend(const glm::vec3 Point, const bool Exact=true);
+	SDFNodeShared Descend(const glm::vec3 Point, const bool Exact=true);
 
 	using CallbackType = std::function<void(SDFOctree&)>;
 	void Walk(CallbackType& Callback);
 
 	float Eval(glm::vec3 Point, const bool Exact = true)
 	{
-		SDFNode* Node = Descend(Point, Exact);
+		SDFNodeShared Node = Descend(Point, Exact);
 		if (!Exact && !Node)
 		{
 			return INFINITY;
@@ -249,15 +235,15 @@ struct SDFOctree
 	}
 	glm::vec3 Gradient(glm::vec3 Point)
 	{
-		SDFNode* Node = Descend(Point);
+		SDFNodeShared Node = Descend(Point);
 		return Node->Gradient(Point);
 	}
 	glm::vec3 Sample(glm::vec3 Point)
 	{
-		SDFNode* Node = Descend(Point);
+		SDFNodeShared Node = Descend(Point);
 		return Node->Sample(Point);
 	}
 
 private:
-	SDFOctree(SDFOctree* InParent, SDFNode* InEvaluator, float InTargetSize, AABB InBounds, int Depth);
+	SDFOctree(SDFOctree* InParent, SDFNodeShared& InEvaluator, float InTargetSize, AABB InBounds, int Depth);
 };

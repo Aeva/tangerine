@@ -20,6 +20,11 @@
 
 using namespace glm;
 
+// TODO : This API will need to be reworked to be compatible with shared pointers,
+// because functions like clip make this complicated.
+
+
+#if 0
 
 // Evaluate a SDF tree.
 extern "C" TANGERINE_API float EvalTree(void* Handle, float X, float Y, float Z)
@@ -171,3 +176,5 @@ extern "C" TANGERINE_API void* MakeBlendInterOp(float Threshold, void* LHS, void
 {
 	return SDF::BlendInter(Threshold, (SDFNode*)LHS, (SDFNode*)RHS);
 }
+
+#endif // TODO!

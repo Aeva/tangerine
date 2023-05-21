@@ -1,5 +1,5 @@
 
-// Copyright 2022 Aeva Palecek
+// Copyright 2023 Aeva Palecek
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,4 +17,4 @@
 #include "sdf_evaluator.h"
 #include <string>
 
-void VoxExport(SDFNode* Evaluator, std::string& Path, float GridSize, int ColorIndex);
+void VoxExport(SDFNodeShared& Evaluator, std::string& Path, float GridSize, int ColorIndex);
