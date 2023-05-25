@@ -137,6 +137,7 @@ struct SodapopDrawable final : Drawable
 };
 
 using SodapopDrawableShared = std::shared_ptr<SodapopDrawable>;
+using SodapopDrawableWeakRef = std::weak_ptr<SodapopDrawable>;
 #endif // RENDERER_SODAPOP
 
 
@@ -186,8 +187,8 @@ protected:
 std::vector<SDFModelWeakRef>& GetLiveModels();
 void UnloadAllModels();
 
-void GetIncompleteModels(std::vector<SDFModelShared>& Incomplete);
-void GetRenderableModels(std::vector<SDFModelShared>& Renderable);
+void GetIncompleteModels(std::vector<SDFModelWeakRef>& Incomplete);
+void GetRenderableModels(std::vector<SDFModelWeakRef>& Renderable);
 
 bool DeliverMouseMove(glm::vec3 Origin, glm::vec3 RayDir, int MouseX, int MouseY);
 bool DeliverMouseButton(MouseEvent Event);

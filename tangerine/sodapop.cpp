@@ -31,18 +31,19 @@ static std::uniform_real_distribution<double> Roll(-1.0, std::nextafter(1.0, DBL
 
 struct MeshingJob : AsyncTask
 {
-	SodapopDrawableShared Painter;
+	SodapopDrawableWeakRef PainterWeakRef;
+	SDFNodeWeakRef EvaluatorWeakRef;
 	virtual void Run();
 	virtual void Done();
 	virtual void Abort();
-	virtual ~MeshingJob();
 };
 
 
 void Sodapop::Populate(SodapopDrawableShared Painter)
 {
 	MeshingJob* Task = new MeshingJob();
-	Task->Painter = Painter;
+	Task->PainterWeakRef = Painter;
+	Task->EvaluatorWeakRef = Painter->Evaluator;
 
 	Scheduler::Enqueue(Task);
 }
@@ -50,7 +51,15 @@ void Sodapop::Populate(SodapopDrawableShared Painter)
 
 void MeshingJob::Run()
 {
-	AABB Bounds = Painter->Evaluator->Bounds();
+	SodapopDrawableShared Painter = PainterWeakRef.lock();
+	SDFNodeShared Evaluator = EvaluatorWeakRef.lock();
+
+	if (!Painter || !Evaluator)
+	{
+		return;
+	}
+
+	AABB Bounds = Evaluator->Bounds();
 
 	const glm::vec3 ModelExtent = Bounds.Extent();
 	const float ModelVolume = ModelExtent.x * ModelExtent.y * ModelExtent.z;
@@ -104,7 +113,7 @@ void MeshingJob::Run()
 
 		auto Eval = [&](float X, float Y, float Z) -> float
 		{
-			return Painter->Evaluator->Eval(glm::vec3(X, Y, Z));
+			return Evaluator->Eval(glm::vec3(X, Y, Z));
 		};
 
 		isosurface::mesh Mesh;
@@ -167,7 +176,7 @@ void MeshingJob::Run()
 			{
 				glm::vec3 Jitter = JitterSpan * glm::vec3(Roll(RNGesus), Roll(RNGesus), Roll(RNGesus));
 				glm::vec3 Tmp = Position.xyz();
-				glm::vec3 Sample = Painter->Evaluator->Sample(Tmp + Jitter);
+				glm::vec3 Sample = Evaluator->Sample(Tmp + Jitter);
 				if (!glm::any(glm::isnan(Sample)))
 				{
 					Samples.push_back(Sample);
@@ -185,23 +194,26 @@ void MeshingJob::Run()
 
 void MeshingJob::Done()
 {
-	void* JobPtr = (void*)this;
-	size_t Triangles = Painter->Indices.size() / 3;
-	size_t Vertices = Painter->Positions.size();
-	fmt::print("[{}] Created {} triangles with {} vertices.\n", JobPtr, Triangles, Vertices);
-	SetTreeEvaluator(Painter->Evaluator);
+	SodapopDrawableShared Painter = PainterWeakRef.lock();
+	SDFNodeShared Evaluator = EvaluatorWeakRef.lock();
+	if (Painter && Evaluator)
+	{
+		void* JobPtr = (void*)this;
+		size_t Triangles = Painter->Indices.size() / 3;
+		size_t Vertices = Painter->Positions.size();
+		fmt::print("[{}] Created {} triangles with {} vertices.\n", JobPtr, Triangles, Vertices);
+		SetTreeEvaluator(Painter->Evaluator);
+	}
+	else
+	{
+		Abort();
+	}
 }
 
 
 void MeshingJob::Abort()
 {
 	fmt::print("[{}] Job cancelled.\n", (void*)this);
-}
-
-
-MeshingJob::~MeshingJob()
-{
-	Painter.reset();
 }
 
 

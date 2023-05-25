@@ -51,7 +51,7 @@ void UnloadAllModels()
 }
 
 
-void GetIncompleteModels(std::vector<SDFModelShared>& Incomplete)
+void GetIncompleteModels(std::vector<SDFModelWeakRef>& Incomplete)
 {
 	Incomplete.clear();
 	Incomplete.reserve(LiveModels.size());
@@ -59,7 +59,7 @@ void GetIncompleteModels(std::vector<SDFModelShared>& Incomplete)
 #if RENDERER_COMPILER
 	if (CurrentRenderer == Renderer::ShapeCompiler)
 	{
-		for (SDFModelWeakRef& WeakRef : LiveModels)
+		for (SDFModelWeakRef WeakRef : LiveModels)
 		{
 			SDFModelShared Model = WeakRef.lock();
 			if (Model)
@@ -76,7 +76,7 @@ void GetIncompleteModels(std::vector<SDFModelShared>& Incomplete)
 #if RENDERER_SODAPOP
 	if (CurrentRenderer == Renderer::Sodapop)
 	{
-		for (SDFModelWeakRef& WeakRef : LiveModels)
+		for (SDFModelWeakRef WeakRef : LiveModels)
 		{
 			SDFModelShared Model = WeakRef.lock();
 			if (Model)
@@ -93,7 +93,7 @@ void GetIncompleteModels(std::vector<SDFModelShared>& Incomplete)
 }
 
 
-void GetRenderableModels(std::vector<SDFModelShared>& Renderable)
+void GetRenderableModels(std::vector<SDFModelWeakRef>& Renderable)
 {
 	Renderable.clear();
 	Renderable.reserve(LiveModels.size());
@@ -101,7 +101,7 @@ void GetRenderableModels(std::vector<SDFModelShared>& Renderable)
 #if RENDERER_COMPILER
 	if (CurrentRenderer == Renderer::ShapeCompiler)
 	{
-		for (SDFModelWeakRef& WeakRef : LiveModels)
+		for (SDFModelWeakRef WeakRef : LiveModels)
 		{
 			SDFModelShared Model = WeakRef.lock();
 			if (Model)
@@ -118,7 +118,7 @@ void GetRenderableModels(std::vector<SDFModelShared>& Renderable)
 #if RENDERER_SODAPOP
 	if (CurrentRenderer == Renderer::Sodapop)
 	{
-		for (SDFModelWeakRef& WeakRef : LiveModels)
+		for (SDFModelWeakRef WeakRef : LiveModels)
 		{
 			SDFModelShared Model = WeakRef.lock();
 			if (Model)

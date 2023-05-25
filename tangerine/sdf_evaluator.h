@@ -108,6 +108,7 @@ struct RayHit
 
 struct SDFNode;
 using SDFNodeShared = std::shared_ptr<SDFNode>;
+using SDFNodeWeakRef = std::weak_ptr<SDFNode>;
 
 
 struct SDFNode

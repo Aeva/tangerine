@@ -572,7 +572,7 @@ StatusCode SetupRenderer()
 double ShaderCompilerConvergenceMs = 0.0;
 Clock::time_point ShaderCompilerStart;
 #if RENDERER_COMPILER
-void CompileNewShaders(std::vector<SDFModelShared>& IncompleteModels, const double LastInnerFrameDeltaMs)
+void CompileNewShaders(std::vector<SDFModelWeakRef>& IncompleteModels, const double LastInnerFrameDeltaMs)
 {
 	BeginEvent("Compile New Shaders");
 	Clock::time_point ProcessingStart = Clock::now();
@@ -581,18 +581,22 @@ void CompileNewShaders(std::vector<SDFModelShared>& IncompleteModels, const doub
 	Budget = fmaxf(Budget, 1.0);
 	Budget = fminf(Budget, 14.0);
 
-	for (SDFModelShared& Model : IncompleteModels)
+	for (SDFModelWeakRef ModelWeakRef : IncompleteModels)
 	{
-		VoxelDrawableShared Painter = std::static_pointer_cast<VoxelDrawable>(Model->Painter);
-		while (Painter->HasPendingShaders())
+		SDFModelShared Model = ModelWeakRef.lock();
+		if (Model)
 		{
-			Painter->CompileNextShader();
-
-			std::chrono::duration<double, std::milli> Delta = Clock::now() - ProcessingStart;
-			ShaderCompilerConvergenceMs += Delta.count();
-			if (!HeadlessMode && Delta.count() > Budget)
+			VoxelDrawableShared Painter = std::static_pointer_cast<VoxelDrawable>(Model->Painter);
+			while (Painter->HasPendingShaders())
 			{
-				goto timeout;
+				Painter->CompileNextShader();
+
+				std::chrono::duration<double, std::milli> Delta = Clock::now() - ProcessingStart;
+				ShaderCompilerConvergenceMs += Delta.count();
+				if (!HeadlessMode && Delta.count() > Budget)
+				{
+					goto timeout;
+				}
 			}
 		}
 	}
@@ -653,13 +657,13 @@ double LastInnerFrameDeltaMs = 0.0;
 glm::vec3 CameraFocus = glm::vec3(0.0, 0.0, 0.0);
 
 
-void RenderFrameGL4(int ScreenWidth, int ScreenHeight, std::vector<SDFModelShared>& RenderableModels, ViewInfoUpload& UploadedView, bool FullRedraw);
+void RenderFrameGL4(int ScreenWidth, int ScreenHeight, std::vector<SDFModelWeakRef>& RenderableModels, ViewInfoUpload& UploadedView, bool FullRedraw);
 
 
-void RenderFrameES2(int ScreenWidth, int ScreenHeight, std::vector<SDFModelShared>& RenderableModels, ViewInfoUpload& UploadedView, bool FullRedraw);
+void RenderFrameES2(int ScreenWidth, int ScreenHeight, std::vector<SDFModelWeakRef>& RenderableModels, ViewInfoUpload& UploadedView, bool FullRedraw);
 
 
-void RenderFrame(int ScreenWidth, int ScreenHeight, std::vector<SDFModelShared>& RenderableModels, ViewInfoUpload& UploadedView, bool FullRedraw = true)
+void RenderFrame(int ScreenWidth, int ScreenHeight, std::vector<SDFModelWeakRef>& RenderableModels, ViewInfoUpload& UploadedView, bool FullRedraw = true)
 {
 	BeginEvent("RenderFrame");
 	Clock::time_point FrameStartTimePoint = Clock::now();
@@ -803,7 +807,7 @@ void RenderFrame(int ScreenWidth, int ScreenHeight, std::vector<SDFModelShared>&
 }
 
 
-void RenderFrameGL4(int ScreenWidth, int ScreenHeight, std::vector<SDFModelShared>& RenderableModels, ViewInfoUpload& UploadedView, bool FullRedraw)
+void RenderFrameGL4(int ScreenWidth, int ScreenHeight, std::vector<SDFModelWeakRef>& RenderableModels, ViewInfoUpload& UploadedView, bool FullRedraw)
 {
 	ViewInfo.Upload((void*)&UploadedView, sizeof(UploadedView));
 	ViewInfo.Bind(GL_UNIFORM_BUFFER, 0);
@@ -881,9 +885,13 @@ void RenderFrameGL4(int ScreenWidth, int ScreenHeight, std::vector<SDFModelShare
 					{
 						DebugShader = &OctreeDebugShader;
 					}
-					for (SDFModelShared& Model : RenderableModels)
+					for (SDFModelWeakRef ModelWeakRef : RenderableModels)
 					{
-						Model->Draw(ShowOctree, ShowLeafCount, ShowHeatmap, ShowWireframe, DebugShader);
+						SDFModelShared Model = ModelWeakRef.lock();
+						if (Model)
+						{
+							Model->Draw(ShowOctree, ShowLeafCount, ShowHeatmap, ShowWireframe, DebugShader);
+						}
 					}
 				}
 
@@ -936,9 +944,13 @@ void RenderFrameGL4(int ScreenWidth, int ScreenHeight, std::vector<SDFModelShare
 
 			SodapopShader.Activate();
 
-			for (SDFModelShared& Model : RenderableModels)
+			for (SDFModelWeakRef ModelWeakRef : RenderableModels)
 			{
-				Model->Draw(false, false, false, false, nullptr);
+				SDFModelShared Model = ModelWeakRef.lock();
+				if (Model)
+				{
+					Model->Draw(false, false, false, false, nullptr);
+				}
 			}
 
 			DepthTimeQuery.Stop();
@@ -987,7 +999,7 @@ void RenderFrameGL4(int ScreenWidth, int ScreenHeight, std::vector<SDFModelShare
 }
 
 
-void RenderFrameES2(int ScreenWidth, int ScreenHeight, std::vector<SDFModelShared>& RenderableModels, ViewInfoUpload& UploadedView, bool FullRedraw)
+void RenderFrameES2(int ScreenWidth, int ScreenHeight, std::vector<SDFModelWeakRef>& RenderableModels, ViewInfoUpload& UploadedView, bool FullRedraw)
 {
 	glBindFramebuffer(GL_FRAMEBUFFER, FinalPass);
 
@@ -1041,9 +1053,13 @@ void RenderFrameES2(int ScreenWidth, int ScreenHeight, std::vector<SDFModelShare
 			const GLint ColorBinding = glGetAttribLocation(SodapopShader.ProgramID, "VertexColor");
 			glEnableVertexAttribArray(ColorBinding);
 
-			for (SDFModelShared& Model : RenderableModels)
+			for (SDFModelWeakRef ModelWeakRef : RenderableModels)
 			{
-				Model->Draw(UploadedView.CameraOrigin.xyz(), LocalToWorldBinding, PositionBinding, ColorBinding);
+				SDFModelShared Model = ModelWeakRef.lock();
+				if (Model)
+				{
+					Model->Draw(UploadedView.CameraOrigin.xyz(), LocalToWorldBinding, PositionBinding, ColorBinding);
+				}
 			}
 
 			glPopDebugGroup();
@@ -2315,7 +2331,7 @@ StatusCode Boot(int argc, char* argv[])
 #if RENDERER_COMPILER
 			if (CurrentRenderer == Renderer::ShapeCompiler)
 			{
-				std::vector<SDFModelShared> IncompleteModels;
+				std::vector<SDFModelWeakRef> IncompleteModels;
 				GetIncompleteModels(IncompleteModels);
 				if (IncompleteModels.size() > 0)
 				{
@@ -2323,7 +2339,7 @@ StatusCode Boot(int argc, char* argv[])
 				}
 			}
 #endif
-			std::vector<SDFModelShared> RenderableModels;
+			std::vector<SDFModelWeakRef> RenderableModels;
 			GetRenderableModels(RenderableModels);
 
 			ViewInfoUpload UploadedView;
@@ -2411,8 +2427,8 @@ void MainLoop()
 				}
 
 				static ViewInfoUpload LastView;
-				static std::vector<SDFModelShared> IncompleteModels;
-				static std::vector<SDFModelShared> RenderableModels;
+				static std::vector<SDFModelWeakRef> IncompleteModels;
+				static std::vector<SDFModelWeakRef> RenderableModels;
 
 				static glm::vec3 MouseRay(0.0, 1.0, 0.0);
 				static glm::vec3 RayOrigin(0.0, 0.0, 0.0);
@@ -2634,15 +2650,19 @@ void MainLoop()
 						{
 							float Range = 0.0;
 							std::vector<float> Upload;
-							for (SDFModelShared& Model : RenderableModels)
+							for (SDFModelWeakRef ModelWeakRef : RenderableModels)
 							{
-								VoxelDrawableShared Painter = std::static_pointer_cast<VoxelDrawable>(Model->Painter);
-								for (ProgramTemplate* CompiledTemplate : Painter->CompiledTemplates)
+								SDFModelShared Model = ModelWeakRef.lock();
+								if (Model)
 								{
-									double ElapsedTimeMs = CompiledTemplate->DepthQuery.ReadMs();
-									Upload.push_back(float(ElapsedTimeMs));
-									DepthElapsedTimeMs += ElapsedTimeMs;
-									Range = fmax(Range, float(ElapsedTimeMs));
+									VoxelDrawableShared Painter = std::static_pointer_cast<VoxelDrawable>(Model->Painter);
+									for (ProgramTemplate* CompiledTemplate : Painter->CompiledTemplates)
+									{
+										double ElapsedTimeMs = CompiledTemplate->DepthQuery.ReadMs();
+										Upload.push_back(float(ElapsedTimeMs));
+										DepthElapsedTimeMs += ElapsedTimeMs;
+										Range = fmax(Range, float(ElapsedTimeMs));
+									}
 								}
 							}
 							for (float& ElapsedTimeMs : Upload)
