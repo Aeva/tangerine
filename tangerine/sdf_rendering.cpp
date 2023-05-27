@@ -278,35 +278,26 @@ void SodapopDrawable::Draw(
 		MeshUploaded = true;
 	}
 
-	if (Instance->Colors.size() == 0)
+	Instance->Drawing.store(true);
+	Instance->SodapopCS.lock();
 	{
-		Instance->Colors.resize(Colors.size());
-	}
-
-	if (!glm::all(glm::equal(Instance->LastCameraOrigin, CameraOrigin)))
-	{
-		Instance->LastCameraOrigin = CameraOrigin;
-		// TODO this should go in the thread pool.
-		glm::vec4 LocalEye = Instance->Transform.LastFoldInverse * glm::vec4(CameraOrigin, 1.0);
-		for (int i = 0; i < Instance->Colors.size(); ++i)
+		if (!glm::all(glm::equal(Instance->CameraOrigin, CameraOrigin)))
 		{
-			glm::vec3 BaseColor = Colors[i].xyz();
+			Instance->CameraOrigin = CameraOrigin;
+			Instance->Dirty.store(true);
+		}
 
-			// Palecek 2022, "PBR Based Rendering"
-			glm::vec3 V = glm::normalize(LocalEye.xyz() - Positions[i].xyz());
-			glm::vec3 N = Normals[i].xyz();
-			float D = glm::pow(glm::max(glm::dot(N, glm::normalize(N * 0.75f + V)), 0.0f), 2.0f);
-			float F = 1.0 - glm::max(glm::dot(N, V), 0.0f);
-			float BSDF = D + F * 0.25;
-			Instance->Colors[i] = glm::vec4(BaseColor * BSDF, 1.0);
+		if (Instance->Colors.size() > 0)
+		{
+			glBindBuffer(GL_ARRAY_BUFFER, 0);
+			glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+			glVertexAttribPointer(PositionBinding, 4, GL_FLOAT, GL_FALSE, 0, Positions.data());
+			glVertexAttribPointer(ColorBinding, 4, GL_FLOAT, GL_FALSE, 0, Instance->Colors.data());
+			glDrawElements(GL_TRIANGLES, Indices.size(), GL_UNSIGNED_INT, Indices.data());
 		}
 	}
-
-	glBindBuffer(GL_ARRAY_BUFFER, 0);
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
-	glVertexAttribPointer(PositionBinding, 4, GL_FLOAT, GL_FALSE, 0, Positions.data());
-	glVertexAttribPointer(ColorBinding, 4, GL_FLOAT, GL_FALSE, 0, Instance->Colors.data());
-	glDrawElements(GL_TRIANGLES, Indices.size(), GL_UNSIGNED_INT, Indices.data());
+	Instance->Drawing.store(false);
+	Instance->SodapopCS.unlock();
 }
 #endif //RENDERER_SODAPOP
 

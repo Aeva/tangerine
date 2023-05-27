@@ -21,8 +21,9 @@
 #include "sdf_model.h"
 #include <fmt/format.h>
 #include <surface_nets.h>
-#include <atomic>
 #include <random>
+#include <atomic>
+#include <mutex>
 
 
 static std::default_random_engine RNGesus;
@@ -217,68 +218,137 @@ void MeshingJob::Abort()
 }
 
 
-#if 0
-std::map<size_t, SDFModelWeakRef> AttachedModels;
-
-
-struct AttachModelTask : AsyncTask
+struct Attachments
 {
-	SDFModelWeakRef Instance;
-	virtual void Run()
-	{
-		size_t Key = (size_t)(Instance.get());
-		auto Result = AttachedModels.insert(std::pair{Key, Instance});
-
-		fmt::print("[{}] Attached model.\n", (void*)this);
-	};
-	virtual void Done() {}
-	virtual void Abort() {}
+	SDFModelWeakRef ModelWeakRef;
+	SodapopDrawableWeakRef PainterWeakRef;
 };
 
 
-struct DetachModelTask : AsyncTask
+std::map<size_t, Attachments> AttachedModels;
+std::mutex AttachedModelsCS;
+
+
+void Sodapop::Attach(SDFModelShared& Instance)
 {
-	SDFModelWeakRef Instance;
-	virtual void Run()
+	AttachedModelsCS.lock();
 	{
+		Attachments Record = \
+		{
+			Instance,
+			std::static_pointer_cast<SodapopDrawable>(Instance->Painter)
+		};
 		size_t Key = (size_t)(Instance.get());
-		AttachedModels.erase(Key);
+		auto Result = AttachedModels.insert(std::pair{Key, Record});
+	}
+	AttachedModelsCS.unlock();
+}
 
-		fmt::print("[{}] Detached model.\n", (void*)this);
-	};
-	virtual void Done()
+
+bool GetNextModel(SDFModelShared& Instance, SodapopDrawableShared& Painter)
+{
+	AttachedModelsCS.lock();
+
+	while (true)
 	{
-		Instance->Release();
-	};
-	virtual void Abort() {}
-};
+		auto EndIter = AttachedModels.end();
+		static auto NextIter = EndIter;
 
+		if (NextIter == EndIter)
+		{
+			NextIter = AttachedModels.begin();
+			if (NextIter == EndIter)
+			{
+				// The map is empty, so stop looping.
+				Instance.reset();
+				Painter.reset();
+				break;
+			}
+		}
 
-void Sodapop::Attach(SDFModel* Instance)
-{
-	Instance->Hold();
-	AttachModelTask* Task = new AttachModelTask();
-	Task->Instance = Instance;
-	//
+		auto Iter = NextIter++;
 
-	Scheduler::Enqueue(Task, true);
+		size_t Key = Iter->first;
+		Instance = Iter->second.ModelWeakRef.lock();
+		Painter = Iter->second.PainterWeakRef.lock();
+		if (Instance && Painter)
+		{
+			if (Instance->Dirty.load() && Painter->MeshReady.load())
+			{
+				// The model instance and painter are both live and ready for drawing.
+				break;
+			}
+			else
+			{
+				// The model instance does not need to be repainted, or the painter is not ready.
+				Instance.reset();
+				Painter.reset();
+				continue;
+			}
+		}
+		else
+		{
+			// One or both of the model instance and painter are invalid now, so clear them both and
+			// remove the entry from the map.
+
+			Instance.reset();
+			Painter.reset();
+
+			AttachedModels.erase(Key);
+			// Iter is now invalid, but NextIter should be fine because we postfix incremented it.
+
+			continue;
+		}
+	}
+
+	AttachedModelsCS.unlock();
+
+	return Instance && Painter;
 }
 
-
-void Sodapop::Detach(SDFModel* Instance)
-{
-	DetachModelTask* Task = new DetachModelTask();
-	Task->Instance = Instance;
-	//
-
-	Scheduler::Enqueue(Task, true);
-}
 
 void Sodapop::Hammer()
 {
+	SDFModelShared Instance;
+	SodapopDrawableShared Painter;
 
+	if (GetNextModel(Instance, Painter))
+	{
+		Instance->SodapopCS.lock();
+		{
+			if (Instance->Colors.size() == 0)
+			{
+				Instance->Colors.resize(Painter->Colors.size());
+			}
+
+			glm::vec4 LocalEye = Instance->Transform.LastFoldInverse * glm::vec4(Instance->CameraOrigin, 1.0);
+
+			for (int n = 0; n < Instance->Colors.size(); ++n)
+			{
+				if (Instance->Drawing.load())
+				{
+					break;
+				}
+				const int i = Instance->NextUpdate % Instance->Colors.size();
+				Instance->NextUpdate = i + 1;
+
+				glm::vec3 BaseColor = Painter->Colors[i].xyz();
+
+				// Palecek 2022, "PBR Based Rendering"
+				glm::vec3 V = glm::normalize(LocalEye.xyz() - Painter->Positions[i].xyz());
+				glm::vec3 N = Painter->Normals[i].xyz();
+				float D = glm::pow(glm::max(glm::dot(N, glm::normalize(N * 0.75f + V)), 0.0f), 2.0f);
+				float F = 1.0 - glm::max(glm::dot(N, V), 0.0f);
+				float BSDF = D + F * 0.25;
+				Instance->Colors[i] = glm::vec4(BaseColor * BSDF, 1.0);
+			}
+
+			// TODO: This needs some way to determine if the instance has converged since it was last marked dirty.
+			//Instance->Dirty.store(false);
+		}
+		Instance->SodapopCS.unlock();
+	}
 }
-#endif
 
 
 #endif // RENDERER_SODAPOP

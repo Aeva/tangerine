@@ -359,6 +359,7 @@ SDFModel::SDFModel(SDFNodeShared& InEvaluator, const float VoxelSize)
 void SDFModel::RegisterNewModel(SDFModelShared& NewModel)
 {
 	LiveModels.emplace_back(NewModel);
+	Sodapop::Attach(NewModel);
 }
 
 

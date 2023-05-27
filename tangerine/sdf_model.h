@@ -23,6 +23,7 @@
 #if RENDERER_SODAPOP
 #include "sodapop.h"
 #include <atomic>
+#include <mutex>
 #endif
 
 
@@ -153,8 +154,12 @@ struct SDFModel
 	int MouseListenFlags = 0;
 
 #if RENDERER_SODAPOP
-	glm::vec3 LastCameraOrigin = glm::vec3(0.0, 0.0, 0.0);
+	std::atomic_bool Dirty = true;
+	std::atomic_bool Drawing = false;
+	int NextUpdate = 0;
+	glm::vec3 CameraOrigin = glm::vec3(0.0, 0.0, 0.0);
 	std::vector<glm::vec4> Colors;
+	std::mutex SodapopCS;
 #endif // RENDERER_SODAPOP
 
 	void Draw(

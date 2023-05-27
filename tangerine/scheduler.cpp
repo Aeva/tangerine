@@ -15,6 +15,7 @@
 
 #include "scheduler.h"
 #include "errors.h"
+#include "sodapop.h"
 
 #include <fmt/format.h>
 
