@@ -272,14 +272,17 @@ void SodapopDrawable::Draw(
 	{
 		return;
 	}
-	if (!MeshUploaded)
-	{
-		// TODO store the position and index buffers in a VBO
-		MeshUploaded = true;
-	}
 
 	Instance->Drawing.store(true);
 	Instance->SodapopCS.lock();
+
+	if (!MeshUploaded)
+	{
+		IndexBuffer.Upload(GL_ELEMENT_ARRAY_BUFFER, GL_STATIC_DRAW, Indices.data(), Indices.size() * sizeof(uint32_t));
+		PositionBuffer.Upload(GL_ARRAY_BUFFER, GL_STATIC_DRAW, Positions.data(), Positions.size() * sizeof(glm::vec4));
+
+		MeshUploaded = true;
+	}
 	{
 		if (!glm::all(glm::equal(Instance->CameraOrigin, CameraOrigin)))
 		{
@@ -289,13 +292,19 @@ void SodapopDrawable::Draw(
 
 		if (Instance->Colors.size() > 0)
 		{
-			glBindBuffer(GL_ARRAY_BUFFER, 0);
-			glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
-			glVertexAttribPointer(PositionBinding, 4, GL_FLOAT, GL_FALSE, 0, Positions.data());
-			glVertexAttribPointer(ColorBinding, 4, GL_FLOAT, GL_FALSE, 0, Instance->Colors.data());
-			glDrawElements(GL_TRIANGLES, Indices.size(), GL_UNSIGNED_INT, Indices.data());
+			IndexBuffer.Bind(GL_ELEMENT_ARRAY_BUFFER);
+
+			PositionBuffer.Bind(GL_ARRAY_BUFFER);
+			glVertexAttribPointer(PositionBinding, 4, GL_FLOAT, GL_FALSE, 0, nullptr);
+
+			ColorBuffer.Upload(GL_ARRAY_BUFFER, GL_DYNAMIC_DRAW, Instance->Colors.data(), Instance->Colors.size() * sizeof(glm::vec4));
+			ColorBuffer.Bind(GL_ARRAY_BUFFER);
+			glVertexAttribPointer(ColorBinding, 4, GL_FLOAT, GL_FALSE, 0, nullptr);
+
+			glDrawElements(GL_TRIANGLES, Indices.size(), GL_UNSIGNED_INT, nullptr);
 		}
 	}
+
 	Instance->Drawing.store(false);
 	Instance->SodapopCS.unlock();
 }

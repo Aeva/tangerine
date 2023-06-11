@@ -611,6 +611,30 @@ void Buffer::Upload(void* Data, size_t Bytes)
 }
 
 
+void Buffer::Upload(GLenum Target, GLenum Usage, void* Data, size_t Bytes)
+{
+	if (Bytes != LastSize)
+	{
+		Release();
+	}
+	if (BufferID == 0)
+	{
+		glGenBuffers(1, &BufferID);
+		glBindBuffer(Target, BufferID);
+		glBufferData(Target, Bytes, Data, Usage);
+		glBindBuffer(Target, 0);
+		LastSize = Bytes;
+	}
+	else
+	{
+		Bind(Target);
+		glBindBuffer(Target, BufferID);
+		glBufferSubData(Target, 0, Bytes, Data);
+		glBindBuffer(Target, 0);
+	}
+}
+
+
 void Buffer::Bind(GLenum Target, GLuint BindingIndex)
 {
 	glBindBufferBase(Target, BindingIndex, BufferID);

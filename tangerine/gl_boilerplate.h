@@ -86,7 +86,8 @@ struct Buffer
 	~Buffer();
 	void Release();
 	void Reserve(size_t Bytes);
-	void Upload(void* Data, size_t Bytes);
+	void Upload(void* Data, size_t Bytes); // Requires GL 4
+	void Upload(GLenum Target, GLenum Usage, void* Data, size_t Bytes); // Available in both GL 4 and ES 2
 	void Bind(GLenum Target, GLuint BindingIndex);
 	void Bind(GLenum Target);
 };
