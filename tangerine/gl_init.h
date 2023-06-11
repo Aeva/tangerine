@@ -16,6 +16,7 @@
 #pragma once
 
 #include "errors.h"
+#include <limits>
 
 
 enum class GraphicsAPI
@@ -26,10 +27,22 @@ enum class GraphicsAPI
 };
 
 
+enum class VSyncMode : int
+{
+	// The following is specific to Tangerine:
+	Unknown = std::numeric_limits<int>::min(),
+
+	// The following correspond to valid parameters for SDL_GL_SetSwapInterval:
+	Adaptive = -1,
+	Disabled = 0,
+	Enabled = 1
+};
+
+
 extern GraphicsAPI GraphicsBackend;
 
 
-StatusCode BootGL(int& WindowWidth, int& WindowHeight, bool HeadlessMode, bool ForceES2, bool CreateDebugContext);
+StatusCode BootGL(int& WindowWidth, int& WindowHeight, bool HeadlessMode, bool ForceES2, bool CreateDebugContext, VSyncMode RequestedVSyncMode);
 
 
 void TeardownGL();

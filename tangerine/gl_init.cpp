@@ -101,7 +101,57 @@ StatusCode CreateWindowGL(int& WindowWidth, int& WindowHeight, bool HeadlessMode
 }
 
 
-StatusCode BootGL(int& WindowWidth, int& WindowHeight, bool HeadlessMode, bool ForceES2, bool CreateDebugContext)
+void SetSwapInterval(VSyncMode RequestedVSyncMode)
+{
+	const VSyncMode Preference[4] = \
+	{
+		RequestedVSyncMode,
+		VSyncMode::Adaptive,
+		VSyncMode::Enabled,
+		VSyncMode::Disabled,
+	};
+
+	VSyncMode SelectedMode = VSyncMode::Unknown;
+
+	for (const VSyncMode Mode : Preference)
+	{
+		if (Mode != VSyncMode::Unknown)
+		{
+			const int Interval = int(Mode);
+			const int Result = SDL_GL_SetSwapInterval(Interval);
+			if (Result == 0)
+			{
+				SelectedMode = Mode;
+				break;
+			}
+		}
+	}
+
+	if (SelectedMode != RequestedVSyncMode && RequestedVSyncMode != VSyncMode::Unknown)
+	{
+		std::cout << "The requested vsync mode is unavailable.\n";
+	}
+
+	if (SelectedMode == VSyncMode::Unknown)
+	{
+		std::cout << "Unable to set the vsync mode.  The system default will be used.\n";
+	}
+	else if (SelectedMode == VSyncMode::Adaptive)
+	{
+		std::cout << "Adaptive vsync is enabled.  Late frames will tear.\n";
+	}
+	else if (SelectedMode == VSyncMode::Enabled)
+	{
+		std::cout << "Standard vsync is enabled.  Late frames will stall.\n";
+	}
+	else if (SelectedMode == VSyncMode::Disabled)
+	{
+		std::cout << "Vsync is disabled.  Expect horrendous tearing.\n";
+	}
+}
+
+
+StatusCode BootGL(int& WindowWidth, int& WindowHeight, bool HeadlessMode, bool ForceES2, bool CreateDebugContext, VSyncMode RequestedVSyncMode)
 {
 	GraphicsBackend = GraphicsAPI::Invalid;
 
@@ -116,8 +166,9 @@ StatusCode BootGL(int& WindowWidth, int& WindowHeight, bool HeadlessMode, bool F
 		if (Context)
 		{
 			SDL_GL_MakeCurrent(Window, Context);
-			SDL_GL_SetSwapInterval(1);
 			std::cout << "Done!\n";
+
+			SetSwapInterval(RequestedVSyncMode);
 
 			std::cout << "Setting up OpenGL... ";
 			if (gladLoadGL((GLADloadfunc) SDL_GL_GetProcAddress))
@@ -157,8 +208,9 @@ StatusCode BootGL(int& WindowWidth, int& WindowHeight, bool HeadlessMode, bool F
 		if (Context)
 		{
 			SDL_GL_MakeCurrent(Window, Context);
-			SDL_GL_SetSwapInterval(1);
 			std::cout << "Done!\n";
+
+			SetSwapInterval(RequestedVSyncMode);
 
 			std::cout << "Setting up OpenGL... ";
 			if (gladLoadGLES2((GLADloadfunc) SDL_GL_GetProcAddress))

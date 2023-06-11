@@ -2145,6 +2145,7 @@ StatusCode Boot(int argc, char* argv[])
 	bool ForceES2 = false;
 	bool CreateDebugContext = false;
 	bool ForceSingleThread = false;
+	VSyncMode RequestedVSyncMode = VSyncMode::Unknown;
 
 	int WindowWidth = 900;
 	int WindowHeight = 900;
@@ -2226,6 +2227,24 @@ StatusCode Boot(int argc, char* argv[])
 				Cursor += 1;
 				continue;
 			}
+			else if (Args[Cursor] == "--adaptive-vsync")
+			{
+				RequestedVSyncMode = VSyncMode::Adaptive;
+				Cursor += 1;
+				continue;
+			}
+			else if (Args[Cursor] == "--no-vsync")
+			{
+				RequestedVSyncMode = VSyncMode::Disabled;
+				Cursor += 1;
+				continue;
+			}
+			else if (Args[Cursor] == "--vsync")
+			{
+				RequestedVSyncMode = VSyncMode::Enabled;
+				Cursor += 1;
+				continue;
+			}
 			else
 			{
 				std::cout << "Invalid commandline arg(s).\n";
@@ -2257,7 +2276,7 @@ StatusCode Boot(int argc, char* argv[])
 		SDL_SetMainReady();
 		if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER) == 0)
 		{
-			RETURN_ON_FAIL(BootGL(WindowWidth, WindowHeight, HeadlessMode, ForceES2, CreateDebugContext));
+			RETURN_ON_FAIL(BootGL(WindowWidth, WindowHeight, HeadlessMode, ForceES2, CreateDebugContext, RequestedVSyncMode));
 			if (GraphicsBackend != GraphicsAPI::OpenGL4_2)
 			{
 				CurrentRenderer = Renderer::Sodapop;
