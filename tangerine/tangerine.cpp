@@ -656,6 +656,14 @@ float PresentDeltaMs = 0.0;
 double LastInnerFrameDeltaMs = 0.0;
 glm::vec3 CameraFocus = glm::vec3(0.0, 0.0, 0.0);
 
+#if RENDERER_SODAPOP
+// Total CPU time spent in per-model drawing paths
+double TotalDrawTimeMS = 0.0;
+
+// Total CPU time spent stalled on present
+double PresentTimeMs = 0.0;
+#endif // RENDERER_SODAPOP
+
 
 void RenderFrameGL4(int ScreenWidth, int ScreenHeight, std::vector<SDFModelWeakRef>& RenderableModels, ViewInfoUpload& UploadedView, bool FullRedraw);
 
@@ -687,6 +695,9 @@ void RenderFrame(int ScreenWidth, int ScreenHeight, std::vector<SDFModelWeakRef>
 	static int FrameNumber = 0;
 	++FrameNumber;
 
+#if RENDERER_SODAPOP
+	TotalDrawTimeMS = 0.0;
+#endif
 
 	static int Width = 0;
 	static int Height = 0;
@@ -1028,6 +1039,8 @@ void RenderFrameES2(int ScreenWidth, int ScreenHeight, std::vector<SDFModelWeakR
 			glPopDebugGroup();
 		}
 		{
+			Clock::time_point SodapopStartTime = Clock::now();
+
 			glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Sodapop");
 			glDepthMask(GL_TRUE);
 			glEnable(GL_DEPTH_TEST);
@@ -1063,6 +1076,9 @@ void RenderFrameES2(int ScreenWidth, int ScreenHeight, std::vector<SDFModelWeakR
 			}
 
 			glPopDebugGroup();
+
+			std::chrono::duration<double, std::milli> DrawDelta = Clock::now() - SodapopStartTime;
+			TotalDrawTimeMS = DrawDelta.count();
 		}
 	}
 	else
@@ -1364,11 +1380,12 @@ void WorldSpaceRay(const ViewInfoUpload& View, int ScreenX, int ScreenY, int Scr
 	}
 }
 
-
+// These are GPU times
 double DepthElapsedTimeMs = 0.0;
 double GridBgElapsedTimeMs = 0.0;
 double OutlinerElapsedTimeMs = 0.0;
 double UiElapsedTimeMs = 0.0;
+
 void RenderUI(SDL_Window* Window, bool& Live)
 {
 	ImGui_ImplOpenGL3_NewFrame();
@@ -1838,6 +1855,24 @@ void RenderUI(SDL_Window* Window, bool& Live)
 				ImGui::Text(" Convergence: %.3f s\n", ShaderCompilerConvergenceMs / 1000.0);
 			}
 #endif // RENDERER_COMPILER
+
+#if RENDERER_SODAPOP
+			if (CurrentRenderer == Renderer::Sodapop)
+			{
+				ImGui::Separator();
+				ImGui::Text("CPU Frame Times\n");
+				double TotalTimeMs = \
+					TotalDrawTimeMS +
+					PresentTimeMs;
+				ImGui::Text(" Drawing: %.2f ms\n", TotalDrawTimeMS);
+				ImGui::Text(" Present: %.2f ms\n", PresentTimeMs);
+				ImGui::Text("   Total: %.2f ms\n", TotalTimeMs);
+
+				ImGui::Separator();
+				ImGui::Text("Model Loading\n");
+				ImGui::Text("  Processing: %.3f s\n", ModelProcessingStallMs / 1000.0);
+			}
+#endif // RENDERER_SODAPOP
 		}
 		ImGui::End();
 	}
@@ -2634,9 +2669,12 @@ void MainLoop()
 						EndEvent();
 					}
 					{
+						Clock::time_point StartTime = Clock::now();
 						BeginEvent("Present");
 						SDL_GL_SwapWindow(Window);
 						EndEvent();
+						std::chrono::duration<double, std::milli> PresentDelta = Clock::now() - StartTime;
+						PresentTimeMs = PresentDelta.count();
 					}
 					{
 						BeginEvent("Query Results");
