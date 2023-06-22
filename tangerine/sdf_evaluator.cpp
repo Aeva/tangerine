@@ -1236,7 +1236,7 @@ namespace SDF
 
 
 // SDFOctree function implementations
-SDFOctree* SDFOctree::Create(SDFNodeShared& Evaluator, float TargetSize)
+SDFOctree* SDFOctree::Create(SDFNodeShared& Evaluator, float TargetSize, bool Coalesce)
 {
 	if (Evaluator->HasFiniteBounds())
 	{
@@ -1248,7 +1248,7 @@ SDFOctree* SDFOctree::Create(SDFNodeShared& Evaluator, float TargetSize)
 		Bounds.Min -= Padding;
 		Bounds.Max += Padding;
 
-		SDFOctree* Tree = new SDFOctree(nullptr, Evaluator, TargetSize, Bounds, 1);
+		SDFOctree* Tree = new SDFOctree(nullptr, Evaluator, TargetSize, Coalesce, Bounds, 1);
 		if (Tree->Evaluator)
 		{
 			return Tree;
@@ -1266,7 +1266,7 @@ SDFOctree* SDFOctree::Create(SDFNodeShared& Evaluator, float TargetSize)
 	}
 }
 
-SDFOctree::SDFOctree(SDFOctree* InParent, SDFNodeShared& InEvaluator, float InTargetSize, AABB InBounds, int Depth)
+SDFOctree::SDFOctree(SDFOctree* InParent, SDFNodeShared& InEvaluator, float InTargetSize, bool Coalesce, AABB InBounds, int Depth)
 	: Parent(InParent)
 	, TargetSize(InTargetSize)
 	, Bounds(InBounds)
@@ -1296,11 +1296,11 @@ SDFOctree::SDFOctree(SDFOctree* InParent, SDFNodeShared& InEvaluator, float InTa
 	}
 	else
 	{
-		Populate(Depth);
+		Populate(Coalesce, Depth);
 	}
 }
 
-void SDFOctree::Populate(int Depth)
+void SDFOctree::Populate(bool Coalesce, int Depth)
 {
 	bool Uniform = true;
 	bool Penultimate = true;
@@ -1333,7 +1333,7 @@ void SDFOctree::Populate(int Depth)
 		{
 			ChildBounds.Max.z = Pivot.z;
 		}
-		Children[i] = new SDFOctree(this, Evaluator, TargetSize, ChildBounds, Depth + 1);
+		Children[i] = new SDFOctree(this, Evaluator, TargetSize, Coalesce, ChildBounds, Depth + 1);
 		if (Children[i]->Evaluator == nullptr)
 		{
 			delete Children[i];
@@ -1362,8 +1362,7 @@ void SDFOctree::Populate(int Depth)
 			Bounds.Max = max(Bounds.Max, Live[i]->Bounds.Max);
 		}
 
-#if ENABLE_OCTREE_COALESCENCE
-		if ((Penultimate && Uniform) || LeafCount <= max(Depth, 3))
+		if (Coalesce && ((Penultimate && Uniform) || LeafCount <= max(Depth, 3)))
 		{
 			for (int i = 0; i < 8; ++i)
 			{
@@ -1375,7 +1374,6 @@ void SDFOctree::Populate(int Depth)
 			}
 			Terminus = true;
 		}
-#endif
 	}
 }
 

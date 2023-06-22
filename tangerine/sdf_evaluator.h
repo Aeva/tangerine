@@ -23,9 +23,6 @@
 #include "errors.h"
 
 
-#define ENABLE_OCTREE_COALESCENCE 1
-
-
 template<typename T>
 inline float AsFloat(T Word)
 {
@@ -217,8 +214,8 @@ struct SDFOctree
 	SDFOctree* Children[8];
 	SDFOctree* Parent;
 
-	static SDFOctree* Create(SDFNodeShared& Evaluator, float TargetSize = 0.25);
-	void Populate(int Depth);
+	static SDFOctree* Create(SDFNodeShared& Evaluator, float TargetSize = 0.25, bool Coalesce = true);
+	void Populate(bool Coalesce, int Depth);
 	~SDFOctree();
 	SDFNodeShared Descend(const glm::vec3 Point, const bool Exact=true);
 
@@ -246,5 +243,5 @@ struct SDFOctree
 	}
 
 private:
-	SDFOctree(SDFOctree* InParent, SDFNodeShared& InEvaluator, float InTargetSize, AABB InBounds, int Depth);
+	SDFOctree(SDFOctree* InParent, SDFNodeShared& InEvaluator, float InTargetSize, bool Coalesce, AABB InBounds, int Depth);
 };
