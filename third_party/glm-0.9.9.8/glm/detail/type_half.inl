@@ -6,7 +6,9 @@ namespace detail
 		volatile float f = 1e10;
 
 		for(int i = 0; i < 10; ++i)
-			f *= f; // this will overflow before the for loop terminates
+// BEGIN TANGERINE mod - future proof against volatile deprecation
+			f = f * f; // this will overflow before the for loop terminates
+// END TANGERINE mod - future proof against volatile deprecation
 		return f;
 	}
 
