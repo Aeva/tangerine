@@ -324,7 +324,7 @@ void AllocateRenderTargets(int ScreenWidth, int ScreenHeight)
 		glCreateTextures(GL_TEXTURE_2D, 1, &DepthPyramidBuffer);
 		glTextureStorage2D(DepthPyramidBuffer, Levels, GL_R32F, ScreenWidth, ScreenHeight);
 		glTextureParameteri(DepthPyramidBuffer, GL_TEXTURE_MIN_FILTER, GL_NEAREST_MIPMAP_NEAREST);
-		glTextureParameteri(DepthPyramidBuffer, GL_TEXTURE_MAG_FILTER, GL_NEAREST_MIPMAP_NEAREST);
+		glTextureParameteri(DepthPyramidBuffer, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 		glTextureParameteri(DepthPyramidBuffer, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 		glTextureParameteri(DepthPyramidBuffer, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 		glObjectLabel(GL_TEXTURE, DepthPyramidBuffer, -1, "Depth Pyramid");
@@ -960,7 +960,7 @@ void RenderFrameGL4(int ScreenWidth, int ScreenHeight, std::vector<SDFModelWeakR
 				SDFModelShared Model = ModelWeakRef.lock();
 				if (Model)
 				{
-					Model->Draw(false, false, false, false, nullptr);
+					Model->Draw(UploadedView.CameraOrigin.xyz());
 				}
 			}
 

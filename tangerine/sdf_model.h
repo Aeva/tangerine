@@ -34,6 +34,7 @@ using SDFModelWeakRef = std::weak_ptr<SDFModel>;
 
 struct Drawable
 {
+	// Used by VoxelDrawable
 	virtual void Draw(
 		const bool ShowOctree,
 		const bool ShowLeafCount,
@@ -41,6 +42,12 @@ struct Drawable
 		const bool Wireframe,
 		struct ShaderProgram* DebugShader) = 0;
 
+	// Used by SodapopDrawable for GL4
+	virtual void Draw(
+		glm::vec3 CameraOrigin,
+		SDFModel* Instance) = 0;
+
+	// Used by SodapopDrawable for ES2
 	virtual void Draw(
 		glm::vec3 CameraOrigin,
 		const int PositionBinding,
@@ -79,6 +86,13 @@ struct VoxelDrawable final : Drawable
 
 	virtual void Draw(
 		glm::vec3 CameraOrigin,
+		SDFModel* Instance)
+	{
+		// Unused
+	};
+
+	virtual void Draw(
+		glm::vec3 CameraOrigin,
 		const int PositionBinding,
 		const int ColorBinding,
 		SDFModel* Instance)
@@ -105,7 +119,6 @@ struct SodapopDrawable final : Drawable
 
 	Buffer IndexBuffer;
 	Buffer PositionBuffer;
-	Buffer ColorBuffer;
 
 	std::vector<uint32_t> Indices;
 	std::vector<glm::vec4> Positions;
@@ -126,7 +139,14 @@ struct SodapopDrawable final : Drawable
 		const bool ShowLeafCount,
 		const bool ShowHeatmap,
 		const bool Wireframe,
-		struct ShaderProgram* DebugShader);
+		struct ShaderProgram* DebugShader)
+	{
+		// Unused;
+	}
+
+	virtual void Draw(
+		glm::vec3 CameraOrigin,
+		SDFModel* Instance);
 
 	virtual void Draw(
 		glm::vec3 CameraOrigin,
@@ -160,8 +180,10 @@ struct SDFModel
 	glm::vec3 CameraOrigin = glm::vec3(0.0, 0.0, 0.0);
 	std::vector<glm::vec4> Colors;
 	std::mutex SodapopCS;
+	Buffer ColorBuffer;
 #endif // RENDERER_SODAPOP
 
+	// Used by VoxelDrawable
 	void Draw(
 		const bool ShowOctree,
 		const bool ShowLeafCount,
@@ -169,6 +191,10 @@ struct SDFModel
 		const bool Wireframe,
 		struct ShaderProgram* DebugShader);
 
+	// Used by SodapopDrawable for GL4
+	void Draw(glm::vec3 CameraOrigin);
+
+	// Used by SodapopDrawable for ES2
 	void Draw(
 		glm::vec3 CameraOrigin,
 		const int LocalToWorldBinding,

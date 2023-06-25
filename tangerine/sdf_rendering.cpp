@@ -234,31 +234,45 @@ void VoxelDrawable::Draw(
 
 #if RENDERER_SODAPOP
 void SodapopDrawable::Draw(
-	const bool ShowOctree,
-	const bool ShowLeafCount,
-	const bool ShowHeatmap,
-	const bool Wireframe,
-	ShaderProgram* DebugShader)
+	glm::vec3 CameraOrigin,
+	SDFModel* Instance)
 {
 	if (!MeshReady.load())
 	{
 		return;
 	}
+
+	Instance->Drawing.store(true);
+	Instance->SodapopCS.lock();
+
 	if (!MeshUploaded)
 	{
 		IndexBuffer.Upload(Indices.data(), Indices.size() * sizeof(uint32_t));
 		PositionBuffer.Upload(Positions.data(), Positions.size() * sizeof(glm::vec4));
-		ColorBuffer.Upload(Colors.data(), Colors.size() * sizeof(glm::vec4));
+
 		MeshUploaded = true;
 	}
+	{
+		if (!glm::all(glm::equal(Instance->CameraOrigin, CameraOrigin)))
+		{
+			Instance->CameraOrigin = CameraOrigin;
+			Instance->Dirty.store(true);
+		}
 
-	IndexBuffer.Bind(GL_SHADER_STORAGE_BUFFER, 2);
-	PositionBuffer.Bind(GL_SHADER_STORAGE_BUFFER, 3);
-	ColorBuffer.Bind(GL_SHADER_STORAGE_BUFFER, 4);
+		if (Instance->Colors.size() > 0)
+		{
+			Instance->ColorBuffer.Upload(Instance->Colors.data(), Instance->Colors.size() * sizeof(glm::vec4));
 
-	// TODO per-instance colors
+			IndexBuffer.Bind(GL_SHADER_STORAGE_BUFFER, 2);
+			PositionBuffer.Bind(GL_SHADER_STORAGE_BUFFER, 3);
+			Instance->ColorBuffer.Bind(GL_SHADER_STORAGE_BUFFER, 4);
 
-	glDrawArrays(GL_TRIANGLES, 0, Indices.size());
+			glDrawArrays(GL_TRIANGLES, 0, Indices.size());
+		}
+	}
+
+	Instance->Drawing.store(false);
+	Instance->SodapopCS.unlock();
 }
 
 
@@ -297,8 +311,8 @@ void SodapopDrawable::Draw(
 			PositionBuffer.Bind(GL_ARRAY_BUFFER);
 			glVertexAttribPointer(PositionBinding, 4, GL_FLOAT, GL_FALSE, 0, nullptr);
 
-			ColorBuffer.Upload(GL_ARRAY_BUFFER, GL_DYNAMIC_DRAW, Instance->Colors.data(), Instance->Colors.size() * sizeof(glm::vec4));
-			ColorBuffer.Bind(GL_ARRAY_BUFFER);
+			Instance->ColorBuffer.Upload(GL_ARRAY_BUFFER, GL_DYNAMIC_DRAW, Instance->Colors.data(), Instance->Colors.size() * sizeof(glm::vec4));
+			Instance->ColorBuffer.Bind(GL_ARRAY_BUFFER);
 			glVertexAttribPointer(ColorBinding, 4, GL_FLOAT, GL_FALSE, 0, nullptr);
 
 			glDrawElements(GL_TRIANGLES, Indices.size(), GL_UNSIGNED_INT, nullptr);
@@ -332,6 +346,26 @@ void SDFModel::Draw(
 	TransformBuffer.Bind(GL_UNIFORM_BUFFER, 1);
 
 	Painter->Draw(ShowOctree, ShowLeafCount, ShowHeatmap, Wireframe, DebugShader);
+}
+
+
+void SDFModel::Draw(
+	glm::vec3 CameraOrigin)
+{
+	if (!Visible || !Painter)
+	{
+		return;
+	}
+
+	Transform.Fold();
+	TransformUpload TransformData = {
+		Transform.LastFold,
+		Transform.LastFoldInverse
+	};
+	TransformBuffer.Upload((void*)&TransformData, sizeof(TransformUpload));
+	TransformBuffer.Bind(GL_UNIFORM_BUFFER, 1);
+
+	Painter->Draw(CameraOrigin, this);
 }
 
 
