@@ -630,6 +630,21 @@ glm::mat4 GetViewToClip(int ViewportWidth, int ViewportHeight)
 }
 
 
+bool FlushPendingFileDialogTextureDeletes = false;
+std::vector<GLuint> PendingFileDialogTextureDeletes;
+
+void ProcessPendingFileDialogTextureDeletes()
+{
+	size_t Count = PendingFileDialogTextureDeletes.size();
+	if (Count > 0)
+	{
+		glDeleteTextures(Count, PendingFileDialogTextureDeletes.data());
+		PendingFileDialogTextureDeletes.clear();
+		FlushPendingFileDialogTextureDeletes = false;
+	}
+}
+
+
 int MouseMotionX = 0;
 int MouseMotionY = 0;
 int MouseMotionZ = 0;
@@ -1328,6 +1343,7 @@ void OpenModel()
 		Filter = fmt::format("{}{}.*", Filter, Separator);
 	}
 
+	FlushPendingFileDialogTextureDeletes = false;
 	ifd::FileDialog::Instance().Open("OpenModelDialog", "Open a model", Filter, false, LastOpenDir.string());
 }
 
@@ -1437,6 +1453,7 @@ void RenderUI(SDL_Window* Window, bool& Live)
 			}
 			if (ImGui::MenuItem("Export As...", nullptr, false, TreeEvaluator != nullptr))
 			{
+				FlushPendingFileDialogTextureDeletes = false;
 				ifd::FileDialog::Instance().Save(
 					"ModelExportDialog",
 					"Export Model",
@@ -1596,6 +1613,7 @@ void RenderUI(SDL_Window* Window, bool& Live)
 		{
 			if (ifd::FileDialog::Instance().HasResult())
 			{
+				FlushPendingFileDialogTextureDeletes = true;
 				const std::vector<std::filesystem::path>& Results = ifd::FileDialog::Instance().GetResults();
 				Assert(Results.size() == 1);
 				const std::string Path = Results[0].string();
@@ -1609,6 +1627,7 @@ void RenderUI(SDL_Window* Window, bool& Live)
 		{
 			if (ifd::FileDialog::Instance().HasResult())
 			{
+				FlushPendingFileDialogTextureDeletes = true;
 				const std::vector<std::filesystem::path>& Results = ifd::FileDialog::Instance().GetResults();
 				Assert(Results.size() == 1);
 				ExportPath = Results[0].string();
@@ -2349,8 +2368,14 @@ StatusCode Boot(int argc, char* argv[])
 			};
 			ifd::FileDialog::Instance().DeleteTexture = [](void* OpaqueHandle)
 			{
+				// HACK: ImFileDialog recommends just calling glDeleteTextures here.  If we actually did that,
+				// the texture would be deleted while it is still in use, causing icons to get corrupted and
+				// GL errors to be logged.  This problem might be due to ImFileDialog being written with
+				// assumptions about Dear Imgui that are no longer true.
+				// Regardless of why ImFileDialog is like this, we work around the problem by simply letting the
+				// textures persist until the frame after the file dialog box has closed.
 				GLuint Texture = (GLuint)((uintptr_t)OpaqueHandle);
-				glDeleteTextures(1, &Texture);
+				PendingFileDialogTextureDeletes.push_back(Texture);
 			};
 		}
 
@@ -2458,6 +2483,7 @@ void Teardown()
 				ImGui_ImplOpenGL3_Shutdown();
 				ImGui_ImplSDL2_Shutdown();
 				ImGui::DestroyContext();
+				ProcessPendingFileDialogTextureDeletes();
 			}
 		}
 		TeardownGL();
@@ -2747,6 +2773,10 @@ void MainLoop()
 						}
 #endif // RENDERER_COMPILER
 						EndEvent();
+					}
+					if (FlushPendingFileDialogTextureDeletes)
+					{
+						ProcessPendingFileDialogTextureDeletes();
 					}
 				}
 				{
