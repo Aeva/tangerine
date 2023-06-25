@@ -272,7 +272,7 @@
     <ClInclude Include="..\tangerine\sodapop.h" />
     <ClInclude Include="..\tangerine\tangerine.h" />
     <ClInclude Include="..\tangerine\threadpool.h" />
-    <ClInclude Include="..\third_party\glm\glm.hpp" />
+    <ClInclude Include="..\third_party\glm-0.9.9.8\glm\glm.hpp" />
     <ClInclude Include="..\third_party\ImFileDialog\ImFileDialog.h" />
     <ClInclude Include="..\third_party\imgui\backends\imgui_impl_opengl3.h" />
     <ClInclude Include="..\third_party\imgui\backends\imgui_impl_opengl3_loader.h" />

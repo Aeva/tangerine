@@ -266,9 +266,6 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\third_party\glm\glm.hpp">
-      <Filter>Third Party\GLM</Filter>
-    </ClInclude>
     <ClInclude Include="..\shaders\defines.h">
       <Filter>Shaders</Filter>
     </ClInclude>
@@ -548,6 +545,9 @@
     </ClInclude>
     <ClInclude Include="..\tangerine\gl_init.h">
       <Filter>Tangerine</Filter>
+    </ClInclude>
+    <ClInclude Include="..\third_party\glm-0.9.9.8\glm\glm.hpp">
+      <Filter>Third Party\GLM</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
