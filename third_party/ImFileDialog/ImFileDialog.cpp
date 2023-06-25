@@ -181,7 +181,9 @@ namespace ifd {
 							newPath += "/";
 #endif
 					}
-					path = std::filesystem::u8path(newPath);
+// BEGIN TANGERINE MOD - C++ 20 conversion
+					path = std::filesystem::path(newPath);
+// END TANGERINE MOD - C++ 20 conversion
 					ret = true;
 				}
 				anyOtherHC |= ImGui::IsItemHovered() | ImGui::IsItemClicked();
@@ -228,7 +230,9 @@ namespace ifd {
 			if (ImGui::InputTextEx("##pathbox_input", "", pathBuffer, 1024, size_arg, ImGuiInputTextFlags_EnterReturnsTrue)) {
 				std::string tempStr(pathBuffer);
 				if (std::filesystem::exists(tempStr))
-					path = std::filesystem::u8path(tempStr); 
+// BEGIN TANGERINE MOD - C++ 20 conversion
+					path = std::filesystem::path(tempStr); 
+// END TANGERINE MOD - C++ 20 conversion
 				ret = true;
 			}
 			if (!skipActiveCheck && !ImGui::IsItemActive())
@@ -482,7 +486,9 @@ namespace ifd {
 
 		m_parseFilter(filter);
 		if (!startingDir.empty())
-			m_setDirectory(std::filesystem::u8path(startingDir), false);
+// BEGIN TANGERINE MOD - C++ 20 conversion
+			m_setDirectory(std::filesystem::path(startingDir), false);
+// END TANGERINE MOD - C++ 20 conversion
 		else
 			m_setDirectory(m_currentDirectory, false); // refresh contents
 
@@ -506,7 +512,9 @@ namespace ifd {
 
 		m_parseFilter(filter);
 		if (!startingDir.empty())
-			m_setDirectory(std::filesystem::u8path(startingDir), false);
+// BEGIN TANGERINE MOD - C++ 20 conversion
+			m_setDirectory(std::filesystem::path(startingDir), false);
+// END TANGERINE MOD - C++ 20 conversion
 		else
 			m_setDirectory(m_currentDirectory, false); // refresh contents
 
@@ -578,7 +586,9 @@ namespace ifd {
 		if (std::count(m_favorites.begin(), m_favorites.end(), path) > 0)
 			return;
 
-		if (!std::filesystem::exists(std::filesystem::u8path(path)))
+// BEGIN TANGERINE MOD - C++ 20 conversion
+		if (!std::filesystem::exists(std::filesystem::path(path)))
+// END TANGERINE MOD - C++ 20 conversion
 			return;
 
 		m_favorites.push_back(path);
@@ -640,7 +650,9 @@ namespace ifd {
 		
 		if (hasResult) {
 			if (!m_isMultiselect || m_selections.size() <= 1) {
-				std::filesystem::path path = std::filesystem::u8path(filename);
+// BEGIN TANGERINE MOD - C++ 20 conversion
+				std::filesystem::path path = std::filesystem::path(filename);
+// END TANGERINE MOD - C++ 20 conversion
 				if (path.is_absolute()) m_result.push_back(path);
 				else m_result.push_back(m_currentDirectory / path);
 				if (m_type == IFD_DIALOG_DIRECTORY || m_type == IFD_DIALOG_FILE) {
@@ -733,10 +745,12 @@ namespace ifd {
 	void* FileDialog::m_getIcon(const std::filesystem::path& path)
 	{
 #ifdef _WIN32
-		if (m_icons.count(path.u8string()) > 0)
-			return m_icons[path.u8string()];
+// BEGIN TANGERINE MOD - C++ 20 conversion
+		if (m_icons.count(path.string()) > 0)
+			return m_icons[path.string()];
 
-		std::string pathU8 = path.u8string();
+		std::string pathU8 = path.string();
+// END TANGERINE MOD - C++ 20 conversion
 
 		std::error_code ec;
 		m_icons[pathU8] = nullptr;
@@ -959,8 +973,10 @@ namespace ifd {
 		m_currentDirectory = p;
 #ifdef _WIN32
 		// drives don't work well without the backslash symbol
-		if (p.u8string().size() == 2 && p.u8string()[1] == ':')
-			m_currentDirectory = std::filesystem::u8path(p.u8string() + "\\");
+// BEGIN TANGERINE MOD - C++ 20 conversion
+		if (p.string().size() == 2 && p.string()[1] == ':')
+			m_currentDirectory = std::filesystem::path(p.string() + "\\");
+// END TANGERINE MOD - C++ 20 conversion
 #endif
 
 		m_clearIconPreview();

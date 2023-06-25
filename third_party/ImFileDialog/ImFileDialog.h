@@ -60,7 +60,9 @@ namespace ifd {
 #endif
 
 			FileTreeNode(const std::string& path) {
-				Path = std::filesystem::u8path(path);
+// BEGIN TANGERINE MOD - C++ 20 conversion
+				Path = std::filesystem::path(path);
+// END TANGERINE MOD - C++ 20 conversion
 				Read = false;
 			}
 
