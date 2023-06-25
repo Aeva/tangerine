@@ -43,6 +43,13 @@ static std::mutex OutboxCS;
 static std::deque<AsyncTask*> Outbox;
 
 
+int Scheduler::GetThreadIndex()
+{
+	Assert(ThreadIndex > -1);
+	return ThreadIndex;
+}
+
+
 template <bool DedicatedThread>
 void WorkerThread(const int InThreadIndex)
 {
@@ -135,12 +142,14 @@ bool Scheduler::Live()
 }
 
 
-void Scheduler::Enqueue(AsyncTask* Task, bool IsFence)
+void Scheduler::Enqueue(AsyncTask* Task, bool IsFence, bool Unstoppable)
 {
 	Assert(ThreadIndex == 0);
 	Assert(State.load());
+	Assert(Unstoppable == IsFence || Unstoppable == false);
 	{
 		Task->IsFence = IsFence;
+		Task->Unstoppable = IsFence && Unstoppable;
 		InboxCS.lock();
 		Inbox.push_back(Task);
 		InboxCS.unlock();
@@ -199,12 +208,33 @@ void DiscardInbox()
 	Assert(ThreadIndex == 0);
 
 	InboxCS.lock();
-	for (AsyncTask* Task : Inbox)
+
+	AsyncTask* Task = nullptr;
+	while (Inbox.size() > 0)
 	{
-		Task->Abort();
-		delete Task;
+		Task = Inbox.front();
+		Inbox.pop_front();
+
+		if (Task->Unstoppable)
+		{
+			// This task requires the worker threads to all be blocked on InboxCS before it can be safely ran.
+			while (InboxFence.load() < Pool.size())
+			{
+				std::this_thread::yield();
+			}
+
+			Task->Run();
+
+			// Locking OutboxCS here should not be necessary, because the entire thread pool is still blocked on InboxCS.
+			Outbox.push_back(Task);
+		}
+		else
+		{
+			Task->Abort();
+			delete Task;
+		}
 	}
-	Inbox.clear();
+
 	InboxCS.unlock();
 }
 
@@ -216,7 +246,14 @@ void DiscardOutbox()
 	OutboxCS.lock();
 	for (AsyncTask* Task : Outbox)
 	{
-		Task->Abort();
+		if (Task->Unstoppable)
+		{
+			Task->Done();
+		}
+		else
+		{
+			Task->Abort();
+		}
 		delete Task;
 	}
 	Outbox.clear();

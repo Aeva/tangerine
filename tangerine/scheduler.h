@@ -27,11 +27,14 @@ struct AsyncTask
 
 	// This will be set by Scheduler::Enqueue.
 	bool IsFence = false;
+	bool Unstoppable = false;
 };
 
 
 namespace Scheduler
 {
+	int GetThreadIndex();
+
 	void Setup(const bool ForceSingleThread);
 	void Teardown();
 	void Advance();
@@ -40,5 +43,5 @@ namespace Scheduler
 	std::atomic_bool& GetState();
 
 	bool Live();
-	void Enqueue(AsyncTask* Task, bool IsFence = false);
+	void Enqueue(AsyncTask* Task, bool IsFence = false, bool Unstoppable = false);
 }

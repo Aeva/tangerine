@@ -1228,6 +1228,7 @@ void LoadModel(std::string Path, Language Runtime)
 	}
 	if (Path.size() > 0)
 	{
+		UnloadAllModels();
 		CreateScriptEnvironment(Runtime);
 		LastPath = Path;
 		MainEnvironment->LoadFromPath(Path);
@@ -2523,8 +2524,12 @@ void MainLoop()
 				}
 
 				static ViewInfoUpload LastView;
-				static std::vector<SDFModelWeakRef> IncompleteModels;
-				static std::vector<SDFModelWeakRef> RenderableModels;
+
+				static int LastIncompleteCount = 0;
+				std::vector<SDFModelWeakRef> IncompleteModels;
+
+				static int LastRenderableCount = 0;
+				std::vector<SDFModelWeakRef> RenderableModels;
 
 				static glm::vec3 MouseRay(0.0, 1.0, 0.0);
 				static glm::vec3 RayOrigin(0.0, 0.0, 0.0);
@@ -2536,7 +2541,7 @@ void MainLoop()
 				static bool LastExportState = false;
 				bool ExportInProgress = GetExportProgress().Stage != 0;
 
-				bool RequestDraw = RealtimeMode || ShowStatsOverlay || RenderableModels.size() == 0 || IncompleteModels.size() > 0 || LastExportState != ExportInProgress;
+				bool RequestDraw = RealtimeMode || ShowStatsOverlay || LastRenderableCount == 0 || LastIncompleteCount > 0 || LastExportState != ExportInProgress;
 				LastExportState = ExportInProgress;
 
 				BeginEvent("Process Input");
@@ -2554,7 +2559,7 @@ void MainLoop()
 						RequestDraw = true;
 					}
 					static bool Dragging = false;
-					if (!io.WantCaptureMouse && HasMouseFocus && RenderableModels.size() > 0)
+					if (!io.WantCaptureMouse && HasMouseFocus && LastRenderableCount > 0)
 					{
 						switch (Event.type)
 						{
@@ -2706,6 +2711,7 @@ void MainLoop()
 					}
 					{
 						GetIncompleteModels(IncompleteModels);
+						LastIncompleteCount = IncompleteModels.size();
 #if RENDERER_COMPILER
 						if (CurrentRenderer == Renderer::ShapeCompiler)
 						{
@@ -2716,6 +2722,7 @@ void MainLoop()
 						}
 #endif
 						GetRenderableModels(RenderableModels);
+						LastRenderableCount = RenderableModels.size();
 					}
 					{
 						RenderFrame(ScreenWidth, ScreenHeight, RenderableModels, LastView, RequestDraw);

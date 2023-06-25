@@ -40,6 +40,16 @@ struct MeshingJob : AsyncTask
 };
 
 
+struct DetachJob : AsyncTask
+{
+	size_t Key;
+	SDFModelShared Instance;
+	virtual void Run();
+	virtual void Done();
+	virtual void Abort();
+};
+
+
 void Sodapop::Populate(SodapopDrawableShared Painter)
 {
 	MeshingJob* Task = new MeshingJob();
@@ -246,6 +256,42 @@ void Sodapop::Attach(SDFModelShared& Instance)
 		}
 	}
 	AttachedModelsCS.unlock();
+}
+
+
+void Sodapop::Detach(SDFModelShared& Instance)
+{
+	DetachJob* Task = new DetachJob();
+	Task->Key = (size_t)(Instance.get());
+	Task->Instance = Instance;
+
+	Scheduler::Enqueue(Task, true, true);
+}
+
+
+void DetachJob::Run()
+{
+	AttachedModelsCS.lock();
+	{
+		size_t Key = (size_t)(Instance.get());
+		AttachedModels.erase(Key);
+	}
+	AttachedModelsCS.unlock();
+}
+
+
+void DetachJob::Done()
+{
+	Instance.reset();
+}
+
+
+void DetachJob::Abort()
+{
+	// This task isn't safe to abort, because it is meant to ensure that SDFModels aren't destructed
+	// by worker threads, because of OpenGL's lack of thread safety.  If this ensure trips, then
+	// the task was not correctly scheduled as unstoppable or something is broken in the scheduler.
+	Assert(false);
 }
 
 
