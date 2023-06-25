@@ -2339,10 +2339,19 @@ StatusCode Boot(int argc, char* argv[])
 		{
 			ifd::FileDialog::Instance().CreateTexture = [&](uint8_t* Data, int Width, int Height, char Format) -> void*
 			{
+				bool NeedsDelete = false;
 				if (GraphicsBackend == GraphicsAPI::OpenGLES2 && Format == 0)
 				{
 					// Swizzle BGRA data to RGBA to prevent errors in ES2.
+
 					const size_t Texels = Width * Height;
+					{
+						// Copy to prevent segfault on Linux.
+						const size_t Bytes = Texels * 4;
+						Data = (uint8_t*)memcpy(malloc(Bytes), Data, Bytes);
+						NeedsDelete = true;
+					}
+
 					for (int Texel = 0; Texel < Texels; ++Texel)
 					{
 						const size_t ByteOffset = Texel * 4;
@@ -2365,6 +2374,11 @@ StatusCode Boot(int argc, char* argv[])
 				glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, Width, Height, 0, (Format == 0) ? GL_BGRA : GL_RGBA, GL_UNSIGNED_BYTE, Data);
 				glGenerateMipmap(GL_TEXTURE_2D);
 				glBindTexture(GL_TEXTURE_2D, 0);
+
+				if (NeedsDelete)
+				{
+					free(Data);
+				}
 				return (void*)(size_t(Texture));
 			};
 			ifd::FileDialog::Instance().DeleteTexture = [](void* OpaqueHandle)
