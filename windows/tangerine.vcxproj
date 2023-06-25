@@ -126,8 +126,8 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;IMGUI_USE_WCHAR32;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>$(SolutionDir)..\third_party\fmt\include;$(SolutionDir)..\third_party\imgui;$(SolutionDir)..\third_party\imgui\backends;$(SolutionDir)..\third_party\sdl2\include;$(SolutionDir)..\third_party\racket\include;$(SolutionDir)..\third_party\lua-5.4.4;$(SolutionDir)..\third_party\stb;$(SolutionDir)..\third_party\ImFileDialog;$(SolutionDir)..\third_party\whereami\src;$(SolutionDir)..\third_party\naive-surface-nets\include;$(SolutionDir)..\third_party</AdditionalIncludeDirectories>
-      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>$(SolutionDir)..\third_party\fmt\include;$(SolutionDir)..\third_party\imgui;$(SolutionDir)..\third_party\imgui\backends;$(SolutionDir)..\third_party\sdl2\include;$(SolutionDir)..\third_party\racket\include;$(SolutionDir)..\third_party\lua-5.4.4;$(SolutionDir)..\third_party\stb;$(SolutionDir)..\third_party\ImFileDialog;$(SolutionDir)..\third_party\whereami\src;$(SolutionDir)..\third_party\naive-surface-nets\include;$(SolutionDir)..\third_party\glm-0.9.9.8;$(SolutionDir)..\third_party\glad\include;$(SolutionDir)..\third_party\voxwriter;$(SolutionDir)..\third_party\</AdditionalIncludeDirectories>
+      <LanguageStandard>stdcpp20</LanguageStandard>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
     </ClCompile>
     <Link>
@@ -152,8 +152,8 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;IMGUI_USE_WCHAR32;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>$(SolutionDir)..\third_party\fmt\include;$(SolutionDir)..\third_party\imgui;$(SolutionDir)..\third_party\imgui\backends;$(SolutionDir)..\third_party\sdl2\include;$(SolutionDir)..\third_party\racket\include;$(SolutionDir)..\third_party\lua-5.4.4;$(SolutionDir)..\third_party\stb;$(SolutionDir)..\third_party\ImFileDialog;$(SolutionDir)..\third_party\whereami\src;$(SolutionDir)..\third_party\naive-surface-nets\include;$(SolutionDir)..\third_party</AdditionalIncludeDirectories>
-      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>$(SolutionDir)..\third_party\fmt\include;$(SolutionDir)..\third_party\imgui;$(SolutionDir)..\third_party\imgui\backends;$(SolutionDir)..\third_party\sdl2\include;$(SolutionDir)..\third_party\racket\include;$(SolutionDir)..\third_party\lua-5.4.4;$(SolutionDir)..\third_party\stb;$(SolutionDir)..\third_party\ImFileDialog;$(SolutionDir)..\third_party\whereami\src;$(SolutionDir)..\third_party\naive-surface-nets\include;$(SolutionDir)..\third_party\glm-0.9.9.8;$(SolutionDir)..\third_party\glad\include;$(SolutionDir)..\third_party\voxwriter;$(SolutionDir)..\third_party\</AdditionalIncludeDirectories>
+      <LanguageStandard>stdcpp20</LanguageStandard>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
     </ClCompile>
     <Link>
@@ -180,6 +180,7 @@
     <ClCompile Include="..\tangerine\gl_async.cpp" />
     <ClCompile Include="..\tangerine\gl_boilerplate.cpp" />
     <ClCompile Include="..\tangerine\gl_debug.cpp" />
+    <ClCompile Include="..\tangerine\gl_init.cpp" />
     <ClCompile Include="..\tangerine\installation.cpp" />
     <ClCompile Include="..\tangerine\lua_env.cpp" />
     <ClCompile Include="..\tangerine\lua_sdf.cpp" />
@@ -187,15 +188,16 @@
     <ClCompile Include="..\tangerine\magica.cpp" />
     <ClCompile Include="..\tangerine\profiling.cpp" />
     <ClCompile Include="..\tangerine\racket_env.cpp" />
+    <ClCompile Include="..\tangerine\scheduler.cpp" />
     <ClCompile Include="..\tangerine\sdf_evaluator.cpp" />
     <ClCompile Include="..\tangerine\sdf_model.cpp" />
     <ClCompile Include="..\tangerine\sdf_rendering.cpp" />
     <ClCompile Include="..\tangerine\shape_compiler.cpp" />
+    <ClCompile Include="..\tangerine\sodapop.cpp" />
     <ClCompile Include="..\tangerine\tangerine.cpp" />
     <ClCompile Include="..\tangerine\threadpool.cpp" />
     <ClCompile Include="..\third_party\fmt\src\format.cc" />
-    <ClCompile Include="..\third_party\glad\glad.c" />
-    <ClCompile Include="..\third_party\glad\glad_wgl.c" />
+    <ClCompile Include="..\third_party\glad\src\gl.c" />
     <ClCompile Include="..\third_party\ImFileDialog\ImFileDialog.cpp" />
     <ClCompile Include="..\third_party\imgui\backends\imgui_impl_opengl3.cpp" />
     <ClCompile Include="..\third_party\imgui\backends\imgui_impl_sdl.cpp" />
@@ -254,6 +256,7 @@
     <ClInclude Include="..\tangerine\gl_async.h" />
     <ClInclude Include="..\tangerine\gl_boilerplate.h" />
     <ClInclude Include="..\tangerine\gl_debug.h" />
+    <ClInclude Include="..\tangerine\gl_init.h" />
     <ClInclude Include="..\tangerine\installation.h" />
     <ClInclude Include="..\tangerine\lua_env.h" />
     <ClInclude Include="..\tangerine\lua_sdf.h" />
@@ -261,15 +264,14 @@
     <ClInclude Include="..\tangerine\magica.h" />
     <ClInclude Include="..\tangerine\profiling.h" />
     <ClInclude Include="..\tangerine\racket_env.h" />
+    <ClInclude Include="..\tangerine\scheduler.h" />
     <ClInclude Include="..\tangerine\sdf_evaluator.h" />
     <ClInclude Include="..\tangerine\sdf_model.h" />
     <ClInclude Include="..\tangerine\sdf_rendering.h" />
     <ClInclude Include="..\tangerine\shape_compiler.h" />
+    <ClInclude Include="..\tangerine\sodapop.h" />
     <ClInclude Include="..\tangerine\tangerine.h" />
     <ClInclude Include="..\tangerine\threadpool.h" />
-    <ClInclude Include="..\third_party\glad\glad.h" />
-    <ClInclude Include="..\third_party\glad\glad_wgl.h" />
-    <ClInclude Include="..\third_party\glad\khrplatform.h" />
     <ClInclude Include="..\third_party\glm\glm.hpp" />
     <ClInclude Include="..\third_party\ImFileDialog\ImFileDialog.h" />
     <ClInclude Include="..\third_party\imgui\backends\imgui_impl_opengl3.h" />

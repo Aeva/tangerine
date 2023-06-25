@@ -51,12 +51,6 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\third_party\glad\glad.c">
-      <Filter>Third Party\Glad</Filter>
-    </ClCompile>
-    <ClCompile Include="..\third_party\glad\glad_wgl.c">
-      <Filter>Third Party\Glad</Filter>
-    </ClCompile>
     <ClCompile Include="..\third_party\imgui\backends\imgui_impl_opengl3.cpp">
       <Filter>Third Party\Dear ImGui</Filter>
     </ClCompile>
@@ -258,19 +252,22 @@
     <ClCompile Include="..\third_party\naive-surface-nets\src\surface_nets.cpp">
       <Filter>Third Party\naive-surface-nets</Filter>
     </ClCompile>
+    <ClCompile Include="..\third_party\glad\src\gl.c">
+      <Filter>Third Party\Glad</Filter>
+    </ClCompile>
+    <ClCompile Include="..\tangerine\scheduler.cpp">
+      <Filter>Tangerine</Filter>
+    </ClCompile>
+    <ClCompile Include="..\tangerine\sodapop.cpp">
+      <Filter>Tangerine</Filter>
+    </ClCompile>
+    <ClCompile Include="..\tangerine\gl_init.cpp">
+      <Filter>Tangerine</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\third_party\glad\glad.h">
-      <Filter>Third Party\Glad</Filter>
-    </ClInclude>
-    <ClInclude Include="..\third_party\glad\khrplatform.h">
-      <Filter>Third Party\Glad</Filter>
-    </ClInclude>
     <ClInclude Include="..\third_party\glm\glm.hpp">
       <Filter>Third Party\GLM</Filter>
-    </ClInclude>
-    <ClInclude Include="..\third_party\glad\glad_wgl.h">
-      <Filter>Third Party\Glad</Filter>
     </ClInclude>
     <ClInclude Include="..\shaders\defines.h">
       <Filter>Shaders</Filter>
@@ -542,6 +539,15 @@
     </ClInclude>
     <ClInclude Include="..\third_party\naive-surface-nets\include\triangle.h">
       <Filter>Third Party\naive-surface-nets</Filter>
+    </ClInclude>
+    <ClInclude Include="..\tangerine\scheduler.h">
+      <Filter>Tangerine</Filter>
+    </ClInclude>
+    <ClInclude Include="..\tangerine\sodapop.h">
+      <Filter>Tangerine</Filter>
+    </ClInclude>
+    <ClInclude Include="..\tangerine\gl_init.h">
+      <Filter>Tangerine</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
