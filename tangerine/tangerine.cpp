@@ -2317,8 +2317,24 @@ StatusCode Boot(int argc, char* argv[])
 
 		// Required by ImFileDialog
 		{
-			ifd::FileDialog::Instance().CreateTexture = [](uint8_t* Data, int Width, int Height, char Format) -> void*
+			ifd::FileDialog::Instance().CreateTexture = [&](uint8_t* Data, int Width, int Height, char Format) -> void*
 			{
+				if (GraphicsBackend == GraphicsAPI::OpenGLES2 && Format == 0)
+				{
+					// Swizzle BGRA data to RGBA to prevent errors in ES2.
+					const size_t Texels = Width * Height;
+					for (int Texel = 0; Texel < Texels; ++Texel)
+					{
+						const size_t ByteOffset = Texel * 4;
+						uint8_t& B = Data[ByteOffset + 0];
+						uint8_t& R = Data[ByteOffset + 2];
+						B = B ^ R;
+						R = B ^ R;
+						B = B ^ R;
+					}
+					Format = 1;
+				}
+
 				GLuint Texture;
 				glGenTextures(1, &Texture);
 				glBindTexture(GL_TEXTURE_2D, Texture);
