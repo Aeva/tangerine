@@ -98,9 +98,14 @@ void WorkerThread(const int InThreadIndex)
 		}
 		else
 		{
+#if MULTI_RENDERER
+			if (CurrentRenderer == Renderer::Sodapop)
+#endif // MULTI_RENDERER
 #if RENDERER_SODAPOP
-			Sodapop::Hammer();
-#endif
+			{
+				Sodapop::Hammer();
+			}
+#endif // RENDERER_SODAPOP
 			if (DedicatedThread)
 			{
 				std::this_thread::yield();

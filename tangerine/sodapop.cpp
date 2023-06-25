@@ -233,13 +233,17 @@ void Sodapop::Attach(SDFModelShared& Instance)
 {
 	AttachedModelsCS.lock();
 	{
-		Attachments Record = \
+		SodapopDrawableShared SodapopPainter = std::dynamic_pointer_cast<SodapopDrawable>(Instance->Painter);
+		if (SodapopPainter)
 		{
-			Instance,
-			std::static_pointer_cast<SodapopDrawable>(Instance->Painter)
-		};
-		size_t Key = (size_t)(Instance.get());
-		auto Result = AttachedModels.insert(std::pair{Key, Record});
+			Attachments Record = \
+			{
+				Instance,
+				SodapopPainter
+			};
+			size_t Key = (size_t)(Instance.get());
+			auto Result = AttachedModels.insert(std::pair{Key, Record});
+		}
 	}
 	AttachedModelsCS.unlock();
 }
@@ -247,6 +251,9 @@ void Sodapop::Attach(SDFModelShared& Instance)
 
 bool GetNextModel(SDFModelShared& Instance, SodapopDrawableShared& Painter)
 {
+	Instance.reset();
+	Painter.reset();
+
 	AttachedModelsCS.lock();
 
 	while (true)

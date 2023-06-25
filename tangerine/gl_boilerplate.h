@@ -82,6 +82,7 @@ struct Buffer
 	size_t LastSize;
 	Buffer(Buffer&& OldBuffer);
 	Buffer(const Buffer& CopySource) = delete;
+	Buffer& operator=(const Buffer& Other) = delete;
 	Buffer(const char* InDebugName = nullptr);
 	~Buffer();
 	void Release();
