@@ -795,12 +795,19 @@ LuaModelShared LuaModel::Create(lua_State* L, SDFNodeShared& InEvaluator, const 
 }
 
 
-LuaModel::~LuaModel()
+void LuaModel::OnGarbageCollected()
 {
 	for (int i = 0; i < MOUSE_EVENTS; ++i)
 	{
 		luaL_unref(Env->L, LUA_REGISTRYINDEX, MouseCallbackRefs[i]);
 	}
+	Env = nullptr;
+}
+
+
+LuaModel::~LuaModel()
+{
+	Assert(Env == nullptr);
 }
 
 
@@ -1065,8 +1072,9 @@ int IndexSDFModel(lua_State* L)
 
 int SDFModelGC(lua_State* L)
 {
-	LuaModelShared* Self = GetSDFModel(L, 1);
-	Self->reset();
+	LuaModelShared& Self = *GetSDFModel(L, 1);
+	Self->OnGarbageCollected();
+	Self.reset();
 	return 0;
 }
 

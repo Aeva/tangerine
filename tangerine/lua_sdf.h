@@ -32,6 +32,7 @@ struct LuaModel : public SDFModel
 	int MouseCallbackRefs[MOUSE_EVENTS];
 
 	static LuaModelShared Create(lua_State* L, SDFNodeShared& InEvaluator, const float VoxelSize = 0.25);
+	void OnGarbageCollected();
 	virtual ~LuaModel();
 	virtual void OnMouseEvent(MouseEvent& Event, bool Picked);
 
