@@ -25,6 +25,7 @@
 #include <vector>
 #include <chrono>
 
+
 using Clock = std::chrono::high_resolution_clock;
 
 
@@ -140,6 +141,10 @@ void WorkerThread(const int InThreadIndex)
 #if RENDERER_SODAPOP
 			{
 				Sodapop::Hammer();
+			}
+			else if (DedicatedThread)
+			{
+				std::this_thread::sleep_for(std::chrono::milliseconds(4));
 			}
 #endif // RENDERER_SODAPOP
 			if (DedicatedThread)
