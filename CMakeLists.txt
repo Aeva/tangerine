@@ -92,6 +92,12 @@ target_include_directories(glad PUBLIC "third_party/glad/include")
 add_subdirectory("third_party/glm-0.9.9.8/")
 
 #######################################################################
+## atomic_queue:
+
+add_library(atomic_queue INTERFACE)
+target_include_directories(atomic_queue INTERFACE "third_party/atomic_queue/include/")
+
+#######################################################################
 ## ImGui:
 
 file(GLOB TANGERINE_IMGUI_FILES CONFIGURE_DEPENDS
@@ -170,6 +176,7 @@ target_link_libraries(tangerine PRIVATE
 	fmt
 	glad
 	glm
+	atomic_queue
 	imgui
 	ImFileDialog
 	NaiveSurfaceNets
