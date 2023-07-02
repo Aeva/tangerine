@@ -30,7 +30,6 @@ namespace Sodapop
 {
 	void Populate(SodapopDrawableShared MeshPainter);
 	void Attach(SDFModelShared& Instance);
-	void Detach(SDFModelShared& Instance);
 	void Hammer();
 }
 

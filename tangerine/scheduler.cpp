@@ -21,12 +21,8 @@
 #include <fmt/format.h>
 
 #include <atomic>
-#include <mutex>
 #include <thread>
-
 #include <vector>
-#include <deque>
-
 #include <chrono>
 
 using Clock = std::chrono::high_resolution_clock;
@@ -79,19 +75,16 @@ struct FinalizerTask : public DeleteTask
 };
 
 
+static AtomicQueue<AsyncTask> Inbox;
+static AtomicQueue<AsyncTask> Outbox;
 static AtomicQueue<DeleteTask> DeleteQueue;
 
-
 static std::atomic_bool State;
+static std::atomic_bool PauseThreads;
+static std::atomic_int ActiveThreads;
+
 static std::vector<std::thread> Pool;
 static thread_local int ThreadIndex = -1;
-
-static std::mutex InboxCS;
-static std::deque<AsyncTask*> Inbox;
-static std::atomic_int InboxFence = 0;
-
-static std::mutex OutboxCS;
-static std::deque<AsyncTask*> Outbox;
 
 
 int Scheduler::GetThreadIndex()
@@ -115,44 +108,29 @@ void WorkerThread(const int InThreadIndex)
 
 	Clock::time_point ThreadStart = Clock::now();
 
+	if (DedicatedThread)
+	{
+		++ActiveThreads;
+	}
+
 	while (State.load())
 	{
-		AsyncTask* Task = nullptr;
+		if (DedicatedThread && PauseThreads.load())
 		{
-			++InboxFence;
-			InboxCS.lock();
-			if (Inbox.size() > 0)
+			--ActiveThreads;
+			while (PauseThreads.load())
 			{
-				Task = Inbox.front();
-				Inbox.pop_front();
-
-				if (Task->IsFence)
-				{
-					// Wait until all thread pool threads are blocked on the inbox mutex...
-					while (InboxFence.load() < Pool.size())
-					{
-						std::this_thread::yield();
-					}
-
-					// ... then execute the task before releasing the inbox mutex.
-					Task->Run();
-				}
+				std::this_thread::yield();
+				continue;
 			}
-			--InboxFence;
-			InboxCS.unlock();
+			++ActiveThreads;
+			continue;
 		}
 
-		if (Task)
+		if (AsyncTask* Task = Inbox.TryPop())
 		{
-			if (!Task->IsFence)
-			{
-				Task->Run();
-			}
-			{
-				OutboxCS.lock();
-				Outbox.push_back(Task);
-				OutboxCS.unlock();
-			}
+			Task->Run();
+			Outbox.BlockingPush(Task);
 		}
 		else
 		{
@@ -178,6 +156,11 @@ void WorkerThread(const int InThreadIndex)
 			}
 		}
 	}
+
+	if (DedicatedThread)
+	{
+		--ActiveThreads;
+	}
 }
 
 
@@ -193,17 +176,14 @@ bool Scheduler::Live()
 }
 
 
-void Scheduler::Enqueue(AsyncTask* Task, bool IsFence, bool Unstoppable)
+void Scheduler::Enqueue(AsyncTask* Task, bool Unstoppable)
 {
 	Assert(ThreadIndex == 0);
 	Assert(State.load());
-	Assert(Unstoppable == IsFence || Unstoppable == false);
+	Assert(!PauseThreads.load());
 	{
-		Task->IsFence = IsFence;
-		Task->Unstoppable = IsFence && Unstoppable;
-		InboxCS.lock();
-		Inbox.push_back(Task);
-		InboxCS.unlock();
+		Task->Unstoppable = Unstoppable;
+		Inbox.BlockingPush(Task);
 	}
 	fmt::print("[{}] New async task\n", (void*)Task);
 }
@@ -247,23 +227,19 @@ void Scheduler::Advance()
 	FlushPendingDeletes();
 
 	Assert(State.load());
+	Assert(!PauseThreads.load());
 	{
 		if (Pool.size() == 0)
 		{
 			WorkerThread<false>(ThreadIndex);
 		}
 
-		OutboxCS.lock();
-		while (!Outbox.empty())
+		while (AsyncTask* Task = Outbox.TryPop())
 		{
-			AsyncTask* Task = Outbox.front();
-			Outbox.pop_front();
-
 			fmt::print("[{}] Async task complete\n", (void*)Task);
 			Task->Done();
 			delete Task;
 		}
-		OutboxCS.unlock();
 	}
 }
 
@@ -288,61 +264,53 @@ void Scheduler::Setup(const bool ForceSingleThread)
 }
 
 
-void DiscardInbox()
+void DiscardQueuesInner()
 {
-	Assert(ThreadIndex == 0);
-
-	InboxCS.lock();
-
-	AsyncTask* Task = nullptr;
-	while (Inbox.size() > 0)
+	while (DeleteTask* PendingDelete = DeleteQueue.TryPop())
 	{
-		Task = Inbox.front();
-		Inbox.pop_front();
-
-		if (Task->Unstoppable)
+		PendingDelete->Run();
+		delete PendingDelete;
+	}
+	while (AsyncTask* PendingTask = Inbox.TryPop())
+	{
+		if (PendingTask->Unstoppable)
 		{
-			// This task requires the worker threads to all be blocked on InboxCS before it can be safely ran.
-			while (InboxFence.load() < Pool.size())
-			{
-				std::this_thread::yield();
-			}
-
-			Task->Run();
-
-			// Locking OutboxCS here should not be necessary, because the entire thread pool is still blocked on InboxCS.
-			Outbox.push_back(Task);
+			PendingTask->Run();
+			PendingTask->Done();
 		}
 		else
 		{
-			Task->Abort();
-			delete Task;
+			PendingTask->Abort();
 		}
+		delete PendingTask;
 	}
-
-	InboxCS.unlock();
+	while (AsyncTask* CompletedTask = Outbox.TryPop())
+	{
+		if (CompletedTask->Unstoppable)
+		{
+			CompletedTask->Done();
+		}
+		else
+		{
+			CompletedTask->Abort();
+		}
+		delete CompletedTask;
+	}
 }
 
 
-void DiscardOutbox()
+void DiscardQueues()
 {
-	Assert(ThreadIndex == 0);
-
-	OutboxCS.lock();
-	for (AsyncTask* Task : Outbox)
+	Assert(PauseThreads.load() || !State.load());
+	while (ActiveThreads.load() > 0)
 	{
-		if (Task->Unstoppable)
-		{
-			Task->Done();
-		}
-		else
-		{
-			Task->Abort();
-		}
-		delete Task;
+		// Continually drain the queues to prevent deadlocking while we wait for the thread pool to deactivate.
+		DiscardQueuesInner();
+		std::this_thread::yield();
 	}
-	Outbox.clear();
-	OutboxCS.unlock();
+
+	// Flush everything once more for good measure.
+	DiscardQueuesInner();
 }
 
 
@@ -354,26 +322,24 @@ void Scheduler::Teardown()
 
 	fmt::print("Shutting down the thread pool.\n");
 
-	FlushPendingDeletes();
-
-	DiscardInbox();
+	DiscardQueues();
 
 	for (std::thread& Worker : Pool)
 	{
 		Worker.join();
 	}
 	Pool.clear();
-
-	DiscardOutbox();
 }
 
 
-void Scheduler::Purge()
+void Scheduler::DropEverything()
 {
 	Assert(ThreadIndex == 0);
 	Assert(State.load());
 
-	FlushPendingDeletes();
-	DiscardInbox();
-	DiscardOutbox();
+	PauseThreads.store(true);
+
+	DiscardQueues();
+
+	PauseThreads.store(false);
 }

@@ -1166,7 +1166,7 @@ void LoadModelCommon(std::function<void()> LoadingCallback)
 	UnloadAllModels();
 
 	ClearTreeEvaluator();
-	Scheduler::Purge();
+	Scheduler::DropEverything();
 
 	FixedCamera = false;
 

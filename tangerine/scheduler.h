@@ -27,7 +27,6 @@ struct AsyncTask
 	virtual ~AsyncTask() {};
 
 	// This will be set by Scheduler::Enqueue.
-	bool IsFence = false;
 	bool Unstoppable = false;
 };
 
@@ -48,12 +47,12 @@ namespace Scheduler
 	void Setup(const bool ForceSingleThread);
 	void Teardown();
 	void Advance();
-	void Purge();
+	void DropEverything();
 
 	std::atomic_bool& GetState();
 
 	bool Live();
-	void Enqueue(AsyncTask* Task, bool IsFence = false, bool Unstoppable = false);
+	void Enqueue(AsyncTask* Task, bool Unstoppable = false);
 
 	void EnqueueDelete(DeleteTask* Task);
 	void EnqueueDelete(FinalizerThunk Finalizer);
