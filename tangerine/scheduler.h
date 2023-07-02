@@ -34,6 +34,7 @@ struct AsyncTask
 struct DeleteTask
 {
 	virtual void Run() = 0;
+	virtual ~DeleteTask() {};
 };
 
 
