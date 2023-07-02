@@ -544,9 +544,10 @@ void ShaderProgram::Reset()
 {
 	if (ProgramID != 0)
 	{
-		Scheduler::EnqueueDelete([=]()
+		GLuint ShadowID = ProgramID;
+		Scheduler::EnqueueDelete([ShadowID]()
 		{
-			glDeleteProgram(ProgramID);
+			glDeleteProgram(ShadowID);
 		});
 		ProgramID = 0;
 	}
@@ -581,9 +582,10 @@ void Buffer::Release()
 {
 	if (BufferID != 0)
 	{
-		Scheduler::EnqueueDelete([=]()
+		GLuint ShadowID = BufferID;
+		Scheduler::EnqueueDelete([ShadowID]()
 		{
-			glDeleteBuffers(1, &BufferID);
+			glDeleteBuffers(1, &ShadowID);
 		});
 		BufferID = 0;
 	}
@@ -676,9 +678,10 @@ void TimingQuery::Release()
 	{
 		if (QueryID != 0)
 		{
-			Scheduler::EnqueueDelete([=]()
+			GLuint ShadowID = QueryID;
+			Scheduler::EnqueueDelete([ShadowID]()
 			{
-				glDeleteQueries(1, &QueryID);
+				glDeleteQueries(1, &ShadowID);
 			});
 			QueryID = 0;
 		}
