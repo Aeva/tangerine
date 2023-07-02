@@ -49,6 +49,9 @@
     <Filter Include="Third Party\naive-surface-nets">
       <UniqueIdentifier>{a296ea19-3eb6-4178-8262-1bf51fc95c71}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Third Party\atomic_queue">
+      <UniqueIdentifier>{a97260d8-781b-41a7-9fc3-ae138133e95e}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\third_party\imgui\backends\imgui_impl_opengl3.cpp">
@@ -548,6 +551,21 @@
     </ClInclude>
     <ClInclude Include="..\third_party\glm-0.9.9.8\glm\glm.hpp">
       <Filter>Third Party\GLM</Filter>
+    </ClInclude>
+    <ClInclude Include="..\third_party\atomic_queue\include\atomic_queue\atomic_queue.h">
+      <Filter>Third Party\atomic_queue</Filter>
+    </ClInclude>
+    <ClInclude Include="..\third_party\atomic_queue\include\atomic_queue\atomic_queue_mutex.h">
+      <Filter>Third Party\atomic_queue</Filter>
+    </ClInclude>
+    <ClInclude Include="..\third_party\atomic_queue\include\atomic_queue\barrier.h">
+      <Filter>Third Party\atomic_queue</Filter>
+    </ClInclude>
+    <ClInclude Include="..\third_party\atomic_queue\include\atomic_queue\defs.h">
+      <Filter>Third Party\atomic_queue</Filter>
+    </ClInclude>
+    <ClInclude Include="..\third_party\atomic_queue\include\atomic_queue\spinlock.h">
+      <Filter>Third Party\atomic_queue</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
