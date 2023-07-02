@@ -17,6 +17,7 @@
 #include "errors.h"
 #include "sodapop.h"
 
+#include <atomic_queue/atomic_queue.h>
 #include <fmt/format.h>
 
 #include <atomic>
@@ -29,6 +30,56 @@
 #include <chrono>
 
 using Clock = std::chrono::high_resolution_clock;
+
+
+template<typename T, unsigned QueueSize = 1024>
+struct AtomicQueue
+{
+	atomic_queue::AtomicQueue<T*, QueueSize> Queue;
+
+	bool TryPush(T* Message)
+	{
+		return Queue.try_push(Message);
+	}
+
+	T* TryPop()
+	{
+		T* Message = nullptr;
+		Queue.try_pop(Message);
+		return Message;
+	}
+
+	void BlockingPush(T* Message)
+	{
+		while (!Queue.try_push(Message))
+		{
+			atomic_queue::spin_loop_pause();
+		}
+	}
+
+	T* BlockingPop()
+	{
+		T* Message = nullptr;
+		while (!Queue.try_pop(Message))
+		{
+			atomic_queue::spin_loop_pause();
+		}
+		return Message;
+	}
+};
+
+
+struct FinalizerTask : public DeleteTask
+{
+	FinalizerThunk Finalizer;
+	virtual void Run()
+	{
+		Finalizer();
+	}
+};
+
+
+static AtomicQueue<DeleteTask> DeleteQueue;
 
 
 static std::atomic_bool State;
@@ -158,9 +209,43 @@ void Scheduler::Enqueue(AsyncTask* Task, bool IsFence, bool Unstoppable)
 }
 
 
+void Scheduler::EnqueueDelete(DeleteTask* Task)
+{
+	DeleteQueue.BlockingPush(Task);
+}
+
+
+void Scheduler::EnqueueDelete(FinalizerThunk Finalizer)
+{
+	if (ThreadIndex == 0)
+	{
+		Finalizer();
+	}
+	else
+	{
+		FinalizerTask* PendingDelete = new FinalizerTask();
+		PendingDelete->Finalizer = Finalizer;
+		EnqueueDelete(PendingDelete);
+	}
+}
+
+
+void FlushPendingDeletes()
+{
+	while (DeleteTask* PendingDelete = DeleteQueue.TryPop())
+	{
+		PendingDelete->Run();
+		delete PendingDelete;
+	}
+}
+
+
 void Scheduler::Advance()
 {
 	Assert(ThreadIndex == 0);
+
+	FlushPendingDeletes();
+
 	Assert(State.load());
 	{
 		if (Pool.size() == 0)
@@ -269,6 +354,8 @@ void Scheduler::Teardown()
 
 	fmt::print("Shutting down the thread pool.\n");
 
+	FlushPendingDeletes();
+
 	DiscardInbox();
 
 	for (std::thread& Worker : Pool)
@@ -286,6 +373,7 @@ void Scheduler::Purge()
 	Assert(ThreadIndex == 0);
 	Assert(State.load());
 
+	FlushPendingDeletes();
 	DiscardInbox();
 	DiscardOutbox();
 }

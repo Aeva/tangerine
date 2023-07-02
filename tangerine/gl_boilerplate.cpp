@@ -1,5 +1,5 @@
 
-// Copyright 2022 Aeva Palecek
+// Copyright 2023 Aeva Palecek
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -22,6 +22,8 @@
 #include "gl_boilerplate.h"
 #include "profiling.h"
 #include "installation.h"
+#include "scheduler.h"
+
 
 extern TangerinePaths Installed;
 
@@ -455,7 +457,7 @@ StatusCode ShaderProgram::Compile()
 		{
 			for (GLuint ShaderID : Intermediaries)
 			{
-				glDeleteShader(ShaderID);
+					glDeleteShader(ShaderID);
 			}
 			Reset();
 			return StatusCode::FAIL;
@@ -542,7 +544,10 @@ void ShaderProgram::Reset()
 {
 	if (ProgramID != 0)
 	{
-		glDeleteProgram(ProgramID);
+		Scheduler::EnqueueDelete([=]()
+		{
+			glDeleteProgram(ProgramID);
+		});
 		ProgramID = 0;
 	}
 }
@@ -576,7 +581,10 @@ void Buffer::Release()
 {
 	if (BufferID != 0)
 	{
-		glDeleteBuffers(1, &BufferID);
+		Scheduler::EnqueueDelete([=]()
+		{
+			glDeleteBuffers(1, &BufferID);
+		});
 		BufferID = 0;
 	}
 }
@@ -668,7 +676,10 @@ void TimingQuery::Release()
 	{
 		if (QueryID != 0)
 		{
-			glDeleteQueries(1, &QueryID);
+			Scheduler::EnqueueDelete([=]()
+			{
+				glDeleteQueries(1, &QueryID);
+			});
 			QueryID = 0;
 		}
 	}

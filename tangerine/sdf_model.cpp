@@ -47,14 +47,6 @@ std::vector<SDFModelWeakRef>& GetLiveModels()
 
 void UnloadAllModels()
 {
-	for (SDFModelWeakRef WeakRef : LiveModels)
-	{
-		SDFModelShared Model = WeakRef.lock();
-		if (Model)
-		{
-			Sodapop::Detach(Model);
-		}
-	}
 	LiveModels.clear();
 }
 
@@ -381,10 +373,6 @@ SDFModelShared SDFModel::Create(SDFNodeShared& InEvaluator, const float VoxelSiz
 
 SDFModel::~SDFModel()
 {
-	// We need to process deletes on the main thread, because we might crash if we try to
-	// issue GL commands from a worker thread.
-	Assert(Scheduler::GetThreadIndex() == 0);
-
 	TransformBuffer.Release();
 
 	for (int i = 0; i < LiveModels.size(); ++i)

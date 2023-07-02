@@ -16,6 +16,7 @@
 #pragma once
 
 #include <atomic>
+#include <functional>
 
 
 struct AsyncTask
@@ -31,6 +32,15 @@ struct AsyncTask
 };
 
 
+struct DeleteTask
+{
+	virtual void Run() = 0;
+};
+
+
+using FinalizerThunk = std::function<void()>;
+
+
 namespace Scheduler
 {
 	int GetThreadIndex();
@@ -44,4 +54,7 @@ namespace Scheduler
 
 	bool Live();
 	void Enqueue(AsyncTask* Task, bool IsFence = false, bool Unstoppable = false);
+
+	void EnqueueDelete(DeleteTask* Task);
+	void EnqueueDelete(FinalizerThunk Finalizer);
 }
