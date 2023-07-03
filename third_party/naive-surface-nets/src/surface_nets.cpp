@@ -825,29 +825,10 @@ std::array<std::array<std::size_t, 3>, 3> get_adjacent_cubes_of_edge(
     return adjacent_cubes;
 };
 
-/**
- * @brief Implements naive surface nets algorithm in parallel
- * @param implicit_function
- * @param grid
- * @param isovalue
- * @return
- */
-// BEGIN TANGERINE MOD - Modify function to remove LIBIGL dependency
-// I also moved the implementation of par_surface_nets out into its own implementation
-// function for adding optional progress atomics
-template<bool atomic_controls>
-void par_surface_nets_inner(
-    std::function<float(float x, float y, float z)> const& implicit_function,
-    regular_grid_t const& grid,
-    isosurface::mesh& mesh,
-    std::atomic_bool& ExportActive,
-    std::atomic_int& ExportState,
-    std::atomic_int& Progress,
-    std::atomic_int& Estimate,
-    float const isovalue)
+// BEGIN TANGERINE MOD - Carve up `par_surface_nets` into parts that can be adapted for parallel exe w/ Tangerine's scheduler
+template<bool AtomicControls>
+void SetupInner(AsyncParallelSurfaceNets& Task)
 {
-// END TANGERINE MOD
-
     struct mesh_bounding_box_t
     {
         point_t min, max;
@@ -855,38 +836,41 @@ void par_surface_nets_inner(
 
     // bounding box of the mesh in coordinate frame of the mesh
     mesh_bounding_box_t const mesh_bounding_box{
-        {grid.x, grid.y, grid.z},
-        {grid.x + grid.sx * grid.dx, grid.y + grid.sy * grid.dy, grid.z + grid.sz * grid.dz}};
+        {Task.Grid.x, Task.Grid.y, Task.Grid.z},
+        {Task.Grid.x + Task.Grid.sx * Task.Grid.dx, Task.Grid.y + Task.Grid.sy * Task.Grid.dy, Task.Grid.z + Task.Grid.sz * Task.Grid.dz} };
 
     // mapping from active cube indices to vertex indices of the generated mesh
-    std::unordered_map<std::size_t, std::uint64_t> active_cube_to_vertex_index_map{};
+    // previously: std::unordered_map<std::size_t, std::uint64_t> active_cube_to_vertex_index_map{};
+    // now AsyncParallelSurfaceNets::SecondLoopDomain
 
-    bool const is_x_longest_dimension = grid.sx > grid.sy && grid.sx > grid.sz;
-    bool const is_y_longest_dimension = grid.sy > grid.sx && grid.sy > grid.sz;
-    bool const is_z_longest_dimension = grid.sz > grid.sx && grid.sz > grid.sy;
+    bool const is_x_longest_dimension = Task.Grid.sx > Task.Grid.sy && Task.Grid.sx > Task.Grid.sz;
+    bool const is_y_longest_dimension = Task.Grid.sy > Task.Grid.sx && Task.Grid.sy > Task.Grid.sz;
+    bool const is_z_longest_dimension = Task.Grid.sz > Task.Grid.sx && Task.Grid.sz > Task.Grid.sy;
 
     std::size_t longest_dimension_size =
-        is_x_longest_dimension ? grid.sx : is_y_longest_dimension ? grid.sy : grid.sz;
+        is_x_longest_dimension ? Task.Grid.sx : is_y_longest_dimension ? Task.Grid.sy : Task.Grid.sz;
 
-    std::vector<std::size_t> ks(longest_dimension_size, 0u);
-    std::iota(ks.begin(), ks.end(), 0u);
+    //std::vector<std::size_t> ks(longest_dimension_size, 0u);
+    //std::iota(ks.begin(), ks.end(), 0u);
 
-// BEGIN TANGERINE MOD - Atomic progress controls
-    Estimate.store(longest_dimension_size);
-// END TANGERINE MOD
+    Task.FirstLoopDomain = std::vector<std::size_t>(longest_dimension_size, 0u);
+    std::iota(Task.FirstLoopDomain.begin(), Task.FirstLoopDomain.end(), 0u);
 
-    std::mutex sync;
-    std::for_each(std::execution::par, ks.cbegin(), ks.cend(), [&](std::size_t k) {
-        for (std::size_t j = 0; j < grid.sy; ++j)
+    if (AtomicControls)
+    {
+        Task.Estimate->store(longest_dimension_size);
+    }
+
+    Task.FirstLoopThunk = [=](AsyncParallelSurfaceNets& Task, std::size_t k)
+    {
+        for (std::size_t j = 0; j < Task.Grid.sy; ++j)
         {
-            for (std::size_t i = 0; i < grid.sx; ++i)
+            for (std::size_t i = 0; i < Task.Grid.sx; ++i)
             {
-// BEGIN TANGERINE MOD - Atomic progress controls
-                if (atomic_controls && (!ExportActive.load() || ExportState.load() != 1))
+                if (AtomicControls && (!Task.ExportActive->load() || Task.ExportState->load() != 1))
                 {
                     return;
                 }
-// END TANGERINE MOD
 
                 if (is_x_longest_dimension)
                 {
@@ -904,11 +888,11 @@ void par_surface_nets_inner(
 
                 // coordinates of voxel corners in the mesh's coordinate frame
                 std::array<point_t, 8> const voxel_corner_world_positions =
-                    get_voxel_corner_world_positions(i, j, k, grid);
+                    get_voxel_corner_world_positions(i, j, k, Task.Grid);
 
                 // scalar values of the implicit function evaluated at cube vertices (voxel corners)
                 std::array<float, 8> const voxel_corner_values =
-                    get_voxel_corner_values(voxel_corner_world_positions, implicit_function);
+                    get_voxel_corner_values(voxel_corner_world_positions, Task.ImplicitFunction);
 
                 // the edges provide indices to the corresponding current cube's vertices (voxel
                 // corners)
@@ -924,10 +908,10 @@ void par_surface_nets_inner(
                     {0u, 4u},
                     {1u, 5u},
                     {2u, 6u},
-                    {3u, 7u}};
+                    {3u, 7u} };
 
                 std::array<bool, 12> const edge_bipolarity_array =
-                    get_edge_bipolarity_array(voxel_corner_values, isovalue, edges);
+                    get_edge_bipolarity_array(voxel_corner_values, Task.Isovalue, edges);
 
                 // an active voxel must have at least one bipolar edge
                 bool const is_voxel_active = get_is_cube_active(edge_bipolarity_array);
@@ -956,7 +940,7 @@ void par_surface_nets_inner(
 
                     // perform linear interpolation using implicit function
                     // values at vertices
-                    auto const t = (isovalue - s1) / (s2 - s1);
+                    auto const t = (Task.Isovalue - s1) / (s2 - s1);
                     edge_intersection_points.emplace_back(p1 + t * (p2 - p1));
                 }
 
@@ -966,7 +950,7 @@ void par_surface_nets_inner(
                 point_t const sum_of_intersection_points = std::accumulate(
                     edge_intersection_points.cbegin(),
                     edge_intersection_points.cend(),
-                    point_t{0.f, 0.f, 0.f});
+                    point_t{ 0.f, 0.f, 0.f });
 
                 point_t const geometric_center_of_edge_intersection_points =
                     sum_of_intersection_points / number_of_intersection_points;
@@ -975,167 +959,230 @@ void par_surface_nets_inner(
                     mesh_bounding_box.min.x +
                         (mesh_bounding_box.max.x - mesh_bounding_box.min.x) *
                             (geometric_center_of_edge_intersection_points.x - 0.f) /
-                            (static_cast<float>(grid.sx) - 0.f),
+                            (static_cast<float>(Task.Grid.sx) - 0.f),
                     mesh_bounding_box.min.y +
                         (mesh_bounding_box.max.y - mesh_bounding_box.min.y) *
                             (geometric_center_of_edge_intersection_points.y - 0.f) /
-                            (static_cast<float>(grid.sy) - 0.f),
+                            (static_cast<float>(Task.Grid.sy) - 0.f),
                     mesh_bounding_box.min.z +
                         (mesh_bounding_box.max.z - mesh_bounding_box.min.z) *
                             (geometric_center_of_edge_intersection_points.z - 0.f) /
-                            (static_cast<float>(grid.sz) - 0.f),
+                            (static_cast<float>(Task.Grid.sz) - 0.f),
                 };
 
-                std::size_t const active_cube_index = get_active_cube_index(i, j, k, grid);
+                std::size_t const active_cube_index = get_active_cube_index(i, j, k, Task.Grid);
 
-                std::lock_guard<std::mutex> lock{sync};
-                std::uint64_t const vertex_index                   = mesh.vertex_count();
-                active_cube_to_vertex_index_map[active_cube_index] = vertex_index;
+                std::lock_guard<std::mutex> lock{Task.CS};
+                std::uint64_t const vertex_index = Task.OutputMesh.vertex_count();
+                Task.SecondLoopDomain[active_cube_index] = vertex_index;
 
-                mesh.add_vertex(mesh_vertex);
+                Task.OutputMesh.add_vertex(mesh_vertex);
             }
         }
-// BEGIN TANGERINE MOD - Atomic progress controls
-        if (atomic_controls)
+        if (AtomicControls)
         {
-            Progress.fetch_add(1);
+            Task.Progress->fetch_add(1);
         }
-// END TANGERINE MOD
-    });
+    };
 
-// BEGIN TANGERINE MOD - Atomic progress controls
+    Task.SecondLoopThunk = [=](AsyncParallelSurfaceNets& Task, std::pair<std::size_t const, std::uint64_t> const& key_value)
+    {
+        if (AtomicControls && (!Task.ExportActive->load() || Task.ExportState->load() != 1))
+        {
+            return;
+        }
+
+        std::size_t const active_cube_index = key_value.first;
+        std::uint64_t const vertex_index = key_value.second;
+
+        auto const ijk = get_ijk_from_idx(active_cube_index, Task.Grid);
+        std::size_t i = std::get<0>(ijk);
+        std::size_t j = std::get<1>(ijk);
+        std::size_t k = std::get<2>(ijk);
+
+        auto const is_lower_boundary_cube =
+            [](std::size_t i, std::size_t j, std::size_t k, regular_grid_t const& g) {
+            return (i == 0 || j == 0 || k == 0);
+        };
+
+        if (is_lower_boundary_cube(i, j, k, Task.Grid))
+            return;
+
+        std::size_t const neighbor_grid_positions[6][3] = {
+            {i - 1, j, k},
+            {i - 1, j - 1, k},
+            {i, j - 1, k},
+            {i, j - 1, k - 1},
+            {i, j, k - 1},
+            {i - 1, j, k - 1} };
+
+        point_t const voxel_corners_of_interest[4] = {// vertex 0
+                                                      get_world_point_of(i, j, k, Task.Grid),
+                                                      // vertex 4
+                                                      get_world_point_of(i, j, k + 1, Task.Grid),
+                                                      // vertex 3
+                                                      get_world_point_of(i, j + 1, k, Task.Grid),
+                                                      // vertex 1
+                                                      get_world_point_of(i + 1, j, k, Task.Grid) };
+
+        float const edge_scalar_values[3][2] = {// directed edge (0,4)
+                                                {Task.ImplicitFunction(
+                                                     voxel_corners_of_interest[0].x,
+                                                     voxel_corners_of_interest[0].y,
+                                                     voxel_corners_of_interest[0].z),
+                                                 Task.ImplicitFunction(
+                                                     voxel_corners_of_interest[1].x,
+                                                     voxel_corners_of_interest[1].y,
+                                                     voxel_corners_of_interest[1].z)},
+            // directed edge (3,0)
+            {Task.ImplicitFunction(
+                 voxel_corners_of_interest[2].x,
+                 voxel_corners_of_interest[2].y,
+                 voxel_corners_of_interest[2].z),
+             Task.ImplicitFunction(
+                 voxel_corners_of_interest[0].x,
+                 voxel_corners_of_interest[0].y,
+                 voxel_corners_of_interest[0].z)},
+            // directed edge (0,1)
+            {Task.ImplicitFunction(
+                 voxel_corners_of_interest[0].x,
+                 voxel_corners_of_interest[0].y,
+                 voxel_corners_of_interest[0].z),
+             Task.ImplicitFunction(
+                 voxel_corners_of_interest[3].x,
+                 voxel_corners_of_interest[3].y,
+                 voxel_corners_of_interest[3].z)} };
+
+        std::size_t const quad_neighbors[3][3] = { {0, 1, 2}, {0, 5, 4}, {2, 3, 4} };
+
+        std::array<std::size_t, 3> const quad_neighbor_orders[2] = { {0, 1, 2}, {2, 1, 0} };
+
+        for (std::size_t i = 0; i < 3; ++i)
+        {
+            auto const neighbor1 = get_active_cube_index(
+                neighbor_grid_positions[quad_neighbors[i][0]][0],
+                neighbor_grid_positions[quad_neighbors[i][0]][1],
+                neighbor_grid_positions[quad_neighbors[i][0]][2],
+                Task.Grid);
+
+            auto const neighbor2 = get_active_cube_index(
+                neighbor_grid_positions[quad_neighbors[i][1]][0],
+                neighbor_grid_positions[quad_neighbors[i][1]][1],
+                neighbor_grid_positions[quad_neighbors[i][1]][2],
+                Task.Grid);
+
+            auto const neighbor3 = get_active_cube_index(
+                neighbor_grid_positions[quad_neighbors[i][2]][0],
+                neighbor_grid_positions[quad_neighbors[i][2]][1],
+                neighbor_grid_positions[quad_neighbors[i][2]][2],
+                Task.Grid);
+
+            if (Task.SecondLoopDomain.count(neighbor1) == 0 ||
+                Task.SecondLoopDomain.count(neighbor2) == 0 ||
+                Task.SecondLoopDomain.count(neighbor3) == 0)
+                continue;
+
+            std::size_t const neighbor_vertices[3] = {
+                Task.SecondLoopDomain.at(neighbor1),
+                Task.SecondLoopDomain.at(neighbor2),
+                Task.SecondLoopDomain.at(neighbor3) };
+
+            auto const& neighbor_vertices_order =
+                edge_scalar_values[i][1] > edge_scalar_values[i][0] ? quad_neighbor_orders[0] :
+                quad_neighbor_orders[1];
+
+            auto const v0 = vertex_index;
+            auto const v1 = neighbor_vertices[neighbor_vertices_order[0]];
+            auto const v2 = neighbor_vertices[neighbor_vertices_order[1]];
+            auto const v3 = neighbor_vertices[neighbor_vertices_order[2]];
+
+            std::lock_guard<std::mutex> lock{Task.CS};
+            Task.OutputMesh.add_face({ v0, v1, v2 });
+            Task.OutputMesh.add_face({ v0, v2, v3 });
+        }
+
+        if (AtomicControls)
+        {
+            Task.Progress->fetch_add(1);
+        }
+    };
+}
+
+
+void isosurface::AsyncParallelSurfaceNets::Setup()
+{
+    if (ExportActive && ExportState && Progress && Estimate)
+    {
+        SetupInner<true>(*this);
+    }
+    else
+    {
+        SetupInner<false>(*this);
+    }
+}
+// END TANGERINE MOD - Carve up `par_surface_nets` into parts that can be adapted for parallel exe w/ Tangerine's scheduler
+
+/**
+ * @brief Implements naive surface nets algorithm in parallel
+ * @param implicit_function
+ * @param grid
+ * @param isovalue
+ * @return
+ */
+// BEGIN TANGERINE MOD - Modify function to remove LIBIGL dependency
+// I also moved the implementation of par_surface_nets out into its own implementation
+// function for adding optional progress atomics
+template<bool atomic_controls>
+void par_surface_nets_inner(
+    std::function<float(float x, float y, float z)> const& implicit_function,
+    regular_grid_t const& grid,
+    isosurface::mesh& mesh,
+    std::atomic_bool& ExportActive,
+    std::atomic_int& ExportState,
+    std::atomic_int& Progress,
+    std::atomic_int& Estimate,
+    float const isovalue)
+{
+// END TANGERINE MOD
+// BEGIN TANGERINE MOD - Carve up `par_surface_nets` into parts that can be adapted for parallel exe w/ Tangerine's scheduler
+    AsyncParallelSurfaceNets Task;
+    Task.ImplicitFunction = implicit_function;
+    Task.Grid = grid;
     if (atomic_controls)
     {
-        Estimate.fetch_add(active_cube_to_vertex_index_map.size());
+        Task.ExportActive = &ExportActive;
+        Task.ExportState = &ExportState;
+        Task.Progress = &Progress;
+        Task.Estimate = &Estimate;
     }
-// END TANGERINE MOD
+
+    Task.Setup();
 
     std::for_each(
         std::execution::par,
-        active_cube_to_vertex_index_map.cbegin(),
-        active_cube_to_vertex_index_map.cend(),
-        [&](std::pair<std::size_t const, std::uint64_t> const& key_value) {
-// BEGIN TANGERINE MOD - Atomic progress controls
-            if (atomic_controls && (!ExportActive.load() || ExportState.load() != 1))
-            {
-                return;
-            }
-// END TANGERINE MOD
-            std::size_t const active_cube_index = key_value.first;
-            std::uint64_t const vertex_index    = key_value.second;
+        Task.FirstLoopDomain.cbegin(),
+        Task.FirstLoopDomain.cend(),
+        [&](std::size_t k)
+    {
+        Task.FirstLoopThunk(Task, k);
+    });
 
-            auto const ijk = get_ijk_from_idx(active_cube_index, grid);
-            std::size_t i  = std::get<0>(ijk);
-            std::size_t j  = std::get<1>(ijk);
-            std::size_t k  = std::get<2>(ijk);
+    if (atomic_controls)
+    {
+        Task.Estimate->fetch_add(Task.SecondLoopDomain.size());
+    }
 
-            auto const is_lower_boundary_cube =
-                [](std::size_t i, std::size_t j, std::size_t k, regular_grid_t const& g) {
-                    return (i == 0 || j == 0 || k == 0);
-                };
+    std::for_each(
+        std::execution::par,
+        Task.SecondLoopDomain.cbegin(),
+        Task.SecondLoopDomain.cend(),
+        [&](std::pair<std::size_t const, std::uint64_t> const& key_value)
+    {
+        Task.SecondLoopThunk(Task, key_value);
+    });
 
-            if (is_lower_boundary_cube(i, j, k, grid))
-                return;
-
-            std::size_t const neighbor_grid_positions[6][3] = {
-                {i - 1, j, k},
-                {i - 1, j - 1, k},
-                {i, j - 1, k},
-                {i, j - 1, k - 1},
-                {i, j, k - 1},
-                {i - 1, j, k - 1}};
-
-            point_t const voxel_corners_of_interest[4] = {// vertex 0
-                                                          get_world_point_of(i, j, k, grid),
-                                                          // vertex 4
-                                                          get_world_point_of(i, j, k + 1, grid),
-                                                          // vertex 3
-                                                          get_world_point_of(i, j + 1, k, grid),
-                                                          // vertex 1
-                                                          get_world_point_of(i + 1, j, k, grid)};
-
-            float const edge_scalar_values[3][2] = {// directed edge (0,4)
-                                                    {implicit_function(
-                                                         voxel_corners_of_interest[0].x,
-                                                         voxel_corners_of_interest[0].y,
-                                                         voxel_corners_of_interest[0].z),
-                                                     implicit_function(
-                                                         voxel_corners_of_interest[1].x,
-                                                         voxel_corners_of_interest[1].y,
-                                                         voxel_corners_of_interest[1].z)},
-                                                    // directed edge (3,0)
-                                                    {implicit_function(
-                                                         voxel_corners_of_interest[2].x,
-                                                         voxel_corners_of_interest[2].y,
-                                                         voxel_corners_of_interest[2].z),
-                                                     implicit_function(
-                                                         voxel_corners_of_interest[0].x,
-                                                         voxel_corners_of_interest[0].y,
-                                                         voxel_corners_of_interest[0].z)},
-                                                    // directed edge (0,1)
-                                                    {implicit_function(
-                                                         voxel_corners_of_interest[0].x,
-                                                         voxel_corners_of_interest[0].y,
-                                                         voxel_corners_of_interest[0].z),
-                                                     implicit_function(
-                                                         voxel_corners_of_interest[3].x,
-                                                         voxel_corners_of_interest[3].y,
-                                                         voxel_corners_of_interest[3].z)}};
-
-            std::size_t const quad_neighbors[3][3] = {{0, 1, 2}, {0, 5, 4}, {2, 3, 4}};
-
-            std::array<std::size_t, 3> const quad_neighbor_orders[2] = {{0, 1, 2}, {2, 1, 0}};
-
-            for (std::size_t i = 0; i < 3; ++i)
-            {
-                auto const neighbor1 = get_active_cube_index(
-                    neighbor_grid_positions[quad_neighbors[i][0]][0],
-                    neighbor_grid_positions[quad_neighbors[i][0]][1],
-                    neighbor_grid_positions[quad_neighbors[i][0]][2],
-                    grid);
-
-                auto const neighbor2 = get_active_cube_index(
-                    neighbor_grid_positions[quad_neighbors[i][1]][0],
-                    neighbor_grid_positions[quad_neighbors[i][1]][1],
-                    neighbor_grid_positions[quad_neighbors[i][1]][2],
-                    grid);
-
-                auto const neighbor3 = get_active_cube_index(
-                    neighbor_grid_positions[quad_neighbors[i][2]][0],
-                    neighbor_grid_positions[quad_neighbors[i][2]][1],
-                    neighbor_grid_positions[quad_neighbors[i][2]][2],
-                    grid);
-
-                if (active_cube_to_vertex_index_map.count(neighbor1) == 0 ||
-                    active_cube_to_vertex_index_map.count(neighbor2) == 0 ||
-                    active_cube_to_vertex_index_map.count(neighbor3) == 0)
-                    continue;
-
-                std::size_t const neighbor_vertices[3] = {
-                    active_cube_to_vertex_index_map.at(neighbor1),
-                    active_cube_to_vertex_index_map.at(neighbor2),
-                    active_cube_to_vertex_index_map.at(neighbor3)};
-
-                auto const& neighbor_vertices_order =
-                    edge_scalar_values[i][1] > edge_scalar_values[i][0] ? quad_neighbor_orders[0] :
-                                                                          quad_neighbor_orders[1];
-
-                auto const v0 = vertex_index;
-                auto const v1 = neighbor_vertices[neighbor_vertices_order[0]];
-                auto const v2 = neighbor_vertices[neighbor_vertices_order[1]];
-                auto const v3 = neighbor_vertices[neighbor_vertices_order[2]];
-
-                std::lock_guard<std::mutex> lock{sync};
-                mesh.add_face({v0, v1, v2});
-                mesh.add_face({v0, v2, v3});
-            }
-// BEGIN TANGERINE MOD - Atomic progress controls
-            if (atomic_controls)
-            {
-                Progress.fetch_add(1);
-            }
-// END TANGERINE MOD
-        });
+    mesh = Task.OutputMesh;
+// END TANGERINE MOD - Carve up `par_surface_nets` into parts that can be adapted for parallel exe w/ Tangerine's scheduler
     // clang-format on
 // BEGIN TANGERINE MOD - Modify function to remove LIBIGL dependency
 #if 0
