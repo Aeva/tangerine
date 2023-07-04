@@ -24,17 +24,33 @@ struct AsyncTask
 	virtual void Run() = 0;
 	virtual void Done() = 0;
 	virtual void Abort() = 0;
-	virtual ~AsyncTask() {};
+
+	virtual ~AsyncTask()
+	{
+	}
 
 	// This will be set by Scheduler::Enqueue.
 	bool Unstoppable = false;
 };
 
 
+struct ContinuousTask
+{
+	virtual bool Run() = 0;
+
+	virtual ~ContinuousTask()
+	{
+	}
+};
+
+
 struct DeleteTask
 {
 	virtual void Run() = 0;
-	virtual ~DeleteTask() {};
+
+	virtual ~DeleteTask()
+	{
+	}
 };
 
 
@@ -54,7 +70,10 @@ namespace Scheduler
 
 	bool Live();
 	void Enqueue(AsyncTask* Task, bool Unstoppable = false);
+	void Enqueue(ContinuousTask* Task);
 
 	void EnqueueDelete(DeleteTask* Task);
 	void EnqueueDelete(FinalizerThunk Finalizer);
+
+	void Stats(size_t& InboxLoad, size_t& OutboxLoad, size_t& ContinuousLoad, size_t& DeleteLoad);
 }

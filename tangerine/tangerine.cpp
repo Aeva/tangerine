@@ -671,6 +671,14 @@ float PresentDeltaMs = 0.0;
 double LastInnerFrameDeltaMs = 0.0;
 glm::vec3 CameraFocus = glm::vec3(0.0, 0.0, 0.0);
 
+namespace SchedulerStats
+{
+	size_t Inbox;
+	size_t Outbox;
+	size_t ContinuousQueue;
+	size_t DeleteQueue;
+}
+
 #if RENDERER_SODAPOP
 // Total CPU time spent in per-model drawing paths
 double TotalDrawTimeMS = 0.0;
@@ -1893,6 +1901,21 @@ void RenderUI(SDL_Window* Window, bool& Live)
 				ImGui::Text("  Processing: %.3f s\n", ModelProcessingStallMs / 1000.0);
 			}
 #endif // RENDERER_SODAPOP
+
+			{
+				Scheduler::Stats(
+					SchedulerStats::Inbox,
+					SchedulerStats::Outbox,
+					SchedulerStats::ContinuousQueue,
+					SchedulerStats::DeleteQueue);
+
+				ImGui::Separator();
+				ImGui::Text("Scheduler Pressure\n");
+				ImGui::Text("      Inbox: %i\n", SchedulerStats::Inbox);
+				ImGui::Text("     Outbox: %i\n", SchedulerStats::Outbox);
+				ImGui::Text(" Continuous: %i\n", SchedulerStats::ContinuousQueue);
+				ImGui::Text("     Delete: %i\n", SchedulerStats::DeleteQueue);
+			}
 		}
 		ImGui::End();
 	}

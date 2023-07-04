@@ -26,10 +26,21 @@
 #include <chrono>
 
 
+#ifndef SCHEDULER_QUEUE_SIZE
+// The standard queue size is 2*20 entries, or about 4 MB per empty queue.
+// This number is set arbitrarily high, as it determines the effective number
+// of models that can be operated on by the thread pool at once, and therefore
+// determines the maximum number of model instances that can have recurring
+// lighting tasks before the system deadlocks.  Should a maximum of ~1 million
+// recurring tasks be insufficient some day, raise this to a higher power of 2.
+#define SCHEDULER_QUEUE_SIZE 1048576
+#endif
+
+
 using Clock = std::chrono::high_resolution_clock;
 
 
-template<typename T, unsigned QueueSize = 1024>
+template<typename T, unsigned QueueSize = SCHEDULER_QUEUE_SIZE>
 struct AtomicQueue
 {
 	atomic_queue::AtomicQueue<T*, QueueSize> Queue;
@@ -63,6 +74,11 @@ struct AtomicQueue
 		}
 		return Message;
 	}
+
+	size_t RecentCount()
+	{
+		return Queue.was_size();
+	}
 };
 
 
@@ -78,6 +94,7 @@ struct FinalizerTask : public DeleteTask
 
 static AtomicQueue<AsyncTask> Inbox;
 static AtomicQueue<AsyncTask> Outbox;
+static AtomicQueue<ContinuousTask> ContinuousQueue;
 static AtomicQueue<DeleteTask> DeleteQueue;
 
 static std::atomic_bool State;
@@ -135,21 +152,20 @@ void WorkerThread(const int InThreadIndex)
 		}
 		else
 		{
-#if MULTI_RENDERER
-			if (CurrentRenderer == Renderer::Sodapop)
-#endif // MULTI_RENDERER
-#if RENDERER_SODAPOP
+			if (ContinuousTask* Task = ContinuousQueue.TryPop())
 			{
-				Sodapop::Hammer();
+				if (Task->Run())
+				{
+					ContinuousQueue.BlockingPush(Task);
+				}
+				else
+				{
+					delete Task;
+				}
 			}
 			else if (DedicatedThread)
 			{
 				std::this_thread::sleep_for(std::chrono::milliseconds(4));
-			}
-#endif // RENDERER_SODAPOP
-			if (DedicatedThread)
-			{
-				std::this_thread::yield();
 			}
 			else
 			{
@@ -191,6 +207,12 @@ void Scheduler::Enqueue(AsyncTask* Task, bool Unstoppable)
 		Inbox.BlockingPush(Task);
 	}
 	fmt::print("[{}] New async task\n", (void*)Task);
+}
+
+
+void Scheduler::Enqueue(ContinuousTask* Task)
+{
+	ContinuousQueue.BlockingPush(Task);
 }
 
 
@@ -276,6 +298,10 @@ void DiscardQueuesInner()
 		PendingDelete->Run();
 		delete PendingDelete;
 	}
+	while (ContinuousTask* PendingRepeater = ContinuousQueue.TryPop())
+	{
+		delete PendingRepeater;
+	}
 	while (AsyncTask* PendingTask = Inbox.TryPop())
 	{
 		if (PendingTask->Unstoppable)
@@ -347,4 +373,13 @@ void Scheduler::DropEverything()
 	DiscardQueues();
 
 	PauseThreads.store(false);
+}
+
+
+void Scheduler::Stats(size_t& InboxLoad, size_t& OutboxLoad, size_t& ContinuousLoad, size_t& DeleteLoad)
+{
+	InboxLoad = Inbox.RecentCount();
+	OutboxLoad = Outbox.RecentCount();
+	ContinuousLoad = ContinuousQueue.RecentCount();
+	DeleteLoad = DeleteQueue.RecentCount();
 }

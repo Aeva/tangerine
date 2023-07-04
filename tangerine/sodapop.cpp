@@ -218,111 +218,40 @@ void MeshingJob::Abort()
 }
 
 
-struct Attachments
+struct ShaderTask : public ContinuousTask
 {
 	SDFModelWeakRef ModelWeakRef;
 	SodapopDrawableWeakRef PainterWeakRef;
+
+	bool Run();
 };
-
-
-std::map<size_t, Attachments> AttachedModels;
-std::mutex AttachedModelsCS;
 
 
 void Sodapop::Attach(SDFModelShared& Instance)
 {
-	AttachedModelsCS.lock();
+	SodapopDrawableShared SodapopPainter = std::dynamic_pointer_cast<SodapopDrawable>(Instance->Painter);
+
+	if (SodapopPainter)
 	{
-		SodapopDrawableShared SodapopPainter = std::dynamic_pointer_cast<SodapopDrawable>(Instance->Painter);
-		if (SodapopPainter)
-		{
-			Attachments Record = \
-			{
-				Instance,
-				SodapopPainter
-			};
-			size_t Key = (size_t)(Instance.get());
-			auto Result = AttachedModels.insert(std::pair{Key, Record});
-		}
+		ShaderTask* Task = new ShaderTask();
+		Task->ModelWeakRef = Instance;
+		Task->PainterWeakRef = SodapopPainter;
+		Scheduler::Enqueue(Task);
 	}
-	AttachedModelsCS.unlock();
 }
 
 
-bool GetNextModel(SDFModelShared& Instance, SodapopDrawableShared& Painter)
+bool ShaderTask::Run()
 {
-	Instance.reset();
-	Painter.reset();
+	SDFModelShared Instance = ModelWeakRef.lock();
+	SodapopDrawableShared Painter = PainterWeakRef.lock();
 
-	AttachedModelsCS.lock();
-
-	while (true)
+	if (Instance && Painter)
 	{
-		auto EndIter = AttachedModels.end();
-		static auto NextIter = EndIter;
-
-		if (NextIter == EndIter)
+		if (Instance->Dirty.load() && Painter->MeshReady.load())
 		{
-			NextIter = AttachedModels.begin();
-			if (NextIter == EndIter)
-			{
-				// The map is empty, so stop looping.
-				Instance.reset();
-				Painter.reset();
-				break;
-			}
-		}
+			// The model instance requested a repaint and the painter is ready for drawing.
 
-		auto Iter = NextIter++;
-
-		size_t Key = Iter->first;
-		Instance = Iter->second.ModelWeakRef.lock();
-		Painter = Iter->second.PainterWeakRef.lock();
-		if (Instance && Painter)
-		{
-			if (Instance->Dirty.load() && Painter->MeshReady.load())
-			{
-				// The model instance and painter are both live and ready for drawing.
-				break;
-			}
-			else
-			{
-				// The model instance does not need to be repainted, or the painter is not ready.
-				Instance.reset();
-				Painter.reset();
-				continue;
-			}
-		}
-		else
-		{
-			// One or both of the model instance and painter are invalid now, so clear them both and
-			// remove the entry from the map.
-
-			Instance.reset();
-			Painter.reset();
-
-			AttachedModels.erase(Key);
-			// Iter is now invalid, but NextIter should be fine because we postfix incremented it.
-
-			continue;
-		}
-	}
-
-	AttachedModelsCS.unlock();
-
-	return Instance && Painter;
-}
-
-
-void Sodapop::Hammer()
-{
-	SDFModelShared Instance;
-	SodapopDrawableShared Painter;
-
-	if (GetNextModel(Instance, Painter))
-	{
-		Instance->SodapopCS.lock();
-		{
 			if (Instance->Colors.size() == 0)
 			{
 				Instance->Colors.resize(Painter->Colors.size());
@@ -352,8 +281,14 @@ void Sodapop::Hammer()
 
 			// TODO: This needs some way to determine if the instance has converged since it was last marked dirty.
 			//Instance->Dirty.store(false);
+			
 		}
-		Instance->SodapopCS.unlock();
+		return true;
+	}
+	else
+	{
+		// One or both of the model instance and painter are invalid now, so kill the task.
+		return false;
 	}
 }
 
