@@ -675,6 +675,7 @@ namespace SchedulerStats
 {
 	size_t Inbox;
 	size_t Outbox;
+	size_t ParallelQueue;
 	size_t ContinuousQueue;
 	size_t DeleteQueue;
 }
@@ -1906,6 +1907,7 @@ void RenderUI(SDL_Window* Window, bool& Live)
 				Scheduler::Stats(
 					SchedulerStats::Inbox,
 					SchedulerStats::Outbox,
+					SchedulerStats::ParallelQueue,
 					SchedulerStats::ContinuousQueue,
 					SchedulerStats::DeleteQueue);
 
@@ -1913,6 +1915,7 @@ void RenderUI(SDL_Window* Window, bool& Live)
 				ImGui::Text("Scheduler Pressure\n");
 				ImGui::Text("      Inbox: %i\n", SchedulerStats::Inbox);
 				ImGui::Text("     Outbox: %i\n", SchedulerStats::Outbox);
+				ImGui::Text("   Parallel: %i\n", SchedulerStats::ParallelQueue);
 				ImGui::Text(" Continuous: %i\n", SchedulerStats::ContinuousQueue);
 				ImGui::Text("     Delete: %i\n", SchedulerStats::DeleteQueue);
 			}

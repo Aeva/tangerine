@@ -30,6 +30,17 @@ static std::default_random_engine RNGesus;
 static std::uniform_real_distribution<double> Roll(-1.0, std::nextafter(1.0, DBL_MAX));
 
 
+struct MeshingScratch : isosurface::AsyncParallelSurfaceNets
+{
+	std::atomic_int FirstLoopIndex = 0;
+	std::atomic_int FirstLoopCompleted = 0;
+
+	std::mutex SecondLoopIteratorCS;
+	std::unordered_map<std::size_t, std::uint64_t>::iterator SecondLoopIterator;
+	std::atomic_int SecondLoopCompleted = 0;
+};
+
+
 struct MeshingJob : AsyncTask
 {
 	SodapopDrawableWeakRef PainterWeakRef;
@@ -37,6 +48,32 @@ struct MeshingJob : AsyncTask
 	virtual void Run();
 	virtual void Done();
 	virtual void Abort();
+};
+
+
+struct MeshingVertexLoop : ParallelTask
+{
+	SodapopDrawableWeakRef PainterWeakRef;
+	SDFNodeWeakRef EvaluatorWeakRef;
+
+	virtual void Run();
+	virtual ParallelTask* Fork()
+	{
+		return new MeshingVertexLoop(*this);
+	}
+};
+
+
+struct MeshingFaceLoop : ParallelTask
+{
+	SodapopDrawableWeakRef PainterWeakRef;
+	SDFNodeWeakRef EvaluatorWeakRef;
+
+	virtual void Run();
+	virtual ParallelTask* Fork()
+	{
+		return new MeshingFaceLoop(*this);
+	}
 };
 
 
@@ -112,83 +149,21 @@ void MeshingJob::Run()
 			}
 		}
 
-		auto Eval = [&](float X, float Y, float Z) -> float
+		Painter->Scratch = new MeshingScratch();
+		Painter->Scratch->Grid = Grid;
 		{
-			return Evaluator->Eval(glm::vec3(X, Y, Z));
-		};
-
-		isosurface::mesh Mesh;
-		isosurface::surface_nets(Eval, Grid, Mesh, Scheduler::GetState());
-
-		Painter->Positions.reserve(Mesh.vertices_.size());
-		Painter->Normals.reserve(Mesh.vertices_.size());
-		Painter->Indices.reserve(Mesh.faces_.size() * 3);
-
-		for (const isosurface::point_t& ExtractedVertex : Mesh.vertices_)
-		{
-			glm::vec4 Vertex(ExtractedVertex.x, ExtractedVertex.y, ExtractedVertex.z, 1.0);
-			Painter->Positions.push_back(Vertex);
-			Painter->Normals.push_back(glm::vec4(0.0, 0.0, 0.0, 0.0));
-		}
-
-		for (const isosurface::shared_vertex_mesh::triangle_t& Face : Mesh.faces_)
-		{
-			Painter->Indices.push_back(Face.v0);
-			Painter->Indices.push_back(Face.v1);
-			Painter->Indices.push_back(Face.v2);
-
-			glm::vec3 A = Painter->Positions[Face.v0].xyz();
-			glm::vec3 B = Painter->Positions[Face.v1].xyz();
-			glm::vec3 C = Painter->Positions[Face.v2].xyz();
-			glm::vec3 AB = glm::normalize(A - B);
-			glm::vec3 AC = glm::normalize(A - C);
-			glm::vec4 N = glm::vec4(glm::normalize(glm::cross(AB, AC)), 1);
-
-			if (!glm::any(glm::isnan(N)))
+			SDFNode* EvaluatorRaw = Evaluator.get();
+			Painter->Scratch->ImplicitFunction = [EvaluatorRaw](float X, float Y, float Z) -> float
 			{
-				Painter->Normals[Face.v0] += N;
-				Painter->Normals[Face.v1] += N;
-				Painter->Normals[Face.v2] += N;
-			}
+				return EvaluatorRaw->Eval(glm::vec3(X, Y, Z));
+			};
 		}
+		Painter->Scratch->Setup();
 
-		for (glm::vec4& Normal : Painter->Normals)
-		{
-			Normal = glm::vec4(glm::normalize(Normal.xyz() / Normal.w), 1.0);
-		}
-
-		glm::vec3 JitterSpan = glm::vec3(Grid.dx, Grid.dy, Grid.dz) * glm::vec3(0.5);
-
-		Painter->Colors.reserve(Painter->Positions.size());
-		for (const glm::vec4& Position : Painter->Positions )
-		{
-			// HACK taking a random average within the approximate voxel bounds of a vert
-			// goes a long ways to improve the readability of some models.  However, the
-			// correct thing to do here might be a little more like how we calculate normals.
-			// For each triangle, sample randomly within the triangle, and accumualte the
-			// samples into vertex buckets.  Although, the accumulated values should probably
-			// be weighted by their barycentric coordinates or something like that.
-
-			const int Count = 20;
-			std::vector<glm::vec3> Samples;
-			Samples.reserve(Count);
-			glm::vec3 Average = glm::vec3(0.0);
-			for (int i = 0; i < Count; ++i)
-			{
-				glm::vec3 Jitter = JitterSpan * glm::vec3(Roll(RNGesus), Roll(RNGesus), Roll(RNGesus));
-				glm::vec3 Tmp = Position.xyz();
-				glm::vec3 Sample = Evaluator->Sample(Tmp + Jitter);
-				if (!glm::any(glm::isnan(Sample)))
-				{
-					Samples.push_back(Sample);
-					Average += Sample;
-				}
-			}
-			Average /= glm::vec3(float(Samples.size()));
-			Painter->Colors.push_back(glm::vec4(Average, 1.0));
-		}
-
-		Painter->MeshReady.store(true);
+		MeshingVertexLoop* Next = new MeshingVertexLoop();
+		Next->PainterWeakRef = Painter;
+		Next->EvaluatorWeakRef = Evaluator;
+		Scheduler::Enqueue(Next);
 	}
 }
 
@@ -215,6 +190,173 @@ void MeshingJob::Done()
 void MeshingJob::Abort()
 {
 	fmt::print("[{}] Job cancelled.\n", (void*)this);
+}
+
+
+void MeshingVertexLoop::Run()
+{
+	SodapopDrawableShared Painter = PainterWeakRef.lock();
+	SDFNodeShared Evaluator = EvaluatorWeakRef.lock();
+
+	if (Painter && Evaluator)
+	{
+		MeshingScratch* Scratch = Painter->Scratch;
+		bool LoopExhausted = false;
+
+		while (true)
+		{
+			const int ClaimedIndex = Scratch->FirstLoopIndex.fetch_add(1);
+			const int Range = Scratch->FirstLoopDomain.size();
+			if (ClaimedIndex < Range)
+			{
+				Scratch->FirstLoopThunk(*Scratch, ClaimedIndex);
+
+				const int CompletionIndex = Scratch->FirstLoopCompleted.fetch_add(1);
+				if (CompletionIndex == Range - 1)
+				{
+					LoopExhausted = true;
+					break;
+				}
+			}
+			else
+			{
+				break;
+			}
+		}
+
+		if (LoopExhausted)
+		{
+			Scratch->SecondLoopIterator = Scratch->SecondLoopDomain.begin();
+			MeshingFaceLoop* Next = new MeshingFaceLoop();
+			Next->PainterWeakRef = Painter;
+			Next->EvaluatorWeakRef = Evaluator;
+			Scheduler::Enqueue(Next);
+		}
+	}
+}
+
+
+void MeshingFaceLoop::Run()
+{
+	SodapopDrawableShared Painter = PainterWeakRef.lock();
+	SDFNodeShared Evaluator = EvaluatorWeakRef.lock();
+
+	if (Painter && Evaluator)
+	{
+		MeshingScratch* Scratch = Painter->Scratch;
+		bool LoopExhausted = false;
+		while (true)
+		{
+			bool ValidIteration = false;
+			std::unordered_map<std::size_t, std::uint64_t>::iterator Cursor;
+			{
+				Scratch->SecondLoopIteratorCS.lock();
+				Cursor = Scratch->SecondLoopIterator;
+				ValidIteration = Cursor != Scratch->SecondLoopDomain.end();
+				if (ValidIteration)
+				{
+					Scratch->SecondLoopIterator++;
+				}
+				Scratch->SecondLoopIteratorCS.unlock();
+			}
+			if (ValidIteration)
+			{
+				Scratch->SecondLoopThunk(*Scratch, *Cursor);
+
+				const int Range = Scratch->SecondLoopDomain.size();
+				const int CompletionIndex = Scratch->SecondLoopCompleted.fetch_add(1);
+				if (CompletionIndex == Range - 1)
+				{
+					LoopExhausted = true;
+					break;
+				}
+			}
+			else
+			{
+				break;
+			}
+		}
+
+		if (LoopExhausted)
+		{
+			isosurface::mesh& Mesh = Scratch->OutputMesh;
+
+			// TODO: this should be broken up into several more parallel tasks, the last of which schedules the recurring lighting task
+
+			Painter->Positions.reserve(Mesh.vertices_.size());
+			Painter->Normals.reserve(Mesh.vertices_.size());
+			Painter->Indices.reserve(Mesh.faces_.size() * 3);
+
+			for (const isosurface::point_t& ExtractedVertex : Mesh.vertices_)
+			{
+				glm::vec4 Vertex(ExtractedVertex.x, ExtractedVertex.y, ExtractedVertex.z, 1.0);
+				Painter->Positions.push_back(Vertex);
+				Painter->Normals.push_back(glm::vec4(0.0, 0.0, 0.0, 0.0));
+			}
+
+			for (const isosurface::shared_vertex_mesh::triangle_t& Face : Mesh.faces_)
+			{
+				Painter->Indices.push_back(Face.v0);
+				Painter->Indices.push_back(Face.v1);
+				Painter->Indices.push_back(Face.v2);
+
+				glm::vec3 A = Painter->Positions[Face.v0].xyz();
+				glm::vec3 B = Painter->Positions[Face.v1].xyz();
+				glm::vec3 C = Painter->Positions[Face.v2].xyz();
+				glm::vec3 AB = glm::normalize(A - B);
+				glm::vec3 AC = glm::normalize(A - C);
+				glm::vec4 N = glm::vec4(glm::normalize(glm::cross(AB, AC)), 1);
+
+				if (!glm::any(glm::isnan(N)))
+				{
+					Painter->Normals[Face.v0] += N;
+					Painter->Normals[Face.v1] += N;
+					Painter->Normals[Face.v2] += N;
+				}
+			}
+
+			for (glm::vec4& Normal : Painter->Normals)
+			{
+				Normal = glm::vec4(glm::normalize(Normal.xyz() / Normal.w), 1.0);
+			}
+
+			glm::vec3 JitterSpan = glm::vec3(Scratch->Grid.dx, Scratch->Grid.dy, Scratch->Grid.dz) * glm::vec3(0.5);
+
+			Painter->Colors.reserve(Painter->Positions.size());
+			for (const glm::vec4& Position : Painter->Positions)
+			{
+				// HACK taking a random average within the approximate voxel bounds of a vert
+				// goes a long ways to improve the readability of some models.  However, the
+				// correct thing to do here might be a little more like how we calculate normals.
+				// For each triangle, sample randomly within the triangle, and accumualte the
+				// samples into vertex buckets.  Although, the accumulated values should probably
+				// be weighted by their barycentric coordinates or something like that.
+
+				const int Count = 20;
+				std::vector<glm::vec3> Samples;
+				Samples.reserve(Count);
+				glm::vec3 Average = glm::vec3(0.0);
+				for (int i = 0; i < Count; ++i)
+				{
+					glm::vec3 Jitter = JitterSpan * glm::vec3(Roll(RNGesus), Roll(RNGesus), Roll(RNGesus));
+					glm::vec3 Tmp = Position.xyz();
+					glm::vec3 Sample = Evaluator->Sample(Tmp + Jitter);
+					if (!glm::any(glm::isnan(Sample)))
+					{
+						Samples.push_back(Sample);
+						Average += Sample;
+					}
+				}
+				Average /= glm::vec3(float(Samples.size()));
+				Painter->Colors.push_back(glm::vec4(Average, 1.0));
+			}
+
+			delete Painter->Scratch;
+			Painter->Scratch = nullptr;
+
+			Painter->MeshReady.store(true);
+		}
+	}
 }
 
 

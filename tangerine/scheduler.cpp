@@ -94,6 +94,7 @@ struct FinalizerTask : public DeleteTask
 
 static AtomicQueue<AsyncTask> Inbox;
 static AtomicQueue<AsyncTask> Outbox;
+static AtomicQueue<ParallelTask> ParallelQueue;
 static AtomicQueue<ContinuousTask> ContinuousQueue;
 static AtomicQueue<DeleteTask> DeleteQueue;
 
@@ -109,6 +110,17 @@ int Scheduler::GetThreadIndex()
 {
 	Assert(ThreadIndex > -1);
 	return ThreadIndex;
+}
+
+
+int Scheduler::GetThreadPoolSize()
+{
+	// This is meant to be one thread per reported thread of execution, assuming a dual
+	// core processor or better.  The main thread is assumed to be always active, so
+	// the thread pool should only occupy the remaining threads.
+	static const int ProcessorCountEstimate = std::max(int(std::thread::hardware_concurrency()), 2);
+	static const int ThreadPoolSize = ProcessorCountEstimate - 1;
+	return ThreadPoolSize;
 }
 
 
@@ -145,7 +157,12 @@ void WorkerThread(const int InThreadIndex)
 			continue;
 		}
 
-		if (AsyncTask* Task = Inbox.TryPop())
+		if (ParallelTask* Task = ParallelQueue.TryPop())
+		{
+			Task->Run();
+			delete Task;
+		}
+		else if (AsyncTask* Task = Inbox.TryPop())
 		{
 			Task->Run();
 			Outbox.BlockingPush(Task);
@@ -207,6 +224,22 @@ void Scheduler::Enqueue(AsyncTask* Task, bool Unstoppable)
 		Inbox.BlockingPush(Task);
 	}
 	fmt::print("[{}] New async task\n", (void*)Task);
+}
+
+
+void Scheduler::Enqueue(ParallelTask* Task)
+{
+	ParallelTask* Prototype = Task;
+	ParallelQueue.BlockingPush(Task);
+	for (int i = 1; i < GetThreadPoolSize(); ++i)
+	{
+		Task = Prototype->Fork();
+		if (!ParallelQueue.TryPush(Task))
+		{
+			delete Task;
+			break;
+		}
+	}
 }
 
 
@@ -280,12 +313,9 @@ void Scheduler::Setup(const bool ForceSingleThread)
 
 	if (!ForceSingleThread)
 	{
-		const int ThreadCount = std::max(int(std::thread::hardware_concurrency()), 2);
-		for (int ThreadIndex = 1; ThreadIndex < ThreadCount; ++ThreadIndex)
+		for (int ThreadIndex = 0; ThreadIndex < GetThreadPoolSize(); ++ThreadIndex)
 		{
-			// This is meant to be one thread per reported thread of execution, assuming a dual
-			// core processor or better.  This includes the main thread, so we start at index 1.
-			Pool.emplace_back(WorkerThread<true>, ThreadIndex);
+			Pool.emplace_back(WorkerThread<true>, ThreadIndex + 1);
 		}
 	}
 }
@@ -376,10 +406,11 @@ void Scheduler::DropEverything()
 }
 
 
-void Scheduler::Stats(size_t& InboxLoad, size_t& OutboxLoad, size_t& ContinuousLoad, size_t& DeleteLoad)
+void Scheduler::Stats(size_t& InboxLoad, size_t& OutboxLoad, size_t& ParallelLoad, size_t& ContinuousLoad, size_t& DeleteLoad)
 {
 	InboxLoad = Inbox.RecentCount();
 	OutboxLoad = Outbox.RecentCount();
+	ParallelLoad = ParallelQueue.RecentCount();
 	ContinuousLoad = ContinuousQueue.RecentCount();
 	DeleteLoad = DeleteQueue.RecentCount();
 }

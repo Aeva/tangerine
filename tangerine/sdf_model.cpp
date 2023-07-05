@@ -293,6 +293,10 @@ VoxelDrawable::~VoxelDrawable()
 #if RENDERER_SODAPOP
 SodapopDrawable::~SodapopDrawable()
 {
+	if (Scratch != nullptr)
+	{
+		delete Scratch;
+	}
 	Evaluator.reset();
 
 	for (auto Iterator = DrawableCache.begin(); Iterator != DrawableCache.end(); ++Iterator)

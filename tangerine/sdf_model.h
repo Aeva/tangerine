@@ -125,6 +125,7 @@ struct SodapopDrawable final : Drawable
 	std::vector<glm::vec4> Normals;
 	std::vector<glm::vec4> Colors;
 
+	struct MeshingScratch* Scratch = nullptr;
 	std::atomic_bool MeshReady;
 	bool MeshUploaded = false;
 
