@@ -37,7 +37,10 @@ struct AsyncTask
 struct ParallelTask
 {
 	virtual void Run() = 0;
-	virtual ParallelTask* Fork() = 0;
+
+	virtual void Exhausted()
+	{
+	}
 
 	virtual ~ParallelTask()
 	{
@@ -82,11 +85,10 @@ namespace Scheduler
 
 	bool Live();
 	void Enqueue(AsyncTask* Task, bool Unstoppable = false);
-	void Enqueue(ParallelTask* Task);
 	void Enqueue(ContinuousTask* Task);
-
 	void EnqueueDelete(DeleteTask* Task);
 	void EnqueueDelete(FinalizerThunk Finalizer);
+	void EnqueueParallel(ParallelTask* TaskPrototype);
 
 	void Stats(size_t& InboxLoad, size_t& OutboxLoad, size_t& ParallelLoad, size_t& ContinuousLoad, size_t& DeleteLoad);
 }

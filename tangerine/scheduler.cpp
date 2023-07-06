@@ -24,6 +24,7 @@
 #include <thread>
 #include <vector>
 #include <chrono>
+#include <memory>
 
 
 #ifndef SCHEDULER_QUEUE_SIZE
@@ -92,9 +93,26 @@ struct FinalizerTask : public DeleteTask
 };
 
 
+struct ParallelTaskProxy
+{
+	std::shared_ptr<ParallelTask> TaskPrototype;
+
+	ParallelTaskProxy(std::shared_ptr<ParallelTask> InTaskPrototype)
+		: TaskPrototype(InTaskPrototype)
+	{
+	}
+
+	void Run()
+	{
+		TaskPrototype->Run();
+		TaskPrototype.reset();
+	}
+};
+
+
 static AtomicQueue<AsyncTask> Inbox;
 static AtomicQueue<AsyncTask> Outbox;
-static AtomicQueue<ParallelTask> ParallelQueue;
+static AtomicQueue<ParallelTaskProxy> ParallelQueue;
 static AtomicQueue<ContinuousTask> ContinuousQueue;
 static AtomicQueue<DeleteTask> DeleteQueue;
 
@@ -157,7 +175,7 @@ void WorkerThread(const int InThreadIndex)
 			continue;
 		}
 
-		if (ParallelTask* Task = ParallelQueue.TryPop())
+		if (ParallelTaskProxy* Task = ParallelQueue.TryPop())
 		{
 			Task->Run();
 			delete Task;
@@ -227,22 +245,6 @@ void Scheduler::Enqueue(AsyncTask* Task, bool Unstoppable)
 }
 
 
-void Scheduler::Enqueue(ParallelTask* Task)
-{
-	ParallelTask* Prototype = Task;
-	ParallelQueue.BlockingPush(Task);
-	for (int i = 1; i < GetThreadPoolSize(); ++i)
-	{
-		Task = Prototype->Fork();
-		if (!ParallelQueue.TryPush(Task))
-		{
-			delete Task;
-			break;
-		}
-	}
-}
-
-
 void Scheduler::Enqueue(ContinuousTask* Task)
 {
 	ContinuousQueue.BlockingPush(Task);
@@ -266,6 +268,34 @@ void Scheduler::EnqueueDelete(FinalizerThunk Finalizer)
 		FinalizerTask* PendingDelete = new FinalizerTask();
 		PendingDelete->Finalizer = Finalizer;
 		EnqueueDelete(PendingDelete);
+	}
+}
+
+
+static void ParallelTaskDeleter(ParallelTask* TaskPrototype)
+{
+	TaskPrototype->Exhausted();
+	delete TaskPrototype;
+}
+
+
+void Scheduler::EnqueueParallel(ParallelTask* TaskPrototype)
+{
+	int PoolSize = GetThreadPoolSize();
+	std::vector<ParallelTaskProxy*> Pending;
+	Pending.reserve(PoolSize);
+
+	std::shared_ptr<ParallelTask> SharedPrototype(TaskPrototype, ParallelTaskDeleter);
+
+	for (int i = 0; i < PoolSize; ++i)
+	{
+		ParallelTaskProxy* Proxy = new ParallelTaskProxy(SharedPrototype);
+		Pending.push_back(Proxy);
+	}
+
+	for (ParallelTaskProxy* Proxy : Pending)
+	{
+		ParallelQueue.BlockingPush(Proxy);
 	}
 }
 
