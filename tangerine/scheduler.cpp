@@ -229,17 +229,19 @@ void Scheduler::Enqueue(AsyncTask* Task, bool Unstoppable)
 
 void Scheduler::Enqueue(ParallelTask* Task)
 {
-	ParallelTask* Prototype = Task;
+	ParallelTask* Tail = Task->Fork();
 	ParallelQueue.BlockingPush(Task);
 	for (int i = 1; i < GetThreadPoolSize(); ++i)
 	{
-		Task = Prototype->Fork();
+		Task = Tail;
+		Tail = Task->Fork();
 		if (!ParallelQueue.TryPush(Task))
 		{
 			delete Task;
 			break;
 		}
 	}
+	delete Tail;
 }
 
 

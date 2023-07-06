@@ -17,6 +17,7 @@
 
 #include <atomic>
 #include <functional>
+#include <algorithm>
 
 
 struct AsyncTask
@@ -90,3 +91,89 @@ namespace Scheduler
 
 	void Stats(size_t& InboxLoad, size_t& OutboxLoad, size_t& ParallelLoad, size_t& ContinuousLoad, size_t& DeleteLoad);
 }
+
+
+template<typename DerivedT, typename ContainerT, typename... ExtraArgsT>
+struct ParallelIterationTask : ParallelTask
+{
+	using IteratorT = ContainerT::iterator;
+	using ElementT = ContainerT::value_type;
+
+	struct TaskShared
+	{
+		std::atomic_int RefCount = 1;
+		std::atomic_int NextSlice = 0;
+		std::vector<std::pair<IteratorT, IteratorT> > Slices;
+	};
+
+	TaskShared* Shared = nullptr;
+
+	ParallelIterationTask(ContainerT* Domain)
+	{
+		Shared = new TaskShared();
+
+		const int SliceCount = Scheduler::GetThreadPoolSize();
+		int MaxSliceSize = (Domain->size() + SliceCount - 1) / SliceCount;
+
+		Shared->Slices.resize(SliceCount);
+
+		IteratorT SliceStart = Domain->begin();
+		for (int GroupIndex = 0; GroupIndex < SliceCount; ++GroupIndex)
+		{
+			int StartIndex = GroupIndex * MaxSliceSize;
+			int EndIndex = std::min(StartIndex + MaxSliceSize, int(Domain->size()));
+			int SliceSpan = EndIndex - StartIndex;
+			IteratorT SliceEnd = std::next(SliceStart, SliceSpan);
+			Shared->Slices.push_back({ SliceStart, SliceEnd });
+			SliceStart = SliceEnd;
+		}
+	}
+
+	virtual ParallelTask* Fork()
+	{
+		Shared->RefCount.fetch_add(1);
+		return new DerivedT(*dynamic_cast<DerivedT*>(this));
+	}
+
+	virtual ~ParallelIterationTask()
+	{
+#if 0
+
+		const int ThisRef = Shared->RefCount.fetch_sub(1);
+		if (ThisRef == 1)
+		{
+			Complete();
+			delete Shared;
+		}
+#endif
+	}
+
+	virtual void RunInner(ExtraArgsT... ExtraArgs)
+	{
+		const int SliceIndex = Shared->NextSlice.fetch_add(1);
+		if (SliceIndex < Shared->Slices.size())
+		{
+			IteratorT Cursor = Shared->Slices[SliceIndex].first;
+			IteratorT SliceEnd = Shared->Slices[SliceIndex].second;
+			for (; Cursor != SliceEnd; ++Cursor)
+			{
+				LoopThunk(*Cursor, ExtraArgs...);
+			}
+		}
+
+		const int ThisRef = Shared->RefCount.fetch_sub(1);
+		if (ThisRef == 1)
+		{
+			Complete();
+			delete Shared;
+		}
+	}
+
+	virtual void Run() = 0;
+
+	virtual void LoopThunk(const ElementT& Element, ExtraArgsT... ExtraArgs) = 0;
+
+	virtual void Complete()
+	{
+	}
+};

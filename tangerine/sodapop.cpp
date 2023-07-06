@@ -51,29 +51,59 @@ struct MeshingJob : AsyncTask
 };
 
 
-struct MeshingVertexLoop : ParallelTask
+struct MeshingVertexLoop : ParallelIterationTask<MeshingVertexLoop, std::vector<std::size_t>, SodapopDrawableShared, SDFNodeShared>
 {
+	using BaseT = ParallelIterationTask<MeshingVertexLoop, std::vector<std::size_t>, SodapopDrawableShared, SDFNodeShared>;
 	SodapopDrawableWeakRef PainterWeakRef;
 	SDFNodeWeakRef EvaluatorWeakRef;
 
-	virtual void Run();
-	virtual ParallelTask* Fork()
+	MeshingVertexLoop(std::vector<std::size_t>* Domain)
+		: BaseT(Domain)
 	{
-		return new MeshingVertexLoop(*this);
 	}
+
+#if 0
+	MeshingVertexLoop(const MeshingVertexLoop* Prototype)
+		: BaseT(Prototype)
+	{
+		PainterWeakRef = Prototype->PainterWeakRef;
+		EvaluatorWeakRef = Prototype->EvaluatorWeakRef;
+	}
+#endif
+
+	virtual void Run();
+
+	virtual void LoopThunk(const std::size_t& Element, SodapopDrawableShared Painter, SDFNodeShared Evaluator);
+
+	virtual void Complete();
 };
 
 
-struct MeshingFaceLoop : ParallelTask
+struct MeshingFaceLoop : ParallelIterationTask<MeshingFaceLoop, std::unordered_map<std::size_t, std::uint64_t>, SodapopDrawableShared, SDFNodeShared>
 {
+	using BaseT = ParallelIterationTask<MeshingFaceLoop, std::unordered_map<std::size_t, std::uint64_t>, SodapopDrawableShared, SDFNodeShared>;
 	SodapopDrawableWeakRef PainterWeakRef;
 	SDFNodeWeakRef EvaluatorWeakRef;
 
-	virtual void Run();
-	virtual ParallelTask* Fork()
+	MeshingFaceLoop(std::unordered_map<std::size_t, std::uint64_t>* Domain)
+		: BaseT(Domain)
 	{
-		return new MeshingFaceLoop(*this);
 	}
+
+#if 0
+	MeshingFaceLoop(const MeshingFaceLoop* Prototype)
+		: BaseT(Prototype)
+	{
+		PainterWeakRef = Prototype->PainterWeakRef;
+		EvaluatorWeakRef = Prototype->EvaluatorWeakRef;
+	}
+#endif
+
+	virtual void Run();
+
+	virtual void LoopThunk(std::pair<std::size_t const, std::uint64_t> const& Element, SodapopDrawableShared Painter, SDFNodeShared Evaluator);
+
+	virtual void Complete();
 };
 
 
@@ -160,7 +190,7 @@ void MeshingJob::Run()
 		}
 		Painter->Scratch->Setup();
 
-		MeshingVertexLoop* Next = new MeshingVertexLoop();
+		MeshingVertexLoop* Next = new MeshingVertexLoop(&(Painter->Scratch->FirstLoopDomain));
 		Next->PainterWeakRef = Painter;
 		Next->EvaluatorWeakRef = Evaluator;
 		Scheduler::Enqueue(Next);
@@ -200,38 +230,31 @@ void MeshingVertexLoop::Run()
 
 	if (Painter && Evaluator)
 	{
+		RunInner(Painter, Evaluator);
+	}
+}
+
+
+void MeshingVertexLoop::LoopThunk(const std::size_t& Element, SodapopDrawableShared Painter, SDFNodeShared Evaluator)
+{
+	MeshingScratch* Scratch = Painter->Scratch;
+	Scratch->FirstLoopThunk(*Scratch, Element);
+}
+
+
+void MeshingVertexLoop::Complete()
+{
+	SodapopDrawableShared Painter = PainterWeakRef.lock();
+	SDFNodeShared Evaluator = EvaluatorWeakRef.lock();
+
+	if (Painter && Evaluator)
+	{
 		MeshingScratch* Scratch = Painter->Scratch;
-		bool LoopExhausted = false;
-
-		while (true)
-		{
-			const int ClaimedIndex = Scratch->FirstLoopIndex.fetch_add(1);
-			const int Range = Scratch->FirstLoopDomain.size();
-			if (ClaimedIndex < Range)
-			{
-				Scratch->FirstLoopThunk(*Scratch, ClaimedIndex);
-
-				const int CompletionIndex = Scratch->FirstLoopCompleted.fetch_add(1);
-				if (CompletionIndex == Range - 1)
-				{
-					LoopExhausted = true;
-					break;
-				}
-			}
-			else
-			{
-				break;
-			}
-		}
-
-		if (LoopExhausted)
-		{
-			Scratch->SecondLoopIterator = Scratch->SecondLoopDomain.begin();
-			MeshingFaceLoop* Next = new MeshingFaceLoop();
-			Next->PainterWeakRef = Painter;
-			Next->EvaluatorWeakRef = Evaluator;
-			Scheduler::Enqueue(Next);
-		}
+		Scratch->SecondLoopIterator = Scratch->SecondLoopDomain.begin();
+		MeshingFaceLoop* Next = new MeshingFaceLoop(&(Scratch->SecondLoopDomain));
+		Next->PainterWeakRef = Painter;
+		Next->EvaluatorWeakRef = Evaluator;
+		Scheduler::Enqueue(Next);
 	}
 }
 
@@ -243,119 +266,103 @@ void MeshingFaceLoop::Run()
 
 	if (Painter && Evaluator)
 	{
+		RunInner(Painter, Evaluator);
+	}
+}
+
+
+void MeshingFaceLoop::LoopThunk(std::pair<std::size_t const, std::uint64_t> const& Element, SodapopDrawableShared Painter, SDFNodeShared Evaluator)
+{
+	MeshingScratch* Scratch = Painter->Scratch;
+	Scratch->SecondLoopThunk(*Scratch, Element);
+}
+
+
+void MeshingFaceLoop::Complete()
+{
+	SodapopDrawableShared Painter = PainterWeakRef.lock();
+	SDFNodeShared Evaluator = EvaluatorWeakRef.lock();
+
+	if (Painter && Evaluator)
+	{
 		MeshingScratch* Scratch = Painter->Scratch;
-		bool LoopExhausted = false;
-		while (true)
-		{
-			bool ValidIteration = false;
-			std::unordered_map<std::size_t, std::uint64_t>::iterator Cursor;
-			{
-				Scratch->SecondLoopIteratorCS.lock();
-				Cursor = Scratch->SecondLoopIterator;
-				ValidIteration = Cursor != Scratch->SecondLoopDomain.end();
-				if (ValidIteration)
-				{
-					Scratch->SecondLoopIterator++;
-				}
-				Scratch->SecondLoopIteratorCS.unlock();
-			}
-			if (ValidIteration)
-			{
-				Scratch->SecondLoopThunk(*Scratch, *Cursor);
 
-				const int Range = Scratch->SecondLoopDomain.size();
-				const int CompletionIndex = Scratch->SecondLoopCompleted.fetch_add(1);
-				if (CompletionIndex == Range - 1)
-				{
-					LoopExhausted = true;
-					break;
-				}
-			}
-			else
+		isosurface::mesh& Mesh = Scratch->OutputMesh;
+
+		// TODO: this should be broken up into several more parallel tasks, the last of which schedules the recurring lighting task
+
+		Painter->Positions.reserve(Mesh.vertices_.size());
+		Painter->Normals.reserve(Mesh.vertices_.size());
+		Painter->Indices.reserve(Mesh.faces_.size() * 3);
+
+		for (const isosurface::point_t& ExtractedVertex : Mesh.vertices_)
+		{
+			glm::vec4 Vertex(ExtractedVertex.x, ExtractedVertex.y, ExtractedVertex.z, 1.0);
+			Painter->Positions.push_back(Vertex);
+			Painter->Normals.push_back(glm::vec4(0.0, 0.0, 0.0, 0.0));
+		}
+
+		for (const isosurface::shared_vertex_mesh::triangle_t& Face : Mesh.faces_)
+		{
+			Painter->Indices.push_back(Face.v0);
+			Painter->Indices.push_back(Face.v1);
+			Painter->Indices.push_back(Face.v2);
+
+			glm::vec3 A = Painter->Positions[Face.v0].xyz();
+			glm::vec3 B = Painter->Positions[Face.v1].xyz();
+			glm::vec3 C = Painter->Positions[Face.v2].xyz();
+			glm::vec3 AB = glm::normalize(A - B);
+			glm::vec3 AC = glm::normalize(A - C);
+			glm::vec4 N = glm::vec4(glm::normalize(glm::cross(AB, AC)), 1);
+
+			if (!glm::any(glm::isnan(N)))
 			{
-				break;
+				Painter->Normals[Face.v0] += N;
+				Painter->Normals[Face.v1] += N;
+				Painter->Normals[Face.v2] += N;
 			}
 		}
 
-		if (LoopExhausted)
+		for (glm::vec4& Normal : Painter->Normals)
 		{
-			isosurface::mesh& Mesh = Scratch->OutputMesh;
-
-			// TODO: this should be broken up into several more parallel tasks, the last of which schedules the recurring lighting task
-
-			Painter->Positions.reserve(Mesh.vertices_.size());
-			Painter->Normals.reserve(Mesh.vertices_.size());
-			Painter->Indices.reserve(Mesh.faces_.size() * 3);
-
-			for (const isosurface::point_t& ExtractedVertex : Mesh.vertices_)
-			{
-				glm::vec4 Vertex(ExtractedVertex.x, ExtractedVertex.y, ExtractedVertex.z, 1.0);
-				Painter->Positions.push_back(Vertex);
-				Painter->Normals.push_back(glm::vec4(0.0, 0.0, 0.0, 0.0));
-			}
-
-			for (const isosurface::shared_vertex_mesh::triangle_t& Face : Mesh.faces_)
-			{
-				Painter->Indices.push_back(Face.v0);
-				Painter->Indices.push_back(Face.v1);
-				Painter->Indices.push_back(Face.v2);
-
-				glm::vec3 A = Painter->Positions[Face.v0].xyz();
-				glm::vec3 B = Painter->Positions[Face.v1].xyz();
-				glm::vec3 C = Painter->Positions[Face.v2].xyz();
-				glm::vec3 AB = glm::normalize(A - B);
-				glm::vec3 AC = glm::normalize(A - C);
-				glm::vec4 N = glm::vec4(glm::normalize(glm::cross(AB, AC)), 1);
-
-				if (!glm::any(glm::isnan(N)))
-				{
-					Painter->Normals[Face.v0] += N;
-					Painter->Normals[Face.v1] += N;
-					Painter->Normals[Face.v2] += N;
-				}
-			}
-
-			for (glm::vec4& Normal : Painter->Normals)
-			{
-				Normal = glm::vec4(glm::normalize(Normal.xyz() / Normal.w), 1.0);
-			}
-
-			glm::vec3 JitterSpan = glm::vec3(Scratch->Grid.dx, Scratch->Grid.dy, Scratch->Grid.dz) * glm::vec3(0.5);
-
-			Painter->Colors.reserve(Painter->Positions.size());
-			for (const glm::vec4& Position : Painter->Positions)
-			{
-				// HACK taking a random average within the approximate voxel bounds of a vert
-				// goes a long ways to improve the readability of some models.  However, the
-				// correct thing to do here might be a little more like how we calculate normals.
-				// For each triangle, sample randomly within the triangle, and accumualte the
-				// samples into vertex buckets.  Although, the accumulated values should probably
-				// be weighted by their barycentric coordinates or something like that.
-
-				const int Count = 20;
-				std::vector<glm::vec3> Samples;
-				Samples.reserve(Count);
-				glm::vec3 Average = glm::vec3(0.0);
-				for (int i = 0; i < Count; ++i)
-				{
-					glm::vec3 Jitter = JitterSpan * glm::vec3(Roll(RNGesus), Roll(RNGesus), Roll(RNGesus));
-					glm::vec3 Tmp = Position.xyz();
-					glm::vec3 Sample = Evaluator->Sample(Tmp + Jitter);
-					if (!glm::any(glm::isnan(Sample)))
-					{
-						Samples.push_back(Sample);
-						Average += Sample;
-					}
-				}
-				Average /= glm::vec3(float(Samples.size()));
-				Painter->Colors.push_back(glm::vec4(Average, 1.0));
-			}
-
-			delete Painter->Scratch;
-			Painter->Scratch = nullptr;
-
-			Painter->MeshReady.store(true);
+			Normal = glm::vec4(glm::normalize(Normal.xyz() / Normal.w), 1.0);
 		}
+
+		glm::vec3 JitterSpan = glm::vec3(Scratch->Grid.dx, Scratch->Grid.dy, Scratch->Grid.dz) * glm::vec3(0.5);
+
+		Painter->Colors.reserve(Painter->Positions.size());
+		for (const glm::vec4& Position : Painter->Positions)
+		{
+			// HACK taking a random average within the approximate voxel bounds of a vert
+			// goes a long ways to improve the readability of some models.  However, the
+			// correct thing to do here might be a little more like how we calculate normals.
+			// For each triangle, sample randomly within the triangle, and accumualte the
+			// samples into vertex buckets.  Although, the accumulated values should probably
+			// be weighted by their barycentric coordinates or something like that.
+
+			const int Count = 20;
+			std::vector<glm::vec3> Samples;
+			Samples.reserve(Count);
+			glm::vec3 Average = glm::vec3(0.0);
+			for (int i = 0; i < Count; ++i)
+			{
+				glm::vec3 Jitter = JitterSpan * glm::vec3(Roll(RNGesus), Roll(RNGesus), Roll(RNGesus));
+				glm::vec3 Tmp = Position.xyz();
+				glm::vec3 Sample = Evaluator->Sample(Tmp + Jitter);
+				if (!glm::any(glm::isnan(Sample)))
+				{
+					Samples.push_back(Sample);
+					Average += Sample;
+				}
+			}
+			Average /= glm::vec3(float(Samples.size()));
+			Painter->Colors.push_back(glm::vec4(Average, 1.0));
+		}
+
+		delete Painter->Scratch;
+		Painter->Scratch = nullptr;
+
+		Painter->MeshReady.store(true);
 	}
 }
 
