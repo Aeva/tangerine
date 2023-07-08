@@ -68,7 +68,7 @@ template<typename ContainerT>
 struct MeshingVectorTask : ParallelTaskChain
 {
 	using SharedT = std::shared_ptr<MeshingVectorTask<ContainerT>>;
-	using ElementT = ContainerT::value_type;
+	using ElementT = typename ContainerT::value_type;
 
 	SodapopDrawableWeakRef PainterWeakRef;
 	SDFNodeWeakRef EvaluatorWeakRef;
@@ -137,7 +137,7 @@ template<typename ContainerT>
 struct MeshingVectorLambdaTask : MeshingVectorTask<ContainerT>
 {
 	using SharedT = std::shared_ptr<MeshingVectorTask<ContainerT>>;
-	using ElementT = ContainerT::value_type;
+	using ElementT = typename ContainerT::value_type;
 
 	using LoopThunkT = std::function<void(SodapopDrawableShared&, SDFNodeShared&, ElementT&, const int)>;
 	using DoneThunkT = std::function<void(SodapopDrawableShared&, SDFNodeShared&)>;
