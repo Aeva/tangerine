@@ -1236,7 +1236,7 @@ namespace SDF
 
 
 // SDFOctree function implementations
-SDFOctree* SDFOctree::Create(SDFNodeShared& Evaluator, float TargetSize, bool Coalesce)
+SDFOctreeShared SDFOctree::Create(SDFNodeShared& Evaluator, float TargetSize, bool Coalesce)
 {
 	if (Evaluator->HasFiniteBounds())
 	{
@@ -1251,7 +1251,7 @@ SDFOctree* SDFOctree::Create(SDFNodeShared& Evaluator, float TargetSize, bool Co
 		SDFOctree* Tree = new SDFOctree(nullptr, Evaluator, TargetSize, Coalesce, Bounds, 1);
 		if (Tree->Evaluator)
 		{
-			return Tree;
+			return SDFOctreeShared(Tree);
 		}
 		else
 		{

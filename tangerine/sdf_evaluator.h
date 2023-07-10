@@ -203,6 +203,11 @@ namespace SDF
 }
 
 
+struct SDFOctree;
+using SDFOctreeShared = std::shared_ptr<SDFOctree>;
+using SDFOctreeWeakRef = std::weak_ptr<SDFOctree>;
+
+
 struct SDFOctree
 {
 	AABB Bounds;
@@ -214,7 +219,7 @@ struct SDFOctree
 	SDFOctree* Children[8];
 	SDFOctree* Parent;
 
-	static SDFOctree* Create(SDFNodeShared& Evaluator, float TargetSize = 0.25, bool Coalesce = true);
+	static SDFOctreeShared Create(SDFNodeShared& Evaluator, float TargetSize = 0.25, bool Coalesce = true);
 	void Populate(bool Coalesce, int Depth);
 	~SDFOctree();
 	SDFNodeShared Descend(const glm::vec3 Point, const bool Exact=true);

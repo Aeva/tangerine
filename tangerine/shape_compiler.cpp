@@ -77,7 +77,7 @@ void VoxelDrawable::Compile(SDFNodeShared& Evaluator, const float VoxelSize)
 
 	{
 		BeginEvent("Build Octree");
-		SDFOctree* Octree = SDFOctree::Create(Evaluator, VoxelSize);
+		SDFOctreeShared Octree = SDFOctree::Create(Evaluator, VoxelSize);
 		EndEvent();
 
 		SDFOctree::CallbackType Thunk = [&](SDFOctree& Leaf)
@@ -123,7 +123,7 @@ void VoxelDrawable::Compile(SDFNodeShared& Evaluator, const float VoxelSize)
 		EndEvent();
 
 		BeginEvent("Delete Octree");
-		delete Octree;
+		Octree.reset();
 		EndEvent();
 	}
 

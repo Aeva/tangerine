@@ -56,7 +56,7 @@ std::atomic_int WriteCount;
 std::atomic_int WriteProgress;
 
 
-void WriteSTL(SDFOctree* Octree, std::string Path, std::vector<vec3> Vertices, std::vector<ivec3> Triangles, float Scale)
+void WriteSTL(SDFOctreeShared Octree, std::string Path, std::vector<vec3> Vertices, std::vector<ivec3> Triangles, float Scale)
 {
 	std::ofstream OutFile;
 	OutFile.open(Path, std::ios::out | std::ios::binary);
@@ -181,7 +181,7 @@ std::string PlyHeader(size_t VertexCount, size_t TriangleCount, bool ExportColor
 }
 
 
-void WritePLY(SDFOctree* Octree, std::string Path, std::vector<vec3> Vertices, std::vector<ivec3> Triangles, float Scale)
+void WritePLY(SDFOctreeShared Octree, std::string Path, std::vector<vec3> Vertices, std::vector<ivec3> Triangles, float Scale)
 {
 	const bool ExportColor = Octree->Evaluator->HasPaint();
 	std::string Header;
@@ -248,7 +248,7 @@ void WritePLY(SDFOctree* Octree, std::string Path, std::vector<vec3> Vertices, s
 
 void MeshExportThread(SDFNodeShared Evaluator, vec3 ModelMin, vec3 ModelMax, vec3 Step, int RefineIterations, std::string Path, ExportFormat Format, float Scale)
 {
-	SDFOctree* Octree = SDFOctree::Create(Evaluator, 0.25);
+	SDFOctreeShared Octree = SDFOctree::Create(Evaluator, 0.25);
 
 	// The lower bound needs a margin to prevent clipping.
 	ModelMin -= Step * vec3(2.0);
@@ -304,7 +304,7 @@ void MeshExportThread(SDFNodeShared Evaluator, vec3 ModelMin, vec3 ModelMax, vec
 		WritePLY(Octree, Path, Vertices, Triangles, Scale);
 	}
 
-	delete Octree;
+	Octree.reset();
 
 	ExportState.store(0);
 }
@@ -314,7 +314,7 @@ void PointCloudExportThread(SDFNodeShared Evaluator, vec3 ModelMin, vec3 ModelMa
 {
 	const vec3 Half = Step / vec3(2.0);
 	const float Diagonal = length(Half);
-	SDFOctree* Octree = SDFOctree::Create(Evaluator, 0.25);
+	SDFOctreeShared Octree = SDFOctree::Create(Evaluator, 0.25);
 
 	std::vector<glm::vec3> Vertices;
 	std::mutex VerticesCS;
@@ -406,7 +406,6 @@ void PointCloudExportThread(SDFNodeShared Evaluator, vec3 ModelMin, vec3 ModelMa
 	}
 
 	ExportState.store(0);
-	delete Octree;
 }
 
 
