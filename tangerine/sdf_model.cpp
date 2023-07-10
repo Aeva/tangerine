@@ -321,9 +321,18 @@ RayHit SDFModel::RayMarch(glm::vec3 RayStart, glm::vec3 RayDir, int MaxIteration
 }
 
 
-SDFModel::SDFModel(SDFNodeShared& InEvaluator, const float VoxelSize)
+SDFModel::SDFModel(SDFNodeShared& InEvaluator, const std::string& InName, const float VoxelSize)
 {
 	Evaluator = InEvaluator;
+
+	if (InName.size() > 0)
+	{
+		Name = fmt::format("{} : {}", InName, (void*)(&InEvaluator));
+	}
+	else
+	{
+		Name = fmt::format("{}", (void*)(&InEvaluator));
+	}
 
 	size_t Key = (size_t)(Evaluator.get());
 	for (auto& Entry : DrawableCache)
@@ -340,7 +349,7 @@ SDFModel::SDFModel(SDFNodeShared& InEvaluator, const float VoxelSize)
 #if RENDERER_COMPILER
 		if (CurrentRenderer == Renderer::ShapeCompiler)
 		{
-			VoxelDrawableShared VoxelPainter = std::make_shared<VoxelDrawable>();
+			VoxelDrawableShared VoxelPainter = std::make_shared<VoxelDrawable>(Name);
 			VoxelPainter->Compile(Evaluator, VoxelSize);
 			Painter = std::static_pointer_cast<Drawable>(VoxelPainter);
 			DrawableCache.emplace_back(Key, Painter);
@@ -349,7 +358,7 @@ SDFModel::SDFModel(SDFNodeShared& InEvaluator, const float VoxelSize)
 #if RENDERER_SODAPOP
 		if (CurrentRenderer == Renderer::Sodapop)
 		{
-			SodapopDrawableShared MeshPainter = std::make_shared<SodapopDrawable>(Evaluator);
+			SodapopDrawableShared MeshPainter = std::make_shared<SodapopDrawable>(Name, Evaluator);
 			Painter = std::static_pointer_cast<Drawable>(MeshPainter);
 			DrawableCache.emplace_back(Key, Painter);
 			Sodapop::Populate(MeshPainter);
@@ -368,11 +377,10 @@ void SDFModel::RegisterNewModel(SDFModelShared& NewModel)
 }
 
 
-SDFModelShared SDFModel::Create(SDFNodeShared& InEvaluator, const float VoxelSize)
+SDFModelShared SDFModel::Create(SDFNodeShared& InEvaluator, const std::string& InName, const float VoxelSize)
 {
-	SDFModelShared NewModel(new SDFModel(InEvaluator, VoxelSize));
+	SDFModelShared NewModel(new SDFModel(InEvaluator, InName, VoxelSize));
 	SDFModel::RegisterNewModel(NewModel);
-	NewModel->Name = fmt::format("{}", (void*)(&InEvaluator));
 	return NewModel;
 }
 

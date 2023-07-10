@@ -673,7 +673,7 @@ int LuaInstanceModel(lua_State* L)
 	if (lua_gettop(L) == 2)
 	{
 		const char* NameString = luaL_checklstring(L, 2, nullptr);
-		Name = fmt::format("{} : {}", NameString, (void*)(&Evaluator));
+		Name = std::string(NameString);
 		lua_pop(L, 1);
 	}
 	else
@@ -681,15 +681,11 @@ int LuaInstanceModel(lua_State* L)
 		LuaEnvironment* Env = LuaEnvironment::GetScriptEnvironment(L);
 		if (Env->Name.size() > 0)
 		{
-			Name = fmt::format("{} : {}", Env->Name, (void*)(&Evaluator));
+			Name = Env->Name;
 		}
 	}
 
-	LuaModelShared NewModel = LuaModel::Create(L, Evaluator, 0.25);
-	if (Name.size() > 0)
-	{
-		NewModel->Name = Name;
-	}
+	LuaModelShared NewModel = LuaModel::Create(L, Evaluator, Name, 0.25);
 
 	LuaModelShared* Wrapper = (LuaModelShared*)lua_newuserdata(L, sizeof(LuaModelShared));
 	luaL_getmetatable(L, "tangerine.model");
@@ -797,8 +793,8 @@ const luaL_Reg LuaSDFMeta[] = \
 };
 
 
-LuaModel::LuaModel(lua_State* L, SDFNodeShared& InEvaluator, const float VoxelSize)
-	: SDFModel(InEvaluator, VoxelSize)
+LuaModel::LuaModel(lua_State* L, SDFNodeShared& InEvaluator, const std::string& InName, const float VoxelSize)
+	: SDFModel(InEvaluator, InName, VoxelSize)
 	, Env(LuaEnvironment::GetScriptEnvironment(L))
 {
 	for (int i = 0; i < MOUSE_EVENTS; ++i)
@@ -808,9 +804,9 @@ LuaModel::LuaModel(lua_State* L, SDFNodeShared& InEvaluator, const float VoxelSi
 }
 
 
-LuaModelShared LuaModel::Create(lua_State* L, SDFNodeShared& InEvaluator, const float VoxelSize)
+LuaModelShared LuaModel::Create(lua_State* L, SDFNodeShared& InEvaluator, const std::string& InName, const float VoxelSize)
 {
-	LuaModelShared NewModel(new LuaModel(L, InEvaluator, VoxelSize));
+	LuaModelShared NewModel(new LuaModel(L, InEvaluator, InName, VoxelSize));
 	SDFModelShared Up = std::static_pointer_cast<SDFModel>(NewModel);
 	SDFModel::RegisterNewModel(Up);
 	return NewModel;

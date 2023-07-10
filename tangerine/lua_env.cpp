@@ -152,11 +152,7 @@ void LuaEnvironment::LoadLuaModelCommon()
 	if (LuaData)
 	{
 		SDFNodeShared& Evaluator = *static_cast<SDFNodeShared*>(LuaData);
-		GlobalModel = SDFModel::Create(Evaluator);
-		if (Name.size() > 0)
-		{
-			GlobalModel->Name = Name;
-		}
+		GlobalModel = SDFModel::Create(Evaluator, Name);
 	}
 	lua_pop(L, 1);
 }

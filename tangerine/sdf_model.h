@@ -35,6 +35,8 @@ using SDFModelWeakRef = std::weak_ptr<SDFModel>;
 
 struct Drawable
 {
+	std::string Name = "unknown";
+
 	// Used by VoxelDrawable
 	virtual void Draw(
 		const bool ShowOctree,
@@ -71,6 +73,11 @@ struct VoxelDrawable final : Drawable
 
 	std::vector<size_t> PendingShaders;
 	std::vector<ProgramTemplate*> CompiledTemplates;
+
+	VoxelDrawable(const std::string& InName)
+	{
+		Name = InName;
+	}
 
 	bool HasPendingShaders();
 	bool HasCompleteShaders();
@@ -130,8 +137,9 @@ struct SodapopDrawable final : Drawable
 	std::atomic_bool MeshReady;
 	bool MeshUploaded = false;
 
-	SodapopDrawable(SDFNodeShared& InEvaluator)
+	SodapopDrawable(const std::string& InName, SDFNodeShared& InEvaluator)
 	{
+		Name = InName;
 		Evaluator = InEvaluator;
 		MeshReady.store(false);
 	}
@@ -207,7 +215,7 @@ struct SDFModel
 
 	RayHit RayMarch(glm::vec3 RayStart, glm::vec3 RayDir, int MaxIterations = 1000, float Epsilon = 0.001);
 
-	static SDFModelShared Create(SDFNodeShared& InEvaluator, const float VoxelSize = 0.25);
+	static SDFModelShared Create(SDFNodeShared& InEvaluator, const std::string& InName, const float VoxelSize = 0.25);
 	SDFModel(SDFModel&& Other) = delete;
 	virtual ~SDFModel();
 
@@ -215,7 +223,7 @@ struct SDFModel
 
 protected:
 	static void RegisterNewModel(SDFModelShared& NewModel);
-	SDFModel(SDFNodeShared& InEvaluator, const float VoxelSize);
+	SDFModel(SDFNodeShared& InEvaluator, const std::string& InName, const float VoxelSize);
 };
 
 

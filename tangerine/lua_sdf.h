@@ -21,6 +21,7 @@
 #include "lua_vec.h"
 #include "sdf_model.h"
 #include <lua/lua.hpp>
+#include <string>
 
 
 using LuaModelShared = std::shared_ptr<struct LuaModel>;
@@ -31,7 +32,7 @@ struct LuaModel : public SDFModel
 	LuaEnvironment* Env = nullptr;
 	int MouseCallbackRefs[MOUSE_EVENTS];
 
-	static LuaModelShared Create(lua_State* L, SDFNodeShared& InEvaluator, const float VoxelSize = 0.25);
+	static LuaModelShared Create(lua_State* L, SDFNodeShared& InEvaluator, const std::string& InName, const float VoxelSize = 0.25);
 	void OnGarbageCollected();
 	virtual ~LuaModel();
 	virtual void OnMouseEvent(MouseEvent& Event, bool Picked);
@@ -39,7 +40,7 @@ struct LuaModel : public SDFModel
 	void SetMouseEventCallback(int EventFlag);
 
 protected:
-	LuaModel(lua_State* L, SDFNodeShared& InEvaluator, const float VoxelSize);
+	LuaModel(lua_State* L, SDFNodeShared& InEvaluator, const std::string& InName, const float VoxelSize);
 };
 
 
