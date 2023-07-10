@@ -212,12 +212,12 @@ void MeshingJob::Run()
 		float Refinement = 1.0;
 		const int Limit = 128;
 
-		float Guess = 15.0;
+		glm::vec3 Guess = glm::normalize(ModelExtent) * glm::vec3(15.0);
 		const int Target = 100000;
 
 		for (int Attempt = 0; Attempt < Limit; ++Attempt)
 		{
-			glm::vec3 Step = ModelExtent / glm::vec3(Guess);
+			glm::vec3 Step = ModelExtent / Guess;
 
 			glm::vec3 ModelMin = Bounds.Min;
 			glm::vec3 ModelMax = Bounds.Max;
