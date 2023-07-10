@@ -37,12 +37,31 @@ std::vector<SDFModelWeakRef> LiveModels;
 // nothing else.
 // I should probably make all of the refcounted stuff immobile to prevent these
 // kinds of issues.
-std::vector<std::pair<size_t, DrawableShared>> DrawableCache;
+std::vector<std::pair<size_t, DrawableWeakRef>> DrawableCache;
 
 
 std::vector<SDFModelWeakRef>& GetLiveModels()
 {
 	return LiveModels;
+}
+
+
+std::vector<std::pair<size_t, DrawableWeakRef>>& GetDrawableCache()
+{
+	return DrawableCache;
+}
+
+
+void PruneStaleDrawableFromCache()
+{
+	for (auto Iterator = DrawableCache.begin(); Iterator != DrawableCache.end(); ++Iterator)
+	{
+		if (Iterator->second.expired())
+		{
+			DrawableCache.erase(Iterator);
+			break;
+		}
+	}
 }
 
 
@@ -269,14 +288,7 @@ void VoxelDrawable::CompileNextShader()
 
 VoxelDrawable::~VoxelDrawable()
 {
-	for (auto Iterator = DrawableCache.begin(); Iterator != DrawableCache.end(); ++Iterator)
-	{
-		if (Iterator->second.get() == this)
-		{
-			DrawableCache.erase(Iterator);
-			break;
-		}
-	}
+	Scheduler::EnqueueDelete(PruneStaleDrawableFromCache);
 
 	for (ProgramTemplate& ProgramFamily : ProgramTemplates)
 	{
@@ -299,15 +311,7 @@ SodapopDrawable::~SodapopDrawable()
 		delete Scratch;
 	}
 	Evaluator.reset();
-
-	for (auto Iterator = DrawableCache.begin(); Iterator != DrawableCache.end(); ++Iterator)
-	{
-		if (Iterator->second.get() == this)
-		{
-			DrawableCache.erase(Iterator);
-			break;
-		}
-	}
+	Scheduler::EnqueueDelete(PruneStaleDrawableFromCache);
 }
 #endif // RENDERER_SODAPOP
 
@@ -339,8 +343,11 @@ SDFModel::SDFModel(SDFNodeShared& InEvaluator, const std::string& InName, const 
 	{
 		if (Entry.first == Key)
 		{
-			Painter = Entry.second;
-			break;
+			Painter = Entry.second.lock();
+			if (Painter)
+			{
+				break;
+			}
 		}
 	}
 

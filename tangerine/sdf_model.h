@@ -26,7 +26,9 @@
 #include <mutex>
 #endif
 #include <string>
+#include <chrono>
 
+using Clock = std::chrono::high_resolution_clock;
 
 struct SDFModel;
 using SDFModelShared = std::shared_ptr<SDFModel>;
@@ -63,6 +65,7 @@ struct Drawable
 };
 
 using DrawableShared = std::shared_ptr<Drawable>;
+using DrawableWeakRef = std::weak_ptr<Drawable>;
 
 
 #if RENDERER_COMPILER
@@ -137,8 +140,14 @@ struct SodapopDrawable final : Drawable
 	std::atomic_bool MeshReady;
 	bool MeshUploaded = false;
 
+	Clock::time_point MeshingStart;
+	Clock::time_point MeshingComplete;
+	std::chrono::duration<double, std::milli> ReadyDelay;
+
 	SodapopDrawable(const std::string& InName, SDFNodeShared& InEvaluator)
 	{
+		MeshingStart;
+		ReadyDelay = std::chrono::duration<double, std::milli>::zero();
 		Name = InName;
 		Evaluator = InEvaluator;
 		MeshReady.store(false);
@@ -228,6 +237,7 @@ protected:
 
 
 std::vector<SDFModelWeakRef>& GetLiveModels();
+std::vector<std::pair<size_t, DrawableWeakRef>>& GetDrawableCache();
 void UnloadAllModels();
 
 void GetIncompleteModels(std::vector<SDFModelWeakRef>& Incomplete);

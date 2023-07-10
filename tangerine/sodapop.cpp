@@ -202,6 +202,7 @@ void MeshingJob::Run()
 
 	if (ModelVolume > 0)
 	{
+		Painter->MeshingStart = Clock::now();
 		isosurface::regular_grid_t Grid;
 
 		float Refinement = 1.0;
@@ -382,6 +383,10 @@ void MeshingJob::Run()
 			{
 				delete Painter->Scratch;
 				Painter->Scratch = nullptr;
+
+				Painter->MeshingComplete = Clock::now();
+				Painter->ReadyDelay = Painter->MeshingComplete - Painter->MeshingStart;
+
 				Painter->MeshReady.store(true);
 			};
 

@@ -1427,6 +1427,7 @@ void RenderUI(SDL_Window* Window, bool& Live)
 
 	static bool ShowFocusOverlay = false;
 	static bool ShowPrettyTrees = false;
+	static bool ShowReadyDelays = false;
 
 	static bool ShowExportOptions = false;
 	static float ExportStepSize;
@@ -1609,6 +1610,14 @@ void RenderUI(SDL_Window* Window, bool& Live)
 				}
 			}
 #endif // RENDERER_COMPILER
+#if RENDERER_SODAPOP
+			if (CurrentRenderer == Renderer::Sodapop)
+			{
+				if (ImGui::MenuItem("Meshing Stats", nullptr, &ShowReadyDelays))
+				{
+				}
+			}
+#endif // RENDERER_SODAPOP
 			ImGui::EndMenu();
 		}
 		if (ImGui::BeginMenu("Help"))
@@ -1964,6 +1973,59 @@ void RenderUI(SDL_Window* Window, bool& Live)
 		ImGui::End();
 	}
 #endif // RENDERER_COMPILER
+
+#if RENDERER_SODAPOP
+	std::vector<std::pair<size_t, DrawableWeakRef>>& DrawableCache = GetDrawableCache();
+	if (ShowReadyDelays && DrawableCache.size() > 0 && CurrentRenderer == Renderer::Sodapop)
+	{
+		ImGuiWindowFlags WindowFlags = \
+			ImGuiWindowFlags_HorizontalScrollbar |
+			ImGuiWindowFlags_NoSavedSettings |
+			ImGuiWindowFlags_NoFocusOnAppearing;
+
+		ImGui::SetNextWindowPos(ImVec2(10.0, 32.0), ImGuiCond_Appearing, ImVec2(0.0, 0.0));
+		ImGui::SetNextWindowSize(ImVec2(256, 512), ImGuiCond_Appearing);
+
+		if (ImGui::Begin("Meshing Stats", &ShowReadyDelays, WindowFlags))
+		{
+			for (std::pair<size_t, DrawableWeakRef> Cached : DrawableCache)
+			{
+				DrawableShared CachedPainter = Cached.second.lock();
+				if (CachedPainter)
+				{
+					SodapopDrawableShared Painter = std::dynamic_pointer_cast<SodapopDrawable>(CachedPainter);
+					if (Painter)
+					{
+						if (Painter->MeshReady.load())
+						{
+							std::string Message = fmt::format("READY: {}", Painter->Name);
+							ImGui::TextUnformatted(Message.c_str(), nullptr);
+
+							Message = fmt::format(" - Elapsed time: {} ms", Painter->ReadyDelay.count());
+							ImGui::TextUnformatted(Message.c_str(), nullptr);
+						}
+						else
+						{
+							std::string Message = fmt::format("PENDING: {}", Painter->Name);
+							ImGui::TextUnformatted(Message.c_str(), nullptr);
+						}
+					}
+					else
+					{
+						std::string Message = fmt::format("UNEXPECTED: {}", CachedPainter->Name);
+						ImGui::TextUnformatted(Message.c_str(), nullptr);
+					}
+				}
+				else
+				{
+					std::string Message = "EXPIRED";
+					ImGui::TextUnformatted(Message.c_str(), nullptr);
+				}
+			}
+		}
+		ImGui::End();
+	}
+#endif // RENDERER_SODAPOP
 
 	{
 		ExportProgress Progress = GetExportProgress();
