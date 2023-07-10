@@ -873,16 +873,51 @@ struct SetNode : public SDFNode
 		}
 		else
 		{
-			float EvalLHS = LHS->Eval(Point);
-			float EvalRHS = RHS->Eval(Point);
+			const float EvalLHS = LHS->Eval(Point);
+			const float EvalRHS = RHS->Eval(Point);
+			const float Dist = SetFn(EvalLHS, EvalRHS);
 
-			if (EvalLHS <= EvalRHS)
+			bool TakeLeft;
+			if (BlendMode)
 			{
-				return LHS->Sample(Point);
+				TakeLeft = TakeLeft = (Dist == EvalLHS);
 			}
 			else
 			{
-				return RHS->Sample(Point);
+				TakeLeft = abs(EvalLHS - Dist) <= abs(EvalRHS - Dist);
+			}
+
+			if (Family == SetFamily::Union)
+			{
+				if (TakeLeft)
+				{
+					return LHS->Sample(Point);
+				}
+				else
+				{
+					return RHS->Sample(Point);
+				}
+			}
+			else
+			{
+				const vec4 SampleLHS = LHS->Sample(Point);
+				const vec4 SampleRHS = RHS->Sample(Point);
+
+				const bool LHSValid = SampleLHS.a > 0.0;
+				const bool RHSValid = SampleRHS.a > 0.0;
+
+				if (LHSValid && RHSValid)
+				{
+					return TakeLeft ? SampleLHS : SampleRHS;
+				}
+				else if (LHSValid)
+				{
+					return SampleLHS;
+				}
+				else
+				{
+					return SampleRHS;
+				}
 			}
 		}
 	}
