@@ -23,6 +23,7 @@
 struct LuaEnvironment : public ScriptEnvironment
 {
 	struct lua_State* L = nullptr;
+	std::string Name = "";
 
 	LuaEnvironment();
 

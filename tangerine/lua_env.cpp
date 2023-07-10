@@ -153,6 +153,10 @@ void LuaEnvironment::LoadLuaModelCommon()
 	{
 		SDFNodeShared& Evaluator = *static_cast<SDFNodeShared*>(LuaData);
 		GlobalModel = SDFModel::Create(Evaluator);
+		if (Name.size() > 0)
+		{
+			GlobalModel->Name = Name;
+		}
 	}
 	lua_pop(L, 1);
 }
@@ -163,6 +167,7 @@ void LuaEnvironment::LoadFromPath(std::string Path)
 	{
 		std::filesystem::path FilePath(Path);
 		std::filesystem::path DirPath = FilePath.parent_path();
+		Name = FilePath.filename().string();
 		DirPath /= "?.lua";
 
 		lua_getglobal(L, "package");

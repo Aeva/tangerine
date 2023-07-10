@@ -25,6 +25,7 @@
 #include <atomic>
 #include <mutex>
 #endif
+#include <string>
 
 
 struct SDFModel;
@@ -173,6 +174,8 @@ struct SDFModel
 	Buffer TransformBuffer;
 
 	int MouseListenFlags = 0;
+
+	std::string Name = "";
 
 #if RENDERER_SODAPOP
 	std::atomic_bool Dirty = true;

@@ -18,6 +18,7 @@
 #include "profiling.h"
 #include "sodapop.h"
 #include "scheduler.h"
+#include <fmt/format.h>
 
 
 std::vector<SDFModelWeakRef> LiveModels;
@@ -371,6 +372,7 @@ SDFModelShared SDFModel::Create(SDFNodeShared& InEvaluator, const float VoxelSiz
 {
 	SDFModelShared NewModel(new SDFModel(InEvaluator, VoxelSize));
 	SDFModel::RegisterNewModel(NewModel);
+	NewModel->Name = fmt::format("{}", (void*)(&InEvaluator));
 	return NewModel;
 }
 

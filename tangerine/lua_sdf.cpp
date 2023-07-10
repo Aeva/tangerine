@@ -20,6 +20,7 @@
 #include <string.h>
 #include <random>
 #include <algorithm>
+#include <fmt/format.h>
 
 #include "sdf_evaluator.h"
 #include "colors.h"
@@ -667,7 +668,28 @@ int LuaShuffleSequence(lua_State* L)
 int LuaInstanceModel(lua_State* L)
 {
 	SDFNodeShared& Evaluator = *GetSDFNode(L, 1);
+
+	std::string Name = "";
+	if (lua_gettop(L) == 2)
+	{
+		const char* NameString = luaL_checklstring(L, 2, nullptr);
+		Name = fmt::format("{} : {}", NameString, (void*)(&Evaluator));
+		lua_pop(L, 1);
+	}
+	else
+	{
+		LuaEnvironment* Env = LuaEnvironment::GetScriptEnvironment(L);
+		if (Env->Name.size() > 0)
+		{
+			Name = fmt::format("{} : {}", Env->Name, (void*)(&Evaluator));
+		}
+	}
+
 	LuaModelShared NewModel = LuaModel::Create(L, Evaluator, 0.25);
+	if (Name.size() > 0)
+	{
+		NewModel->Name = Name;
+	}
 
 	LuaModelShared* Wrapper = (LuaModelShared*)lua_newuserdata(L, sizeof(LuaModelShared));
 	luaL_getmetatable(L, "tangerine.model");
