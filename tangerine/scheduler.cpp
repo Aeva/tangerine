@@ -136,8 +136,8 @@ int Scheduler::GetThreadPoolSize()
 	// This is meant to be one thread per reported thread of execution, assuming a dual
 	// core processor or better.  The main thread is assumed to be always active, so
 	// the thread pool should only occupy the remaining threads.
-	static const int ProcessorCountEstimate = std::max(int(std::thread::hardware_concurrency()), 2);
-	static const int ThreadPoolSize = ProcessorCountEstimate - 1;
+	static const int ProcessorCountEstimate = int(std::thread::hardware_concurrency());
+	static const int ThreadPoolSize = std::max(ProcessorCountEstimate - 1, 2);
 	return ThreadPoolSize;
 }
 
