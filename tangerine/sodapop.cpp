@@ -218,6 +218,10 @@ void MeshingJob::Run()
 		for (int Attempt = 0; Attempt < Limit; ++Attempt)
 		{
 			glm::vec3 Step = ModelExtent / Guess;
+#if 1
+			// This bound helps improve the average meshing quality, but in some cases it diminishes it which isn't really ideal either.
+			Step = glm::max(glm::min(Step, glm::vec3(1.0 / 8.0)), glm::vec3(1.0 / 16.0));
+#endif
 
 			glm::vec3 ModelMin = Bounds.Min;
 			glm::vec3 ModelMax = Bounds.Max;
