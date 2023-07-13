@@ -24,6 +24,7 @@
 #include <random>
 #include <atomic>
 #include <mutex>
+#include <set>
 
 
 static std::default_random_engine RNGesus;
@@ -33,6 +34,9 @@ static std::uniform_real_distribution<double> Roll(-1.0, std::nextafter(1.0, DBL
 struct MeshingScratch : isosurface::AsyncParallelSurfaceNets
 {
 	SDFOctreeShared Evaluator;
+
+	std::vector<isosurface::AsyncParallelSurfaceNets::GridPoint> PointCache;
+
 	std::mutex SecondLoopIteratorCS;
 	std::unordered_map<std::size_t, std::uint64_t>::iterator SecondLoopIterator;
 
@@ -44,7 +48,7 @@ struct MeshingScratch : isosurface::AsyncParallelSurfaceNets
 struct MeshingJob : AsyncTask
 {
 	SodapopDrawableWeakRef PainterWeakRef;
-	SDFOctreeWeakRef EvaluatorWeakRef;
+	SDFNodeWeakRef EvaluatorWeakRef;
 	virtual void Run();
 	virtual void Done();
 	virtual void Abort();
@@ -179,11 +183,11 @@ struct MeshingFaceLoop : ParallelTaskChain
 void Sodapop::Populate(SodapopDrawableShared Painter)
 {
 	Painter->Scratch = new MeshingScratch();
-	Painter->Scratch->Evaluator = SDFOctree::Create(Painter->Evaluator);
+	Painter->Scratch->Evaluator = nullptr;
 
 	MeshingJob* Task = new MeshingJob();
 	Task->PainterWeakRef = Painter;
-	Task->EvaluatorWeakRef = Painter->Scratch->Evaluator;
+	Task->EvaluatorWeakRef = Painter->Evaluator;
 
 	Scheduler::Enqueue(Task);
 }
@@ -192,7 +196,15 @@ void Sodapop::Populate(SodapopDrawableShared Painter)
 void MeshingJob::Run()
 {
 	SodapopDrawableShared Painter = PainterWeakRef.lock();
-	SDFOctreeShared Evaluator = EvaluatorWeakRef.lock();
+	SDFOctreeShared Evaluator = nullptr;
+	if (Painter)
+	{
+		SDFNodeShared RootNode = EvaluatorWeakRef.lock();
+		if (RootNode)
+		{
+			Painter->Scratch->Evaluator = Evaluator = SDFOctree::Create(Painter->Evaluator, .25, true);
+		}
+	}
 
 	if (!Painter || !Evaluator)
 	{
@@ -207,53 +219,28 @@ void MeshingJob::Run()
 	if (ModelVolume > 0)
 	{
 		Painter->MeshingStart = Clock::now();
+
 		isosurface::regular_grid_t Grid;
-
-		float Refinement = 1.0;
-		const int Limit = 128;
-
-		glm::vec3 Guess = glm::normalize(ModelExtent) * glm::vec3(15.0);
-		const int Target = 100000;
-
-		for (int Attempt = 0; Attempt < Limit; ++Attempt)
 		{
-			glm::vec3 Step = ModelExtent / Guess;
-#if 1
-			// This bound helps improve the average meshing quality, but in some cases it diminishes it which isn't really ideal either.
-			Step = glm::max(glm::min(Step, glm::vec3(1.0 / 8.0)), glm::vec3(1.0 / 16.0));
-#endif
+			const float Density = 14.0;
+			const glm::vec3 SamplesPerUnit = glm::max(Evaluator->Bounds.Extent() * glm::vec3(Density), glm::vec3(8.0));
 
-			glm::vec3 ModelMin = Bounds.Min;
-			glm::vec3 ModelMax = Bounds.Max;
+			Grid.x = Evaluator->Bounds.Min.x;
+			Grid.y = Evaluator->Bounds.Min.y;
+			Grid.z = Evaluator->Bounds.Min.z;
+			Grid.sx = glm::ceil(SamplesPerUnit.x);
+			Grid.sy = glm::ceil(SamplesPerUnit.y);
+			Grid.sz = glm::ceil(SamplesPerUnit.z);
+			Grid.dx = Evaluator->Bounds.Extent().x / static_cast<float>(Grid.sx);
+			Grid.dy = Evaluator->Bounds.Extent().y / static_cast<float>(Grid.sy);
+			Grid.dz = Evaluator->Bounds.Extent().z / static_cast<float>(Grid.sz);
 
-			ModelMin -= Step * glm::vec3(2.0);
-			glm::ivec3 Extent = glm::ivec3(glm::ceil((ModelMax - ModelMin) / Step));
-
-			Grid.x = ModelMin.x;
-			Grid.y = ModelMin.y;
-			Grid.z = ModelMin.z;
-			Grid.dx = Step.x;
-			Grid.dy = Step.y;
-			Grid.dz = Step.z;
-			Grid.sx = Extent.x;
-			Grid.sy = Extent.y;
-			Grid.sz = Extent.z;
-
-			int Volume = Extent.x * Extent.y * Extent.z;
-
-			if (Volume == Target)
-			{
-				break;
-			}
-			if (Volume < Target)
-			{
-				Guess += Refinement;
-			}
-			else if (Volume > Target)
-			{
-				Refinement *= 0.9;
-				Guess -= Refinement;
-			}
+			Grid.x -= Grid.dx * 2;
+			Grid.y -= Grid.dy * 2;
+			Grid.z -= Grid.dz * 2;
+			Grid.sx += 3;
+			Grid.sy += 3;
+			Grid.sz += 3;
 		}
 
 		Painter->Scratch->Grid = Grid;
@@ -266,14 +253,50 @@ void MeshingJob::Run()
 		}
 		Painter->Scratch->Setup();
 
+		if (Painter->Scratch->FirstLoopDomain.size() == 0)
+		{
+			return;
+		}
+
+		std::set<isosurface::AsyncParallelSurfaceNets::GridPoint> PointCache;
+		SDFOctree::CallbackType LeafSearch = [&](SDFOctree& Leaf)
+		{
+			glm::vec3 Origin(Grid.x, Grid.y, Grid.z);
+			glm::vec3 Step(Grid.dx, Grid.dy, Grid.dz);
+			glm::vec3 Count(Grid.sx, Grid.sy, Grid.sz);
+
+			glm::vec3 AlignedMin = glm::floor(glm::max(glm::vec3(0.0), Leaf.Bounds.Min - Origin) / Step);
+			glm::vec3 AlignedMax = glm::ceil((Leaf.Bounds.Max - Origin) / Step);
+			glm::vec3 Extent = AlignedMax - AlignedMin;
+			glm::vec3 Steps = Extent;
+
+			for (float z = AlignedMin.z; z <= AlignedMax.z; ++z)
+			{
+				for (float y = AlignedMin.y; y <= AlignedMax.y; ++y)
+				{
+					for (float x = AlignedMin.x; x <= AlignedMax.x; ++x)
+					{
+						PointCache.emplace(x, y, z);
+					}
+				}
+			}
+		};
+		Evaluator->Walk(LeafSearch);
+
+		Painter->Scratch->PointCache.resize(PointCache.size());
+		for (const auto& Coordinate : PointCache)
+		{
+			Painter->Scratch->PointCache.push_back(Coordinate);
+		}
+
 
 		ParallelTaskChain* MeshingVertexLoopTask;
 		{
-			using TaskT = MeshingVectorLambdaTask<std::vector<std::size_t>>;
-			TaskT::LoopThunkT LoopThunk = [](SodapopDrawableShared& Painter, SDFOctreeShared& Evaluator, const std::size_t& Element, const int Ignore)
+			using TaskT = MeshingVectorLambdaTask<std::vector<isosurface::AsyncParallelSurfaceNets::GridPoint>>;
+			TaskT::LoopThunkT LoopThunk = [](SodapopDrawableShared& Painter, SDFOctreeShared& Evaluator, const isosurface::AsyncParallelSurfaceNets::GridPoint& Element, const int Ignore)
 			{
 				MeshingScratch* Scratch = Painter->Scratch;
-				Scratch->FirstLoopThunk(*Scratch, Element);
+				Scratch->FirstLoopInnerThunk(*Scratch, Element);
 			};
 
 			TaskT::DoneThunkT DoneThunk = [](SodapopDrawableShared& Painter, SDFOctreeShared& Evaluator)
@@ -284,9 +307,13 @@ void MeshingJob::Run()
 				{
 					Scratch->SecondLoopIterator = Scratch->SecondLoopDomain.begin();
 				}
+				else
+				{
+					return;
+				}
 			};
 
-			MeshingVertexLoopTask = new TaskT(Painter, Evaluator, Painter->Scratch->FirstLoopDomain, LoopThunk, DoneThunk);
+			MeshingVertexLoopTask = new TaskT(Painter, Evaluator, Painter->Scratch->PointCache, LoopThunk, DoneThunk);
 		}
 
 		MeshingFaceLoop* MeshingFaceLoopTask;
@@ -409,7 +436,7 @@ void MeshingJob::Run()
 void MeshingJob::Done()
 {
 	SodapopDrawableShared Painter = PainterWeakRef.lock();
-	SDFOctreeShared Evaluator = EvaluatorWeakRef.lock();
+	SDFNodeShared Evaluator = EvaluatorWeakRef.lock();
 	if (Painter && Evaluator)
 	{
 		void* JobPtr = (void*)this;

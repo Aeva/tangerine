@@ -15,6 +15,13 @@ namespace isosurface {
 		regular_grid_t Grid;
 		float Isovalue = 0.f;
 
+		struct GridPoint
+		{
+			size_t i;
+			size_t j;
+			size_t k;
+		};
+
 		// Inputs used when AtomicControls is active
 		std::atomic_bool* ExportActive = nullptr;
 		std::atomic_int* ExportState = nullptr;
@@ -31,11 +38,17 @@ namespace isosurface {
 
 		// Parallel thunks
 		std::function<void(AsyncParallelSurfaceNets& Task, std::size_t)> FirstLoopThunk;
+		std::function<void(AsyncParallelSurfaceNets& Task, GridPoint)> FirstLoopInnerThunk;
 		std::function<void(AsyncParallelSurfaceNets& Task, std::pair<std::size_t const, std::uint64_t> const&)> SecondLoopThunk;
 
 		// Populates intermediaries and thunks
 		void Setup();
 	};
+
+	inline bool operator<(const AsyncParallelSurfaceNets::GridPoint& LHS, const AsyncParallelSurfaceNets::GridPoint& RHS)
+	{
+		return LHS.k < RHS.k || (LHS.k == RHS.k && LHS.j < RHS.j) || (LHS.k == RHS.k && LHS.j == RHS.j && LHS.i < RHS.i);
+	}
 // END TANGERINE MOD - Carve up `par_surface_nets` into parts that can be adapted for parallel exe w/ Tangerine's scheduler
 
 // BEGIN TANGERINE MOD - Modify declarations to remove LIBIGL dependency

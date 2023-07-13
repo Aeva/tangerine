@@ -861,17 +861,124 @@ void SetupInner(AsyncParallelSurfaceNets& Task)
         Task.Estimate->store(longest_dimension_size);
     }
 
+    Task.FirstLoopInnerThunk = [=](AsyncParallelSurfaceNets& Task, AsyncParallelSurfaceNets::GridPoint Point)
+    {
+        if (AtomicControls && (!Task.ExportActive->load() || Task.ExportState->load() != 1))
+        {
+            return;
+        }
+
+        std::size_t i = Point.i;
+        std::size_t j = Point.j;
+        std::size_t k = Point.k;
+
+        // coordinates of voxel corners in voxel grid coordinate frame
+        std::array<point_t, 8> const voxel_corner_grid_positions =
+            get_voxel_corner_grid_positions(i, j, k);
+
+        // coordinates of voxel corners in the mesh's coordinate frame
+        std::array<point_t, 8> const voxel_corner_world_positions =
+            get_voxel_corner_world_positions(i, j, k, Task.Grid);
+
+        // scalar values of the implicit function evaluated at cube vertices (voxel corners)
+        std::array<float, 8> const voxel_corner_values =
+            get_voxel_corner_values(voxel_corner_world_positions, Task.ImplicitFunction);
+
+        // the edges provide indices to the corresponding current cube's vertices (voxel
+        // corners)
+        std::uint8_t constexpr edges[12][2] = {
+            {0u, 1u},
+            {1u, 2u},
+            {2u, 3u},
+            {3u, 0u},
+            {4u, 5u},
+            {5u, 6u},
+            {6u, 7u},
+            {7u, 4u},
+            {0u, 4u},
+            {1u, 5u},
+            {2u, 6u},
+            {3u, 7u}};
+
+        std::array<bool, 12> const edge_bipolarity_array =
+            get_edge_bipolarity_array(voxel_corner_values, Task.Isovalue, edges);
+
+        // an active voxel must have at least one bipolar edge
+        bool const is_voxel_active = get_is_cube_active(edge_bipolarity_array);
+
+        // cubes that are not active do not generate mesh vertices
+        if (!is_voxel_active)
+        {
+            return;
+        }
+
+        // store all edge intersection points with the implicit surface in voxel grid
+        // coordinates
+        std::vector<point_t> edge_intersection_points;
+
+        // visit every bipolar edge
+        for (std::size_t e = 0; e < 12; ++e)
+        {
+            if (!edge_bipolarity_array[e])
+            {
+                continue;
+            }
+
+            // get points p1, p2 of the edge e in grid coordinates
+            auto const p1 = voxel_corner_grid_positions[edges[e][0]];
+            auto const p2 = voxel_corner_grid_positions[edges[e][1]];
+
+            // get value of the implicit function at edge vertices
+            auto const s1 = voxel_corner_values[edges[e][0]];
+            auto const s2 = voxel_corner_values[edges[e][1]];
+
+            // perform linear interpolation using implicit function
+            // values at vertices
+            auto const t = (Task.Isovalue - s1) / (s2 - s1);
+            edge_intersection_points.emplace_back(p1 + t * (p2 - p1));
+        }
+
+        float const number_of_intersection_points =
+            static_cast<float>(edge_intersection_points.size());
+
+        point_t const sum_of_intersection_points = std::accumulate(
+            edge_intersection_points.cbegin(),
+            edge_intersection_points.cend(),
+            point_t{ 0.f, 0.f, 0.f });
+
+        point_t const geometric_center_of_edge_intersection_points =
+            sum_of_intersection_points / number_of_intersection_points;
+
+        point_t const mesh_vertex = {
+            mesh_bounding_box.min.x +
+                (mesh_bounding_box.max.x - mesh_bounding_box.min.x) *
+                    (geometric_center_of_edge_intersection_points.x - 0.f) /
+                    (static_cast<float>(Task.Grid.sx) - 0.f),
+            mesh_bounding_box.min.y +
+                (mesh_bounding_box.max.y - mesh_bounding_box.min.y) *
+                    (geometric_center_of_edge_intersection_points.y - 0.f) /
+                    (static_cast<float>(Task.Grid.sy) - 0.f),
+            mesh_bounding_box.min.z +
+                (mesh_bounding_box.max.z - mesh_bounding_box.min.z) *
+                    (geometric_center_of_edge_intersection_points.z - 0.f) /
+                    (static_cast<float>(Task.Grid.sz) - 0.f),
+        };
+
+        std::size_t const active_cube_index = get_active_cube_index(i, j, k, Task.Grid);
+
+        std::lock_guard<std::mutex> lock{Task.CS};
+        std::uint64_t const vertex_index = Task.OutputMesh.vertex_count();
+        Task.SecondLoopDomain[active_cube_index] = vertex_index;
+
+        Task.OutputMesh.add_vertex(mesh_vertex);
+    };
+
     Task.FirstLoopThunk = [=](AsyncParallelSurfaceNets& Task, std::size_t k)
     {
         for (std::size_t j = 0; j < Task.Grid.sy; ++j)
         {
             for (std::size_t i = 0; i < Task.Grid.sx; ++i)
             {
-                if (AtomicControls && (!Task.ExportActive->load() || Task.ExportState->load() != 1))
-                {
-                    return;
-                }
-
                 if (is_x_longest_dimension)
                 {
                     std::swap(i, k);
@@ -882,101 +989,7 @@ void SetupInner(AsyncParallelSurfaceNets& Task)
                     std::swap(j, k);
                 }
 
-                // coordinates of voxel corners in voxel grid coordinate frame
-                std::array<point_t, 8> const voxel_corner_grid_positions =
-                    get_voxel_corner_grid_positions(i, j, k);
-
-                // coordinates of voxel corners in the mesh's coordinate frame
-                std::array<point_t, 8> const voxel_corner_world_positions =
-                    get_voxel_corner_world_positions(i, j, k, Task.Grid);
-
-                // scalar values of the implicit function evaluated at cube vertices (voxel corners)
-                std::array<float, 8> const voxel_corner_values =
-                    get_voxel_corner_values(voxel_corner_world_positions, Task.ImplicitFunction);
-
-                // the edges provide indices to the corresponding current cube's vertices (voxel
-                // corners)
-                std::uint8_t constexpr edges[12][2] = {
-                    {0u, 1u},
-                    {1u, 2u},
-                    {2u, 3u},
-                    {3u, 0u},
-                    {4u, 5u},
-                    {5u, 6u},
-                    {6u, 7u},
-                    {7u, 4u},
-                    {0u, 4u},
-                    {1u, 5u},
-                    {2u, 6u},
-                    {3u, 7u} };
-
-                std::array<bool, 12> const edge_bipolarity_array =
-                    get_edge_bipolarity_array(voxel_corner_values, Task.Isovalue, edges);
-
-                // an active voxel must have at least one bipolar edge
-                bool const is_voxel_active = get_is_cube_active(edge_bipolarity_array);
-
-                // cubes that are not active do not generate mesh vertices
-                if (!is_voxel_active)
-                    continue;
-
-                // store all edge intersection points with the implicit surface in voxel grid
-                // coordinates
-                std::vector<point_t> edge_intersection_points;
-
-                // visit every bipolar edge
-                for (std::size_t e = 0; e < 12; ++e)
-                {
-                    if (!edge_bipolarity_array[e])
-                        continue;
-
-                    // get points p1, p2 of the edge e in grid coordinates
-                    auto const p1 = voxel_corner_grid_positions[edges[e][0]];
-                    auto const p2 = voxel_corner_grid_positions[edges[e][1]];
-
-                    // get value of the implicit function at edge vertices
-                    auto const s1 = voxel_corner_values[edges[e][0]];
-                    auto const s2 = voxel_corner_values[edges[e][1]];
-
-                    // perform linear interpolation using implicit function
-                    // values at vertices
-                    auto const t = (Task.Isovalue - s1) / (s2 - s1);
-                    edge_intersection_points.emplace_back(p1 + t * (p2 - p1));
-                }
-
-                float const number_of_intersection_points =
-                    static_cast<float>(edge_intersection_points.size());
-
-                point_t const sum_of_intersection_points = std::accumulate(
-                    edge_intersection_points.cbegin(),
-                    edge_intersection_points.cend(),
-                    point_t{ 0.f, 0.f, 0.f });
-
-                point_t const geometric_center_of_edge_intersection_points =
-                    sum_of_intersection_points / number_of_intersection_points;
-
-                point_t const mesh_vertex = {
-                    mesh_bounding_box.min.x +
-                        (mesh_bounding_box.max.x - mesh_bounding_box.min.x) *
-                            (geometric_center_of_edge_intersection_points.x - 0.f) /
-                            (static_cast<float>(Task.Grid.sx) - 0.f),
-                    mesh_bounding_box.min.y +
-                        (mesh_bounding_box.max.y - mesh_bounding_box.min.y) *
-                            (geometric_center_of_edge_intersection_points.y - 0.f) /
-                            (static_cast<float>(Task.Grid.sy) - 0.f),
-                    mesh_bounding_box.min.z +
-                        (mesh_bounding_box.max.z - mesh_bounding_box.min.z) *
-                            (geometric_center_of_edge_intersection_points.z - 0.f) /
-                            (static_cast<float>(Task.Grid.sz) - 0.f),
-                };
-
-                std::size_t const active_cube_index = get_active_cube_index(i, j, k, Task.Grid);
-
-                std::lock_guard<std::mutex> lock{Task.CS};
-                std::uint64_t const vertex_index = Task.OutputMesh.vertex_count();
-                Task.SecondLoopDomain[active_cube_index] = vertex_index;
-
-                Task.OutputMesh.add_vertex(mesh_vertex);
+                Task.FirstLoopInnerThunk(Task, { i, j, k });
             }
         }
         if (AtomicControls)
