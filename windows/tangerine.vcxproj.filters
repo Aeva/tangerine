@@ -267,6 +267,9 @@
     <ClCompile Include="..\tangerine\gl_init.cpp">
       <Filter>Tangerine</Filter>
     </ClCompile>
+    <ClCompile Include="..\tangerine\winders.cpp">
+      <Filter>Tangerine</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\shaders\defines.h">
@@ -566,6 +569,9 @@
     </ClInclude>
     <ClInclude Include="..\third_party\atomic_queue\include\atomic_queue\spinlock.h">
       <Filter>Third Party\atomic_queue</Filter>
+    </ClInclude>
+    <ClInclude Include="..\tangerine\winders.h">
+      <Filter>Tangerine</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

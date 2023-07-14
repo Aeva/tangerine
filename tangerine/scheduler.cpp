@@ -26,6 +26,8 @@
 #include <chrono>
 #include <memory>
 
+#include "winders.h"
+
 
 #ifndef SCHEDULER_QUEUE_SIZE
 // The standard queue size is 2*20 entries, or about 4 MB per empty queue.
@@ -148,6 +150,10 @@ void WorkerThread(const int InThreadIndex)
 	if (DedicatedThread)
 	{
 		ThreadIndex = InThreadIndex;
+#if _WIN64
+		std::string ThreadName = fmt::format("WorkerThread {}", ThreadIndex);
+		SetThreadName(ThreadName);
+#endif
 	}
 	else
 	{
