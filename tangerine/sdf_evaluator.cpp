@@ -1272,6 +1272,253 @@ namespace SDF
 }
 
 
+// SDFInterpreter function implementations
+SDFInterpreter::SDFInterpreter(SDFNodeShared InEvaluator)
+	: Root(InEvaluator)
+{
+	std::string PointVar = "";
+	std::string Ignore = Root->Compile(true, Program, PointVar);
+#if 0
+	// Not necessary, because overflowing the program also indicates this for the CPU interpreter.
+	Root->AddTerminus(Program);
+#endif
+	StackDepth = Root->StackSize();
+}
+
+
+float SDFInterpreter::Eval(glm::vec3 EvalPoint)
+{
+	// This corresponds more or less directly to the interpreter implemented in "interpreter.glsl", with these differences:
+	//  1. We can just use std::vector to implement the stack, which eliminates the need for permuting the interpreter.
+	//  2. This version doesn't support paint nodes or materials.
+	//  3. C++ doesn't seem to follow the same parameter resolution rules as GLSL (assuming this wasn't UB in the first place?!).
+
+	std::vector<float> Stack;
+	Stack.resize(StackDepth, 0.0);
+
+	uint StackPointer = 0;
+	uint ProgramCounter = 0;
+	vec3 Point = EvalPoint;
+
+	while (ProgramCounter < Program.size())
+	{
+		const uint Opcode = floatBitsToUint(Program[ProgramCounter++]);
+
+		// Set operators
+		if (Opcode < OPCODE_SPHERE)
+		{
+			--StackPointer;
+
+			if (Opcode < OPCODE_SMOOTH)
+			{
+				if (Opcode == OPCODE_UNION)
+				{
+					Stack[StackPointer] = SDFMath::UnionOp(Stack[StackPointer], Stack[StackPointer + 1]);
+					continue;
+				}
+				else if (Opcode == OPCODE_INTER)
+				{
+					// TODO : SDFMath::InterpretedInterOp is needed for material support, should we ever add it.
+#if 0
+					Stack[StackPointer] = SDFMath::InterpretedInterOp(Stack[StackPointer], Stack[StackPointer + 1]);
+#else
+					Stack[StackPointer] = SDFMath::InterOp(Stack[StackPointer], Stack[StackPointer + 1]);
+#endif
+					continue;
+				}
+				else if (Opcode == OPCODE_DIFF)
+				{
+					Stack[StackPointer] = SDFMath::DiffOp(Stack[StackPointer], Stack[StackPointer + 1]);
+					continue;
+				}
+			}
+			else
+			{
+				float Threshold = Program[ProgramCounter++];
+				if (Opcode == OPCODE_SMOOTH_UNION)
+				{
+					Stack[StackPointer] = SDFMath::SmoothUnionOp(Stack[StackPointer], Stack[StackPointer + 1], Threshold);
+					continue;
+				}
+				else if (Opcode == OPCODE_SMOOTH_INTER)
+				{
+					// TODO : SDFMath::InterpretedSmoothInterOp is needed for material support, should we ever add it.
+#if 0
+					Stack[StackPointer] = SDFMath::InterpretedSmoothInterOp(Stack[StackPointer], Stack[StackPointer + 1], Threshold);
+#else
+					Stack[StackPointer] = SDFMath::SmoothInterOp(Stack[StackPointer], Stack[StackPointer + 1], Threshold);
+#endif
+					continue;
+				}
+				else if (Opcode == OPCODE_SMOOTH_DIFF)
+				{
+					Stack[StackPointer] = SDFMath::SmoothDiffOp(Stack[StackPointer], Stack[StackPointer + 1], Threshold);
+					continue;
+				}
+			}
+		}
+
+		// Brush operands
+		else if (Opcode < OPCODE_OFFSET)
+		{
+			if (Opcode == OPCODE_SPHERE)
+			{
+				Stack[StackPointer] = SDFMath::SphereBrush(Point,
+					Program[ProgramCounter++]);
+				Point = EvalPoint;
+				continue;
+			}
+			else if (Opcode == OPCODE_ELLIPSOID)
+			{
+				Stack[StackPointer] = SDFMath::EllipsoidBrush(Point,
+					Program[ProgramCounter + 0],
+					Program[ProgramCounter + 1],
+					Program[ProgramCounter + 2]);
+				ProgramCounter += 3;
+				Point = EvalPoint;
+				continue;
+			}
+			else if (Opcode == OPCODE_BOX)
+			{
+				Stack[StackPointer] = SDFMath::BoxBrush(Point,
+					Program[ProgramCounter + 0],
+					Program[ProgramCounter + 1],
+					Program[ProgramCounter + 2]);
+				ProgramCounter += 3;
+				Point = EvalPoint;
+				continue;
+			}
+			else if (Opcode == OPCODE_TORUS)
+			{
+				Stack[StackPointer] = SDFMath::TorusBrush(Point,
+					Program[ProgramCounter + 0],
+					Program[ProgramCounter + 1]);
+				ProgramCounter += 2;
+				Point = EvalPoint;
+				continue;
+			}
+			else if (Opcode == OPCODE_CYLINDER)
+			{
+				Stack[StackPointer] = SDFMath::CylinderBrush(Point,
+					Program[ProgramCounter + 0],
+					Program[ProgramCounter + 1]);
+				ProgramCounter += 2;
+				Point = EvalPoint;
+				continue;
+			}
+			else if (Opcode == OPCODE_PLANE)
+			{
+				Stack[StackPointer] = SDFMath::Plane(Point,
+					Program[ProgramCounter + 0],
+					Program[ProgramCounter + 1],
+					Program[ProgramCounter + 2]);
+				ProgramCounter += 3;
+				Point = EvalPoint;
+				continue;
+			}
+			else if (Opcode == OPCODE_CONE)
+			{
+				Stack[StackPointer] = SDFMath::ConeBrush(Point,
+					Program[ProgramCounter + 0],
+					Program[ProgramCounter + 1]);
+				ProgramCounter += 2;
+				Point = EvalPoint;
+				continue;
+			}
+			else if (Opcode == OPCODE_CONINDER)
+			{
+				Stack[StackPointer] = SDFMath::ConinderBrush(Point,
+					Program[ProgramCounter + 0],
+					Program[ProgramCounter + 1],
+					Program[ProgramCounter + 2]);
+				ProgramCounter += 3;
+				Point = EvalPoint;
+				continue;
+			}
+		}
+
+		// Misc
+		else
+		{
+			if (Opcode == OPCODE_OFFSET)
+			{
+				vec3 Offset = vec3(
+					Program[ProgramCounter + 0],
+					Program[ProgramCounter + 1],
+					Program[ProgramCounter + 2]);
+				ProgramCounter += 3;
+				Point -= Offset;
+				continue;
+			}
+			else if (Opcode == OPCODE_MATRIX)
+			{
+				mat4 Transform = mat4(
+					Program[ProgramCounter + 0],
+					Program[ProgramCounter + 1],
+					Program[ProgramCounter + 2],
+					Program[ProgramCounter + 3],
+					Program[ProgramCounter + 4],
+					Program[ProgramCounter + 5],
+					Program[ProgramCounter + 6],
+					Program[ProgramCounter + 7],
+					Program[ProgramCounter + 8],
+					Program[ProgramCounter + 9],
+					Program[ProgramCounter + 10],
+					Program[ProgramCounter + 11],
+					Program[ProgramCounter + 12],
+					Program[ProgramCounter + 13],
+					Program[ProgramCounter + 14],
+					Program[ProgramCounter + 15]);
+				ProgramCounter += 16;
+				Point = (Transform * vec4(Point, 1.0)).xyz();
+				continue;
+			}
+			else if (Opcode == OPCODE_SCALE)
+			{
+				Stack[StackPointer] *= Program[ProgramCounter++];
+				continue;
+			}
+			else if (Opcode == OPCODE_FLATE)
+			{
+				Stack[StackPointer] -= Program[ProgramCounter++];
+				continue;
+			}
+			else if (Opcode == OPCODE_PAINT)
+			{
+#if 0
+				Stack[StackPointer].Color.r = Program[ProgramCounter++];
+				Stack[StackPointer].Color.g = Program[ProgramCounter++];
+				Stack[StackPointer].Color.b = Program[ProgramCounter++];
+#else
+				ProgramCounter += 3;
+#endif
+				continue;
+			}
+			else if (Opcode == OPCODE_PUSH)
+			{
+				++StackPointer;
+				Stack[StackPointer] = 0.0;
+				//Stack[StackPointer].Color = vec3(-1.0);
+				continue;
+			}
+			else if (Opcode == OPCODE_RETURN)
+			{
+				break;
+			}
+			else
+			{
+				// Unknown opcode.  Halt and catch fire.
+				//return MaterialDist(vec3(1.0, 0.0, 0.0), 0.0);
+				return 0.0;
+			}
+		}
+	}
+
+	//Stack[0].Color = abs(Stack[0].Color);
+	return Stack[0];
+}
+
+
 // SDFOctree function implementations
 SDFOctreeShared SDFOctree::Create(SDFNodeShared& Evaluator, float TargetSize, bool Coalesce)
 {
@@ -1337,6 +1584,10 @@ SDFOctree::SDFOctree(SDFOctree* InParent, SDFNodeShared& InEvaluator, float InTa
 	{
 		Populate(Coalesce, Depth);
 	}
+	if (Evaluator)
+	{
+		Interpreter = SDFInterpreterShared(new SDFInterpreter(Evaluator));
+	}
 }
 
 void SDFOctree::Populate(bool Coalesce, int Depth)
@@ -1389,6 +1640,7 @@ void SDFOctree::Populate(bool Coalesce, int Depth)
 	if (Live.size() == 0)
 	{
 		Evaluator.reset();
+		Interpreter.reset();
 		Penultimate = false;
 		Terminus = true;
 	}
@@ -1427,9 +1679,10 @@ SDFOctree::~SDFOctree()
 		}
 	}
 	Evaluator.reset();
+	Interpreter.reset();
 }
 
-SDFNodeShared SDFOctree::Descend(const vec3 Point, const bool Exact)
+SDFOctree* SDFOctree::Descend(const vec3 Point, const bool Exact)
 {
 	if (!Terminus)
 	{
@@ -1449,16 +1702,47 @@ SDFNodeShared SDFOctree::Descend(const vec3 Point, const bool Exact)
 		SDFOctree* Child = Children[i];
 		if (Child)
 		{
-			SDFNodeShared Found = Child->Descend(Point);
-			return Found || !Exact ? Found : Evaluator;
+			SDFOctree* Found = Child->Descend(Point, Exact);
+			if (Found || !Exact)
+			{
+				// If Found is `nullptr`, we return herer anyway if we don't need to empty regions.
+				return Found;
+			}
 		}
 		else if (!Exact)
 		{
+			// This cell is empty, and we don't need to evaluate empty regions, so return nullptr.
 			return nullptr;
 		}
 	}
-	return Evaluator;
+	return Evaluator ? this : nullptr;
 };
+
+SDFNodeShared SDFOctree::SelectEvaluator(const glm::vec3 Point, const bool Exact)
+{
+	SDFOctree* Match = Descend(Point, Exact);
+	if (Match)
+	{
+		return Match->Evaluator;
+	}
+	else
+	{
+		return nullptr;
+	}
+}
+
+SDFInterpreterShared SDFOctree::SelectInterpreter(const glm::vec3 Point, const bool Exact)
+{
+	SDFOctree* Match = Descend(Point, Exact);
+	if (Match)
+	{
+		return Match->Interpreter;
+	}
+	else
+	{
+		return nullptr;
+	}
+}
 
 void SDFOctree::Walk(SDFOctree::CallbackType& Callback)
 {
@@ -1484,7 +1768,11 @@ float SDFOctree::Eval(glm::vec3 Point, const bool Exact)
 	Clock::time_point EvalStart = Clock::now();
 	float Distance;
 	{
-		SDFNodeShared Node = Descend(Point, Exact);
+#if 0
+		SDFNodeShared Node = SelectEvaluator(Point, Exact);
+#else
+		SDFInterpreterShared Node = SelectInterpreter(Point, Exact);
+#endif
 		if (!Exact && !Node)
 		{
 			Distance = INFINITY;
@@ -1494,22 +1782,6 @@ float SDFOctree::Eval(glm::vec3 Point, const bool Exact)
 			Distance = Node->Eval(Point);
 		}
 	}
-
-#if ENABLE_PROFILING
-	{
-		std::chrono::duration<double, std::milli> Delta = Clock::now() - EvalStart;
-		{
-			std::lock_guard<std::mutex> Lock(Stats.CS);
-
-			double Alpha = 1.0 - (Stats.Samples / (Stats.Samples + 1.0));
-			Stats.AverageMs = glm::mix(Stats.AverageMs, Delta.count(), Alpha);
-			++Stats.Samples;
-
-			Stats.WorstMs = glm::max(Stats.WorstMs, Delta.count());
-			Stats.BestMs = glm::min(Stats.BestMs, Delta.count());
-		}
-	}
-#endif
 
 	return Distance;
 }

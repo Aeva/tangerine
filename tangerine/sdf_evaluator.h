@@ -204,6 +204,21 @@ namespace SDF
 }
 
 
+struct SDFInterpreter
+{
+	SDFNodeShared Root;
+	std::vector<float> Program;
+	int StackDepth;
+
+	SDFInterpreter(SDFNodeShared InEvaluator);
+
+	float Eval(glm::vec3 EvalPoint);
+};
+
+
+using SDFInterpreterShared = std::shared_ptr<SDFInterpreter>;
+
+
 struct SDFOctree;
 using SDFOctreeShared = std::shared_ptr<SDFOctree>;
 using SDFOctreeWeakRef = std::weak_ptr<SDFOctree>;
@@ -220,19 +235,14 @@ struct SDFOctree
 	SDFOctree* Children[8];
 	SDFOctree* Parent;
 
-	struct EvalStats
-	{
-		std::mutex CS;
-		double AverageMs = 0.0;
-		double WorstMs = 0.0;
-		double BestMs = INFINITY;
-		double Samples = 0.0;
-	} Stats;
+	SDFInterpreterShared Interpreter;
 
 	static SDFOctreeShared Create(SDFNodeShared& Evaluator, float TargetSize = 0.25, bool Coalesce = true);
 	void Populate(bool Coalesce, int Depth);
 	~SDFOctree();
-	SDFNodeShared Descend(const glm::vec3 Point, const bool Exact=true);
+	SDFOctree* Descend(const glm::vec3 Point, const bool Exact = true);
+	SDFNodeShared SelectEvaluator(const glm::vec3 Point, const bool Exact = true);
+	SDFInterpreterShared SelectInterpreter(const glm::vec3 Point, const bool Exact = true);
 
 	using CallbackType = std::function<void(SDFOctree&)>;
 	void Walk(CallbackType& Callback);
@@ -240,12 +250,12 @@ struct SDFOctree
 	float Eval(glm::vec3 Point, const bool Exact = true);
 	glm::vec3 Gradient(glm::vec3 Point)
 	{
-		SDFNodeShared Node = Descend(Point);
+		SDFNodeShared Node = SelectEvaluator(Point);
 		return Node->Gradient(Point);
 	}
 	glm::vec3 Sample(glm::vec3 Point)
 	{
-		SDFNodeShared Node = Descend(Point);
+		SDFNodeShared Node = SelectEvaluator(Point);
 		return Node->Sample(Point);
 	}
 

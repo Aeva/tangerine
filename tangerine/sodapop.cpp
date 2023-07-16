@@ -256,7 +256,8 @@ void MeshingJob::Run()
 			SDFOctree* EvaluatorRaw = Evaluator.get();
 			Painter->Scratch->ImplicitFunction = [EvaluatorRaw](float X, float Y, float Z) -> float
 			{
-				return EvaluatorRaw->Eval(glm::vec3(X, Y, Z));
+				// Clamp to prevent INFs from turning into NaNs elsewhere.
+				return glm::clamp(EvaluatorRaw->Eval(glm::vec3(X, Y, Z), false), -100.0f, 100.0f);
 			};
 		}
 		Painter->Scratch->Setup();
@@ -425,25 +426,6 @@ void MeshingJob::Run()
 
 			TaskT::DoneThunkT DoneThunk = [](SodapopDrawableShared& Painter, SDFOctreeShared& Evaluator)
 			{
-				if (Evaluator->Stats.Samples > 0)
-				{
-					std::string Report = fmt::format(
-						"Evaluator Stats for {}\n"
-						" - Average : {} ms\n"
-						" - Worst   : {} ms\n"
-						" - Best    : {} ms\n"
-						" - Samples : {}\n",
-						Painter->Name,
-						Evaluator->Stats.AverageMs,
-						Evaluator->Stats.WorstMs,
-						Evaluator->Stats.BestMs,
-						Evaluator->Stats.Samples);
-					Scheduler::EnqueueDelete([Report]()
-					{
-						fmt::print("{}", Report);
-					});
-				}
-
 				delete Painter->Scratch;
 				Painter->Scratch = nullptr;
 
