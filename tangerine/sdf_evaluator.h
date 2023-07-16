@@ -19,6 +19,7 @@
 #include <functional>
 #include <vector>
 #include <string>
+#include <mutex>
 #include "glm_common.h"
 #include "errors.h"
 
@@ -219,6 +220,15 @@ struct SDFOctree
 	SDFOctree* Children[8];
 	SDFOctree* Parent;
 
+	struct EvalStats
+	{
+		std::mutex CS;
+		double AverageMs = 0.0;
+		double WorstMs = 0.0;
+		double BestMs = INFINITY;
+		double Samples = 0.0;
+	} Stats;
+
 	static SDFOctreeShared Create(SDFNodeShared& Evaluator, float TargetSize = 0.25, bool Coalesce = true);
 	void Populate(bool Coalesce, int Depth);
 	~SDFOctree();
@@ -227,15 +237,7 @@ struct SDFOctree
 	using CallbackType = std::function<void(SDFOctree&)>;
 	void Walk(CallbackType& Callback);
 
-	float Eval(glm::vec3 Point, const bool Exact = true)
-	{
-		SDFNodeShared Node = Descend(Point, Exact);
-		if (!Exact && !Node)
-		{
-			return INFINITY;
-		}
-		return Node->Eval(Point);
-	}
+	float Eval(glm::vec3 Point, const bool Exact = true);
 	glm::vec3 Gradient(glm::vec3 Point)
 	{
 		SDFNodeShared Node = Descend(Point);

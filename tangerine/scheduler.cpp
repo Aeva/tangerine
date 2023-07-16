@@ -14,8 +14,10 @@
 // limitations under the License.
 
 #include "scheduler.h"
-#include "errors.h"
+#include "profiling.h"
 #include "sodapop.h"
+#include "winders.h"
+#include "errors.h"
 
 #include <atomic_queue/atomic_queue.h>
 #include <fmt/format.h>
@@ -25,8 +27,6 @@
 #include <vector>
 #include <chrono>
 #include <memory>
-
-#include "winders.h"
 
 
 #ifndef SCHEDULER_QUEUE_SIZE
@@ -183,12 +183,16 @@ void WorkerThread(const int InThreadIndex)
 
 		if (ParallelTaskProxy* Task = ParallelQueue.TryPop())
 		{
+			BeginEvent("Running Parallel Task");
 			Task->Run();
+			EndEvent();
 			delete Task;
 		}
 		else if (AsyncTask* Task = Inbox.TryPop())
 		{
+			BeginEvent("Running Async Task");
 			Task->Run();
+			EndEvent();
 			Outbox.BlockingPush(Task);
 		}
 		else

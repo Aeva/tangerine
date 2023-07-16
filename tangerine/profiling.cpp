@@ -54,6 +54,14 @@ void BeginEvent(const char* EventName)
 }
 
 
+void BeginEvent(std::string EventName)
+{
+#ifdef USE_PIX
+	BeginEvent(EventName.c_str());
+#endif
+}
+
+
 void EndEvent()
 {
 #ifdef USE_PIX
@@ -63,6 +71,12 @@ void EndEvent()
 
 
 ProfileScope::ProfileScope(const char* EventName)
+{
+	BeginEvent(EventName);
+}
+
+
+ProfileScope::ProfileScope(std::string EventName)
 {
 	BeginEvent(EventName);
 }

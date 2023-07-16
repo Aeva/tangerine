@@ -18,6 +18,7 @@
 
 #include "errors.h"
 #include "scheduler.h"
+#include "profiling.h"
 #include "sdf_model.h"
 #include <fmt/format.h>
 #include <surface_nets.h>
@@ -82,10 +83,13 @@ struct MeshingVectorTask : ParallelTaskChain
 
 	ContainerT* Domain;
 
-	MeshingVectorTask(SodapopDrawableShared& InPainter, SDFOctreeShared& InEvaluator, ContainerT& InDomain)
+	std::string TaskName;
+
+	MeshingVectorTask(const char* InTaskName, SodapopDrawableShared& InPainter, SDFOctreeShared& InEvaluator, ContainerT& InDomain)
 		: PainterWeakRef(InPainter)
 		, EvaluatorWeakRef(InEvaluator)
 		, Domain(&InDomain)
+		, TaskName(InTaskName)
 	{
 	}
 
@@ -99,6 +103,7 @@ struct MeshingVectorTask : ParallelTaskChain
 
 	virtual void Run()
 	{
+		ProfileScope Fnord(fmt::format("{} (Run)", TaskName));
 		SodapopDrawableShared Painter = PainterWeakRef.lock();
 		SDFOctreeShared Evaluator = EvaluatorWeakRef.lock();
 		if (Painter && Evaluator)
@@ -122,6 +127,7 @@ struct MeshingVectorTask : ParallelTaskChain
 
 	virtual void Exhausted()
 	{
+		ProfileScope Fnord(fmt::format("{} (Exhausted)", TaskName));
 		SodapopDrawableShared Painter = PainterWeakRef.lock();
 		SDFOctreeShared Evaluator = EvaluatorWeakRef.lock();
 		if (Painter && Evaluator)
@@ -150,8 +156,8 @@ struct MeshingVectorLambdaTask : MeshingVectorTask<ContainerT>
 	LoopThunkT LoopThunk;
 	DoneThunkT DoneThunk;
 
-	MeshingVectorLambdaTask(SodapopDrawableShared& InPainter, SDFOctreeShared& InEvaluator, ContainerT& InDomain, LoopThunkT& InLoopThunk, DoneThunkT& InDoneThunk)
-		: MeshingVectorTask<ContainerT>(InPainter, InEvaluator, InDomain)
+	MeshingVectorLambdaTask(const char* TaskName, SodapopDrawableShared& InPainter, SDFOctreeShared& InEvaluator, ContainerT& InDomain, LoopThunkT& InLoopThunk, DoneThunkT& InDoneThunk)
+		: MeshingVectorTask<ContainerT>(TaskName, InPainter, InEvaluator, InDomain)
 		, LoopThunk(InLoopThunk)
 		, DoneThunk(InDoneThunk)
 	{
@@ -182,6 +188,7 @@ struct MeshingFaceLoop : ParallelTaskChain
 
 void Sodapop::Populate(SodapopDrawableShared Painter)
 {
+	ProfileScope Fnord("Sodapop::Populate");
 	Painter->Scratch = new MeshingScratch();
 	Painter->Scratch->Evaluator = nullptr;
 
@@ -195,6 +202,7 @@ void Sodapop::Populate(SodapopDrawableShared Painter)
 
 void MeshingJob::Run()
 {
+	ProfileScope MeshingJobRun("MeshingJob::Run");
 	SodapopDrawableShared Painter = PainterWeakRef.lock();
 	SDFOctreeShared Evaluator = nullptr;
 	if (Painter)
@@ -281,7 +289,9 @@ void MeshingJob::Run()
 				}
 			}
 		};
+		BeginEvent("Evaluator::Walk LeafSearch");
 		Evaluator->Walk(LeafSearch);
+		EndEvent();
 
 		Painter->Scratch->PointCache.resize(PointCache.size());
 		for (const auto& Coordinate : PointCache)
@@ -313,7 +323,7 @@ void MeshingJob::Run()
 				}
 			};
 
-			MeshingVertexLoopTask = new TaskT(Painter, Evaluator, Painter->Scratch->PointCache, LoopThunk, DoneThunk);
+			MeshingVertexLoopTask = new TaskT("Vertex Loop", Painter, Evaluator, Painter->Scratch->PointCache, LoopThunk, DoneThunk);
 		}
 
 		MeshingFaceLoop* MeshingFaceLoopTask;
@@ -358,7 +368,7 @@ void MeshingJob::Run()
 			{
 			};
 
-			MeshingNormalLoopTask = new TaskT(Painter, Evaluator, Painter->Scratch->OutputMesh.faces_, LoopThunk, DoneThunk);
+			MeshingNormalLoopTask = new TaskT("Normal Loop", Painter, Evaluator, Painter->Scratch->OutputMesh.faces_, LoopThunk, DoneThunk);
 			MeshingFaceLoopTask->NextTask = MeshingNormalLoopTask;
 		}
 
@@ -375,7 +385,7 @@ void MeshingJob::Run()
 				Painter->Colors.resize(Painter->Positions.size(), glm::vec4(0.0, 0.0, 0.0, 1.0));
 			};
 
-			MeshingAverageNormalLoopTask = new TaskT(Painter, Evaluator, Painter->Normals, LoopThunk, DoneThunk);
+			MeshingAverageNormalLoopTask = new TaskT("Average Normals", Painter, Evaluator, Painter->Normals, LoopThunk, DoneThunk);
 			MeshingNormalLoopTask->NextTask = MeshingAverageNormalLoopTask;
 		}
 
@@ -415,6 +425,25 @@ void MeshingJob::Run()
 
 			TaskT::DoneThunkT DoneThunk = [](SodapopDrawableShared& Painter, SDFOctreeShared& Evaluator)
 			{
+				if (Evaluator->Stats.Samples > 0)
+				{
+					std::string Report = fmt::format(
+						"Evaluator Stats for {}\n"
+						" - Average : {} ms\n"
+						" - Worst   : {} ms\n"
+						" - Best    : {} ms\n"
+						" - Samples : {}\n",
+						Painter->Name,
+						Evaluator->Stats.AverageMs,
+						Evaluator->Stats.WorstMs,
+						Evaluator->Stats.BestMs,
+						Evaluator->Stats.Samples);
+					Scheduler::EnqueueDelete([Report]()
+					{
+						fmt::print("{}", Report);
+					});
+				}
+
 				delete Painter->Scratch;
 				Painter->Scratch = nullptr;
 
@@ -424,7 +453,7 @@ void MeshingJob::Run()
 				Painter->MeshReady.store(true);
 			};
 
-			MeshingJitterLoopTask = new TaskT(Painter, Evaluator, Painter->Positions, LoopThunk, DoneThunk);
+			MeshingJitterLoopTask = new TaskT("Jitter Loop", Painter, Evaluator, Painter->Positions, LoopThunk, DoneThunk);
 			MeshingAverageNormalLoopTask->NextTask = MeshingJitterLoopTask;
 		}
 
@@ -458,6 +487,7 @@ void MeshingJob::Abort()
 
 void MeshingFaceLoop::Run()
 {
+	ProfileScope Fnord("Face Loop (Run)");
 	SodapopDrawableShared Painter = PainterWeakRef.lock();
 	SDFOctreeShared Evaluator = EvaluatorWeakRef.lock();
 
@@ -494,6 +524,7 @@ void MeshingFaceLoop::Run()
 
 void MeshingFaceLoop::Exhausted()
 {
+	ProfileScope Fnord("Face Loop (Exhausted)");
 	SodapopDrawableShared Painter = PainterWeakRef.lock();
 	SDFOctreeShared Evaluator = EvaluatorWeakRef.lock();
 

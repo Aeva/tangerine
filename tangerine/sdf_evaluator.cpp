@@ -15,6 +15,7 @@
 
 #include <array>
 #include <functional>
+#include <chrono>
 #include <cmath>
 #include <fmt/format.h>
 #include "extern.h"
@@ -26,6 +27,7 @@
 
 using namespace glm;
 using namespace std::placeholders;
+using Clock = std::chrono::high_resolution_clock;
 
 
 // These are to patch over some differences between glsl and glm.
@@ -1275,6 +1277,8 @@ SDFOctreeShared SDFOctree::Create(SDFNodeShared& Evaluator, float TargetSize, bo
 {
 	if (Evaluator->HasFiniteBounds())
 	{
+		ProfileScope Fnord("SDFOctree::Create");
+
 		// Determine the octree's bounding cube from the evaluator's bounding box.
 		AABB Bounds = Evaluator->Bounds();
 		vec3 Extent = Bounds.Max - Bounds.Min;
@@ -1472,4 +1476,40 @@ void SDFOctree::Walk(SDFOctree::CallbackType& Callback)
 			}
 		}
 	}
+}
+
+
+float SDFOctree::Eval(glm::vec3 Point, const bool Exact)
+{
+	Clock::time_point EvalStart = Clock::now();
+	float Distance;
+	{
+		SDFNodeShared Node = Descend(Point, Exact);
+		if (!Exact && !Node)
+		{
+			Distance = INFINITY;
+		}
+		else
+		{
+			Distance = Node->Eval(Point);
+		}
+	}
+
+#if ENABLE_PROFILING
+	{
+		std::chrono::duration<double, std::milli> Delta = Clock::now() - EvalStart;
+		{
+			std::lock_guard<std::mutex> Lock(Stats.CS);
+
+			double Alpha = 1.0 - (Stats.Samples / (Stats.Samples + 1.0));
+			Stats.AverageMs = glm::mix(Stats.AverageMs, Delta.count(), Alpha);
+			++Stats.Samples;
+
+			Stats.WorstMs = glm::max(Stats.WorstMs, Delta.count());
+			Stats.BestMs = glm::min(Stats.BestMs, Delta.count());
+		}
+	}
+#endif
+
+	return Distance;
 }

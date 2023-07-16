@@ -24,14 +24,16 @@
 #endif
 
 
-void BeginEvent(const char* EventName);
+#include <string>
 
+void BeginEvent(const char* EventName);
+void BeginEvent(std::string EventName);
 
 void EndEvent();
-
 
 struct ProfileScope
 {
 	ProfileScope(const char* EventName);
+	ProfileScope(std::string EventName);
 	~ProfileScope();
 };
