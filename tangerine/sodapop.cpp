@@ -23,14 +23,15 @@
 #include <fmt/format.h>
 #include <surface_nets.h>
 #include <concepts>
+#include <iterator>
 #include <random>
 #include <atomic>
 #include <mutex>
 #include <set>
 
 
-static std::default_random_engine RNGesus;
-static std::uniform_real_distribution<double> Roll(-1.0, std::nextafter(1.0, DBL_MAX));
+static thread_local std::default_random_engine RNGesus;
+static thread_local std::uniform_real_distribution<double> Roll(-1.0, std::nextafter(1.0, DBL_MAX));
 
 
 size_t GridPointToIndex(const isosurface::regular_grid_t& Grid, size_t GridX, size_t GridY, size_t GridZ)
@@ -71,7 +72,7 @@ struct PointCacheBucket
 	{
 	}
 
-	PointCacheBucket(PointCacheBucket&& Other)
+	PointCacheBucket(PointCacheBucket&& Other) noexcept
 	{
 		Points.swap(Other.Points);
 	}
@@ -80,18 +81,18 @@ struct PointCacheBucket
 
 struct MeshingScratch : isosurface::AsyncParallelSurfaceNets
 {
+	// This allows us to hold a reference the same octree through the task chain
 	SDFOctreeShared Evaluator;
 
+	// Intermediary domain for MeshingOctreeTask
 	std::vector<SDFOctree*> Incompletes;
 
+	// Intermediary domain for MeshingVertexLoopTask
 	size_t PointCacheBucketSize = 0;
 	std::vector<PointCacheBucket> PointCache;
 
-	std::mutex SecondLoopIteratorCS;
-	std::unordered_map<std::size_t, std::uint64_t>::iterator SecondLoopIterator;
-
-	std::atomic_int ThirdLoopIndex = 0;
-	std::mutex ThirdLoopIteratorCS;
+	// Crit used by MeshingNormalLoopTask
+	std::mutex NormalsCS;
 };
 
 
@@ -124,7 +125,7 @@ struct ParallelMeshingTask : ParallelTaskChain
 {
 	using SharedT = std::shared_ptr<ParallelMeshingTask<ContainerT>>;
 	using ElementT = typename ContainerT::value_type;
-	using IsVectorT = std::is_same<std::vector<ElementT>, typename ContainerT>;
+	using IteratorT = typename ContainerT::iterator;
 
 	SodapopDrawableWeakRef PainterWeakRef;
 	SDFOctreeWeakRef EvaluatorWeakRef;
@@ -136,6 +137,8 @@ struct ParallelMeshingTask : ParallelTaskChain
 
 	std::mutex IterationCS;
 	std::atomic_int NextIndex = 0;
+	IteratorT NextIter;
+	IteratorT StopIter;
 	SDFOctree* NextLeaf = nullptr;
 
 	ParallelMeshingTask(const char* InTaskName, SodapopDrawableShared& InPainter, SDFOctreeShared& InEvaluator, ContainerT& InDomain)
@@ -154,9 +157,8 @@ struct ParallelMeshingTask : ParallelTaskChain
 	{
 	}
 
-	virtual bool Setup(SodapopDrawableShared& Painter, SDFOctreeShared& Evaluator, const int CallCount)
+	virtual void Setup(SodapopDrawableShared& Painter, SDFOctreeShared& Evaluator)
 	{
-		return false;
 	}
 
 	virtual void Loop(SodapopDrawableShared& Painter, SDFOctreeShared& Evaluator, ElementT& Element, const int ElementIndex)
@@ -168,25 +170,66 @@ struct ParallelMeshingTask : ParallelTaskChain
 	}
 
 	template<typename ForContainerT>
-	requires std::same_as<std::vector<ElementT>, ForContainerT>
+	requires std::contiguous_iterator<IteratorT>
 	void RunInner(SodapopDrawableShared& Painter, SDFOctreeShared& Evaluator)
 	{
 		{
 			IterationCS.lock();
 			if (SetupPending)
 			{
-				SetupPending = Setup(Painter, Evaluator, SetupCalled++);
+				SetupPending = false;
+				Setup(Painter, Evaluator);
 			}
 			IterationCS.unlock();
 		}
 		while (true)
 		{
 			const int ClaimedIndex = NextIndex.fetch_add(1);
-			const int Range = Domain->size();
+			const size_t Range = Domain->size();
 			if (ClaimedIndex < Range)
 			{
 				ElementT& Element = (*Domain)[ClaimedIndex];
 				Loop(Painter, Evaluator, Element, ClaimedIndex);
+			}
+			else
+			{
+				break;
+			}
+		}
+	}
+
+	template<typename ForContainerT>
+	requires std::forward_iterator<IteratorT>
+	void RunInner(SodapopDrawableShared& Painter, SDFOctreeShared& Evaluator)
+	{
+		{
+			IterationCS.lock();
+			if (SetupPending)
+			{
+				SetupPending = false;
+				NextIter = Domain->begin();
+				StopIter = Domain->end();
+				Setup(Painter, Evaluator);
+			}
+			IterationCS.unlock();
+		}
+		while (true)
+		{
+			bool ValidIteration = false;
+			IteratorT Cursor;
+			{
+				IterationCS.lock();
+				if (NextIter != StopIter)
+				{
+					ValidIteration = true;
+					Cursor = NextIter;
+					++NextIter;
+				}
+				IterationCS.unlock();
+			}
+			if (ValidIteration)
+			{
+				Loop(Painter, Evaluator, *Cursor, -1);
 			}
 			else
 			{
@@ -203,8 +246,9 @@ struct ParallelMeshingTask : ParallelTaskChain
 			IterationCS.lock();
 			if (SetupPending)
 			{
+				SetupPending = false;
 				NextLeaf = Evaluator->Next;
-				SetupPending = Setup(Painter, Evaluator, SetupCalled++);
+				Setup(Painter, Evaluator);
 			}
 			IterationCS.unlock();
 		}
@@ -258,12 +302,12 @@ struct ParallelMeshingTask : ParallelTaskChain
 
 
 template<typename ContainerT>
-struct MeshingVectorLambdaTask : ParallelMeshingTask<ContainerT>
+struct MeshingLambdaContainerTask : ParallelMeshingTask<ContainerT>
 {
 	using SharedT = std::shared_ptr<ParallelMeshingTask<ContainerT>>;
 	using ElementT = typename ContainerT::value_type;
 
-	using BootThunkT = std::function<bool(SodapopDrawableShared&, SDFOctreeShared&, const int)>;
+	using BootThunkT = std::function<void(SodapopDrawableShared&, SDFOctreeShared&)>;
 	using LoopThunkT = std::function<void(SodapopDrawableShared&, SDFOctreeShared&, ElementT&, const int)>;
 	using DoneThunkT = std::function<void(SodapopDrawableShared&, SDFOctreeShared&)>;
 
@@ -273,7 +317,7 @@ struct MeshingVectorLambdaTask : ParallelMeshingTask<ContainerT>
 
 	bool HasBootThunk;
 
-	MeshingVectorLambdaTask(const char* TaskName, SodapopDrawableShared& InPainter, SDFOctreeShared& InEvaluator, ContainerT& InDomain, LoopThunkT& InLoopThunk, DoneThunkT& InDoneThunk)
+	MeshingLambdaContainerTask(const char* TaskName, SodapopDrawableShared& InPainter, SDFOctreeShared& InEvaluator, ContainerT& InDomain, LoopThunkT& InLoopThunk, DoneThunkT& InDoneThunk)
 		: ParallelMeshingTask<ContainerT>(TaskName, InPainter, InEvaluator, InDomain)
 		, LoopThunk(InLoopThunk)
 		, DoneThunk(InDoneThunk)
@@ -281,7 +325,7 @@ struct MeshingVectorLambdaTask : ParallelMeshingTask<ContainerT>
 	{
 	}
 
-	MeshingVectorLambdaTask(const char* TaskName, SodapopDrawableShared& InPainter, SDFOctreeShared& InEvaluator, ContainerT& InDomain, BootThunkT& InBootThunk, LoopThunkT& InLoopThunk, DoneThunkT& InDoneThunk)
+	MeshingLambdaContainerTask(const char* TaskName, SodapopDrawableShared& InPainter, SDFOctreeShared& InEvaluator, ContainerT& InDomain, BootThunkT& InBootThunk, LoopThunkT& InLoopThunk, DoneThunkT& InDoneThunk)
 		: ParallelMeshingTask<ContainerT>(TaskName, InPainter, InEvaluator, InDomain)
 		, BootThunk(InBootThunk)
 		, LoopThunk(InLoopThunk)
@@ -290,15 +334,11 @@ struct MeshingVectorLambdaTask : ParallelMeshingTask<ContainerT>
 	{
 	}
 
-	virtual bool Setup(SodapopDrawableShared& Painter, SDFOctreeShared& Evaluator, const int CallCount)
+	virtual void Setup(SodapopDrawableShared& Painter, SDFOctreeShared& Evaluator)
 	{
 		if (HasBootThunk)
 		{
-			return BootThunk(Painter, Evaluator, CallCount);
-		}
-		else
-		{
-			return false;
+			BootThunk(Painter, Evaluator);
 		}
 	}
 
@@ -314,12 +354,12 @@ struct MeshingVectorLambdaTask : ParallelMeshingTask<ContainerT>
 };
 
 
-struct MeshingOctreeLambdaTask : ParallelMeshingTask<SDFOctree>
+struct MeshingLambdaOctreeTask : ParallelMeshingTask<SDFOctree>
 {
 	using SharedT = std::shared_ptr<ParallelMeshingTask<SDFOctree>>;
 	using ElementT = typename SDFOctree::value_type;
 
-	using BootThunkT = std::function<bool(SodapopDrawableShared&, SDFOctreeShared&, const int)>;
+	using BootThunkT = std::function<void(SodapopDrawableShared&, SDFOctreeShared&)>;
 	using LoopThunkT = std::function<void(SodapopDrawableShared&, SDFOctreeShared&, ElementT&)>;
 	using DoneThunkT = std::function<void(SodapopDrawableShared&, SDFOctreeShared&)>;
 
@@ -327,7 +367,7 @@ struct MeshingOctreeLambdaTask : ParallelMeshingTask<SDFOctree>
 	LoopThunkT LoopThunk;
 	DoneThunkT DoneThunk;
 
-	MeshingOctreeLambdaTask(const char* TaskName, SodapopDrawableShared& InPainter, SDFOctreeShared& InEvaluator, BootThunkT& InBootThunk, LoopThunkT& InLoopThunk, DoneThunkT& InDoneThunk)
+	MeshingLambdaOctreeTask(const char* TaskName, SodapopDrawableShared& InPainter, SDFOctreeShared& InEvaluator, BootThunkT& InBootThunk, LoopThunkT& InLoopThunk, DoneThunkT& InDoneThunk)
 		: ParallelMeshingTask<SDFOctree>(TaskName, InPainter, InEvaluator)
 		, BootThunk(InBootThunk)
 		, LoopThunk(InLoopThunk)
@@ -335,9 +375,9 @@ struct MeshingOctreeLambdaTask : ParallelMeshingTask<SDFOctree>
 	{
 	}
 
-	virtual bool Setup(SodapopDrawableShared& Painter, SDFOctreeShared& Evaluator, const int CallCount)
+	virtual void Setup(SodapopDrawableShared& Painter, SDFOctreeShared& Evaluator)
 	{
-		return BootThunk(Painter, Evaluator, CallCount);
+		BootThunk(Painter, Evaluator);
 	}
 
 	virtual void Loop(SodapopDrawableShared& Painter, SDFOctreeShared& Evaluator, ElementT& Element, const int Unused)
@@ -349,17 +389,6 @@ struct MeshingOctreeLambdaTask : ParallelMeshingTask<SDFOctree>
 	{
 		DoneThunk(Painter, Evaluator);
 	}
-};
-
-
-struct MeshingFaceLoop : ParallelTaskChain
-{
-	SodapopDrawableWeakRef PainterWeakRef;
-	SDFOctreeWeakRef EvaluatorWeakRef;
-
-	virtual void Run();
-
-	virtual void Exhausted();
 };
 
 
@@ -419,7 +448,7 @@ void MeshingJob::Run()
 
 		ParallelTaskChain* MeshingOctreeTask;
 		{
-			using TaskT = MeshingVectorLambdaTask<std::vector<SDFOctree*>>;
+			using TaskT = MeshingLambdaContainerTask<std::vector<SDFOctree*>>;
 			TaskT::LoopThunkT LoopThunk = [](SodapopDrawableShared& Painter, SDFOctreeShared& Evaluator, SDFOctree* Incomplete, const int Index)
 			{
 				Incomplete->Populate(false, 3, -1);
@@ -439,9 +468,9 @@ void MeshingJob::Run()
 					Grid.x = Evaluator->Bounds.Min.x;
 					Grid.y = Evaluator->Bounds.Min.y;
 					Grid.z = Evaluator->Bounds.Min.z;
-					Grid.sx = glm::ceil(SamplesPerUnit.x);
-					Grid.sy = glm::ceil(SamplesPerUnit.y);
-					Grid.sz = glm::ceil(SamplesPerUnit.z);
+					Grid.sx = size_t(glm::ceil(SamplesPerUnit.x));
+					Grid.sy = size_t(glm::ceil(SamplesPerUnit.y));
+					Grid.sz = size_t(glm::ceil(SamplesPerUnit.z));
 					Grid.dx = Evaluator->Bounds.Extent().x / static_cast<float>(Grid.sx);
 					Grid.dy = Evaluator->Bounds.Extent().y / static_cast<float>(Grid.sy);
 					Grid.dz = Evaluator->Bounds.Extent().z / static_cast<float>(Grid.sz);
@@ -476,9 +505,9 @@ void MeshingJob::Run()
 
 		ParallelTaskChain* MeshingPointCacheTask;
 		{
-			using TaskT = MeshingOctreeLambdaTask;
+			using TaskT = MeshingLambdaOctreeTask;
 
-			TaskT::BootThunkT BootThunk = [](SodapopDrawableShared& Painter, SDFOctreeShared& Evaluator, const int LaneIndex) -> bool
+			TaskT::BootThunkT BootThunk = [](SodapopDrawableShared& Painter, SDFOctreeShared& Evaluator)
 			{
 				MeshingScratch* Scratch = Painter->Scratch;
 
@@ -489,8 +518,6 @@ void MeshingJob::Run()
 
 				Scratch->PointCacheBucketSize = BucketSize;
 				Scratch->PointCache.resize(BucketCount);
-
-				return false;
 			};
 
 			TaskT::LoopThunkT LoopThunk = [](SodapopDrawableShared& Painter, SDFOctreeShared& RootNode, SDFOctree& LeafNode)
@@ -548,7 +575,8 @@ void MeshingJob::Run()
 
 		ParallelTaskChain* MeshingVertexLoopTask;
 		{
-			using TaskT = MeshingVectorLambdaTask<std::vector<PointCacheBucket>>;
+			using TaskT = MeshingLambdaContainerTask<std::vector<PointCacheBucket>>;
+
 			TaskT::LoopThunkT LoopThunk = [](SodapopDrawableShared& Painter, SDFOctreeShared& Evaluator, const PointCacheBucket& Bucket, const int Ignore)
 			{
 				MeshingScratch* Scratch = Painter->Scratch;
@@ -560,34 +588,53 @@ void MeshingJob::Run()
 
 			TaskT::DoneThunkT DoneThunk = [](SodapopDrawableShared& Painter, SDFOctreeShared& Evaluator)
 			{
-				MeshingScratch* Scratch = Painter->Scratch;
-				Scratch->SecondLoopIterator = Scratch->SecondLoopDomain.begin();
 			};
 
 			MeshingVertexLoopTask = new TaskT("Vertex Loop", Painter, Evaluator, Painter->Scratch->PointCache, LoopThunk, DoneThunk);
 			MeshingPointCacheTask->NextTask = MeshingVertexLoopTask;
 		}
 
-		MeshingFaceLoop* MeshingFaceLoopTask;
+		ParallelTaskChain* MeshingFaceLoopTask;
 		{
-			MeshingFaceLoopTask = new MeshingFaceLoop();
-			MeshingFaceLoopTask->PainterWeakRef = Painter;
-			MeshingFaceLoopTask->EvaluatorWeakRef = Evaluator;
+			using TaskT = MeshingLambdaContainerTask<std::unordered_map<std::size_t, std::uint64_t>>;
 
+			TaskT::LoopThunkT LoopThunk = [](SodapopDrawableShared& Painter, SDFOctreeShared& Evaluator, const std::pair<std::size_t const, std::uint64_t>& Element, const int Ignore)
+			{
+				MeshingScratch* Scratch = Painter->Scratch;
+				Scratch->SecondLoopThunk(*Scratch, Element);
+			};
+
+			TaskT::DoneThunkT DoneThunk = [](SodapopDrawableShared& Painter, SDFOctreeShared& Evaluator)
+			{
+				MeshingScratch* Scratch = Painter->Scratch;
+				isosurface::mesh& Mesh = Scratch->OutputMesh;
+
+				Painter->Positions.reserve(Mesh.vertices_.size());
+				Painter->Normals.resize(Mesh.vertices_.size(), glm::vec4(0.0, 0.0, 0.0, 0.0));
+				Painter->Indices.resize(Mesh.faces_.size() * 3, 0);
+
+				for (const isosurface::point_t& ExtractedVertex : Mesh.vertices_)
+				{
+					glm::vec4 Vertex(ExtractedVertex.x, ExtractedVertex.y, ExtractedVertex.z, 1.0);
+					Painter->Positions.push_back(Vertex);
+				}
+			};
+
+			MeshingFaceLoopTask = new TaskT("Face Loop", Painter, Evaluator, Painter->Scratch->SecondLoopDomain, LoopThunk, DoneThunk);
 			MeshingVertexLoopTask->NextTask = MeshingFaceLoopTask;
 		}
 
 		ParallelTaskChain* MeshingNormalLoopTask;
 		{
 			using FaceT = isosurface::mesh::triangle_t;
-			using TaskT = MeshingVectorLambdaTask<isosurface::mesh::faces_container_type>;
+			using TaskT = MeshingLambdaContainerTask<isosurface::mesh::faces_container_type>;
 			TaskT::LoopThunkT LoopThunk = [](SodapopDrawableShared& Painter, SDFOctreeShared& Evaluator, const FaceT& Face, const int Index)
 			{
 				isosurface::mesh& Mesh = Painter->Scratch->OutputMesh;
 
-				Painter->Indices[Index * 3 + 0] = Face.v0;
-				Painter->Indices[Index * 3 + 1] = Face.v1;
-				Painter->Indices[Index * 3 + 2] = Face.v2;
+				Painter->Indices[Index * 3 + 0] = uint32_t(Face.v0);
+				Painter->Indices[Index * 3 + 1] = uint32_t(Face.v1);
+				Painter->Indices[Index * 3 + 2] = uint32_t(Face.v2);
 
 				glm::vec3 A = Painter->Positions[Face.v0].xyz();
 				glm::vec3 B = Painter->Positions[Face.v1].xyz();
@@ -598,11 +645,11 @@ void MeshingJob::Run()
 
 				if (!glm::any(glm::isnan(N)))
 				{
-					Painter->Scratch->ThirdLoopIteratorCS.lock();
+					Painter->Scratch->NormalsCS.lock();
 					Painter->Normals[Face.v0] += N;
 					Painter->Normals[Face.v1] += N;
 					Painter->Normals[Face.v2] += N;
-					Painter->Scratch->ThirdLoopIteratorCS.unlock();
+					Painter->Scratch->NormalsCS.unlock();
 				}
 			};
 
@@ -616,7 +663,7 @@ void MeshingJob::Run()
 
 		ParallelTaskChain* MeshingAverageNormalLoopTask;
 		{
-			using TaskT = MeshingVectorLambdaTask<std::vector<glm::vec4>>;
+			using TaskT = MeshingLambdaContainerTask<std::vector<glm::vec4>>;
 			TaskT::LoopThunkT LoopThunk = [](SodapopDrawableShared& Painter, SDFOctreeShared& Evaluator, glm::vec4& Normal, const int Index)
 			{
 				Normal = glm::vec4(glm::normalize(Normal.xyz() / Normal.w), 1.0);
@@ -633,7 +680,7 @@ void MeshingJob::Run()
 
 		ParallelTaskChain* MeshingJitterLoopTask;
 		{
-			using TaskT = MeshingVectorLambdaTask<std::vector<glm::vec4>>;
+			using TaskT = MeshingLambdaContainerTask<std::vector<glm::vec4>>;
 
 			isosurface::regular_grid_t& Grid = Painter->Scratch->Grid;
 
@@ -669,7 +716,10 @@ void MeshingJob::Run()
 
 			TaskT::DoneThunkT DoneThunk = [](SodapopDrawableShared& Painter, SDFOctreeShared& Evaluator)
 			{
+				BeginEvent("Delete Scratch Data");
 				delete Painter->Scratch;
+				EndEvent();
+
 				Painter->Scratch = nullptr;
 
 				Painter->MeshingComplete = Clock::now();
@@ -707,74 +757,6 @@ void MeshingJob::Done()
 void MeshingJob::Abort()
 {
 	fmt::print("[{}] Job cancelled.\n", (void*)this);
-}
-
-
-void MeshingFaceLoop::Run()
-{
-	ProfileScope Fnord("Face Loop (Run)");
-	SodapopDrawableShared Painter = PainterWeakRef.lock();
-	SDFOctreeShared Evaluator = EvaluatorWeakRef.lock();
-
-	if (Painter && Evaluator)
-	{
-		MeshingScratch* Scratch = Painter->Scratch;
-
-		while (true)
-		{
-			bool ValidIteration = false;
-			std::unordered_map<std::size_t, std::uint64_t>::iterator Cursor;
-			{
-				Scratch->SecondLoopIteratorCS.lock();
-				Cursor = Scratch->SecondLoopIterator;
-				ValidIteration = Cursor != Scratch->SecondLoopDomain.end();
-				if (ValidIteration)
-				{
-					Scratch->SecondLoopIterator++;
-				}
-				Scratch->SecondLoopIteratorCS.unlock();
-			}
-			if (ValidIteration)
-			{
-				Scratch->SecondLoopThunk(*Scratch, *Cursor);
-			}
-			else
-			{
-				break;
-			}
-		}
-	}
-}
-
-
-void MeshingFaceLoop::Exhausted()
-{
-	ProfileScope Fnord("Face Loop (Exhausted)");
-	SodapopDrawableShared Painter = PainterWeakRef.lock();
-	SDFOctreeShared Evaluator = EvaluatorWeakRef.lock();
-
-	if (Painter && Evaluator)
-	{
-		MeshingScratch* Scratch = Painter->Scratch;
-
-		isosurface::mesh& Mesh = Scratch->OutputMesh;
-
-		Painter->Positions.reserve(Mesh.vertices_.size());
-		Painter->Normals.resize(Mesh.vertices_.size(), glm::vec4(0.0, 0.0, 0.0, 0.0));
-		Painter->Indices.resize(Mesh.faces_.size() * 3, 0);
-
-		for (const isosurface::point_t& ExtractedVertex : Mesh.vertices_)
-		{
-			glm::vec4 Vertex(ExtractedVertex.x, ExtractedVertex.y, ExtractedVertex.z, 1.0);
-			Painter->Positions.push_back(Vertex);
-		}
-
-		if (NextTask)
-		{
-			Scheduler::EnqueueParallel(NextTask);
-			NextTask = nullptr;
-		}
-	}
 }
 
 
@@ -834,9 +816,9 @@ bool ShaderTask::Run()
 				glm::vec3 V = glm::normalize(LocalEye.xyz() - Painter->Positions[i].xyz());
 				glm::vec3 N = Painter->Normals[i].xyz();
 				float D = glm::pow(glm::max(glm::dot(N, glm::normalize(N * 0.75f + V)), 0.0f), 2.0f);
-				float F = 1.0 - glm::max(glm::dot(N, V), 0.0f);
-				float BSDF = D + F * 0.25;
-				Instance->Colors[i] = glm::vec4(BaseColor * BSDF, 1.0);
+				float F = 1.0f - glm::max(glm::dot(N, V), 0.0f);
+				float BSDF = D + F * 0.25f;
+				Instance->Colors[i] = glm::vec4(BaseColor * BSDF, 1.0f);
 			}
 
 			// TODO: This needs some way to determine if the instance has converged since it was last marked dirty.

@@ -226,7 +226,9 @@ using SDFOctreeWeakRef = std::weak_ptr<SDFOctree>;
 
 struct SDFOctree
 {
+	// These are to simplify metaprogramming in ParallelMeshingTask.
 	using value_type = SDFOctree;
+	using iterator = void*;
 
 	AABB Bounds;
 	glm::vec3 Pivot;
