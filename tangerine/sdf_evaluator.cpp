@@ -1520,7 +1520,7 @@ float SDFInterpreter::Eval(glm::vec3 EvalPoint)
 
 
 // SDFOctree function implementations
-SDFOctreeShared SDFOctree::Create(SDFNodeShared& Evaluator, float TargetSize, bool Coalesce)
+SDFOctreeShared SDFOctree::Create(SDFNodeShared& Evaluator, float TargetSize, bool Coalesce, int MaxDepth)
 {
 	if (Evaluator->HasFiniteBounds())
 	{
@@ -1534,7 +1534,7 @@ SDFOctreeShared SDFOctree::Create(SDFNodeShared& Evaluator, float TargetSize, bo
 		Bounds.Min -= Padding;
 		Bounds.Max += Padding;
 
-		SDFOctree* Tree = new SDFOctree(nullptr, Evaluator, TargetSize, Coalesce, Bounds, 1);
+		SDFOctree* Tree = new SDFOctree(nullptr, Evaluator, TargetSize, Coalesce, Bounds, 1, MaxDepth);
 		if (Tree->Evaluator)
 		{
 			return SDFOctreeShared(Tree);
@@ -1552,7 +1552,7 @@ SDFOctreeShared SDFOctree::Create(SDFNodeShared& Evaluator, float TargetSize, bo
 	}
 }
 
-SDFOctree::SDFOctree(SDFOctree* InParent, SDFNodeShared& InEvaluator, float InTargetSize, bool Coalesce, AABB InBounds, int Depth)
+SDFOctree::SDFOctree(SDFOctree* InParent, SDFNodeShared& InEvaluator, float InTargetSize, bool Coalesce, AABB InBounds, int Depth, int MaxDepth)
 	: Parent(InParent)
 	, TargetSize(InTargetSize)
 	, Bounds(InBounds)
@@ -1582,88 +1582,115 @@ SDFOctree::SDFOctree(SDFOctree* InParent, SDFNodeShared& InEvaluator, float InTa
 	}
 	else
 	{
-		Populate(Coalesce, Depth);
+		Incomplete = true;
+		if (Coalesce || MaxDepth == -1 || Depth < MaxDepth)
+		{
+			Populate(Coalesce, Depth, MaxDepth);
+		}
+		else
+		{
+			for (int i = 0; i < 8; ++i)
+			{
+				Children[i] = nullptr;
+			}
+		}
 	}
 	if (Evaluator)
 	{
 		Interpreter = SDFInterpreterShared(new SDFInterpreter(Evaluator));
 	}
+
+	if (!Parent)
+	{
+		for (SDFOctree* Child : Children)
+		{
+			if (Child)
+			{
+				Next = Child;
+				break;
+			}
+		}
+	}
 }
 
-void SDFOctree::Populate(bool Coalesce, int Depth)
+void SDFOctree::Populate(bool Coalesce, int Depth, int MaxDepth)
 {
-	bool Uniform = true;
-	bool Penultimate = true;
-	std::vector<SDFOctree*> Live;
-	Live.reserve(8);
-	for (int i = 0; i < 8; ++i)
+	if (Incomplete)
 	{
-		AABB ChildBounds = Bounds;
-		if (i & 1)
+		Incomplete = false;
+		bool Uniform = true;
+		bool Penultimate = true;
+		std::vector<SDFOctree*> Live;
+		Live.reserve(8);
+		for (int i = 0; i < 8; ++i)
 		{
-			ChildBounds.Min.x = Pivot.x;
-		}
-		else
-		{
-			ChildBounds.Max.x = Pivot.x;
-		}
-		if (i & 2)
-		{
-			ChildBounds.Min.y = Pivot.y;
-		}
-		else
-		{
-			ChildBounds.Max.y = Pivot.y;
-		}
-		if (i & 4)
-		{
-			ChildBounds.Min.z = Pivot.z;
-		}
-		else
-		{
-			ChildBounds.Max.z = Pivot.z;
-		}
-		Children[i] = new SDFOctree(this, Evaluator, TargetSize, Coalesce, ChildBounds, Depth + 1);
-		if (Children[i]->Evaluator == nullptr)
-		{
-			delete Children[i];
-			Children[i] = nullptr;
-		}
-		else
-		{
-			Uniform &= *Evaluator == *(Children[i]->Evaluator);
-			Penultimate &= Children[i]->Terminus;
-			Live.push_back(Children[i]);
-		}
-	}
-
-	if (Live.size() == 0)
-	{
-		Evaluator.reset();
-		Interpreter.reset();
-		Penultimate = false;
-		Terminus = true;
-	}
-	else
-	{
-		Bounds = Live[0]->Bounds;
-		for (int i = 1; i < Live.size(); ++i)
-		{
-			Bounds.Min = min(Bounds.Min, Live[i]->Bounds.Min);
-			Bounds.Max = max(Bounds.Max, Live[i]->Bounds.Max);
-		}
-
-		if (Coalesce && ((Penultimate && Uniform) || LeafCount <= max(Depth, 3)))
-		{
-			for (int i = 0; i < 8; ++i)
+			AABB ChildBounds = Bounds;
+			if (i & 1)
 			{
-				if (Children[i] != nullptr)
-				{
-					delete Children[i];
-					Children[i] = nullptr;
-				}
+				ChildBounds.Min.x = Pivot.x;
 			}
+			else
+			{
+				ChildBounds.Max.x = Pivot.x;
+			}
+			if (i & 2)
+			{
+				ChildBounds.Min.y = Pivot.y;
+			}
+			else
+			{
+				ChildBounds.Max.y = Pivot.y;
+			}
+			if (i & 4)
+			{
+				ChildBounds.Min.z = Pivot.z;
+			}
+			else
+			{
+				ChildBounds.Max.z = Pivot.z;
+			}
+			Children[i] = new SDFOctree(this, Evaluator, TargetSize, Coalesce, ChildBounds, Depth + 1, MaxDepth);
+			if (Children[i]->Evaluator == nullptr)
+			{
+				delete Children[i];
+				Children[i] = nullptr;
+			}
+			else
+			{
+				Uniform &= *Evaluator == *(Children[i]->Evaluator);
+				Penultimate &= Children[i]->Terminus;
+				Live.push_back(Children[i]);
+			}
+		}
+
+		if (Live.size() == 0)
+		{
+			Evaluator.reset();
+			Interpreter.reset();
+			Penultimate = false;
 			Terminus = true;
+		}
+		else
+		{
+			Bounds = Live[0]->Bounds;
+			for (int i = 1; i < Live.size(); ++i)
+			{
+				Bounds.Min = min(Bounds.Min, Live[i]->Bounds.Min);
+				Bounds.Max = max(Bounds.Max, Live[i]->Bounds.Max);
+			}
+
+			if (Coalesce && ((Penultimate && Uniform) || LeafCount <= max(Depth, 3)))
+			{
+				for (int i = 0; i < 8; ++i)
+				{
+					if (Children[i] != nullptr)
+					{
+						delete Children[i];
+						Children[i] = nullptr;
+					}
+				}
+				Terminus = true;
+			}
 		}
 	}
 }
@@ -1744,9 +1771,36 @@ SDFInterpreterShared SDFOctree::SelectInterpreter(const glm::vec3 Point, const b
 	}
 }
 
-void SDFOctree::Walk(SDFOctree::CallbackType& Callback)
+SDFOctree* SDFOctree::LinkLeavesInner(SDFOctree* Cursor)
 {
 	if (Terminus)
+	{
+		Next = Cursor;
+		return this;
+	}
+	else
+	{
+		for (int i = 7; i >= 0; --i)
+		{
+			SDFOctree* Child = Children[i];
+			if (Child)
+			{
+				Cursor = Child->LinkLeavesInner(Cursor);
+			}
+		}
+		Next = Cursor;
+		return Cursor;
+	}
+}
+
+void SDFOctree::LinkLeaves()
+{
+	Next = LinkLeavesInner(nullptr);
+}
+
+void SDFOctree::Walk(SDFOctree::CallbackType& Callback)
+{
+	if (Terminus || Incomplete)
 	{
 		Callback(*this);
 	}

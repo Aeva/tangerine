@@ -226,6 +226,8 @@ using SDFOctreeWeakRef = std::weak_ptr<SDFOctree>;
 
 struct SDFOctree
 {
+	using value_type = SDFOctree;
+
 	AABB Bounds;
 	glm::vec3 Pivot;
 	float TargetSize;
@@ -234,15 +236,20 @@ struct SDFOctree
 	SDFNodeShared Evaluator;
 	SDFOctree* Children[8];
 	SDFOctree* Parent;
+	SDFOctree* Next = nullptr;
 
 	SDFInterpreterShared Interpreter;
+	bool Incomplete = false;
 
-	static SDFOctreeShared Create(SDFNodeShared& Evaluator, float TargetSize = 0.25, bool Coalesce = true);
-	void Populate(bool Coalesce, int Depth);
+	static SDFOctreeShared Create(SDFNodeShared& Evaluator, float TargetSize = 0.25, bool Coalesce = true, int MaxDepth = -1);
+	void Populate(bool Coalesce, int Depth, int MaxDepth = -1);
 	~SDFOctree();
 	SDFOctree* Descend(const glm::vec3 Point, const bool Exact = true);
 	SDFNodeShared SelectEvaluator(const glm::vec3 Point, const bool Exact = true);
 	SDFInterpreterShared SelectInterpreter(const glm::vec3 Point, const bool Exact = true);
+
+	SDFOctree* LinkLeavesInner(SDFOctree* Previous = nullptr);
+	void LinkLeaves();
 
 	using CallbackType = std::function<void(SDFOctree&)>;
 	void Walk(CallbackType& Callback);
@@ -260,5 +267,5 @@ struct SDFOctree
 	}
 
 private:
-	SDFOctree(SDFOctree* InParent, SDFNodeShared& InEvaluator, float InTargetSize, bool Coalesce, AABB InBounds, int Depth);
+	SDFOctree(SDFOctree* InParent, SDFNodeShared& InEvaluator, float InTargetSize, bool Coalesce, AABB InBounds, int Depth, int MaxDepth);
 };
