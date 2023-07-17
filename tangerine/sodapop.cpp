@@ -446,6 +446,30 @@ void MeshingJob::Run()
 	{
 		Painter->MeshingStart = Clock::now();
 
+		isosurface::regular_grid_t Grid;
+		{
+			const float Density = 20;
+			const glm::vec3 SamplesPerUnit = glm::max(Evaluator->Bounds.Extent() * glm::vec3(Density), glm::vec3(8.0));
+
+			Grid.x = Evaluator->Bounds.Min.x;
+			Grid.y = Evaluator->Bounds.Min.y;
+			Grid.z = Evaluator->Bounds.Min.z;
+			Grid.sx = size_t(glm::ceil(SamplesPerUnit.x));
+			Grid.sy = size_t(glm::ceil(SamplesPerUnit.y));
+			Grid.sz = size_t(glm::ceil(SamplesPerUnit.z));
+			Grid.dx = Evaluator->Bounds.Extent().x / static_cast<float>(Grid.sx);
+			Grid.dy = Evaluator->Bounds.Extent().y / static_cast<float>(Grid.sy);
+			Grid.dz = Evaluator->Bounds.Extent().z / static_cast<float>(Grid.sz);
+
+			Grid.x -= Grid.dx * 2;
+			Grid.y -= Grid.dy * 2;
+			Grid.z -= Grid.dz * 2;
+			Grid.sx += 3;
+			Grid.sy += 3;
+			Grid.sz += 3;
+		}
+		Painter->Scratch->Grid = Grid;
+
 		ParallelTaskChain* MeshingOctreeTask;
 		{
 			using TaskT = MeshingLambdaContainerTask<std::vector<SDFOctree*>>;
@@ -460,30 +484,6 @@ void MeshingJob::Run()
 				Evaluator->LinkLeaves();
 				EndEvent();
 
-				isosurface::regular_grid_t Grid;
-				{
-					const float Density = 14.0;
-					const glm::vec3 SamplesPerUnit = glm::max(Evaluator->Bounds.Extent() * glm::vec3(Density), glm::vec3(8.0));
-
-					Grid.x = Evaluator->Bounds.Min.x;
-					Grid.y = Evaluator->Bounds.Min.y;
-					Grid.z = Evaluator->Bounds.Min.z;
-					Grid.sx = size_t(glm::ceil(SamplesPerUnit.x));
-					Grid.sy = size_t(glm::ceil(SamplesPerUnit.y));
-					Grid.sz = size_t(glm::ceil(SamplesPerUnit.z));
-					Grid.dx = Evaluator->Bounds.Extent().x / static_cast<float>(Grid.sx);
-					Grid.dy = Evaluator->Bounds.Extent().y / static_cast<float>(Grid.sy);
-					Grid.dz = Evaluator->Bounds.Extent().z / static_cast<float>(Grid.sz);
-
-					Grid.x -= Grid.dx * 2;
-					Grid.y -= Grid.dy * 2;
-					Grid.z -= Grid.dz * 2;
-					Grid.sx += 3;
-					Grid.sy += 3;
-					Grid.sz += 3;
-				}
-
-				Painter->Scratch->Grid = Grid;
 				{
 					SDFOctree* EvaluatorRaw = Evaluator.get();
 					Painter->Scratch->ImplicitFunction = [EvaluatorRaw](float X, float Y, float Z) -> float
@@ -681,8 +681,6 @@ void MeshingJob::Run()
 		ParallelTaskChain* MeshingJitterLoopTask;
 		{
 			using TaskT = MeshingLambdaContainerTask<std::vector<glm::vec4>>;
-
-			isosurface::regular_grid_t& Grid = Painter->Scratch->Grid;
 
 			glm::vec3 JitterSpan = glm::vec3(Grid.dx, Grid.dy, Grid.dz) * glm::vec3(0.5);
 
