@@ -30,6 +30,9 @@
 #include <set>
 
 
+#define USE_GRADIENT_NORMALS 1
+
+
 static thread_local std::default_random_engine RNGesus;
 static thread_local std::uniform_real_distribution<double> Roll(-1.0, std::nextafter(1.0, DBL_MAX));
 
@@ -636,6 +639,7 @@ void MeshingJob::Run()
 				Painter->Indices[Index * 3 + 1] = uint32_t(Face.v1);
 				Painter->Indices[Index * 3 + 2] = uint32_t(Face.v2);
 
+#if !USE_GRADIENT_NORMALS
 				glm::vec3 A = Painter->Positions[Face.v0].xyz();
 				glm::vec3 B = Painter->Positions[Face.v1].xyz();
 				glm::vec3 C = Painter->Positions[Face.v2].xyz();
@@ -651,6 +655,7 @@ void MeshingJob::Run()
 					Painter->Normals[Face.v2] += N;
 					Painter->Scratch->NormalsCS.unlock();
 				}
+#endif
 			};
 
 			TaskT::DoneThunkT DoneThunk = [](SodapopDrawableShared& Painter, SDFOctreeShared& Evaluator)
@@ -666,7 +671,16 @@ void MeshingJob::Run()
 			using TaskT = MeshingLambdaContainerTask<std::vector<glm::vec4>>;
 			TaskT::LoopThunkT LoopThunk = [](SodapopDrawableShared& Painter, SDFOctreeShared& Evaluator, glm::vec4& Normal, const int Index)
 			{
-				Normal = glm::vec4(glm::normalize(Normal.xyz() / Normal.w), 1.0);
+#if !USE_GRADIENT_NORMALS
+				if (Normal.w > 0.0)
+				{
+					Normal = glm::vec4(glm::normalize(Normal.xyz() / Normal.w), 1.0);
+				}
+				else
+#endif
+				{
+					Normal = glm::vec4(Evaluator->Gradient(Painter->Positions[Index].xyz()), 1.0);
+				}
 			};
 
 			TaskT::DoneThunkT DoneThunk = [](SodapopDrawableShared& Painter, SDFOctreeShared& Evaluator)
@@ -809,7 +823,7 @@ bool ShaderTask::Run()
 				Instance->NextUpdate = i + 1;
 
 				glm::vec3 BaseColor = Painter->Colors[i].xyz();
-
+#if 1
 				// Palecek 2022, "PBR Based Rendering"
 				glm::vec3 V = glm::normalize(LocalEye.xyz() - Painter->Positions[i].xyz());
 				glm::vec3 N = Painter->Normals[i].xyz();
@@ -817,6 +831,9 @@ bool ShaderTask::Run()
 				float F = 1.0f - glm::max(glm::dot(N, V), 0.0f);
 				float BSDF = D + F * 0.25f;
 				Instance->Colors[i] = glm::vec4(BaseColor * BSDF, 1.0f);
+#else
+				Instance->Colors[i] = glm::vec4(Painter->Normals[i].xyz() * glm::vec3(0.5) + glm::vec3(0.5), 1.0);
+#endif
 			}
 
 			// TODO: This needs some way to determine if the instance has converged since it was last marked dirty.
