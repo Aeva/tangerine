@@ -1922,11 +1922,11 @@ void RenderUI(SDL_Window* Window, bool& Live)
 
 				ImGui::Separator();
 				ImGui::Text("Scheduler Pressure\n");
-				ImGui::Text("      Inbox: %i\n", SchedulerStats::Inbox);
-				ImGui::Text("     Outbox: %i\n", SchedulerStats::Outbox);
-				ImGui::Text("   Parallel: %i\n", SchedulerStats::ParallelQueue);
-				ImGui::Text(" Continuous: %i\n", SchedulerStats::ContinuousQueue);
-				ImGui::Text("     Delete: %i\n", SchedulerStats::DeleteQueue);
+				ImGui::Text("      Inbox: %i\n", int(SchedulerStats::Inbox));
+				ImGui::Text("     Outbox: %i\n", int(SchedulerStats::Outbox));
+				ImGui::Text("   Parallel: %i\n", int(SchedulerStats::ParallelQueue));
+				ImGui::Text(" Continuous: %i\n", int(SchedulerStats::ContinuousQueue));
+				ImGui::Text("     Delete: %i\n", int(SchedulerStats::DeleteQueue));
 			}
 		}
 		ImGui::End();

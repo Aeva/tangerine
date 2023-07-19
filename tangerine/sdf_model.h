@@ -146,7 +146,6 @@ struct SodapopDrawable final : Drawable
 
 	SodapopDrawable(const std::string& InName, SDFNodeShared& InEvaluator)
 	{
-		MeshingStart;
 		ReadyDelay = std::chrono::duration<double, std::milli>::zero();
 		Name = InName;
 		Evaluator = InEvaluator;
