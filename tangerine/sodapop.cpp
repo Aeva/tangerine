@@ -738,6 +738,19 @@ void MeshingJob::Run()
 				Painter->ReadyDelay = Painter->MeshingComplete - Painter->MeshingStart;
 
 				Painter->MeshReady.store(true);
+
+				SodapopDrawableWeakRef PainterWeakRef = Painter;
+
+				Scheduler::EnqueueDelete([PainterWeakRef]()
+				{
+					// TODO: rethink how the outbox queue works to avoid hacks like this.
+
+					SodapopDrawableShared Painter = PainterWeakRef.lock();
+					if (Painter)
+					{
+						fmt::print("Meshing complete: {}\n", Painter->Name);
+					}
+				});
 			};
 
 			MeshingJitterLoopTask = new TaskT("Jitter Loop", Painter, Evaluator, Painter->Positions, LoopThunk, DoneThunk);
