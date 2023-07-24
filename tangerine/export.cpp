@@ -181,38 +181,15 @@ std::string PlyHeader(size_t VertexCount, size_t TriangleCount, bool ExportColor
 }
 
 
-void WritePLY(SDFOctreeShared Octree, std::string Path, std::vector<vec3> Vertices, std::vector<ivec3> Triangles, float Scale)
+void WritePLY(std::string Path, std::vector<vec3>& Vertices, std::vector<uint8_t>& Colors, std::vector<glm::vec3>& Normals, std::vector<ivec3>& Triangles)
 {
-	const bool ExportColor = Octree->Evaluator->HasPaint();
+	const bool ExportColor = Colors.size() == Vertices.size() * 3;
+
 	std::string Header;
 	{
 		size_t VertexCount = Vertices.size();
 		size_t TriangleCount = Triangles.size();
 		Header = PlyHeader(VertexCount, TriangleCount, ExportColor);
-	}
-
-	// Populate vertex attributes.
-	SecondaryCount.store(Vertices.size());
-	std::vector<glm::vec3> Normals;
-	std::vector<uint8_t> Colors;
-	Normals.reserve(Vertices.size());
-	if (ExportColor)
-	{
-		Colors.reserve(Vertices.size() * 3);
-	}
-
-	for (int v = 0; v < Vertices.size(); ++v)
-	{
-		SecondaryProgress.fetch_add(1);
-		Normals.push_back(Octree->Gradient(Vertices[v]));
-		if (ExportColor)
-		{
-			vec3 Color = Octree->Sample(Vertices[v]);
-			Colors.push_back(0xFF * Color.r);
-			Colors.push_back(0xFF * Color.g);
-			Colors.push_back(0xFF * Color.b);
-		}
-		Vertices[v] *= Scale;
 	}
 
 	// Write vertex data.
@@ -243,6 +220,38 @@ void WritePLY(SDFOctreeShared Octree, std::string Path, std::vector<vec3> Vertic
 	}
 
 	OutFile.close();
+}
+
+
+void WritePLY(SDFOctreeShared Octree, std::string Path, std::vector<vec3> Vertices, std::vector<ivec3> Triangles, float Scale)
+{
+	const bool ExportColor = Octree->Evaluator->HasPaint();
+
+	// Populate vertex attributes.
+	SecondaryCount.store(Vertices.size());
+	std::vector<glm::vec3> Normals;
+	std::vector<uint8_t> Colors;
+	Normals.reserve(Vertices.size());
+	if (ExportColor)
+	{
+		Colors.reserve(Vertices.size() * 3);
+	}
+
+	for (int v = 0; v < Vertices.size(); ++v)
+	{
+		SecondaryProgress.fetch_add(1);
+		Normals.push_back(Octree->Gradient(Vertices[v]));
+		if (ExportColor)
+		{
+			vec3 Color = Octree->Sample(Vertices[v]);
+			Colors.push_back(0xFF * Color.r);
+			Colors.push_back(0xFF * Color.g);
+			Colors.push_back(0xFF * Color.b);
+		}
+		Vertices[v] *= Scale;
+	}
+
+	WritePLY(Path, Vertices, Colors, Normals, Triangles);
 }
 
 
@@ -418,6 +427,76 @@ ExportProgress GetExportProgress()
 	Progress.Secondary = float(SecondaryProgress.load() - 1) / float(SecondaryCount.load());
 	Progress.Write = float(WriteProgress.load() - 1) / float(WriteCount.load());
 	return Progress;
+}
+
+
+void MeshExport(std::string Path, bool UseBaseColor, float Scale)
+{
+	std::vector<vec3> Vertices;
+	std::vector<vec3> Normals;
+	std::vector<uint8_t> Colors;
+	std::vector<ivec3> Triangles;
+
+	size_t VertexCount = 0;
+	size_t TriangleCount = 0;
+	std::vector<SDFModelShared> ExportModels;
+
+	std::vector<SDFModelWeakRef>& LiveModels = GetLiveModels();
+	for (SDFModelWeakRef& WeakRef : LiveModels)
+	{
+		SDFModelShared LiveModel = WeakRef.lock();
+		if (LiveModel)
+		{
+			SodapopDrawableShared Painter = std::static_pointer_cast<SodapopDrawable>(LiveModel->Painter);
+			if (Painter)
+			{
+				ExportModels.push_back(LiveModel);
+				VertexCount += Painter->Positions.size();
+				TriangleCount += Painter->Indices.size();
+			}
+		}
+	}
+
+	Vertices.reserve(VertexCount);
+	Normals.reserve(VertexCount);
+	Colors.reserve(VertexCount * 3);
+	Triangles.reserve(TriangleCount);
+	size_t Offset = 0;
+
+	for (SDFModelShared& Model : ExportModels)
+	{
+		SodapopDrawableShared Painter = std::static_pointer_cast<SodapopDrawable>(Model->Painter);
+
+		Model->Transform.Fold();
+		glm::mat4 Transform = Model->Transform.LastFold;
+
+		const std::vector<glm::vec4>& ColorTarget = UseBaseColor ? Painter->Colors : Model->Colors;
+
+		for (size_t i = 0; i < Painter->Positions.size(); ++i)
+		{
+			const glm::vec4& Position = Painter->Positions[i];
+			Vertices.push_back((Transform * Position).xyz() * glm::vec3(Scale));
+
+			Normals.push_back(Painter->Normals[i].xyz());
+
+			const glm::vec4& Color = ColorTarget[i];
+			Colors.push_back(0xFF * Color.r);
+			Colors.push_back(0xFF * Color.g);
+			Colors.push_back(0xFF * Color.b);
+		}
+
+		for (size_t i = 0; i < Painter->Indices.size(); i += 3)
+		{
+			Triangles.emplace_back(
+				Offset + Painter->Indices[i + 0],
+				Offset + Painter->Indices[i + 1],
+				Offset + Painter->Indices[i + 2]);
+		}
+
+		Offset += Painter->Positions.size();
+	}
+
+	WritePLY(Path, Vertices, Colors, Normals, Triangles);
 }
 
 

@@ -1430,6 +1430,7 @@ void RenderUI(SDL_Window* Window, bool& Live)
 	static bool ShowReadyDelays = false;
 
 	static bool ShowExportOptions = false;
+	static bool ExportFromSodapop;
 	static float ExportStepSize;
 	static float ExportSplitStep[3];
 	static float ExportScale;
@@ -1671,6 +1672,17 @@ void RenderUI(SDL_Window* Window, bool& Live)
 				{
 					// The export is nonsense in this case, so just do whatever.
 					ExportStepSize = DefaultExportStepSize;
+				}
+
+#if RENDERER_SODAPOP
+				if (CurrentRenderer == Renderer::Sodapop)
+				{
+					ExportFromSodapop = true;
+				}
+				else
+#endif
+				{
+					ExportFromSodapop = false;
 				}
 
 				for (int i = 0; i < 3; ++i)
@@ -2088,20 +2100,24 @@ void RenderUI(SDL_Window* Window, bool& Live)
 				}
 				else
 				{
-					if (AdvancedOptions)
+					// TODO: expose ExportFromSodapop as an option or something
+					if (!ExportFromSodapop)
 					{
-						ImGui::InputFloat3("Voxel Size", ExportSplitStep);
-						ImGui::InputFloat("Unit Scale", &ExportScale);
-						ImGui::Checkbox("Skip Refinement", &ExportSkipRefine);
-						if (!ExportSkipRefine)
+						if (AdvancedOptions)
 						{
-							ImGui::InputInt("Refinement Steps", &ExportRefinementSteps);
+							ImGui::InputFloat3("Voxel Size", ExportSplitStep);
+							ImGui::InputFloat("Unit Scale", &ExportScale);
+							ImGui::Checkbox("Skip Refinement", &ExportSkipRefine);
+							if (!ExportSkipRefine)
+							{
+								ImGui::InputInt("Refinement Steps", &ExportRefinementSteps);
+							}
 						}
-					}
-					else
-					{
-						ImGui::InputFloat("Voxel Size", &ExportStepSize);
-						ImGui::InputFloat("Unit Scale", &ExportScale);
+						else
+						{
+							ImGui::InputFloat("Voxel Size", &ExportStepSize);
+							ImGui::InputFloat("Unit Scale", &ExportScale);
+						}
 					}
 					if (ExportMeshFormat == ExportFormat::PLY)
 					{
@@ -2109,7 +2125,11 @@ void RenderUI(SDL_Window* Window, bool& Live)
 					}
 					if (ImGui::Button("Start"))
 					{
-						if (AdvancedOptions)
+						if (ExportFromSodapop)
+						{
+							MeshExport(ExportPath, true, ExportScale);
+						}
+						else if (AdvancedOptions)
 						{
 							glm::vec3 VoxelSize = glm::vec3(
 								ExportSplitStep[0],
