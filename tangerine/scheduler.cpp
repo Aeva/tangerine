@@ -292,6 +292,11 @@ static void ParallelTaskDeleter(ParallelTask* TaskPrototype)
 void Scheduler::EnqueueParallel(ParallelTask* TaskPrototype)
 {
 	int PoolSize = GetThreadPoolSize();
+	if (TaskPrototype->MaxParallelism > 0)
+	{
+		PoolSize = glm::min(PoolSize, TaskPrototype->MaxParallelism);
+	}
+
 	std::vector<ParallelTaskProxy*> Pending;
 	Pending.reserve(PoolSize);
 

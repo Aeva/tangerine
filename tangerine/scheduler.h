@@ -36,6 +36,7 @@ struct AsyncTask
 
 struct ParallelTask
 {
+	int MaxParallelism = 0;
 	virtual void Run() = 0;
 
 	virtual void Exhausted()
