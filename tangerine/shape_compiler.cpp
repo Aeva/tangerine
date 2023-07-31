@@ -67,7 +67,7 @@ void UseRoundedStackSize()
 
 
 // Iterate over a voxel grid and generate sources and parameter buffers to populate a new model.
-void VoxelDrawable::Compile(SDFNodeShared& Evaluator, const float VoxelSize)
+void VoxelDrawable::Compile(const float VoxelSize)
 {
 	BeginEvent("VoxelFinder");
 	SetTreeEvaluator(Evaluator);

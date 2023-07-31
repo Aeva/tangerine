@@ -38,6 +38,7 @@ std::vector<SDFModelWeakRef> LiveModels;
 // I should probably make all of the refcounted stuff immobile to prevent these
 // kinds of issues.
 std::vector<std::pair<size_t, DrawableWeakRef>> DrawableCache;
+std::mutex DrawableCacheCS;
 
 
 std::vector<SDFModelWeakRef>& GetLiveModels()
@@ -327,8 +328,9 @@ RayHit SDFModel::RayMarch(glm::vec3 RayStart, glm::vec3 RayDir, int MaxIteration
 
 SDFModel::SDFModel(SDFNodeShared& InEvaluator, const std::string& InName, const float VoxelSize)
 {
-	Evaluator = InEvaluator;
+	Evaluator = nullptr;
 
+	size_t Key = (size_t)(InEvaluator.get());
 	if (InName.size() > 0)
 	{
 		Name = fmt::format("{} : {}", InName, (void*)(&InEvaluator));
@@ -338,39 +340,52 @@ SDFModel::SDFModel(SDFNodeShared& InEvaluator, const std::string& InName, const 
 		Name = fmt::format("{}", (void*)(&InEvaluator));
 	}
 
-	size_t Key = (size_t)(Evaluator.get());
-	for (auto& Entry : DrawableCache)
 	{
-		if (Entry.first == Key)
+		std::scoped_lock CacheLock(DrawableCacheCS);
+
+		for (auto& Entry : DrawableCache)
 		{
-			Painter = Entry.second.lock();
-			if (Painter)
+			if (Entry.first == Key)
 			{
-				break;
+				Painter = Entry.second.lock();
+				if (Painter)
+				{
+					break;
+				}
 			}
 		}
-	}
 
-	if (!Painter)
-	{
-#if RENDERER_COMPILER
-		if (CurrentRenderer == Renderer::ShapeCompiler)
+		if (!Painter)
 		{
-			VoxelDrawableShared VoxelPainter = std::make_shared<VoxelDrawable>(Name);
-			VoxelPainter->Compile(Evaluator, VoxelSize);
-			Painter = std::static_pointer_cast<Drawable>(VoxelPainter);
-			DrawableCache.emplace_back(Key, Painter);
-		}
+			// TODO:  This copy ensures that any parallel work on the evaluator gets an evaluator with
+			// all of its transforms folded, and no branches in common with another model.  As this new
+			// evaluator is still mutable, it would be best to replace it with something that provides
+			// stronger thread safety guarantees.
+			Evaluator = InEvaluator->Copy(true);
+
+#if RENDERER_COMPILER
+			if (CurrentRenderer == Renderer::ShapeCompiler)
+			{
+				VoxelDrawableShared VoxelPainter = std::make_shared<VoxelDrawable>(Name, Evaluator);
+				VoxelPainter->Compile(VoxelSize);
+				Painter = std::static_pointer_cast<Drawable>(VoxelPainter);
+				DrawableCache.emplace_back(Key, Painter);
+			}
 #endif // RENDERER_COMPILER
 #if RENDERER_SODAPOP
-		if (CurrentRenderer == Renderer::Sodapop)
-		{
-			SodapopDrawableShared MeshPainter = std::make_shared<SodapopDrawable>(Name, Evaluator);
-			Painter = std::static_pointer_cast<Drawable>(MeshPainter);
-			DrawableCache.emplace_back(Key, Painter);
-			Sodapop::Populate(MeshPainter);
-		}
+			if (CurrentRenderer == Renderer::Sodapop)
+			{
+				SodapopDrawableShared MeshPainter = std::make_shared<SodapopDrawable>(Name, Evaluator);
+				Painter = std::static_pointer_cast<Drawable>(MeshPainter);
+				DrawableCache.emplace_back(Key, Painter);
+				Sodapop::Populate(MeshPainter);
+			}
 #endif // RENDERER_SODAPOP
+		}
+		else
+		{
+			Evaluator = Painter->Evaluator;
+		}
 	}
 
 	TransformBuffer.DebugName = "Instance Transforms Buffer";

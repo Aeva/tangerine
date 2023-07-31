@@ -425,7 +425,7 @@ struct BrushNode : public SDFNode
 	{
 		if (Eval(Point) <= Radius)
 		{
-			return Copy();
+			return Copy(false);
 		}
 		else
 		{
@@ -433,8 +433,12 @@ struct BrushNode : public SDFNode
 		}
 	}
 
-	virtual SDFNodeShared Copy()
+	virtual SDFNodeShared Copy(bool AndFold)
 	{
+		if (AndFold)
+		{
+			Transform.Fold();
+		}
 		return SDFNodeShared(new BrushNode(Opcode, BrushFnName, NodeParams, BrushFn, BrushAABB, Transform, Color));
 	}
 
@@ -693,9 +697,9 @@ struct SetNode : public SDFNode
 		return nullptr;
 	}
 
-	virtual SDFNodeShared Copy()
+	virtual SDFNodeShared Copy(bool AndFold)
 	{
-		return SDFNodeShared(new SetNode<Family, BlendMode>(SetFn, LHS->Copy(), RHS->Copy(), Threshold));
+		return SDFNodeShared(new SetNode<Family, BlendMode>(SetFn, LHS->Copy(AndFold), RHS->Copy(AndFold), Threshold));
 	}
 
 	virtual AABB Bounds()
@@ -976,9 +980,9 @@ struct FlateNode : public SDFNode
 		}
 	}
 
-	virtual SDFNodeShared Copy()
+	virtual SDFNodeShared Copy(bool AndFold)
 	{
-		return SDFNodeShared(new FlateNode(Child->Copy(), Radius));
+		return SDFNodeShared(new FlateNode(Child->Copy(AndFold), Radius));
 	}
 
 	virtual AABB Bounds()

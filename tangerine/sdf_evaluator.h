@@ -115,7 +115,7 @@ struct SDFNode
 
 	virtual SDFNodeShared Clip(glm::vec3 Point, float Radius) = 0;
 
-	virtual SDFNodeShared Copy() = 0;
+	virtual SDFNodeShared Copy(bool AndFold = false) = 0;
 
 	virtual AABB Bounds() = 0;
 

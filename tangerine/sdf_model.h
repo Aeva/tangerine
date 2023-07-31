@@ -39,6 +39,8 @@ struct Drawable
 {
 	std::string Name = "unknown";
 
+	SDFNodeShared Evaluator = nullptr;
+
 	// Used by VoxelDrawable
 	virtual void Draw(
 		const bool ShowOctree,
@@ -77,16 +79,17 @@ struct VoxelDrawable final : Drawable
 	std::vector<size_t> PendingShaders;
 	std::vector<ProgramTemplate*> CompiledTemplates;
 
-	VoxelDrawable(const std::string& InName)
+	VoxelDrawable(const std::string& InName, SDFNodeShared& InEvaluator)
 	{
 		Name = InName;
+		Evaluator = InEvaluator;
 	}
 
 	bool HasPendingShaders();
 	bool HasCompleteShaders();
 	void CompileNextShader();
 
-	void Compile(SDFNodeShared& Evaluator, const float VoxelSize);
+	void Compile(const float VoxelSize);
 
 	virtual void Draw(
 		const bool ShowOctree,
@@ -126,8 +129,6 @@ using VoxelDrawableShared = std::shared_ptr<VoxelDrawable>;
 #if RENDERER_SODAPOP
 struct SodapopDrawable final : Drawable
 {
-	SDFNodeShared Evaluator = nullptr;
-
 	Buffer IndexBuffer;
 	Buffer PositionBuffer;
 
