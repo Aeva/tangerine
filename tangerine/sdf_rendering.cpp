@@ -237,6 +237,12 @@ void SodapopDrawable::Draw(
 	glm::vec3 CameraOrigin,
 	SDFModel* Instance)
 {
+	if (!glm::all(glm::equal(Instance->CameraOrigin, CameraOrigin)))
+	{
+		Instance->CameraOrigin = CameraOrigin;
+		Instance->Dirty.store(true);
+	}
+
 	if (!MeshReady.load())
 	{
 		return;
@@ -253,12 +259,6 @@ void SodapopDrawable::Draw(
 		MeshUploaded = true;
 	}
 	{
-		if (!glm::all(glm::equal(Instance->CameraOrigin, CameraOrigin)))
-		{
-			Instance->CameraOrigin = CameraOrigin;
-			Instance->Dirty.store(true);
-		}
-
 		if (Instance->Colors.size() > 0)
 		{
 			Instance->ColorBuffer.Upload(Instance->Colors.data(), Instance->Colors.size() * sizeof(glm::vec4));
@@ -282,6 +282,12 @@ void SodapopDrawable::Draw(
 	const int ColorBinding,
 	SDFModel* Instance)
 {
+	if (!glm::all(glm::equal(Instance->CameraOrigin, CameraOrigin)))
+	{
+		Instance->CameraOrigin = CameraOrigin;
+		Instance->Dirty.store(true);
+	}
+
 	if (!MeshReady.load())
 	{
 		return;
@@ -298,12 +304,6 @@ void SodapopDrawable::Draw(
 		MeshUploaded = true;
 	}
 	{
-		if (!glm::all(glm::equal(Instance->CameraOrigin, CameraOrigin)))
-		{
-			Instance->CameraOrigin = CameraOrigin;
-			Instance->Dirty.store(true);
-		}
-
 		if (Instance->Colors.size() > 0)
 		{
 			IndexBuffer.Bind(GL_ELEMENT_ARRAY_BUFFER);

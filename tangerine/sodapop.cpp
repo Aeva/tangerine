@@ -826,6 +826,8 @@ bool ShaderTask::Run()
 
 			glm::vec4 LocalEye = Instance->Transform.LastFoldInverse * glm::vec4(Instance->CameraOrigin, 1.0);
 
+			bool NeedsRepaint = false;
+
 			for (int n = 0; n < Instance->Colors.size(); ++n)
 			{
 				if (Instance->Drawing.load())
@@ -843,15 +845,25 @@ bool ShaderTask::Run()
 				float D = glm::pow(glm::max(glm::dot(N, glm::normalize(N * 0.75f + V)), 0.0f), 2.0f);
 				float F = 1.0f - glm::max(glm::dot(N, V), 0.0f);
 				float BSDF = D + F * 0.25f;
-				Instance->Colors[i] = glm::vec4(BaseColor * BSDF, 1.0f);
+				glm::vec4 NewColor = glm::vec4(BaseColor * BSDF, 1.0f);
+
+				NeedsRepaint = NeedsRepaint || !glm::all(glm::equal(Instance->Colors[i], NewColor));
+				Instance->Colors[i] = NewColor;
 #else
 				Instance->Colors[i] = glm::vec4(Painter->Normals[i].xyz() * glm::vec3(0.5) + glm::vec3(0.5), 1.0);
 #endif
 			}
 
-			// TODO: This needs some way to determine if the instance has converged since it was last marked dirty.
-			//Instance->Dirty.store(false);
-			
+			if (NeedsRepaint)
+			{
+				Scheduler::RequestAsyncRedraw();
+			}
+			else
+			{
+				// TODO: model instance doesn't get marked as dirty again.  Also NeedsRepaint isn't a good metric for convergence
+				// if this process is ever split up to allow multiple threads working on the same instance, which is planned.
+				//Instance->Dirty.store(false);
+			}
 		}
 		return true;
 	}

@@ -43,6 +43,9 @@
 using Clock = std::chrono::high_resolution_clock;
 
 
+std::atomic_bool RedrawRequested = false;
+
+
 template<typename T, unsigned QueueSize = SCHEDULER_QUEUE_SIZE>
 struct AtomicQueue
 {
@@ -448,6 +451,18 @@ void Scheduler::DropEverything()
 	DiscardQueues();
 
 	PauseThreads.store(false);
+}
+
+
+void Scheduler::RequestAsyncRedraw()
+{
+	RedrawRequested.store(true);
+}
+
+
+bool Scheduler::AsyncRedrawRequested()
+{
+	return RedrawRequested.exchange(false);
 }
 
 

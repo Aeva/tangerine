@@ -2663,7 +2663,7 @@ void MainLoop()
 				static bool LastExportState = false;
 				bool ExportInProgress = GetExportProgress().Stage != 0;
 
-				bool RequestDraw = RealtimeMode || ShowStatsOverlay || LastRenderableCount == 0 || LastIncompleteCount > 0 || LastExportState != ExportInProgress;
+				bool RequestDraw = RealtimeMode || ShowStatsOverlay || LastRenderableCount == 0 || LastIncompleteCount > 0 || LastExportState != ExportInProgress || Scheduler::AsyncRedrawRequested();
 				LastExportState = ExportInProgress;
 
 				BeginEvent("Process Input");

@@ -91,5 +91,8 @@ namespace Scheduler
 	void EnqueueDelete(FinalizerThunk Finalizer);
 	void EnqueueParallel(ParallelTask* TaskPrototype);
 
+	void RequestAsyncRedraw();
+	bool AsyncRedrawRequested();
+
 	void Stats(size_t& InboxLoad, size_t& OutboxLoad, size_t& ParallelLoad, size_t& ContinuousLoad, size_t& DeleteLoad);
 }
