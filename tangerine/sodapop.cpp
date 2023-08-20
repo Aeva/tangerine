@@ -815,16 +815,20 @@ bool ShaderTask::Run()
 					glm::vec3 Point = Painter->Positions[i].xyz();
 					glm::vec3 Normal = Painter->Normals[i].xyz();
 					glm::vec3 View = glm::normalize(LocalEye.xyz() - Point);
+					glm::vec4 NewColor;
 
 					MaterialShared Material = Painter->EvaluatorOctree->GetMaterial(Point);
 					if (Material)
 					{
-						Instance->Colors[i] = Material->Eval(Point, Normal, View);
+						NewColor = Material->Eval(Point, Normal, View);
 					}
 					else
 					{
-						Instance->Colors[i] = glm::vec4(1.0, 1.0, 1.0, 1.0);
+						NewColor = glm::vec4(1.0, 1.0, 1.0, 1.0);
 					}
+
+					NeedsRepaint = NeedsRepaint || !glm::all(glm::equal(Instance->Colors[i], NewColor));
+					Instance->Colors[i] = NewColor;
 				}
 			}
 
