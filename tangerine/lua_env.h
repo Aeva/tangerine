@@ -24,6 +24,7 @@ struct LuaEnvironment : public ScriptEnvironment
 {
 	struct lua_State* L = nullptr;
 	std::string Name = "";
+	float MeshingDensityPush = 0.0;
 
 	LuaEnvironment();
 
@@ -40,6 +41,7 @@ struct LuaEnvironment : public ScriptEnvironment
 
 	static LuaEnvironment* GetScriptEnvironment(struct lua_State* L);
 	static int LuaSetAdvanceEvent(struct lua_State* L);
+	static int LuaPushMeshingDensity(struct lua_State* L);
 
 	bool HandleError(int Error);
 private:

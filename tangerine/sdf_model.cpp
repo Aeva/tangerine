@@ -326,7 +326,7 @@ RayHit SDFModel::RayMarch(glm::vec3 RayStart, glm::vec3 RayDir, int MaxIteration
 }
 
 
-SDFModel::SDFModel(SDFNodeShared& InEvaluator, const std::string& InName, const float VoxelSize)
+SDFModel::SDFModel(SDFNodeShared& InEvaluator, const std::string& InName, const float VoxelSize, const float MeshingDensityPush)
 {
 	Evaluator = nullptr;
 
@@ -378,7 +378,7 @@ SDFModel::SDFModel(SDFNodeShared& InEvaluator, const std::string& InName, const 
 				SodapopDrawableShared MeshPainter = std::make_shared<SodapopDrawable>(Name, Evaluator);
 				Painter = std::static_pointer_cast<Drawable>(MeshPainter);
 				DrawableCache.emplace_back(Key, Painter);
-				Sodapop::Populate(MeshPainter);
+				Sodapop::Populate(MeshPainter, MeshingDensityPush);
 			}
 #endif // RENDERER_SODAPOP
 		}
@@ -399,9 +399,9 @@ void SDFModel::RegisterNewModel(SDFModelShared& NewModel)
 }
 
 
-SDFModelShared SDFModel::Create(SDFNodeShared& InEvaluator, const std::string& InName, const float VoxelSize)
+SDFModelShared SDFModel::Create(SDFNodeShared& InEvaluator, const std::string& InName, const float VoxelSize, const float MeshingDensityOffsetRequest)
 {
-	SDFModelShared NewModel(new SDFModel(InEvaluator, InName, VoxelSize));
+	SDFModelShared NewModel(new SDFModel(InEvaluator, InName, VoxelSize, MeshingDensityOffsetRequest));
 	SDFModel::RegisterNewModel(NewModel);
 	return NewModel;
 }

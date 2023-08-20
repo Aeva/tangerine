@@ -28,7 +28,7 @@ using SDFModelShared = std::shared_ptr<SDFModel>;
 
 namespace Sodapop
 {
-	void Populate(SodapopDrawableShared MeshPainter);
+	void Populate(SodapopDrawableShared MeshPainter, float MeshingDensityPush);
 	void Attach(SDFModelShared& Instance);
 }
 

@@ -14,6 +14,10 @@
 -- limitations under the License.
 
 
+-- This line is a hack to avoid artifacts with the current meshing system.
+push_meshing_density(12)
+
+
 function dot (lhs, rhs)
 	local sum = 0
 	for i = 1, math.min(#lhs, #rhs), 1 do

@@ -36,6 +36,8 @@
 static thread_local std::default_random_engine RNGesus;
 static thread_local std::uniform_real_distribution<double> Roll(-1.0, std::nextafter(1.0, DBL_MAX));
 
+static const float DefaultMeshingDensity = 20.0;
+
 
 size_t GridPointToIndex(const isosurface::regular_grid_t& Grid, size_t GridX, size_t GridY, size_t GridZ)
 {
@@ -84,6 +86,8 @@ struct PointCacheBucket
 
 struct MeshingScratch : isosurface::AsyncParallelSurfaceNets
 {
+	int MeshingDensity;
+
 	// Intermediary domain for MeshingOctreeTask
 	std::vector<SDFOctree*> Incompletes;
 
@@ -392,10 +396,11 @@ struct MeshingLambdaOctreeTask : ParallelMeshingTask<SDFOctree>
 };
 
 
-void Sodapop::Populate(SodapopDrawableShared Painter)
+void Sodapop::Populate(SodapopDrawableShared Painter, float MeshingDensityPush)
 {
 	ProfileScope Fnord("Sodapop::Populate");
 	Painter->Scratch = new MeshingScratch();
+	Painter->Scratch->MeshingDensity = DefaultMeshingDensity + MeshingDensityPush;
 
 	MeshingJob* Task = new MeshingJob();
 	Task->PainterWeakRef = Painter;
@@ -447,7 +452,7 @@ void MeshingJob::Run()
 
 		isosurface::regular_grid_t Grid;
 		{
-			const float Density = 20;
+			const float Density = Painter->Scratch->MeshingDensity;
 			const glm::vec3 SamplesPerUnit = glm::max(Evaluator->Bounds.Extent() * glm::vec3(Density), glm::vec3(8.0));
 
 			Grid.x = Evaluator->Bounds.Min.x;

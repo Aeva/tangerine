@@ -18,6 +18,7 @@
 
 #include "tangerine.h"
 #include "shape_compiler.h"
+#include "sodapop.h"
 #include "lua_material.h"
 #include "lua_sdf.h"
 #include "lua_vec.h"
@@ -56,9 +57,20 @@ int LuaEnvironment::LuaSetAdvanceEvent(lua_State* L)
 }
 
 
+int LuaEnvironment::LuaPushMeshingDensity(lua_State* L)
+{
+#if RENDERER_SODAPOP
+	LuaEnvironment* Env = GetScriptEnvironment(L);
+	Env->MeshingDensityPush = luaL_checknumber(L, 1);
+#endif
+	return 0;
+}
+
+
 const luaL_Reg LuaEnvReg[] = \
 {
 	{ "set_advance_event", LuaEnvironment::LuaSetAdvanceEvent },
+	{ "push_meshing_density", LuaEnvironment::LuaPushMeshingDensity },
 
 	{ NULL, NULL }
 };
@@ -159,7 +171,7 @@ void LuaEnvironment::LoadLuaModelCommon()
 	if (LuaData)
 	{
 		SDFNodeShared& Evaluator = *static_cast<SDFNodeShared*>(LuaData);
-		GlobalModel = SDFModel::Create(Evaluator, Name);
+		GlobalModel = SDFModel::Create(Evaluator, Name, .25, MeshingDensityPush);
 	}
 	lua_pop(L, 1);
 }

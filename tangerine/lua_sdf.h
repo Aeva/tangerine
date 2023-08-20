@@ -40,7 +40,7 @@ struct LuaModel : public SDFModel
 	void SetMouseEventCallback(int EventFlag);
 
 protected:
-	LuaModel(lua_State* L, SDFNodeShared& InEvaluator, const std::string& InName, const float VoxelSize);
+	LuaModel(lua_State* L, LuaEnvironment* InEnv, SDFNodeShared& InEvaluator, const std::string& InName, const float VoxelSize);
 };
 
 

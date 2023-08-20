@@ -805,9 +805,9 @@ const luaL_Reg LuaSDFMeta[] = \
 };
 
 
-LuaModel::LuaModel(lua_State* L, SDFNodeShared& InEvaluator, const std::string& InName, const float VoxelSize)
-	: SDFModel(InEvaluator, InName, VoxelSize)
-	, Env(LuaEnvironment::GetScriptEnvironment(L))
+LuaModel::LuaModel(lua_State* L, LuaEnvironment* InEnv, SDFNodeShared& InEvaluator, const std::string& InName, const float VoxelSize)
+	: SDFModel(InEvaluator, InName, VoxelSize, InEnv->MeshingDensityPush)
+	, Env(InEnv)
 {
 	for (int i = 0; i < MOUSE_EVENTS; ++i)
 	{
@@ -818,7 +818,8 @@ LuaModel::LuaModel(lua_State* L, SDFNodeShared& InEvaluator, const std::string& 
 
 LuaModelShared LuaModel::Create(lua_State* L, SDFNodeShared& InEvaluator, const std::string& InName, const float VoxelSize)
 {
-	LuaModelShared NewModel(new LuaModel(L, InEvaluator, InName, VoxelSize));
+	LuaEnvironment* Env = LuaEnvironment::GetScriptEnvironment(L);
+	LuaModelShared NewModel(new LuaModel(L, Env, InEvaluator, InName, VoxelSize));
 	SDFModelShared Up = std::static_pointer_cast<SDFModel>(NewModel);
 	SDFModel::RegisterNewModel(Up);
 	return NewModel;
