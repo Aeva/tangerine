@@ -84,9 +84,6 @@ struct PointCacheBucket
 
 struct MeshingScratch : isosurface::AsyncParallelSurfaceNets
 {
-	// This allows us to hold a reference the same octree through the task chain
-	SDFOctreeShared Evaluator;
-
 	// Intermediary domain for MeshingOctreeTask
 	std::vector<SDFOctree*> Incompletes;
 
@@ -399,7 +396,6 @@ void Sodapop::Populate(SodapopDrawableShared Painter)
 {
 	ProfileScope Fnord("Sodapop::Populate");
 	Painter->Scratch = new MeshingScratch();
-	Painter->Scratch->Evaluator = nullptr;
 
 	MeshingJob* Task = new MeshingJob();
 	Task->PainterWeakRef = Painter;
@@ -419,7 +415,7 @@ void MeshingJob::Run()
 		SDFNodeShared RootNode = EvaluatorWeakRef.lock();
 		if (RootNode)
 		{
-			Painter->Scratch->Evaluator = Evaluator = SDFOctree::Create(Painter->Evaluator, .25, false, 3);
+			Painter->EvaluatorOctree = Evaluator = SDFOctree::Create(Painter->Evaluator, .25, false, 3);
 
 			SDFOctree::CallbackType IncompleteSearch = [&](SDFOctree& Leaf)
 			{
@@ -700,30 +696,8 @@ void MeshingJob::Run()
 
 			TaskT::LoopThunkT LoopThunk = [JitterSpan](SodapopDrawableShared& Painter, SDFOctreeShared& Evaluator, const glm::vec4& Position, const int Index)
 			{
-				// HACK taking a random average within the approximate voxel bounds of a vert
-				// goes a long ways to improve the readability of some models.  However, the
-				// correct thing to do here might be a little more like how we calculate normals.
-				// For each triangle, sample randomly within the triangle, and accumualte the
-				// samples into vertex buckets.  Although, the accumulated values should probably
-				// be weighted by their barycentric coordinates or something like that.
-
-				const int Count = 20;
-				std::vector<glm::vec3> Samples;
-				Samples.reserve(Count);
-				glm::vec3 Average = glm::vec3(0.0);
-				for (int i = 0; i < Count; ++i)
-				{
-					glm::vec3 Jitter = JitterSpan * glm::vec3(Roll(RNGesus), Roll(RNGesus), Roll(RNGesus));
-					glm::vec3 Tmp = Position.xyz();
-					glm::vec3 Sample = Evaluator->Sample(Tmp + Jitter);
-					if (!glm::any(glm::isnan(Sample)))
-					{
-						Samples.push_back(Sample);
-						Average += Sample;
-					}
-				}
-				Average /= glm::vec3(float(Samples.size()));
-				Painter->Colors[Index] = glm::vec4(Average, 1.0);
+				glm::vec3 Sample = Evaluator->Sample(Position.xyz());
+				Painter->Colors[Index] = glm::vec4(Sample, 1.0);
 			};
 
 			TaskT::DoneThunkT DoneThunk = [](SodapopDrawableShared& Painter, SDFOctreeShared& Evaluator)
@@ -837,21 +811,21 @@ bool ShaderTask::Run()
 				const int i = Instance->NextUpdate % Instance->Colors.size();
 				Instance->NextUpdate = i + 1;
 
-				glm::vec3 BaseColor = Painter->Colors[i].xyz();
-#if 1
-				// Palecek 2022, "PBR Based Rendering"
-				glm::vec3 V = glm::normalize(LocalEye.xyz() - Painter->Positions[i].xyz());
-				glm::vec3 N = Painter->Normals[i].xyz();
-				float D = glm::pow(glm::max(glm::dot(N, glm::normalize(N * 0.75f + V)), 0.0f), 2.0f);
-				float F = 1.0f - glm::max(glm::dot(N, V), 0.0f);
-				float BSDF = D + F * 0.25f;
-				glm::vec4 NewColor = glm::vec4(BaseColor * BSDF, 1.0f);
+				{
+					glm::vec3 Point = Painter->Positions[i].xyz();
+					glm::vec3 Normal = Painter->Normals[i].xyz();
+					glm::vec3 View = glm::normalize(LocalEye.xyz() - Point);
 
-				NeedsRepaint = NeedsRepaint || !glm::all(glm::equal(Instance->Colors[i], NewColor));
-				Instance->Colors[i] = NewColor;
-#else
-				Instance->Colors[i] = glm::vec4(Painter->Normals[i].xyz() * glm::vec3(0.5) + glm::vec3(0.5), 1.0);
-#endif
+					MaterialShared Material = Painter->EvaluatorOctree->GetMaterial(Point);
+					if (Material)
+					{
+						Instance->Colors[i] = Material->Eval(Point, Normal, View);
+					}
+					else
+					{
+						Instance->Colors[i] = glm::vec4(1.0, 1.0, 1.0, 1.0);
+					}
+				}
 			}
 
 			if (NeedsRepaint)

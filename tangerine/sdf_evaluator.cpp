@@ -22,6 +22,7 @@
 #include "profiling.h"
 
 #include "sdf_evaluator.h"
+#include "material.h"
 #include <glm/gtc/type_ptr.hpp>
 
 
@@ -46,6 +47,13 @@ inline vec2 max(vec2 LHS, float RHS)
 inline vec3 max(vec3 LHS, float RHS)
 {
 	return max(LHS, vec3(RHS));
+}
+
+
+MaterialShared GetDefaultMaterial()
+{
+	static MaterialShared DefaultMaterial = MaterialShared(new MaterialPBRBR(glm::vec3(1.0, 1.0, 1.0)));
+	return DefaultMaterial;
 }
 
 
@@ -392,6 +400,7 @@ struct BrushNode : public SDFNode
 	BrushMixin BrushFn;
 	AABB BrushAABB;
 	TransformMachine Transform;
+	MaterialShared Material = nullptr;
 
 	vec3 Color = vec3(-1.0);
 
@@ -405,13 +414,14 @@ struct BrushNode : public SDFNode
 	}
 
 	BrushNode(uint32_t InOpcode, const std::string& InBrushFnName, const ParamsT& InNodeParams, BrushMixin& InBrushFn, AABB& InBrushAABB,
-		TransformMachine& InTransform, vec3& InColor)
+		TransformMachine& InTransform, MaterialShared& InMaterial, vec3& InColor)
 		: Opcode(InOpcode)
 		, BrushFnName(InBrushFnName)
 		, NodeParams(InNodeParams)
 		, BrushFn(InBrushFn)
 		, BrushAABB(InBrushAABB)
 		, Transform(InTransform)
+		, Material(InMaterial)
 		, Color(InColor)
 	{
 	}
@@ -439,7 +449,7 @@ struct BrushNode : public SDFNode
 		{
 			Transform.Fold();
 		}
-		return SDFNodeShared(new BrushNode(Opcode, BrushFnName, NodeParams, BrushFn, BrushAABB, Transform, Color));
+		return SDFNodeShared(new BrushNode(Opcode, BrushFnName, NodeParams, BrushFn, BrushAABB, Transform, Material, Color));
 	}
 
 	virtual AABB Bounds()
@@ -532,12 +542,25 @@ struct BrushNode : public SDFNode
 		if (!HasPaint() || Force)
 		{
 			Color = InColor;
+			Material = MaterialShared(new MaterialPBRBR(InColor));
+		}
+	}
+
+	virtual MaterialShared GetMaterial(glm::vec3 Point)
+	{
+		if (Material != nullptr)
+		{
+			return Material;
+		}
+		else
+		{
+			return GetDefaultMaterial();
 		}
 	}
 
 	virtual bool HasPaint()
 	{
-		return Color != vec3(-1.0);
+		return Material != nullptr;
 	}
 
 	virtual bool HasFiniteBounds()
@@ -861,6 +884,63 @@ struct SetNode : public SDFNode
 		RHS->ApplyMaterial(Color, Force);
 	}
 
+	virtual MaterialShared GetMaterial(glm::vec3 Point)
+	{
+		if (Family == SetFamily::Diff)
+		{
+			return LHS->GetMaterial(Point);
+		}
+		else
+		{
+			const float EvalLHS = LHS->Eval(Point);
+			const float EvalRHS = RHS->Eval(Point);
+			const float Dist = SetFn(EvalLHS, EvalRHS);
+
+			bool TakeLeft;
+			if (BlendMode)
+			{
+				TakeLeft = TakeLeft = (Dist == EvalLHS);
+			}
+			else
+			{
+				TakeLeft = abs(EvalLHS - Dist) <= abs(EvalRHS - Dist);
+			}
+
+			if (Family == SetFamily::Union)
+			{
+				if (TakeLeft)
+				{
+					return LHS->GetMaterial(Point);
+				}
+				else
+				{
+					return RHS->GetMaterial(Point);
+				}
+			}
+			else
+			{
+				const MaterialShared SampleLHS = LHS->GetMaterial(Point);
+				const MaterialShared SampleRHS = RHS->GetMaterial(Point);
+
+				const bool LHSValid = LHS->HasPaint();
+				const bool RHSValid = RHS->HasPaint();
+
+				if (LHSValid && RHSValid)
+				{
+					return TakeLeft ? SampleLHS : SampleRHS;
+				}
+				else if (LHSValid)
+				{
+					return SampleLHS;
+				}
+				else
+				{
+					return SampleRHS;
+				}
+			}
+		}
+	}
+
 	virtual bool HasPaint()
 	{
 		return LHS->HasPaint() || RHS->HasPaint();
@@ -1041,6 +1121,11 @@ struct FlateNode : public SDFNode
 	virtual void ApplyMaterial(vec3 InColor, bool Force)
 	{
 		Child->ApplyMaterial(InColor, Force);
+	}
+
+	virtual MaterialShared GetMaterial(glm::vec3 Point)
+	{
+		return Child->GetMaterial(Point);
 	}
 
 	virtual bool HasPaint()

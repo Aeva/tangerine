@@ -270,6 +270,9 @@
     <ClCompile Include="..\tangerine\winders.cpp">
       <Filter>Tangerine</Filter>
     </ClCompile>
+    <ClCompile Include="..\tangerine\material.cpp">
+      <Filter>Tangerine</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\shaders\defines.h">
@@ -571,6 +574,9 @@
       <Filter>Third Party\atomic_queue</Filter>
     </ClInclude>
     <ClInclude Include="..\tangerine\winders.h">
+      <Filter>Tangerine</Filter>
+    </ClInclude>
+    <ClInclude Include="..\tangerine\material.h">
       <Filter>Tangerine</Filter>
     </ClInclude>
   </ItemGroup>

@@ -141,6 +141,9 @@ struct SodapopDrawable final : Drawable
 	std::atomic_bool MeshReady;
 	bool MeshUploaded = false;
 
+	// This is populated during the meshing process, but may be safely used after the mesh is ready.
+	SDFOctreeShared EvaluatorOctree = nullptr;
+
 	Clock::time_point MeshingStart;
 	Clock::time_point MeshingComplete;
 	std::chrono::duration<double, std::milli> ReadyDelay;

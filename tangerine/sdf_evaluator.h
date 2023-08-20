@@ -52,6 +52,16 @@ struct AABB
 };
 
 
+struct MaterialInterface
+{
+	virtual glm::vec4 Eval(glm::vec3 Point, glm::vec3 Normal, glm::vec3 View) = 0;
+};
+
+
+using MaterialShared = std::shared_ptr<MaterialInterface>;
+using MaterialWeakRef = std::weak_ptr<MaterialInterface>;
+
+
 struct TransformMachine
 {
 	enum class State
@@ -138,6 +148,8 @@ struct SDFNode
 	virtual void Scale(float Scale) = 0;
 
 	virtual void ApplyMaterial(glm::vec3 Color, bool Force) = 0;
+
+	virtual MaterialShared GetMaterial(glm::vec3 Point) = 0;
 
 	virtual bool HasPaint() = 0;
 
@@ -266,6 +278,11 @@ struct SDFOctree
 	{
 		SDFNodeShared Node = SelectEvaluator(Point);
 		return Node->Sample(Point);
+	}
+	MaterialShared GetMaterial(glm::vec3 Point)
+	{
+		SDFNodeShared Node = SelectEvaluator(Point);
+		return Node->GetMaterial(Point);
 	}
 
 private:
