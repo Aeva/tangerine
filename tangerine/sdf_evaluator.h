@@ -52,8 +52,26 @@ struct AABB
 };
 
 
+enum class MaterialType
+{
+	Unknown,
+	SolidColor,
+	PBRBR,
+	DebugNormals,
+
+	Count
+};
+
+
 struct MaterialInterface
 {
+	MaterialType Type = MaterialType::Unknown;
+
+	MaterialInterface(MaterialType InType)
+		: Type(InType)
+	{
+	}
+
 	virtual glm::vec4 Eval(glm::vec3 Point, glm::vec3 Normal, glm::vec3 View) = 0;
 };
 

@@ -19,6 +19,7 @@
 #include "material.h"
 #include "colors.h"
 #include <string>
+#include <vector>
 
 
 MaterialShared* CheckLuaMaterial(lua_State* L, int Arg)
@@ -43,16 +44,66 @@ int WrapMaterial(lua_State* L, MaterialShared& NewMaterial)
 }
 
 
-const luaL_Reg LuaMaterialType[] = \
+template<typename MaterialT>
+int SetBaseColor(lua_State* L)
 {
-	{ NULL, NULL }
-};
+	MaterialShared& GenericSelf = *CheckLuaMaterial(L, 1);
+	std::shared_ptr<MaterialT> Self = std::dynamic_pointer_cast<MaterialT>(GenericSelf);
+	if (Self)
+	{
+		glm::vec3 BaseColor;
+		if (!lua_isnumber(L, 1) && lua_isstring(L, 2))
+		{
+			const char* ColorString = luaL_checklstring(L, 2, nullptr);
+			StatusCode Result = ParseColor(ColorString, BaseColor);
+		}
+		else
+		{
+			int NextArg = 2;
+			BaseColor = GetVec3(L, NextArg);
+		}
+
+		Self->BaseColor = BaseColor;
+	}
+
+	{
+		// Pop everything but the first arg off the stack, so that the material is returned.
+		lua_pop(L, lua_gettop(L) - 1);
+		return 1;
+	}
+}
+
+
+std::vector<std::vector<luaL_Reg>> GenerateMaterialIndexIndex()
+{
+	std::vector<std::vector<luaL_Reg>> IndexIndex;
+	IndexIndex.resize(size_t(MaterialType::Count));
+
+	{
+		std::vector<luaL_Reg>& Index = IndexIndex[size_t(MaterialType::SolidColor)];
+		Index.push_back({ "set_color", SetBaseColor<MaterialSolidColor> });
+	}
+
+	{
+		std::vector<luaL_Reg>& Index = IndexIndex[size_t(MaterialType::PBRBR)];
+		Index.push_back({ "set_color", SetBaseColor<MaterialPBRBR> });
+	}
+
+	for (std::vector<luaL_Reg>& Index : IndexIndex)
+	{
+		Index.push_back({ NULL, NULL });
+	}
+	return IndexIndex;
+}
+const std::vector<std::vector<luaL_Reg>> LuaMaterialTypes = GenerateMaterialIndexIndex();
 
 
 int IndexMaterial(lua_State* L)
 {
 	MaterialShared& Self = *CheckLuaMaterial(L, 1);
 	const char* Key = luaL_checklstring(L, 2, nullptr);
+
+	const std::vector<luaL_Reg>& LuaMaterialType = LuaMaterialTypes[size_t(Self->Type)];
 
 	for (const luaL_Reg& Reg : LuaMaterialType)
 	{

@@ -23,7 +23,8 @@ struct MaterialSolidColor : public MaterialInterface
 	glm::vec3 BaseColor;
 
 	MaterialSolidColor(glm::vec3 InBaseColor)
-		: BaseColor(InBaseColor)
+		: MaterialInterface(MaterialType::SolidColor)
+		, BaseColor(InBaseColor)
 	{
 	}
 
@@ -36,7 +37,8 @@ struct MaterialPBRBR : public MaterialInterface
 	glm::vec3 BaseColor;
 
 	MaterialPBRBR(glm::vec3 InBaseColor)
-		: BaseColor(InBaseColor)
+		: MaterialInterface(MaterialType::PBRBR)
+		, BaseColor(InBaseColor)
 	{
 	}
 
@@ -46,5 +48,10 @@ struct MaterialPBRBR : public MaterialInterface
 
 struct MaterialDebugNormals : public MaterialInterface
 {
+	MaterialDebugNormals()
+		: MaterialInterface(MaterialType::DebugNormals)
+	{
+	}
+
 	virtual glm::vec4 Eval(glm::vec3 Point, glm::vec3 Normal, glm::vec3 View);
 };
