@@ -546,6 +546,14 @@ struct BrushNode : public SDFNode
 		}
 	}
 
+	virtual void ApplyMaterial(MaterialShared InMaterial, bool Force)
+	{
+		if (!HasPaint() || Force)
+		{
+			Material = InMaterial;
+		}
+	}
+
 	virtual MaterialShared GetMaterial(glm::vec3 Point)
 	{
 		if (Material != nullptr)
@@ -884,6 +892,12 @@ struct SetNode : public SDFNode
 		RHS->ApplyMaterial(Color, Force);
 	}
 
+	virtual void ApplyMaterial(MaterialShared Material, bool Force)
+	{
+		LHS->ApplyMaterial(Material, Force);
+		RHS->ApplyMaterial(Material, Force);
+	}
+
 	virtual MaterialShared GetMaterial(glm::vec3 Point)
 	{
 		if (Family == SetFamily::Diff)
@@ -1121,6 +1135,11 @@ struct FlateNode : public SDFNode
 	virtual void ApplyMaterial(vec3 InColor, bool Force)
 	{
 		Child->ApplyMaterial(InColor, Force);
+	}
+
+	virtual void ApplyMaterial(MaterialShared Material, bool Force)
+	{
+		Child->ApplyMaterial(Material, Force);
 	}
 
 	virtual MaterialShared GetMaterial(glm::vec3 Point)

@@ -149,6 +149,8 @@ struct SDFNode
 
 	virtual void ApplyMaterial(glm::vec3 Color, bool Force) = 0;
 
+	virtual void ApplyMaterial(MaterialShared Material, bool Force) = 0;
+
 	virtual MaterialShared GetMaterial(glm::vec3 Point) = 0;
 
 	virtual bool HasPaint() = 0;

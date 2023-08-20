@@ -16,6 +16,12 @@
 #include "material.h"
 
 
+glm::vec4 MaterialSolidColor::Eval(glm::vec3 Point, glm::vec3 N, glm::vec3 V)
+{
+	return glm::vec4(BaseColor, 1.0f);
+}
+
+
 glm::vec4 MaterialPBRBR::Eval(glm::vec3 Point, glm::vec3 N, glm::vec3 V)
 {
 	// Palecek 2022, "PBR Based Rendering"

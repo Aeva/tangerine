@@ -273,6 +273,9 @@
     <ClCompile Include="..\tangerine\material.cpp">
       <Filter>Tangerine</Filter>
     </ClCompile>
+    <ClCompile Include="..\tangerine\lua_material.cpp">
+      <Filter>Tangerine\Runtimes</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\shaders\defines.h">
@@ -578,6 +581,9 @@
     </ClInclude>
     <ClInclude Include="..\tangerine\material.h">
       <Filter>Tangerine</Filter>
+    </ClInclude>
+    <ClInclude Include="..\tangerine\lua_material.h">
+      <Filter>Tangerine\Runtimes</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

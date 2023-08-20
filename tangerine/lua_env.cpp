@@ -18,6 +18,7 @@
 
 #include "tangerine.h"
 #include "shape_compiler.h"
+#include "lua_material.h"
 #include "lua_sdf.h"
 #include "lua_vec.h"
 #include <fmt/format.h>
@@ -83,6 +84,7 @@ LuaEnvironment::LuaEnvironment()
 
 	luaL_requiref(L, "tangerine_sdf", LuaOpenSDF, 1);
 	luaL_requiref(L, "tangerine_env", LuaOpenEnv, 1);
+	luaL_requiref(L, "tangerine_mat", LuaOpenMaterial, 1);
 	luaL_requiref(L, "more_math", LuaOpenVec, 1);
 
 	const char* Source = \
@@ -95,11 +97,16 @@ LuaEnvironment::LuaEnvironment()
 		"	_ENV[key] = tangerine_env[key]\n"
 		"	tangerine[key] = tangerine_env[key]\n"
 		"end\n"
+		"for key, value in next, tangerine_mat do\n"
+		"	_ENV[key] = tangerine_mat[key]\n"
+		"	tangerine[key] = tangerine_mat[key]\n"
+		"end\n"
 		"for key, value in next, more_math do\n"
 		"	_ENV[key] = more_math[key]\n"
 		"end\n"
 		"tangerine_sdf = nil\n"
-		"tangerine_env = nil\n";
+		"tangerine_env = nil\n"
+		"tangerine_mat = nil\n";
 
 	int Error = luaL_dostring(L, Source);
 	Assert(Error == 0);

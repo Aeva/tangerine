@@ -15,36 +15,14 @@
 
 #pragma once
 
+#include "embedding.h"
+#if EMBED_LUA
 #include "sdf_evaluator.h"
+#include <lua/lua.hpp>
+
+MaterialShared* CheckLuaMaterial(lua_State* L, int Arg);
+MaterialShared* TestLuaMaterial(lua_State* L, int Arg);
+int LuaOpenMaterial(struct lua_State* L);
 
 
-struct MaterialSolidColor : public MaterialInterface
-{
-	glm::vec3 BaseColor;
-
-	MaterialSolidColor(glm::vec3 InBaseColor)
-		: BaseColor(InBaseColor)
-	{
-	}
-
-	virtual glm::vec4 Eval(glm::vec3 Point, glm::vec3 Normal, glm::vec3 View);
-};
-
-
-struct MaterialPBRBR : public MaterialInterface
-{
-	glm::vec3 BaseColor;
-
-	MaterialPBRBR(glm::vec3 InBaseColor)
-		: BaseColor(InBaseColor)
-	{
-	}
-
-	virtual glm::vec4 Eval(glm::vec3 Point, glm::vec3 Normal, glm::vec3 View);
-};
-
-
-struct MaterialDebugNormals : public MaterialInterface
-{
-	virtual glm::vec4 Eval(glm::vec3 Point, glm::vec3 Normal, glm::vec3 View);
-};
+#endif // EMBED_LUA
