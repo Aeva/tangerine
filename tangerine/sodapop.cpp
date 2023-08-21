@@ -749,7 +749,6 @@ void MeshingJob::Done()
 	{
 		void* JobPtr = (void*)this;
 		fmt::print("[{}] Parallel tasks started.\n", JobPtr);
-		SetTreeEvaluator(Painter->Evaluator);
 	}
 	else
 	{

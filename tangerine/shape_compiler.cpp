@@ -70,7 +70,6 @@ void UseRoundedStackSize()
 void VoxelDrawable::Compile(const float VoxelSize)
 {
 	BeginEvent("VoxelFinder");
-	SetTreeEvaluator(Evaluator);
 
 	VariantsMap Voxels;
 	uint32_t SubtreeIndex = 0;

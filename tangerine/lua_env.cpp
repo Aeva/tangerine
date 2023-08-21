@@ -174,6 +174,24 @@ void LuaEnvironment::LoadLuaModelCommon()
 		GlobalModel = SDFModel::Create(Evaluator, Name, .25, MeshingDensityPush);
 	}
 	lua_pop(L, 1);
+
+	if (GlobalModel)
+	{
+		SetTreeEvaluator(GlobalModel->Evaluator);
+	}
+	else
+	{
+		std::vector<SDFModelWeakRef> LiveModels = GetLiveModels();
+		for (SDFModelWeakRef& WeakRef : LiveModels)
+		{
+			SDFModelShared LiveModel = WeakRef.lock();
+			if (LiveModel)
+			{
+				SetTreeEvaluator(LiveModel->Evaluator);
+				break;
+			}
+		}
+	}
 }
 
 void LuaEnvironment::LoadFromPath(std::string Path)
