@@ -913,11 +913,11 @@ struct SetNode : public SDFNode
 			bool TakeLeft;
 			if (BlendMode)
 			{
-				TakeLeft = TakeLeft = (Dist == EvalLHS);
+				TakeLeft = abs(EvalLHS - Dist) <= abs(EvalRHS - Dist);
 			}
 			else
 			{
-				TakeLeft = abs(EvalLHS - Dist) <= abs(EvalRHS - Dist);
+				TakeLeft = TakeLeft = (Dist == EvalLHS);
 			}
 
 			if (Family == SetFamily::Union)
@@ -980,11 +980,11 @@ struct SetNode : public SDFNode
 			bool TakeLeft;
 			if (BlendMode)
 			{
-				TakeLeft = TakeLeft = (Dist == EvalLHS);
+				TakeLeft = abs(EvalLHS - Dist) <= abs(EvalRHS - Dist);
 			}
 			else
 			{
-				TakeLeft = abs(EvalLHS - Dist) <= abs(EvalRHS - Dist);
+				TakeLeft = TakeLeft = (Dist == EvalLHS);
 			}
 
 			if (Family == SetFamily::Union)
