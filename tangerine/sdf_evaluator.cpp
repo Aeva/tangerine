@@ -66,7 +66,7 @@ namespace SDFMath
 
 vec3 SDFNode::Gradient(vec3 Point)
 {
-	float AlmostZero = 0.0001;
+	float AlmostZero = 0.0001f;
 	vec2 Offset = vec2(1.0, -1.0) * vec2(AlmostZero);
 
 #if 1
@@ -596,7 +596,7 @@ struct BrushNode : public SDFNode
 	virtual bool operator==(SDFNode& Other)
 	{
 		BrushNode* OtherBrush = dynamic_cast<BrushNode*>(&Other);
-		if (OtherBrush && OtherBrush->BrushFnName == BrushFnName && OtherBrush->Transform == Transform)
+		if (OtherBrush && OtherBrush->BrushFnName == BrushFnName && OtherBrush->Material == Material && OtherBrush->Transform == Transform)
 		{
 			for (int i = 0; i < NodeParams.size(); ++i)
 			{
@@ -608,6 +608,156 @@ struct BrushNode : public SDFNode
 			return true;
 		}
 		return false;
+	}
+};
+
+
+template<bool ApplyToNegative>
+struct StencilMaskNode : public SDFNode
+{
+	SDFNodeShared Child = nullptr;
+	SDFNodeShared StencilMask = nullptr;
+	MaterialShared Material = nullptr;
+
+	StencilMaskNode(SDFNodeShared InChild, SDFNodeShared InStencilMask, MaterialShared InMaterial)
+		: Child(InChild)
+		, StencilMask(InStencilMask)
+		, Material(InMaterial)
+	{
+	}
+
+	virtual float Eval(vec3 Point)
+	{
+		return Child->Eval(Point);
+	}
+
+	virtual SDFNodeShared Clip(vec3 Point, float Radius)
+	{
+		SDFNodeShared NewChild = Child->Clip(Point, Radius);
+		if (NewChild)
+		{
+			// TODO : we can probably cull on the StencilMask here too
+			return SDFNodeShared(new StencilMaskNode<ApplyToNegative>(NewChild, StencilMask->Copy(true), Material));
+		}
+		else
+		{
+			return nullptr;
+		}
+	}
+
+	virtual SDFNodeShared Copy(bool AndFold)
+	{
+		return SDFNodeShared(new StencilMaskNode<ApplyToNegative>(Child->Copy(AndFold), StencilMask->Copy(AndFold), Material));
+	}
+
+	virtual AABB Bounds()
+	{
+		return Child->Bounds();
+	}
+
+	virtual AABB InnerBounds()
+	{
+		return Child->InnerBounds();
+	}
+
+	virtual std::string Compile(const bool WithOpcodes, std::vector<float>& TreeParams, std::string& Point)
+	{
+		return Child->Compile(WithOpcodes, TreeParams, Point);
+	}
+
+	virtual uint32_t StackSize(const uint32_t Depth)
+	{
+		return Child->StackSize(Depth);
+	}
+
+	virtual std::string Pretty()
+	{
+		return fmt::format("StencilMask({})", Child->Pretty());
+	}
+
+	virtual void Move(vec3 Offset)
+	{
+		Child->Move(Offset);
+		StencilMask->Move(Offset);
+	}
+
+	virtual void Rotate(quat Rotation)
+	{
+		Child->Rotate(Rotation);
+		StencilMask->Rotate(Rotation);
+	}
+
+	virtual void Scale(float Scale)
+	{
+		Child->Scale(Scale);
+		StencilMask->Scale(Scale);
+	}
+
+	virtual void ApplyMaterial(vec3 InColor, bool Force)
+	{
+		// TODO : I'm unsure what the correct behavior is here.
+	}
+
+	virtual void ApplyMaterial(MaterialShared Material, bool Force)
+	{
+		// TODO : I'm unsure what the correct behavior is here.
+	}
+
+	virtual MaterialShared GetMaterial(glm::vec3 Point)
+	{
+		const bool InteriorPoint = (StencilMask->Eval(Point) < 0.0);
+		const bool ApplyOverride = InteriorPoint == ApplyToNegative;
+
+		if (ApplyOverride)
+		{
+			return Material;
+		}
+		else
+		{
+			return Child->GetMaterial(Point);
+		}
+	}
+
+	virtual bool HasPaint()
+	{
+		return true;
+	}
+
+	virtual bool HasFiniteBounds()
+	{
+		return Child->HasFiniteBounds();
+	}
+
+	virtual vec4 Sample(vec3 Point)
+	{
+		return Child->Sample(Point);
+	}
+
+	virtual int LeafCount()
+	{
+		return Child->LeafCount();
+	}
+
+	virtual bool operator==(SDFNode& Other)
+	{
+		StencilMaskNode* OtherNode = dynamic_cast<StencilMaskNode*>(&Other);
+
+		if (OtherNode)
+		{
+			const bool ChildrenMatch = (*Child == *(OtherNode->Child));
+			const bool StencilsMatch = (*StencilMask == *(OtherNode->StencilMask));
+			const bool MaterialsMatch = (*Material == *(OtherNode->Material));
+			return ChildrenMatch && StencilsMatch && MaterialsMatch;
+		}
+
+		return false;
+	}
+
+	virtual ~StencilMaskNode()
+	{
+		Child.reset();
+		StencilMask.reset();
+		Material.reset();
 	}
 };
 
@@ -1376,6 +1526,18 @@ namespace SDF
 	SDFNodeShared Flate(SDFNodeShared& Node, float Radius)
 	{
 		return SDFNodeShared(new FlateNode(Node, Radius));
+	}
+
+	SDFNodeShared Stencil(SDFNodeShared& Node, SDFNodeShared& StencilMask, MaterialShared& Material, bool ApplyToNegative)
+	{
+		if (ApplyToNegative)
+		{
+			return SDFNodeShared(new StencilMaskNode<true>(Node, StencilMask, Material));
+		}
+		else
+		{
+			return SDFNodeShared(new StencilMaskNode<false>(Node, StencilMask, Material));
+		}
 	}
 }
 

@@ -73,6 +73,9 @@ struct MaterialInterface
 	}
 
 	virtual glm::vec4 Eval(glm::vec3 Point, glm::vec3 Normal, glm::vec3 View) = 0;
+
+	// Because materials are mutable, they are only equal if they share the same memory address.
+	bool operator==(MaterialInterface& Other);
 };
 
 
@@ -233,6 +236,8 @@ namespace SDF
 	SDFNodeShared BlendInter(float Threshold, SDFNodeShared& LHS, SDFNodeShared& RHS);
 
 	SDFNodeShared Flate(SDFNodeShared& Node, float Radius);
+
+	SDFNodeShared Stencil(SDFNodeShared& Node, SDFNodeShared& StencilMask, MaterialShared& Material, bool ApplyToNegative);
 }
 
 

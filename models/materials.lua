@@ -15,9 +15,9 @@
 
 
 local basic_material = pbrbr_material("#eee")
-local inner_material = solid_material("red")
+local inner_material = pbrbr_material("darkred")
 local fancy_material = normal_debug_material()
-
+local spicy_material = solid_material("white") -- the advance event will modify this
 
 model = sphere(2):paint(basic_material)
 	:diff(
@@ -31,8 +31,10 @@ model = sphere(2):paint(basic_material)
 		sphere(1):paint(fancy_material):move_z(-1.25))
 	:blend_diff(
 		cube(2):align(-1, 1, -1), .1)
+	:stencil(
+		sphere(1.27), inner_material)
 	:union(
-		sphere(1):paint(inner_material))
+		sphere(1):paint(spicy_material))
 
 
 function bezier (points)
@@ -88,5 +90,5 @@ set_advance_event(function (dt, elapsed_ms)
 	local elapsed_s = elapsed_ms / 1000
 	local period_s = 5
 	local phase = (elapsed_s / period_s)
-	inner_material:set_color(pdqhue(phase))
+	spicy_material:set_color(pdqhue(phase))
 end)

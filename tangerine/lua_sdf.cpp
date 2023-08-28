@@ -214,6 +214,18 @@ int LuaPaint(lua_State* L)
 }
 
 
+template <bool ApplyToNegative>
+int LuaStencil(lua_State* L)
+{
+	SDFNodeShared& Node = *GetSDFNode(L, 1);
+	SDFNodeShared& StencilMask = *GetSDFNode(L, 2);
+	MaterialShared& Material = *CheckLuaMaterial(L, 3);
+
+	SDFNodeShared NewNode = SDF::Stencil(Node, StencilMask, Material, ApplyToNegative);
+	return WrapSDFNode(L, NewNode);
+}
+
+
 int LuaSphere(lua_State* L)
 {
 	float Radius = luaL_checknumber(L, 1) * .5;
@@ -726,6 +738,8 @@ const luaL_Reg LuaSDFType[] = \
 
 	{ "paint", LuaPaint<false> },
 	{ "paint_over", LuaPaint<true> },
+	{ "stencil", LuaStencil<true> },
+	{ "mask", LuaStencil<false> },
 
 	{ "sphere", LuaSphere },
 	{ "ellipsoid", LuaEllipsoid },
