@@ -422,6 +422,11 @@ void MeshingJob::Run()
 		{
 			Painter->EvaluatorOctree = Evaluator = SDFOctree::Create(Painter->Evaluator, .25, false, 3);
 
+			if (Evaluator == nullptr)
+			{
+				return;
+			}
+
 			SDFOctree::CallbackType IncompleteSearch = [&](SDFOctree& Leaf)
 			{
 				if (Leaf.Incomplete)
