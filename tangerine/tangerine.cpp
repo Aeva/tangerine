@@ -35,6 +35,7 @@
 #include "sdf_rendering.h"
 #include "sdf_model.h"
 #include "shape_compiler.h"
+#include "units.h"
 #include "export.h"
 #include "magica.h"
 #include "extern.h"
@@ -1238,6 +1239,7 @@ void LoadModel(std::string Path, Language Runtime)
 	if (Path.size() > 0)
 	{
 		UnloadAllModels();
+		ExportGrid::ResetScale();
 		CreateScriptEnvironment(Runtime);
 		LastPath = Path;
 		MainEnvironment->LoadFromPath(Path);
@@ -1271,6 +1273,7 @@ void ReadInputModel(Language Runtime)
 	if (Source.size() > 0)
 	{
 		std::cout << "Evaluating data from stdin.\n";
+		ExportGrid::ResetScale();
 		CreateScriptEnvironment(Runtime);
 		MainEnvironment->LoadFromString(Source);
 		std::cout << "Done!\n";
@@ -1690,7 +1693,13 @@ void RenderUI(SDL_Window* Window, bool& Live)
 					ExportSplitStep[i] = ExportStepSize;
 				}
 				MagicaGridSize = MagicaGridSize;
-				ExportScale = DefaultExportScale;
+
+				ExportScale = ExportGrid::GetScale();
+				if (ExportScale <= 0.0)
+				{
+					ExportScale = DefaultExportScale;
+				}
+
 				ExportSkipRefine = DefaultExportSkipRefine;
 				ExportRefinementSteps = DefaultExportRefinementSteps;
 			}

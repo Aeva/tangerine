@@ -19,6 +19,7 @@
 #include "tangerine.h"
 #include "shape_compiler.h"
 #include "sodapop.h"
+#include "units.h"
 #include "lua_material.h"
 #include "lua_sdf.h"
 #include "lua_vec.h"
@@ -67,11 +68,42 @@ int LuaEnvironment::LuaPushMeshingDensity(lua_State* L)
 }
 
 
+int LuaSetInternalExportGrid(lua_State* L)
+{
+	double Multiplier = (double)luaL_checknumber(L, 1);
+	const char* UnitString = luaL_checklstring(L, 2, nullptr);
+
+	bool Success = false;
+	if (UnitString != nullptr)
+	{
+		Success = ExportGrid::SetInternalScale(Multiplier, UnitString);
+	}
+
+	return 0;
+}
+
+
+int LuaSetExternalExportGrid(lua_State* L)
+{
+	double Multiplier = (double)luaL_checknumber(L, 1);
+	const char* UnitString = luaL_checklstring(L, 2, nullptr);
+
+	bool Success = false;
+	if (UnitString != nullptr)
+	{
+		Success = ExportGrid::SetExternalScale(Multiplier, UnitString);
+	}
+
+	return 0;
+}
+
+
 const luaL_Reg LuaEnvReg[] = \
 {
 	{ "set_advance_event", LuaEnvironment::LuaSetAdvanceEvent },
 	{ "push_meshing_density", LuaEnvironment::LuaPushMeshingDensity },
-
+	{ "set_internal_export_grid", LuaSetInternalExportGrid },
+	{ "set_external_export_grid", LuaSetExternalExportGrid },
 	{ NULL, NULL }
 };
 
