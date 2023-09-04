@@ -33,7 +33,7 @@ struct ExportProgress
 	float Write;
 };
 
-void MeshExport(std::string Path, bool UseBaseColor, float Scale = 1.0);
+void MeshExport(std::string Path, bool UseBaseColor, ExportFormat Format, float Scale = 1.0);
 void MeshExport(SDFNodeShared Evaluator, std::string Path, glm::vec3 ModelMin, glm::vec3 ModelMax, glm::vec3 Step, int RefineIterations, ExportFormat Format, bool ExportPointCloud, float Scale = 1.0);
 void CancelExport(bool Halt);
 ExportProgress GetExportProgress();

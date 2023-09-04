@@ -2136,7 +2136,7 @@ void RenderUI(SDL_Window* Window, bool& Live)
 					{
 						if (ExportFromSodapop)
 						{
-							MeshExport(ExportPath, true, ExportScale);
+							MeshExport(ExportPath, true, ExportMeshFormat, ExportScale);
 						}
 						else if (AdvancedOptions)
 						{
