@@ -52,6 +52,9 @@
     <Filter Include="Third Party\atomic_queue">
       <UniqueIdentifier>{a97260d8-781b-41a7-9fc3-ae138133e95e}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Third Party\OkLab">
+      <UniqueIdentifier>{8fbb3d32-e80f-43af-bc6e-d985efae0dbd}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\third_party\imgui\backends\imgui_impl_opengl3.cpp">
@@ -590,6 +593,9 @@
     </ClInclude>
     <ClInclude Include="..\tangerine\units.h">
       <Filter>Tangerine</Filter>
+    </ClInclude>
+    <ClInclude Include="..\third_party\oklab\oklab.h">
+      <Filter>Third Party\OkLab</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

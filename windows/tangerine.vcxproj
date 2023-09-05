@@ -126,7 +126,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;IMGUI_USE_WCHAR32;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>$(SolutionDir)..\third_party\fmt\include;$(SolutionDir)..\third_party\imgui;$(SolutionDir)..\third_party\imgui\backends;$(SolutionDir)..\third_party\sdl2\include;$(SolutionDir)..\third_party\racket\include;$(SolutionDir)..\third_party\lua-5.4.4;$(SolutionDir)..\third_party\stb;$(SolutionDir)..\third_party\ImFileDialog;$(SolutionDir)..\third_party\whereami\src;$(SolutionDir)..\third_party\naive-surface-nets\include;$(SolutionDir)..\third_party\glm-0.9.9.8;$(SolutionDir)..\third_party\glad\include;$(SolutionDir)..\third_party\voxwriter;$(SolutionDir)..\third_party\atomic_queue\include;$(SolutionDir)..\third_party\</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)..\third_party\fmt\include;$(SolutionDir)..\third_party\imgui;$(SolutionDir)..\third_party\imgui\backends;$(SolutionDir)..\third_party\sdl2\include;$(SolutionDir)..\third_party\racket\include;$(SolutionDir)..\third_party\lua-5.4.4;$(SolutionDir)..\third_party\stb;$(SolutionDir)..\third_party\ImFileDialog;$(SolutionDir)..\third_party\whereami\src;$(SolutionDir)..\third_party\naive-surface-nets\include;$(SolutionDir)..\third_party\glm-0.9.9.8;$(SolutionDir)..\third_party\glad\include;$(SolutionDir)..\third_party\voxwriter;$(SolutionDir)..\third_party\atomic_queue\include;$(SolutionDir)..\third_party\oklab;$(SolutionDir)..\third_party\</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
     </ClCompile>
@@ -152,7 +152,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;IMGUI_USE_WCHAR32;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>$(SolutionDir)..\third_party\fmt\include;$(SolutionDir)..\third_party\imgui;$(SolutionDir)..\third_party\imgui\backends;$(SolutionDir)..\third_party\sdl2\include;$(SolutionDir)..\third_party\racket\include;$(SolutionDir)..\third_party\lua-5.4.4;$(SolutionDir)..\third_party\stb;$(SolutionDir)..\third_party\ImFileDialog;$(SolutionDir)..\third_party\whereami\src;$(SolutionDir)..\third_party\naive-surface-nets\include;$(SolutionDir)..\third_party\glm-0.9.9.8;$(SolutionDir)..\third_party\glad\include;$(SolutionDir)..\third_party\voxwriter;$(SolutionDir)..\third_party\atomic_queue\include;$(SolutionDir)..\third_party\</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)..\third_party\fmt\include;$(SolutionDir)..\third_party\imgui;$(SolutionDir)..\third_party\imgui\backends;$(SolutionDir)..\third_party\sdl2\include;$(SolutionDir)..\third_party\racket\include;$(SolutionDir)..\third_party\lua-5.4.4;$(SolutionDir)..\third_party\stb;$(SolutionDir)..\third_party\ImFileDialog;$(SolutionDir)..\third_party\whereami\src;$(SolutionDir)..\third_party\naive-surface-nets\include;$(SolutionDir)..\third_party\glm-0.9.9.8;$(SolutionDir)..\third_party\glad\include;$(SolutionDir)..\third_party\voxwriter;$(SolutionDir)..\third_party\atomic_queue\include;$(SolutionDir)..\third_party\oklab;$(SolutionDir)..\third_party\</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
     </ClCompile>
@@ -330,6 +330,7 @@
     <ClInclude Include="..\third_party\naive-surface-nets\include\shared_vertex_mesh.h" />
     <ClInclude Include="..\third_party\naive-surface-nets\include\surface_nets.h" />
     <ClInclude Include="..\third_party\naive-surface-nets\include\triangle.h" />
+    <ClInclude Include="..\third_party\oklab\oklab.h" />
     <ClInclude Include="..\third_party\stb\stb_connected_components.h" />
     <ClInclude Include="..\third_party\stb\stb_c_lexer.h" />
     <ClInclude Include="..\third_party\stb\stb_divide.h" />

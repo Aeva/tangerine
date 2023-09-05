@@ -14,6 +14,9 @@
 // limitations under the License.
 
 #include "colors.h"
+#include "glm_common.h"
+
+#include <oklab.h>
 #include <regex>
 #include <unordered_map>
 
@@ -182,10 +185,27 @@ const std::unordered_map<std::string, std::string> ColorNames = \
 };
 
 
+std::regex MakeOklabExpr()
+{
+	std::string Prefix = "oklab\\(";
+	std::string Suffix = "\\)";
+
+	std::string NumberGroup = "(-?\\d+|-?\\d+\\.\\d*|-?\\d*\\.\\d+)";
+	std::string Padding = "\\s*";
+	std::string Separator = "\\s+";
+
+	std::string Expr = Prefix + Padding + NumberGroup + Separator + NumberGroup + Separator + NumberGroup + Padding + Suffix;
+	return std::regex(Expr, std::regex::ECMAScript | std::regex::icase);
+}
+
+
 StatusCode ParseColor(std::string ColorString, glm::vec3& OutColor)
 {
-	const std::regex HexTripple("#[0-9A-F]{3}", std::regex::icase);
-	const std::regex HexSextuple("#[0-9A-F]{6}", std::regex::icase);
+	static const std::regex HexTripple("#[0-9A-F]{3}", std::regex::icase);
+	static const std::regex HexSextuple("#[0-9A-F]{6}", std::regex::icase);
+	static const std::regex OklabExpr = MakeOklabExpr();
+
+	std::smatch Match;
 
 	if (std::regex_match(ColorString.c_str(), HexTripple))
 	{
@@ -196,13 +216,30 @@ StatusCode ParseColor(std::string ColorString, glm::vec3& OutColor)
 			float((Color >> 0) & 15)) / glm::vec3(15.0);
 		return StatusCode::PASS;
 	}
-	else if(std::regex_match(ColorString.c_str(), HexSextuple))
+	else if (std::regex_match(ColorString.c_str(), HexSextuple))
 	{
 		int Color = std::stoi(ColorString.substr(1, 6), nullptr, 16);
 		OutColor = glm::vec3(
 			float((Color >> 16) & 255),
 			float((Color >>  8) & 255),
 			float((Color >>  0) & 255)) / glm::vec3(255.0);
+		return StatusCode::PASS;
+	}
+	else if (std::regex_match(ColorString, Match, OklabExpr))
+	{
+		// https://developer.mozilla.org/en-US/docs/Web/CSS/color_value/oklab
+		Oklab::Lab Color;
+		Color.L = glm::clamp(std::stof(Match[1]), 0.0f, 1.0f);
+
+		// MDN claims the legal range of these terms is is -0.4 to 0.4, but their own examples contradict this.
+		Color.a = glm::clamp(std::stof(Match[2]), -1.0f, 1.0f);
+		Color.b = glm::clamp(std::stof(Match[3]), -1.0f, 1.0f);
+
+		Oklab::RGB Tmp = Oklab::oklab_to_srgb(Color);
+		OutColor.r = glm::clamp(Tmp.r, 0.0f, 1.0f);
+		OutColor.g = glm::clamp(Tmp.g, 0.0f, 1.0f);
+		OutColor.b = glm::clamp(Tmp.b, 0.0f, 1.0f);
+
 		return StatusCode::PASS;
 	}
 	else
