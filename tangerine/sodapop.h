@@ -26,10 +26,19 @@ using SodapopDrawableShared = std::shared_ptr<SodapopDrawable>;
 using SDFModelShared = std::shared_ptr<SDFModel>;
 
 
+enum class MaterialOverride
+{
+	Off,
+	Normals,
+	Invariant
+};
+
+
 namespace Sodapop
 {
 	void Populate(SodapopDrawableShared MeshPainter, float MeshingDensityPush);
 	void Attach(SDFModelShared& Instance);
+	void SetMaterialOverrideMode(MaterialOverride Mode);
 }
 
 

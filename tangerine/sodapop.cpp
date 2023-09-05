@@ -20,6 +20,7 @@
 #include "scheduler.h"
 #include "profiling.h"
 #include "sdf_model.h"
+#include "material.h"
 #include <fmt/format.h>
 #include <surface_nets.h>
 #include <concepts>
@@ -706,7 +707,16 @@ void MeshingJob::Run()
 
 			TaskT::LoopThunkT LoopThunk = [JitterSpan](SodapopDrawableShared& Painter, SDFOctreeShared& Evaluator, const glm::vec4& Position, const int Index)
 			{
-				glm::vec3 Sample = Evaluator->Sample(Position.xyz());
+				glm::vec3 Sample = glm::vec3(0.0);
+				{
+					MaterialShared Material = Painter->EvaluatorOctree->GetMaterial(Position.xyz());
+					if (Material)
+					{
+						glm::vec3 Normal = Painter->Normals[Index].xyz();
+						Sample = Material->Eval(Position.xyz(), Normal, Normal).xyz();
+					}
+				}
+
 				Painter->Colors[Index] = glm::vec4(Sample, 1.0);
 			};
 
@@ -791,6 +801,15 @@ void Sodapop::Attach(SDFModelShared& Instance)
 }
 
 
+MaterialOverride MaterialOverrideMode = MaterialOverride::Off;
+
+
+void Sodapop::SetMaterialOverrideMode(MaterialOverride Mode)
+{
+	MaterialOverrideMode = Mode;
+}
+
+
 bool ShaderTask::Run()
 {
 	SDFModelShared Instance = ModelWeakRef.lock();
@@ -823,17 +842,33 @@ bool ShaderTask::Run()
 				{
 					glm::vec3 Point = Painter->Positions[i].xyz();
 					glm::vec3 Normal = Painter->Normals[i].xyz();
-					glm::vec3 View = glm::normalize(LocalEye.xyz() - Point);
+					glm::vec3 View;
 					glm::vec4 NewColor;
 
-					MaterialShared Material = Painter->EvaluatorOctree->GetMaterial(Point);
-					if (Material)
+					if (MaterialOverrideMode == MaterialOverride::Invariant)
 					{
-						NewColor = Material->Eval(Point, Normal, View);
+						View = Normal;
 					}
 					else
 					{
-						NewColor = glm::vec4(1.0, 1.0, 1.0, 1.0);
+						View = glm::normalize(LocalEye.xyz() - Point);
+					}
+
+					if (MaterialOverrideMode == MaterialOverride::Normals)
+					{
+						NewColor = MaterialDebugNormals::StaticEval(Normal);
+					}
+					else
+					{
+						MaterialShared Material = Painter->EvaluatorOctree->GetMaterial(Point);
+						if (Material)
+						{
+							NewColor = Material->Eval(Point, Normal, View);
+						}
+						else
+						{
+							NewColor = glm::vec4(1.0, 1.0, 1.0, 1.0);
+						}
 					}
 
 					NeedsRepaint = NeedsRepaint || !glm::all(glm::equal(Instance->Colors[i], NewColor));

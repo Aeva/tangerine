@@ -38,7 +38,13 @@ glm::vec4 MaterialPBRBR::Eval(glm::vec3 Point, glm::vec3 N, glm::vec3 V)
 }
 
 
-glm::vec4 MaterialDebugNormals::Eval(glm::vec3 Point, glm::vec3 Normal, glm::vec3 View)
+glm::vec4 MaterialDebugNormals::StaticEval(glm::vec3 Normal)
 {
 	return glm::vec4(Normal * glm::vec3(0.5) + glm::vec3(0.5), 1.0);
+}
+
+
+glm::vec4 MaterialDebugNormals::Eval(glm::vec3 Point, glm::vec3 Normal, glm::vec3 View)
+{
+	return StaticEval(Normal);
 }

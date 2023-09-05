@@ -53,5 +53,7 @@ struct MaterialDebugNormals : public MaterialInterface
 	{
 	}
 
+	static glm::vec4 StaticEval(glm::vec3 Normal);
+
 	virtual glm::vec4 Eval(glm::vec3 Point, glm::vec3 Normal, glm::vec3 View);
 };
