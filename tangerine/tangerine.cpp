@@ -1537,6 +1537,38 @@ void RenderUI(SDL_Window* Window, bool& Live)
 				}
 			}
 #endif // RENDERER_COMPILER
+#if RENDERER_SODAPOP
+			if (CurrentRenderer == Renderer::Sodapop)
+			{
+				if (ImGui::BeginMenu("Foreground"))
+				{
+					static MaterialOverride OverrideMode = MaterialOverride::Off;
+
+					bool MaterialOverrideOff = OverrideMode == MaterialOverride::Off;
+					if (ImGui::MenuItem("No Override", nullptr, &MaterialOverrideOff))
+					{
+						OverrideMode = MaterialOverride::Off;
+						Sodapop::SetMaterialOverrideMode(OverrideMode);
+					}
+
+					bool MaterialOverrideInvariant = OverrideMode == MaterialOverride::Invariant;
+					if (ImGui::MenuItem("View Invariant", nullptr, &MaterialOverrideInvariant))
+					{
+						OverrideMode = MaterialOverride::Invariant;
+						Sodapop::SetMaterialOverrideMode(OverrideMode);
+					}
+
+					bool MaterialOverrideNormals = OverrideMode == MaterialOverride::Normals;
+					if (ImGui::MenuItem("Debug Normals", nullptr, &MaterialOverrideNormals))
+					{
+						OverrideMode = MaterialOverride::Normals;
+						Sodapop::SetMaterialOverrideMode(OverrideMode);
+					}
+
+					ImGui::EndMenu();
+				}
+			}
+#endif
 			if (ImGui::MenuItem("Recenter"))
 			{
 				ResetCamera = true;
@@ -1598,38 +1630,6 @@ void RenderUI(SDL_Window* Window, bool& Live)
 			}
 		}
 #endif // RENDERER_COMPILER
-#if RENDERER_SODAPOP
-		if (CurrentRenderer == Renderer::Sodapop)
-		{
-			if (ImGui::BeginMenu("Debug"))
-			{
-				static MaterialOverride OverrideMode = MaterialOverride::Off;
-
-				bool MaterialOverrideOff = OverrideMode == MaterialOverride::Off;
-				if (ImGui::MenuItem("Off", nullptr, &MaterialOverrideOff))
-				{
-					OverrideMode = MaterialOverride::Off;
-					Sodapop::SetMaterialOverrideMode(OverrideMode);
-				}
-
-				bool MaterialOverrideNormals = OverrideMode == MaterialOverride::Normals;
-				if (ImGui::MenuItem("Normals Material", nullptr, &MaterialOverrideNormals))
-				{
-					OverrideMode = MaterialOverride::Normals;
-					Sodapop::SetMaterialOverrideMode(OverrideMode);
-				}
-
-				bool MaterialOverrideInvariant = OverrideMode == MaterialOverride::Invariant;
-				if (ImGui::MenuItem("Invariant Material", nullptr, &MaterialOverrideInvariant))
-				{
-					OverrideMode = MaterialOverride::Invariant;
-					Sodapop::SetMaterialOverrideMode(OverrideMode);
-				}
-
-				ImGui::EndMenu();
-			}
-		}
-#endif
 		if (ImGui::BeginMenu("Window"))
 		{
 			if (ImGui::MenuItem("Camera Parameters", nullptr, &ShowFocusOverlay))
