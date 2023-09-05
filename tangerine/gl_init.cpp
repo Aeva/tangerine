@@ -37,6 +37,7 @@ GraphicsAPI GraphicsBackend = GraphicsAPI::Invalid;
 template<GraphicsAPI Backend>
 StatusCode CreateWindowGL(int& WindowWidth, int& WindowHeight, bool HeadlessMode, bool CreateDebugContext)
 {
+	SDL_GL_SetAttribute(SDL_GL_FRAMEBUFFER_SRGB_CAPABLE, 1);
 	if (Backend == GraphicsAPI::OpenGL4_2)
 	{
 		SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);

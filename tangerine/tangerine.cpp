@@ -845,6 +845,8 @@ void RenderFrame(int ScreenWidth, int ScreenHeight, std::vector<SDFModelWeakRef>
 
 void RenderFrameGL4(int ScreenWidth, int ScreenHeight, std::vector<SDFModelWeakRef>& RenderableModels, ViewInfoUpload& UploadedView, bool FullRedraw)
 {
+	glDisable(GL_FRAMEBUFFER_SRGB);
+
 	ViewInfo.Upload((void*)&UploadedView, sizeof(UploadedView));
 	ViewInfo.Bind(GL_UNIFORM_BUFFER, 0);
 
@@ -1037,6 +1039,7 @@ void RenderFrameGL4(int ScreenWidth, int ScreenHeight, std::vector<SDFModelWeakR
 
 void RenderFrameES2(int ScreenWidth, int ScreenHeight, std::vector<SDFModelWeakRef>& RenderableModels, ViewInfoUpload& UploadedView, bool FullRedraw)
 {
+	glDisable(GL_FRAMEBUFFER_SRGB);
 	glBindFramebuffer(GL_FRAMEBUFFER, FinalPass);
 
 #if RENDERER_SODAPOP
