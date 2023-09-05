@@ -21,6 +21,8 @@ def opengl_params(debug):
         # For OpenGL ES 2
         "GL_EXT_clip_control",
         "GL_EXT_debug_label",
+        "GL_EXT_sRGB",
+        "GL_EXT_sRGB_write_control",
         "GL_KHR_debug",
         "GL_OES_element_index_uint",
         "GL_OES_vertex_array_object",
