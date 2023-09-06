@@ -27,6 +27,7 @@
 #endif
 #include <string>
 #include <chrono>
+#include <map>
 
 using Clock = std::chrono::high_resolution_clock;
 
@@ -127,6 +128,18 @@ using VoxelDrawableShared = std::shared_ptr<VoxelDrawable>;
 
 
 #if RENDERER_SODAPOP
+struct MaterialVertexGroup
+{
+	MaterialShared Material;
+	std::vector<size_t> Vertices;
+
+	MaterialVertexGroup(MaterialShared InMaterial)
+		: Material(InMaterial)
+	{
+	}
+};
+
+
 struct SodapopDrawable final : Drawable
 {
 	Buffer IndexBuffer;
@@ -141,20 +154,17 @@ struct SodapopDrawable final : Drawable
 	std::atomic_bool MeshReady;
 	bool MeshUploaded = false;
 
-	// This is populated during the meshing process, but may be safely used after the mesh is ready.
+	// These are populated during the meshing process, but may be safely used after the mesh is ready.
 	SDFOctreeShared EvaluatorOctree = nullptr;
+	std::vector<MaterialVertexGroup> MaterialSlots;
+	std::mutex MaterialSlotsCS;
+	std::map<MaterialShared, size_t> SlotLookup;
 
 	Clock::time_point MeshingStart;
 	Clock::time_point MeshingComplete;
 	std::chrono::duration<double, std::milli> ReadyDelay;
 
-	SodapopDrawable(const std::string& InName, SDFNodeShared& InEvaluator)
-	{
-		ReadyDelay = std::chrono::duration<double, std::milli>::zero();
-		Name = InName;
-		Evaluator = InEvaluator;
-		MeshReady.store(false);
-	}
+	SodapopDrawable(const std::string& InName, SDFNodeShared& InEvaluator);
 
 	virtual void Draw(
 		const bool ShowOctree,
@@ -200,7 +210,6 @@ struct SDFModel
 #if RENDERER_SODAPOP
 	std::atomic_bool Dirty = true;
 	std::atomic_bool Drawing = false;
-	int NextUpdate = 0;
 	glm::vec3 CameraOrigin = glm::vec3(0.0, 0.0, 0.0);
 	std::vector<glm::vec4> Colors;
 	std::mutex SodapopCS;

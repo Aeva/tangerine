@@ -554,6 +554,11 @@ struct BrushNode : public SDFNode
 		}
 	}
 
+	virtual void WalkMaterials(SDFNode::MaterialWalkCallback& Callback)
+	{
+		Callback(GetMaterial(vec3(0.0, 0.0, 0.0)));
+	}
+
 	virtual MaterialShared GetMaterial(glm::vec3 Point)
 	{
 		if (Material != nullptr)
@@ -701,6 +706,12 @@ struct StencilMaskNode : public SDFNode
 	virtual void ApplyMaterial(MaterialShared Material, bool Force)
 	{
 		// TODO : I'm unsure what the correct behavior is here.
+	}
+
+	virtual void WalkMaterials(SDFNode::MaterialWalkCallback& Callback)
+	{
+		Child->WalkMaterials(Callback);
+		Callback(Material);
 	}
 
 	virtual MaterialShared GetMaterial(glm::vec3 Point)
@@ -1048,6 +1059,12 @@ struct SetNode : public SDFNode
 		RHS->ApplyMaterial(Material, Force);
 	}
 
+	virtual void WalkMaterials(SDFNode::MaterialWalkCallback& Callback)
+	{
+		LHS->WalkMaterials(Callback);
+		RHS->WalkMaterials(Callback);
+	}
+
 	virtual MaterialShared GetMaterial(glm::vec3 Point)
 	{
 		if (Family == SetFamily::Diff)
@@ -1290,6 +1307,11 @@ struct FlateNode : public SDFNode
 	virtual void ApplyMaterial(MaterialShared Material, bool Force)
 	{
 		Child->ApplyMaterial(Material, Force);
+	}
+
+	virtual void WalkMaterials(SDFNode::MaterialWalkCallback& Callback)
+	{
+		Child->WalkMaterials(Callback);
 	}
 
 	virtual MaterialShared GetMaterial(glm::vec3 Point)

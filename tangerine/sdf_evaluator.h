@@ -172,6 +172,9 @@ struct SDFNode
 
 	virtual void ApplyMaterial(MaterialShared Material, bool Force) = 0;
 
+	using MaterialWalkCallback = std::function<void(MaterialShared)>;
+	virtual void WalkMaterials(MaterialWalkCallback& Callback) = 0;
+
 	virtual MaterialShared GetMaterial(glm::vec3 Point) = 0;
 
 	virtual bool HasPaint() = 0;

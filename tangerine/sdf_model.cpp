@@ -305,6 +305,28 @@ VoxelDrawable::~VoxelDrawable()
 
 
 #if RENDERER_SODAPOP
+SodapopDrawable::SodapopDrawable(const std::string& InName, SDFNodeShared& InEvaluator)
+{
+	ReadyDelay = std::chrono::duration<double, std::milli>::zero();
+	Name = InName;
+	Evaluator = InEvaluator;
+	MeshReady.store(false);
+
+	{
+		SDFNode::MaterialWalkCallback WalkCallback = [this](MaterialShared Material)
+		{
+			size_t NextIndex = MaterialSlots.size();
+			auto [Iterator, MaterialIsNew] = this->SlotLookup.insert(std::pair{ Material, NextIndex });
+			if (MaterialIsNew)
+			{
+				MaterialSlots.emplace_back(Material);
+			}
+		};
+		Evaluator->WalkMaterials(WalkCallback);
+	}
+}
+
+
 SodapopDrawable::~SodapopDrawable()
 {
 	if (Scratch != nullptr)
@@ -312,6 +334,8 @@ SodapopDrawable::~SodapopDrawable()
 		delete Scratch;
 	}
 	Evaluator.reset();
+	MaterialSlots.clear();
+	SlotLookup.clear();
 	Scheduler::EnqueueDelete(PruneStaleDrawableFromCache);
 }
 #endif // RENDERER_SODAPOP

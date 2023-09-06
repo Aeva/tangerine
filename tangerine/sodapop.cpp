@@ -712,6 +712,17 @@ void MeshingJob::Run()
 					MaterialShared Material = Painter->EvaluatorOctree->GetMaterial(Position.xyz());
 					if (Material)
 					{
+						auto FoundSlot = Painter->SlotLookup.find(Material);
+						if (FoundSlot != Painter->SlotLookup.end())
+						{
+							size_t SlotIndex = FoundSlot->second;
+							MaterialVertexGroup& Slot = Painter->MaterialSlots[SlotIndex];
+
+							Painter->MaterialSlotsCS.lock();
+							Slot.Vertices.push_back(Index);
+							Painter->MaterialSlotsCS.unlock();
+						}
+
 						glm::vec3 Normal = Painter->Normals[Index].xyz();
 						Sample = Material->Eval(Position.xyz(), Normal, Normal).xyz();
 					}
@@ -783,6 +794,12 @@ struct ShaderTask : public ContinuousTask
 	SDFModelWeakRef ModelWeakRef;
 	SodapopDrawableWeakRef PainterWeakRef;
 
+	// These pointers are only safe to access while the model and painter are both locked.
+	MaterialVertexGroup* VertexGroup = nullptr;
+	MaterialInterface* Material = nullptr;
+
+	int NextUpdate = 0;
+
 	bool Run();
 };
 
@@ -793,10 +810,15 @@ void Sodapop::Attach(SDFModelShared& Instance)
 
 	if (SodapopPainter)
 	{
-		ShaderTask* Task = new ShaderTask();
-		Task->ModelWeakRef = Instance;
-		Task->PainterWeakRef = SodapopPainter;
-		Scheduler::Enqueue(Task);
+		for (int MaterialIndex = 0; MaterialIndex < SodapopPainter->MaterialSlots.size(); ++MaterialIndex)
+		{
+			ShaderTask* Task = new ShaderTask();
+			Task->ModelWeakRef = Instance;
+			Task->PainterWeakRef = SodapopPainter;
+			Task->VertexGroup = &(SodapopPainter->MaterialSlots[MaterialIndex]);
+			Task->Material = Task->VertexGroup->Material.get();
+			Scheduler::Enqueue(Task);
+		}
 	}
 }
 
@@ -821,27 +843,53 @@ bool ShaderTask::Run()
 		{
 			// The model instance requested a repaint and the painter is ready for drawing.
 
+			Instance->SodapopCS.lock();
 			if (Instance->Colors.size() == 0)
 			{
 				Instance->Colors.resize(Painter->Colors.size());
 			}
+			Instance->SodapopCS.unlock();
 
 			glm::vec4 LocalEye = Instance->Transform.LastFoldInverse * glm::vec4(Instance->CameraOrigin, 1.0);
 
 			bool NeedsRepaint = false;
 
-			for (int n = 0; n < Instance->Colors.size(); ++n)
+			if (MaterialOverrideMode == MaterialOverride::Normals)
 			{
-				if (Instance->Drawing.load())
+				for (int n = 0; n < VertexGroup->Vertices.size(); ++n)
 				{
-					break;
-				}
-				const int i = Instance->NextUpdate % Instance->Colors.size();
-				Instance->NextUpdate = i + 1;
+					if (Instance->Drawing.load())
+					{
+						break;
+					}
+					const int UpdateIndex = NextUpdate % VertexGroup->Vertices.size();
+					NextUpdate = UpdateIndex + 1;
 
+					const int Vertex = VertexGroup->Vertices[UpdateIndex];
+
+					glm::vec3 Normal = Painter->Normals[Vertex].xyz();
+					glm::vec4 NewColor = MaterialDebugNormals::StaticEval(Normal);
+
+					NeedsRepaint = NeedsRepaint || !glm::all(glm::equal(Instance->Colors[Vertex], NewColor));
+					Instance->Colors[Vertex] = NewColor;
+				}
+			}
+			else
+			{
+
+				for (int n = 0; n < VertexGroup->Vertices.size(); ++n)
 				{
-					glm::vec3 Point = Painter->Positions[i].xyz();
-					glm::vec3 Normal = Painter->Normals[i].xyz();
+					if (Instance->Drawing.load())
+					{
+						break;
+					}
+					const int UpdateIndex = NextUpdate % VertexGroup->Vertices.size();
+					NextUpdate = UpdateIndex + 1;
+
+					const int Vertex = VertexGroup->Vertices[UpdateIndex];
+
+					glm::vec3 Point = Painter->Positions[Vertex].xyz();
+					glm::vec3 Normal = Painter->Normals[Vertex].xyz();
 					glm::vec3 View;
 					glm::vec4 NewColor;
 
@@ -854,25 +902,10 @@ bool ShaderTask::Run()
 						View = glm::normalize(LocalEye.xyz() - Point);
 					}
 
-					if (MaterialOverrideMode == MaterialOverride::Normals)
-					{
-						NewColor = MaterialDebugNormals::StaticEval(Normal);
-					}
-					else
-					{
-						MaterialShared Material = Painter->EvaluatorOctree->GetMaterial(Point);
-						if (Material)
-						{
-							NewColor = Material->Eval(Point, Normal, View);
-						}
-						else
-						{
-							NewColor = glm::vec4(1.0, 1.0, 1.0, 1.0);
-						}
-					}
+					NewColor = Material->Eval(Point, Normal, View);
 
-					NeedsRepaint = NeedsRepaint || !glm::all(glm::equal(Instance->Colors[i], NewColor));
-					Instance->Colors[i] = NewColor;
+					NeedsRepaint = NeedsRepaint || !glm::all(glm::equal(Instance->Colors[Vertex], NewColor));
+					Instance->Colors[Vertex] = NewColor;
 				}
 			}
 
