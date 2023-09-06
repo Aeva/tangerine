@@ -663,6 +663,15 @@
     <None Include="..\shaders\octree_debug.fs.glsl">
       <Filter>Shaders</Filter>
     </None>
+    <None Include="..\shaders\sodapop.fs.glsl">
+      <Filter>Shaders</Filter>
+    </None>
+    <None Include="..\shaders\sodapop.vs.glsl">
+      <Filter>Shaders</Filter>
+    </None>
+    <None Include="..\shaders\nosignal.fs.glsl">
+      <Filter>Shaders</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="tangerine.rc" />

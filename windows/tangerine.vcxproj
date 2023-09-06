@@ -370,9 +370,12 @@
     <None Include="..\shaders\interpreter.glsl" />
     <None Include="..\shaders\math.glsl" />
     <None Include="..\shaders\noise.fs.glsl" />
+    <None Include="..\shaders\nosignal.fs.glsl" />
     <None Include="..\shaders\octree_debug.fs.glsl" />
     <None Include="..\shaders\outliner.fs.glsl" />
     <None Include="..\shaders\resolve.fs.glsl" />
+    <None Include="..\shaders\sodapop.fs.glsl" />
+    <None Include="..\shaders\sodapop.vs.glsl" />
     <None Include="..\shaders\splat.vs.glsl" />
     <None Include="..\shaders\tile_heap.glsl" />
     <None Include="..\third_party\licenses.inl" />
