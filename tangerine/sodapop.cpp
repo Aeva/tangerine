@@ -733,8 +733,12 @@ void MeshingJob::Run()
 							Painter->MaterialSlotsCS.unlock();
 						}
 
-						glm::vec3 Normal = Painter->Normals[Index].xyz();
-						Sample = Material->Eval(Position.xyz(), Normal, Normal).xyz();
+						ChthonicMaterialInterface* ChthonicMaterial = dynamic_cast<ChthonicMaterialInterface*>(Material.get());
+						if (ChthonicMaterial != nullptr)
+						{
+							glm::vec3 Normal = Painter->Normals[Index].xyz();
+							Sample = ChthonicMaterial->Eval(Position.xyz(), Normal, Normal).xyz();
+						}
 					}
 				}
 
@@ -807,6 +811,18 @@ struct ShaderTask : public ContinuousTask
 	// These pointers are only safe to access while the model and painter are both locked.
 	MaterialVertexGroup* VertexGroup = nullptr;
 	MaterialInterface* Material = nullptr;
+	ChthonicMaterialInterface* ChthonicMaterial = nullptr;
+	PhotonicMaterialInterface* PhotonicMaterial = nullptr;
+
+	ShaderTask(SDFModelShared& Instance, SodapopDrawableShared& Painter, size_t MaterialIndex)
+		: ModelWeakRef(Instance)
+		, PainterWeakRef(Painter)
+	{
+		VertexGroup = &(Painter->MaterialSlots[MaterialIndex]);
+		Material = VertexGroup->Material.get();
+		ChthonicMaterial = dynamic_cast<ChthonicMaterialInterface*>(Material);
+		PhotonicMaterial = dynamic_cast<PhotonicMaterialInterface*>(Material);
+	}
 
 	int NextUpdate = 0;
 
@@ -820,13 +836,9 @@ void Sodapop::Attach(SDFModelShared& Instance)
 
 	if (SodapopPainter)
 	{
-		for (int MaterialIndex = 0; MaterialIndex < SodapopPainter->MaterialSlots.size(); ++MaterialIndex)
+		for (size_t MaterialIndex = 0; MaterialIndex < SodapopPainter->MaterialSlots.size(); ++MaterialIndex)
 		{
-			ShaderTask* Task = new ShaderTask();
-			Task->ModelWeakRef = Instance;
-			Task->PainterWeakRef = SodapopPainter;
-			Task->VertexGroup = &(SodapopPainter->MaterialSlots[MaterialIndex]);
-			Task->Material = Task->VertexGroup->Material.get();
+			ShaderTask* Task = new ShaderTask(Instance, SodapopPainter, MaterialIndex);
 			Scheduler::Enqueue(Task);
 		}
 	}
@@ -884,9 +896,8 @@ bool ShaderTask::Run()
 					Instance->Colors[Vertex] = NewColor;
 				}
 			}
-			else
+			else if (PhotonicMaterial != nullptr)
 			{
-
 				for (int n = 0; n < VertexGroup->Vertices.size(); ++n)
 				{
 					if (Instance->Drawing.load())
@@ -912,7 +923,44 @@ bool ShaderTask::Run()
 						View = glm::normalize(LocalEye.xyz() - Point);
 					}
 
-					NewColor = Material->Eval(Point, Normal, View);
+					{
+						// TODO accumulate light
+						glm::vec3 Light = glm::vec3(0.0, 0.0, 1.0);
+						NewColor = PhotonicMaterial->Eval(Point, Normal, View, Light);
+					}
+
+					NeedsRepaint = NeedsRepaint || !glm::all(glm::equal(Instance->Colors[Vertex], NewColor));
+					Instance->Colors[Vertex] = NewColor;
+				}
+			}
+			else if (ChthonicMaterial != nullptr)
+			{
+				for (int n = 0; n < VertexGroup->Vertices.size(); ++n)
+				{
+					if (Instance->Drawing.load())
+					{
+						break;
+					}
+					const int UpdateIndex = NextUpdate % VertexGroup->Vertices.size();
+					NextUpdate = UpdateIndex + 1;
+
+					const int Vertex = VertexGroup->Vertices[UpdateIndex];
+
+					glm::vec3 Point = Painter->Positions[Vertex].xyz();
+					glm::vec3 Normal = Painter->Normals[Vertex].xyz();
+					glm::vec3 View;
+					glm::vec4 NewColor;
+
+					if (MaterialOverrideMode == MaterialOverride::Invariant)
+					{
+						View = Normal;
+					}
+					else
+					{
+						View = glm::normalize(LocalEye.xyz() - Point);
+					}
+
+					NewColor = ChthonicMaterial->Eval(Point, Normal, View);
 
 					NeedsRepaint = NeedsRepaint || !glm::all(glm::equal(Instance->Colors[Vertex], NewColor));
 					Instance->Colors[Vertex] = NewColor;

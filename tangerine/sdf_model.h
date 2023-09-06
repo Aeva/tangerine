@@ -19,6 +19,7 @@
 #include "embedding.h"
 #include "sdf_evaluator.h"
 #include "sdf_rendering.h"
+#include "material.h"
 
 #if RENDERER_SODAPOP
 #include "sodapop.h"
@@ -128,18 +129,6 @@ using VoxelDrawableShared = std::shared_ptr<VoxelDrawable>;
 
 
 #if RENDERER_SODAPOP
-struct MaterialVertexGroup
-{
-	MaterialShared Material;
-	std::vector<size_t> Vertices;
-
-	MaterialVertexGroup(MaterialShared InMaterial)
-		: Material(InMaterial)
-	{
-	}
-};
-
-
 struct SodapopDrawable final : Drawable
 {
 	Buffer IndexBuffer;

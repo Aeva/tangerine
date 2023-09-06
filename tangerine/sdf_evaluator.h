@@ -58,6 +58,7 @@ enum class MaterialType
 	SolidColor,
 	PBRBR,
 	DebugNormals,
+	BlinnPhong,
 
 	Count
 };
@@ -72,7 +73,9 @@ struct MaterialInterface
 	{
 	}
 
-	virtual glm::vec4 Eval(glm::vec3 Point, glm::vec3 Normal, glm::vec3 View) = 0;
+	virtual ~MaterialInterface()
+	{
+	}
 
 	// Because materials are mutable, they are only equal if they share the same memory address.
 	bool operator==(MaterialInterface& Other);

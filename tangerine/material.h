@@ -18,12 +18,35 @@
 #include "sdf_evaluator.h"
 
 
-struct MaterialSolidColor : public MaterialInterface
+struct MaterialVertexGroup
+{
+	MaterialShared Material;
+	std::vector<size_t> Vertices;
+
+	MaterialVertexGroup(MaterialShared InMaterial)
+		: Material(InMaterial)
+	{
+	}
+};
+
+
+struct ChthonicMaterialInterface : public MaterialInterface
+{
+	ChthonicMaterialInterface(MaterialType InType)
+		: MaterialInterface(InType)
+	{
+	}
+
+	virtual glm::vec4 Eval(glm::vec3 Point, glm::vec3 Normal, glm::vec3 View) = 0;
+};
+
+
+struct MaterialSolidColor : public ChthonicMaterialInterface
 {
 	glm::vec3 BaseColor;
 
 	MaterialSolidColor(glm::vec3 InBaseColor)
-		: MaterialInterface(MaterialType::SolidColor)
+		: ChthonicMaterialInterface(MaterialType::SolidColor)
 		, BaseColor(InBaseColor)
 	{
 	}
@@ -32,12 +55,12 @@ struct MaterialSolidColor : public MaterialInterface
 };
 
 
-struct MaterialPBRBR : public MaterialInterface
+struct MaterialPBRBR : public ChthonicMaterialInterface
 {
 	glm::vec3 BaseColor;
 
 	MaterialPBRBR(glm::vec3 InBaseColor)
-		: MaterialInterface(MaterialType::PBRBR)
+		: ChthonicMaterialInterface(MaterialType::PBRBR)
 		, BaseColor(InBaseColor)
 	{
 	}
@@ -46,14 +69,30 @@ struct MaterialPBRBR : public MaterialInterface
 };
 
 
-struct MaterialDebugNormals : public MaterialInterface
+struct MaterialDebugNormals : public ChthonicMaterialInterface
 {
 	MaterialDebugNormals()
-		: MaterialInterface(MaterialType::DebugNormals)
+		: ChthonicMaterialInterface(MaterialType::DebugNormals)
 	{
 	}
 
 	static glm::vec4 StaticEval(glm::vec3 Normal);
 
 	virtual glm::vec4 Eval(glm::vec3 Point, glm::vec3 Normal, glm::vec3 View);
+};
+
+
+struct PhotonicMaterialInterface : public ChthonicMaterialInterface
+{
+	PhotonicMaterialInterface(MaterialType InType)
+		: ChthonicMaterialInterface(InType)
+	{
+	}
+
+	virtual glm::vec4 Eval(glm::vec3 Point, glm::vec3 Normal, glm::vec3 View, glm::vec3 Light) = 0;
+
+	virtual glm::vec4 Eval(glm::vec3 Point, glm::vec3 Normal, glm::vec3 View)
+	{
+		return Eval(Point, Normal, View, glm::vec3(0.0, 0.0, 1.0));
+	}
 };
