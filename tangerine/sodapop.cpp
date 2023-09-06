@@ -101,6 +101,16 @@ struct MeshingScratch : isosurface::AsyncParallelSurfaceNets
 };
 
 
+void Sodapop::DeleteMeshingScratch(MeshingScratch* Scratch)
+{
+	// Ideally SodapopDrawable::~SodapopDrawable would just delete this directly, but
+	// that is logistically difficult since the struct is only defined in this file.
+	// So instead we have this hack for now.  Ideally MeshingScratch might eventually be
+	// replaced with a better thought out scratch space for parallel tasks etc.
+	delete Scratch;
+}
+
+
 struct MeshingJob : AsyncTask
 {
 	SodapopDrawableWeakRef PainterWeakRef;

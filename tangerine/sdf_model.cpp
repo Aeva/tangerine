@@ -331,7 +331,8 @@ SodapopDrawable::~SodapopDrawable()
 {
 	if (Scratch != nullptr)
 	{
-		delete Scratch;
+		Sodapop::DeleteMeshingScratch(Scratch);
+		Scratch = nullptr;
 	}
 	Evaluator.reset();
 	MaterialSlots.clear();

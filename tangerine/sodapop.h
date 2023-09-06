@@ -21,6 +21,7 @@
 #if RENDERER_SODAPOP
 
 struct SodapopDrawable;
+struct MeshingScratch;
 struct SDFModel;
 using SodapopDrawableShared = std::shared_ptr<SodapopDrawable>;
 using SDFModelShared = std::shared_ptr<SDFModel>;
@@ -39,6 +40,7 @@ namespace Sodapop
 	void Populate(SodapopDrawableShared MeshPainter, float MeshingDensityPush);
 	void Attach(SDFModelShared& Instance);
 	void SetMaterialOverrideMode(MaterialOverride Mode);
+	void DeleteMeshingScratch(MeshingScratch* Scratch);
 }
 
 
