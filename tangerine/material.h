@@ -83,6 +83,24 @@ struct MaterialDebugNormals : public ChthonicMaterialInterface
 };
 
 
+struct MaterialDebugGradient : public ChthonicMaterialInterface
+{
+	SDFNodeShared SDF;
+	float Interval;
+	ColorRamp Ramp;
+
+	MaterialDebugGradient(SDFNodeShared InSDF, float InInterval, ColorRamp InRamp)
+		: ChthonicMaterialInterface(MaterialType::DebugGradient)
+		, SDF(InSDF->Copy(true))
+		, Interval(InInterval)
+		, Ramp(InRamp)
+	{
+	}
+
+	virtual glm::vec4 Eval(glm::vec3 Point, glm::vec3 Normal, glm::vec3 View);
+};
+
+
 struct PhotonicMaterialInterface : public ChthonicMaterialInterface
 {
 	PhotonicMaterialInterface(MaterialType InType)

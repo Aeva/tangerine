@@ -58,7 +58,7 @@ enum class MaterialType
 	SolidColor,
 	PBRBR,
 	DebugNormals,
-	BlinnPhong,
+	DebugGradient,
 
 	Count
 };

@@ -48,3 +48,10 @@ glm::vec4 MaterialDebugNormals::Eval(glm::vec3 Point, glm::vec3 Normal, glm::vec
 {
 	return StaticEval(Normal);
 }
+
+
+glm::vec4 MaterialDebugGradient::Eval(glm::vec3 Point, glm::vec3 Normal, glm::vec3 View)
+{
+	float Alpha = glm::fract(SDF->Eval(Point) / Interval);
+	return glm::vec4(Ramp.Eval(ColorSpace::sRGB, Alpha), 1.0);
+}

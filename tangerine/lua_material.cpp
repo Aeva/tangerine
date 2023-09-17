@@ -22,6 +22,9 @@
 #include <vector>
 
 
+SDFNodeShared* GetSDFNode(lua_State* L, int Arg);
+
+
 MaterialShared* CheckLuaMaterial(lua_State* L, int Arg)
 {
 	return (MaterialShared*)luaL_checkudata(L, Arg, "tangerine.material");
@@ -183,11 +186,43 @@ int LuaMaterialDebugNormals(lua_State* L)
 }
 
 
+int LuaMaterialDebugGradient(lua_State* L)
+{
+	SDFNodeShared& Node = *GetSDFNode(L, 1);
+
+	float Interval = (float)luaL_checknumber(L, 2);
+
+	int NextArg = 3;
+	std::vector<ColorPoint> Stops;
+	while (NextArg <= lua_gettop(L))
+	{
+		if (lua_isstring(L, NextArg))
+		{
+			const char* ColorString = luaL_checklstring(L, NextArg, nullptr);
+			++NextArg;
+			ColorPoint Color;
+
+			StatusCode Result = ParseColor(ColorString, Color);
+			Stops.push_back(Color);
+		}
+		else
+		{
+			ColorPoint Color = ColorPoint(GetVec3(L, NextArg));
+			Stops.push_back(Color);
+		}
+	}
+
+	MaterialShared Material = MaterialShared(new MaterialDebugGradient(Node, Interval, ColorRamp(Stops)));
+	return WrapMaterial(L, Material);
+}
+
+
 const luaL_Reg LuaMaterialReg[] = \
 {
 	{ "solid_material", LuaMaterialSolidColor },
 	{ "pbrbr_material", LuaMaterialPBRBR },
 	{ "normal_debug_material", LuaMaterialDebugNormals },
+	{ "gradient_debug_material", LuaMaterialDebugGradient },
 
 	{ NULL, NULL }
 };
