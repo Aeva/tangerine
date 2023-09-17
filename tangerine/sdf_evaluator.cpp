@@ -542,7 +542,7 @@ struct BrushNode : public SDFNode
 		if (!HasPaint() || Force)
 		{
 			Color = InColor;
-			Material = MaterialShared(new MaterialPBRBR(InColor));
+			Material = MaterialShared(new MaterialPBRBR(ColorPoint(InColor)));
 		}
 	}
 

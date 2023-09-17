@@ -21,6 +21,168 @@
 #include <unordered_map>
 
 
+static glm::vec3 sRGB2OkLab(glm::vec3 sRGB)
+{
+	Oklab::Lab OkLAB = Oklab::srgb_to_oklab({ sRGB.r, sRGB.g, sRGB.b });
+	return { OkLAB.L, OkLAB.a, OkLAB.b };
+}
+
+
+static glm::vec3 OkLab2sRGB(glm::vec3 OkLAB)
+{
+	Oklab::RGB sRGB = Oklab::oklab_to_srgb({ OkLAB[0], OkLAB[1], OkLAB[2] });
+	return glm::clamp(glm::vec3({ sRGB.r, sRGB.g, sRGB.b }), glm::vec3(0.0f), glm::vec3(1.0f));
+}
+
+
+static glm::vec3 sRGB2Linear(glm::vec3 sRGB)
+{
+	return sRGB; // TODO !!!
+}
+
+
+static glm::vec3 Linear2sRGB(glm::vec3 Linear)
+{
+	return Linear; // TODO !!!
+}
+
+
+ColorPoint ColorPoint::Encode(ColorSpace OutEncoding)
+{
+	if (OutEncoding == Encoding)
+	{
+		return *this;
+	}
+	else
+	{
+		glm::vec3 Intermediary = Channels;
+
+		if (Encoding != OutEncoding)
+		{
+			// Convert the stored color to an sRGB intermediary.
+			switch (Encoding)
+			{
+			case(ColorSpace::OkLAB):
+				Intermediary = OkLab2sRGB(Intermediary);
+				break;
+			case(ColorSpace::LinearRGB):
+				Intermediary = Linear2sRGB(Intermediary);
+				break;
+			default:
+				break;
+			}
+
+			// Convert the sRGB intermediary to the output encoding.
+			switch (OutEncoding)
+			{
+			case(ColorSpace::OkLAB):
+				Intermediary = sRGB2OkLab(Intermediary);
+				break;
+			case(ColorSpace::LinearRGB):
+				Intermediary = sRGB2Linear(Intermediary);
+				break;
+			default:
+				break;
+			}
+		}
+		return ColorPoint(OutEncoding, Intermediary);
+	}
+}
+
+
+glm::vec3 ColorPoint::Eval(ColorSpace OutEncoding)
+{
+	if (OutEncoding == Encoding)
+	{
+		return Channels;
+	}
+	else
+	{
+		ColorPoint Transcoded = Encode(OutEncoding);
+		return Transcoded.Channels;
+	}
+}
+
+
+ColorRamp::ColorRamp(std::vector<ColorPoint>& InStops, ColorSpace InEncoding)
+	: Encoding(InEncoding)
+{
+	Stops.reserve(InStops.size());
+	for (ColorPoint Stop : InStops)
+	{
+		Stops.push_back(Stop.Encode(InEncoding));
+	}
+	if (Stops.size() == 0)
+	{
+		Stops.push_back(ColorPoint());
+	}
+}
+
+
+glm::vec3 ColorRamp::Eval(ColorSpace OutEncoding, float Alpha)
+{
+	if (Stops.size() == 1)
+	{
+		return Stops[0].Eval(OutEncoding);
+	}
+	else if (Stops.size() == 2)
+	{
+		ColorPoint Intermediary(Encoding, glm::mix(Stops[0].Channels, Stops[1].Channels, Alpha));
+		return Intermediary.Eval(OutEncoding);
+	}
+	else if (Stops.size() > 1)
+	{
+		float Between = float(Stops.size()) * Alpha;
+		float LowStop = glm::floor(Between);
+		float HighStop = glm::ceil(Between);
+		float Wedge = 1.0 / float(Stops.size() - 1);
+		Alpha = (Alpha - (LowStop * Wedge)) / Wedge;
+		size_t LowIndex = size_t(LowStop);
+		size_t HighIndex = size_t(HighStop);
+		ColorPoint Intermediary(Encoding, glm::mix(Stops[LowIndex].Channels, Stops[HighIndex].Channels, Alpha));
+		return Intermediary.Eval(OutEncoding);
+	}
+	else
+	{
+		return ColorPoint().Eval(OutEncoding);
+	}
+}
+
+
+glm::vec3 SampleColor(ColorSampler Color, ColorSpace Encoding)
+{
+	if (ColorPoint* AsPoint = std::get_if<ColorPoint>(&Color))
+	{
+		return AsPoint->Eval(Encoding);
+	}
+	else if (ColorRamp* AsRamp = std::get_if<ColorRamp>(&Color))
+	{
+		return AsRamp->Eval(Encoding, 0.0);
+	}
+	else
+	{
+		return glm::vec3(0.0f);
+	}
+}
+
+
+glm::vec3 SampleColor(ColorSampler Color, float Alpha, ColorSpace Encoding)
+{
+	if (ColorPoint* AsPoint = std::get_if<ColorPoint>(&Color))
+	{
+		return AsPoint->Eval(Encoding);
+	}
+	else if (ColorRamp* AsRamp = std::get_if<ColorRamp>(&Color))
+	{
+		return AsRamp->Eval(Encoding, Alpha);
+	}
+	else
+	{
+		return glm::vec3(0.0f);
+	}
+}
+
+
 const std::unordered_map<std::string, std::string> ColorNames = \
 {
 	// https://www.w3.org/TR/CSS1/
@@ -199,7 +361,7 @@ std::regex MakeOklabExpr()
 }
 
 
-StatusCode ParseColor(std::string ColorString, glm::vec3& OutColor)
+StatusCode ParseColor(std::string ColorString, ColorPoint& OutColor)
 {
 	static const std::regex HexTripple("#[0-9A-F]{3}", std::regex::icase);
 	static const std::regex HexSextuple("#[0-9A-F]{6}", std::regex::icase);
@@ -210,36 +372,34 @@ StatusCode ParseColor(std::string ColorString, glm::vec3& OutColor)
 	if (std::regex_match(ColorString.c_str(), HexTripple))
 	{
 		int Color = std::stoi(ColorString.substr(1, 3), nullptr, 16);
-		OutColor = glm::vec3(
+		glm::vec3 Channels = glm::vec3(
 			float((Color >> 8) & 15),
 			float((Color >> 4) & 15),
 			float((Color >> 0) & 15)) / glm::vec3(15.0);
+		OutColor = ColorPoint(ColorSpace::sRGB, Channels);
 		return StatusCode::PASS;
 	}
 	else if (std::regex_match(ColorString.c_str(), HexSextuple))
 	{
 		int Color = std::stoi(ColorString.substr(1, 6), nullptr, 16);
-		OutColor = glm::vec3(
+		glm::vec3 Channels = glm::vec3(
 			float((Color >> 16) & 255),
-			float((Color >>  8) & 255),
-			float((Color >>  0) & 255)) / glm::vec3(255.0);
+			float((Color >> 8) & 255),
+			float((Color >> 0) & 255)) / glm::vec3(255.0);
+		OutColor = ColorPoint(ColorSpace::sRGB, Channels);
 		return StatusCode::PASS;
 	}
 	else if (std::regex_match(ColorString, Match, OklabExpr))
 	{
 		// https://developer.mozilla.org/en-US/docs/Web/CSS/color_value/oklab
-		Oklab::Lab Color;
-		Color.L = glm::clamp(std::stof(Match[1]), 0.0f, 1.0f);
+		glm::vec3 Channels;
+		Channels[0] = glm::clamp(std::stof(Match[1]), 0.0f, 1.0f);
 
 		// MDN claims the legal range of these terms is is -0.4 to 0.4, but their own examples contradict this.
-		Color.a = glm::clamp(std::stof(Match[2]), -1.0f, 1.0f);
-		Color.b = glm::clamp(std::stof(Match[3]), -1.0f, 1.0f);
+		Channels[1] = glm::clamp(std::stof(Match[2]), -1.0f, 1.0f);
+		Channels[2] = glm::clamp(std::stof(Match[3]), -1.0f, 1.0f);
 
-		Oklab::RGB Tmp = Oklab::oklab_to_srgb(Color);
-		OutColor.r = glm::clamp(Tmp.r, 0.0f, 1.0f);
-		OutColor.g = glm::clamp(Tmp.g, 0.0f, 1.0f);
-		OutColor.b = glm::clamp(Tmp.b, 0.0f, 1.0f);
-
+		OutColor = ColorPoint(ColorSpace::OkLAB, Channels);
 		return StatusCode::PASS;
 	}
 	else
@@ -251,6 +411,15 @@ StatusCode ParseColor(std::string ColorString, glm::vec3& OutColor)
 		}
 	}
 
-	OutColor = glm::vec3(0.0);
+	OutColor = ColorPoint();
 	return StatusCode::FAIL;
+};
+
+
+StatusCode ParseColor(std::string ColorString, glm::vec3& OutColor)
+{
+	ColorPoint Intermediary;
+	StatusCode Result = ParseColor(ColorString, Intermediary);
+	OutColor = Intermediary.Eval(ColorSpace::sRGB);
+	return Result;
 }

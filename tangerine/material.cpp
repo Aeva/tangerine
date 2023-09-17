@@ -24,7 +24,7 @@ bool MaterialInterface::operator==(MaterialInterface& Other)
 
 glm::vec4 MaterialSolidColor::Eval(glm::vec3 Point, glm::vec3 N, glm::vec3 V)
 {
-	return glm::vec4(BaseColor, 1.0f);
+	return glm::vec4(SampleColor(BaseColor), 1.0f);
 }
 
 
@@ -34,7 +34,7 @@ glm::vec4 MaterialPBRBR::Eval(glm::vec3 Point, glm::vec3 N, glm::vec3 V)
 	float D = glm::pow(glm::max(glm::dot(N, glm::normalize(N * 0.75f + V)), 0.0f), 2.0f);
 	float F = 1.0f - glm::max(glm::dot(N, V), 0.0f);
 	float BSDF = D + F * 0.25f;
-	return glm::vec4(BaseColor * BSDF, 1.0f);
+	return glm::vec4(SampleColor(BaseColor) * BSDF, 1.0f);
 }
 
 

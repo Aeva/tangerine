@@ -51,7 +51,7 @@ int SetBaseColor(lua_State* L)
 	std::shared_ptr<MaterialT> Self = std::dynamic_pointer_cast<MaterialT>(GenericSelf);
 	if (Self)
 	{
-		glm::vec3 BaseColor;
+		ColorPoint BaseColor;
 		if (!lua_isnumber(L, 1) && lua_isstring(L, 2))
 		{
 			const char* ColorString = luaL_checklstring(L, 2, nullptr);
@@ -60,7 +60,7 @@ int SetBaseColor(lua_State* L)
 		else
 		{
 			int NextArg = 2;
-			BaseColor = GetVec3(L, NextArg);
+			BaseColor = ColorPoint(GetVec3(L, NextArg));
 		}
 
 		Self->BaseColor = BaseColor;
@@ -140,7 +140,7 @@ const luaL_Reg LuaMaterialMeta[] = \
 
 int LuaMaterialSolidColor(lua_State* L)
 {
-	glm::vec3 BaseColor;
+	ColorPoint BaseColor;
 	if (!lua_isnumber(L, 1) && lua_isstring(L, 1))
 	{
 		const char* ColorString = luaL_checklstring(L, 1, nullptr);
@@ -149,7 +149,7 @@ int LuaMaterialSolidColor(lua_State* L)
 	else
 	{
 		int NextArg = 1;
-		BaseColor = GetVec3(L, NextArg);
+		BaseColor = ColorPoint(GetVec3(L, NextArg));
 	}
 
 	MaterialShared Material = MaterialShared(new MaterialSolidColor(BaseColor));
@@ -159,7 +159,7 @@ int LuaMaterialSolidColor(lua_State* L)
 
 int LuaMaterialPBRBR(lua_State* L)
 {
-	glm::vec3 BaseColor;
+	ColorPoint BaseColor;
 	if (!lua_isnumber(L, 1) && lua_isstring(L, 1))
 	{
 		const char* ColorString = luaL_checklstring(L, 1, nullptr);
@@ -168,7 +168,7 @@ int LuaMaterialPBRBR(lua_State* L)
 	else
 	{
 		int NextArg = 1;
-		BaseColor = GetVec3(L, NextArg);
+		BaseColor = ColorPoint(GetVec3(L, NextArg));
 	}
 
 	MaterialShared Material = MaterialShared(new MaterialPBRBR(BaseColor));

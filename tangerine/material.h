@@ -16,6 +16,7 @@
 #pragma once
 
 #include "sdf_evaluator.h"
+#include "colors.h"
 
 
 struct MaterialVertexGroup
@@ -43,9 +44,9 @@ struct ChthonicMaterialInterface : public MaterialInterface
 
 struct MaterialSolidColor : public ChthonicMaterialInterface
 {
-	glm::vec3 BaseColor;
+	ColorSampler BaseColor;
 
-	MaterialSolidColor(glm::vec3 InBaseColor)
+	MaterialSolidColor(ColorSampler InBaseColor)
 		: ChthonicMaterialInterface(MaterialType::SolidColor)
 		, BaseColor(InBaseColor)
 	{
@@ -57,9 +58,9 @@ struct MaterialSolidColor : public ChthonicMaterialInterface
 
 struct MaterialPBRBR : public ChthonicMaterialInterface
 {
-	glm::vec3 BaseColor;
+	ColorSampler BaseColor;
 
-	MaterialPBRBR(glm::vec3 InBaseColor)
+	MaterialPBRBR(ColorSampler InBaseColor)
 		: ChthonicMaterialInterface(MaterialType::PBRBR)
 		, BaseColor(InBaseColor)
 	{

@@ -17,6 +17,70 @@
 
 #include <glm/vec3.hpp>
 #include <string>
+#include <vector>
+#include <variant>
 #include "errors.h"
+
+
+enum class ColorSpace
+{
+	sRGB,
+	OkLAB,
+	LinearRGB,
+};
+
+
+struct ColorPoint
+{
+	ColorSpace Encoding;
+	glm::vec3 Channels;
+
+	ColorPoint()
+		: Encoding(ColorSpace::sRGB)
+	{
+		Channels = glm::vec3(0.0f, 0.0f, 0.0f);
+	}
+
+	ColorPoint(glm::vec3 InColor)
+		: Encoding(ColorSpace::sRGB)
+		, Channels(InColor)
+	{
+	}
+
+	ColorPoint(ColorSpace InEncoding, glm::vec3 InChannels)
+		: Encoding(InEncoding)
+		, Channels(InChannels)
+	{
+	}
+
+	ColorPoint Encode(ColorSpace OutEncoding);
+
+	glm::vec3 Eval(ColorSpace OutEncoding);
+};
+
+
+struct ColorRamp
+{
+	ColorSpace Encoding;
+	std::vector<ColorPoint> Stops;
+
+	ColorRamp(std::vector<ColorPoint>& InStops, ColorSpace InEncoding = ColorSpace::OkLAB);
+
+	glm::vec3 Eval(ColorSpace OutEncoding, float Alpha);
+};
+
+
+using ColorSampler = std::variant<ColorPoint, ColorRamp>;
+
+
+glm::vec3 SampleColor(ColorSampler Color, ColorSpace Encoding = ColorSpace::sRGB);
+
+
+glm::vec3 SampleColor(ColorSampler Color, float Alpha, ColorSpace Encoding = ColorSpace::sRGB);
+
+
+
+StatusCode ParseColor(std::string ColorString, ColorPoint& OutColor);
+
 
 StatusCode ParseColor(std::string ColorString, glm::vec3& OutColor);
