@@ -27,7 +27,13 @@ enum class ColorSpace
 	sRGB,
 	OkLAB,
 	LinearRGB,
+
+	Count
 };
+
+
+std::string ColorSpaceName(ColorSpace Encoding);
+bool FindColorSpace(std::string Name, ColorSpace& OutEncoding);
 
 
 struct ColorPoint
@@ -53,9 +59,19 @@ struct ColorPoint
 	{
 	}
 
+	ColorPoint(ColorSpace InEncoding, ColorPoint Other)
+		: Encoding(InEncoding)
+		, Channels(Other.Eval(InEncoding))
+	{
+	}
+
 	ColorPoint Encode(ColorSpace OutEncoding);
 
 	glm::vec3 Eval(ColorSpace OutEncoding);
+
+	void MutateEncoding(ColorSpace NewEncoding);
+
+	void MutateChannels(glm::vec3 NewChannels);
 };
 
 
@@ -79,8 +95,10 @@ glm::vec3 SampleColor(ColorSampler Color, ColorSpace Encoding = ColorSpace::sRGB
 glm::vec3 SampleColor(ColorSampler Color, float Alpha, ColorSpace Encoding = ColorSpace::sRGB);
 
 
-
 StatusCode ParseColor(std::string ColorString, ColorPoint& OutColor);
 
 
 StatusCode ParseColor(std::string ColorString, glm::vec3& OutColor);
+
+
+ColorPoint ParseColor(std::string ColorString);

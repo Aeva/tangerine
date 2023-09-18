@@ -16,8 +16,8 @@
 #include "lua_material.h"
 #if EMBED_LUA
 #include "lua_vec.h"
+#include "lua_color.h"
 #include "material.h"
-#include "colors.h"
 #include <string>
 #include <vector>
 
@@ -54,19 +54,8 @@ int SetBaseColor(lua_State* L)
 	std::shared_ptr<MaterialT> Self = std::dynamic_pointer_cast<MaterialT>(GenericSelf);
 	if (Self)
 	{
-		ColorPoint BaseColor;
-		if (!lua_isnumber(L, 1) && lua_isstring(L, 2))
-		{
-			const char* ColorString = luaL_checklstring(L, 2, nullptr);
-			StatusCode Result = ParseColor(ColorString, BaseColor);
-		}
-		else
-		{
-			int NextArg = 2;
-			BaseColor = ColorPoint(GetVec3(L, NextArg));
-		}
-
-		Self->BaseColor = BaseColor;
+		int NextArg = 2;
+		Self->BaseColor = GetAnyColorPoint(L, NextArg);
 	}
 
 	{
@@ -143,17 +132,8 @@ const luaL_Reg LuaMaterialMeta[] = \
 
 int LuaMaterialSolidColor(lua_State* L)
 {
-	ColorPoint BaseColor;
-	if (!lua_isnumber(L, 1) && lua_isstring(L, 1))
-	{
-		const char* ColorString = luaL_checklstring(L, 1, nullptr);
-		StatusCode Result = ParseColor(ColorString, BaseColor);
-	}
-	else
-	{
-		int NextArg = 1;
-		BaseColor = ColorPoint(GetVec3(L, NextArg));
-	}
+	int NextArg = 1;
+	ColorPoint BaseColor = GetAnyColorPoint(L, NextArg);
 
 	MaterialShared Material = MaterialShared(new MaterialSolidColor(BaseColor));
 	return WrapMaterial(L, Material);
@@ -162,17 +142,8 @@ int LuaMaterialSolidColor(lua_State* L)
 
 int LuaMaterialPBRBR(lua_State* L)
 {
-	ColorPoint BaseColor;
-	if (!lua_isnumber(L, 1) && lua_isstring(L, 1))
-	{
-		const char* ColorString = luaL_checklstring(L, 1, nullptr);
-		StatusCode Result = ParseColor(ColorString, BaseColor);
-	}
-	else
-	{
-		int NextArg = 1;
-		BaseColor = ColorPoint(GetVec3(L, NextArg));
-	}
+	int NextArg = 1;
+	ColorPoint BaseColor = GetAnyColorPoint(L, NextArg);
 
 	MaterialShared Material = MaterialShared(new MaterialPBRBR(BaseColor));
 	return WrapMaterial(L, Material);
@@ -196,20 +167,8 @@ int LuaMaterialDebugGradient(lua_State* L)
 	std::vector<ColorPoint> Stops;
 	while (NextArg <= lua_gettop(L))
 	{
-		if (lua_isstring(L, NextArg))
-		{
-			const char* ColorString = luaL_checklstring(L, NextArg, nullptr);
-			++NextArg;
-			ColorPoint Color;
-
-			StatusCode Result = ParseColor(ColorString, Color);
-			Stops.push_back(Color);
-		}
-		else
-		{
-			ColorPoint Color = ColorPoint(GetVec3(L, NextArg));
-			Stops.push_back(Color);
-		}
+		ColorPoint Color = GetAnyColorPoint(L, NextArg);
+		Stops.push_back(Color);
 	}
 
 	MaterialShared Material = MaterialShared(new MaterialDebugGradient(Node, Interval, ColorRamp(Stops)));

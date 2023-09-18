@@ -23,6 +23,7 @@
 #include "lua_material.h"
 #include "lua_sdf.h"
 #include "lua_vec.h"
+#include "lua_color.h"
 #include <fmt/format.h>
 #include <filesystem>
 
@@ -130,6 +131,7 @@ LuaEnvironment::LuaEnvironment()
 	luaL_requiref(L, "tangerine_env", LuaOpenEnv, 1);
 	luaL_requiref(L, "tangerine_mat", LuaOpenMaterial, 1);
 	luaL_requiref(L, "more_math", LuaOpenVec, 1);
+	luaL_requiref(L, "tangerine_color", LuaOpenColor, 1);
 
 	const char* Source = \
 		"tangerine = {}\n"
@@ -148,9 +150,14 @@ LuaEnvironment::LuaEnvironment()
 		"for key, value in next, more_math do\n"
 		"	_ENV[key] = more_math[key]\n"
 		"end\n"
+		"for key, value in next, tangerine_color do\n"
+		"	_ENV[key] = tangerine_color[key]\n"
+		"	tangerine[key] = tangerine_color[key]\n"
+		"end\n"
 		"tangerine_sdf = nil\n"
 		"tangerine_env = nil\n"
-		"tangerine_mat = nil\n";
+		"tangerine_mat = nil\n"
+		"tangerine_color = nil\n";
 
 	int Error = luaL_dostring(L, Source);
 	Assert(Error == 0);

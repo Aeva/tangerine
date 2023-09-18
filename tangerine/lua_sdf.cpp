@@ -15,6 +15,7 @@
 
 #include "lua_sdf.h"
 #if EMBED_LUA
+#include "lua_color.h"
 #include "lua_material.h"
 #include "sdf_model.h"
 
@@ -24,7 +25,6 @@
 #include <fmt/format.h>
 
 #include "sdf_evaluator.h"
-#include "colors.h"
 #include "tangerine.h"
 
 
@@ -184,33 +184,21 @@ int LuaFlate(lua_State* L)
 template <bool Force>
 int LuaPaint(lua_State* L)
 {
+	SDFNodeShared& Node = *GetSDFNode(L, 1);
+	SDFNodeShared NewNode = Node->Copy();
+
 	MaterialShared* Material = TestLuaMaterial(L, 2);
 	if (Material)
 	{
-		SDFNodeShared& Node = *GetSDFNode(L, 1);
-		SDFNodeShared NewNode = Node->Copy();
 		NewNode->ApplyMaterial(*Material, Force);
-		return WrapSDFNode(L, NewNode);
 	}
 	else
 	{
-		glm::vec3 Color;
-		if (!lua_isnumber(L, 2) && lua_isstring(L, 2))
-		{
-			const char* ColorString = luaL_checklstring(L, 2, nullptr);
-			StatusCode Result = ParseColor(ColorString, Color);
-		}
-		else
-		{
-			int NextArg = 2;
-			Color = GetVec3(L, NextArg);
-		}
-
-		SDFNodeShared& Node = *GetSDFNode(L, 1);
-		SDFNodeShared NewNode = Node->Copy();
-		NewNode->ApplyMaterial(Color, Force);
-		return WrapSDFNode(L, NewNode);
+		int NextArg = 2;
+		ColorPoint Color = GetAnyColorPoint(L, NextArg);
+		NewNode->ApplyMaterial(Color.Eval(ColorSpace::sRGB), Force);
 	}
+	return WrapSDFNode(L, NewNode);
 }
 
 
@@ -589,17 +577,8 @@ finish:
 
 int LuaClearColor(lua_State* L)
 {
-	glm::vec3 Color;
-	if (!lua_isnumber(L, 1) && lua_isstring(L, 1))
-	{
-		const char* ColorString = luaL_checklstring(L, 1, nullptr);
-		StatusCode Result = ParseColor(ColorString, Color);
-	}
-	else
-	{
-		int NextArg = 1;
-		Color = GetVec3(L, NextArg);
-	}
+	int NextArg = 1;
+	glm::vec3 Color = GetAnyColorPoint(L, NextArg).Eval(ColorSpace::sRGB);
 	SetClearColor(Color);
 	return 0;
 }

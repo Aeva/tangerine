@@ -18,7 +18,43 @@
 
 #include <oklab.h>
 #include <regex>
+#include <array>
 #include <unordered_map>
+
+
+const std::array<std::pair<ColorSpace, std::string>, size_t(ColorSpace::Count) > EncodingNames = \
+{
+	std::pair<ColorSpace, std::string> { ColorSpace::sRGB, "sRGB" },
+	std::pair<ColorSpace, std::string> { ColorSpace::OkLAB, "OkLAB" },
+	std::pair<ColorSpace, std::string> { ColorSpace::LinearRGB, "LinearRGB"},
+};
+
+
+std::string ColorSpaceName(ColorSpace Encoding)
+{
+	for (int i = 0; i < size_t(ColorSpace::Count) ; ++i)
+	{
+		if (EncodingNames[i].first == Encoding)
+		{
+			return EncodingNames[i].second;
+		}
+	}
+	return "error";
+}
+
+
+bool FindColorSpace(std::string Name, ColorSpace& OutEncoding)
+{
+	for (int i = 0; i < size_t(ColorSpace::Count); ++i)
+	{
+		if (EncodingNames[i].second == Name)
+		{
+			OutEncoding = EncodingNames[i].first;
+			return true;
+		}
+	}
+	return false;
+}
 
 
 static glm::vec3 sRGB2OkLab(glm::vec3 sRGB)
@@ -101,6 +137,22 @@ glm::vec3 ColorPoint::Eval(ColorSpace OutEncoding)
 		ColorPoint Transcoded = Encode(OutEncoding);
 		return Transcoded.Channels;
 	}
+}
+
+
+void ColorPoint::MutateEncoding(ColorSpace NewEncoding)
+{
+	if (Encoding != NewEncoding)
+	{
+		Channels = Eval(NewEncoding);
+		Encoding = NewEncoding;
+	}
+}
+
+
+void ColorPoint::MutateChannels(glm::vec3 NewChannels)
+{
+	Channels = NewChannels;
 }
 
 
@@ -422,4 +474,12 @@ StatusCode ParseColor(std::string ColorString, glm::vec3& OutColor)
 	StatusCode Result = ParseColor(ColorString, Intermediary);
 	OutColor = Intermediary.Eval(ColorSpace::sRGB);
 	return Result;
+}
+
+
+ColorPoint ParseColor(std::string ColorString)
+{
+	ColorPoint ParsedColor = ColorPoint();
+	StatusCode Result = ParseColor(ColorString, ParsedColor);
+	return ParsedColor;
 }

@@ -1,5 +1,5 @@
 
-// Copyright 2022 Aeva Palecek
+// Copyright 2023 Aeva Palecek
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,27 +17,18 @@
 
 #include "embedding.h"
 #if EMBED_LUA
-#include <lua/lua.hpp>
-#include "glm_common.h"
-#include <array>
+#include "lua_vec.h"
+#include "colors.h"
 
 
-struct LuaVec
-{
-	glm::vec4 Vector;
-	int Size;
-};
+ColorPoint* GetLuaColorPoint(lua_State* L, int Arg);
+ColorPoint* TestLuaColorPoint(lua_State* L, int Arg);
 
 
-bool ReadSwizzle(const char* Key, int& Lanes, std::array<int, 4>& Swizzle);
-LuaVec* GetLuaVec(lua_State* L, int Arg);
-glm::vec3 GetVec3(lua_State* L, int& NextArg);
-LuaVec* CreateVec(lua_State* L, int Size);
-LuaVec* CreateVec(lua_State* L, glm::vec2);
-LuaVec* CreateVec(lua_State* L, glm::vec3);
-LuaVec* CreateVec(lua_State* L, glm::vec4);
-
-int LuaOpenVec(struct lua_State* L);
+ColorPoint GetAnyColorPoint(lua_State* L, int& NextArg);
 
 
-#endif // EMBED_LUA
+int LuaOpenColor(struct lua_State* L);
+
+
+#endif
