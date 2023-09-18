@@ -163,15 +163,9 @@ int LuaMaterialDebugGradient(lua_State* L)
 
 	float Interval = (float)luaL_checknumber(L, 2);
 
-	int NextArg = 3;
-	std::vector<ColorPoint> Stops;
-	while (NextArg <= lua_gettop(L))
-	{
-		ColorPoint Color = GetAnyColorPoint(L, NextArg);
-		Stops.push_back(Color);
-	}
+	ColorRamp* ColorRamp = GetLuaColorRamp(L, 3);
 
-	MaterialShared Material = MaterialShared(new MaterialDebugGradient(Node, Interval, ColorRamp(Stops)));
+	MaterialShared Material = MaterialShared(new MaterialDebugGradient(Node, Interval, *ColorRamp));
 	return WrapMaterial(L, Material);
 }
 

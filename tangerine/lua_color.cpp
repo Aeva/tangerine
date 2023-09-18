@@ -43,6 +43,29 @@ static ColorPoint* CreateColorPoint(lua_State* L, ArgTypes... ConstructorArgs)
 }
 
 
+ColorRamp* GetLuaColorRamp(lua_State* L, int Arg)
+{
+	return (ColorRamp*)luaL_checkudata(L, Arg, "tangerine.color_ramp");
+}
+
+
+ColorRamp* TestLuaColorRamp(lua_State* L, int Arg)
+{
+	return (ColorRamp*)luaL_testudata(L, Arg, "tangerine.color_ramp");
+}
+
+
+template<typename... ArgTypes>
+static ColorRamp* CreateColorRamp(lua_State* L, ArgTypes... ConstructorArgs)
+{
+	ColorRamp* NewRamp = (ColorRamp*)lua_newuserdata(L, sizeof(ColorRamp));
+	luaL_getmetatable(L, "tangerine.color_ramp");
+	lua_setmetatable(L, -2);
+	new (NewRamp) ColorRamp(ConstructorArgs...);
+	return NewRamp;
+}
+
+
 ColorPoint GetAnyColorPoint(lua_State* L, int& NextArg)
 {
 	if (ColorPoint* ColorPointArg = TestLuaColorPoint(L, NextArg))
@@ -96,11 +119,8 @@ static int CreateLuaColorPoint(lua_State* L)
 }
 
 
-const luaL_Reg LuaColorType[] = \
+const luaL_Reg LuaColorPointType[] = \
 {
-	{ "color", CreateLuaColorPoint },
-	{ "color_point", CreateLuaColorPoint },
-
 	{ NULL, NULL }
 };
 
@@ -181,7 +201,7 @@ static int IndexColor(lua_State* L)
 			}
 			else
 			{
-				for (const luaL_Reg& Reg : LuaColorType)
+				for (const luaL_Reg& Reg : LuaColorPointType)
 				{
 					if (Reg.name && strcmp(Reg.name, Key) == 0)
 					{
@@ -306,7 +326,7 @@ static int ColorSize(lua_State* L)
 }
 
 
-const luaL_Reg LuaColorMeta[] = \
+const luaL_Reg LuaColorPointMeta[] = \
 {
 	{ "__index", IndexColor },
 	{ "__newindex", NewIndexColor },
@@ -318,11 +338,70 @@ const luaL_Reg LuaColorMeta[] = \
 };
 
 
+static int CreateLuaColorRamp(lua_State* L)
+{
+	int NextArg = 1;
+	int Args = lua_gettop(L);
+	std::vector<ColorPoint> Stops;
+	Stops.reserve(Args);
+
+	ColorSpace Encoding = ColorSpace::OkLAB;
+
+	if (lua_type(L, 1) == LUA_TSTRING)
+	{
+		const char* EncodingString = luaL_checklstring(L, 1, nullptr);
+		if (!FindColorSpace(std::string(EncodingString), Encoding))
+		{
+			// TODO: If CreateLuaColorRamp were to be switched over to only accept "tangerine.color_point"
+			// userdata objects, then it would make sense to throw an error here, but since this function
+			// instead accepts color-like inputs, the inputs are too ambiguous to throw anything here.
+#if 0
+			std::string Error = fmt::format("Invalid encoding name: {}\n", EncodingString);
+			lua_pushstring(L, Error.c_str());
+			lua_error(L);
+			lua_pushnil(L);
+			return 1;
+#endif
+		}
+	}
+
+	for (; NextArg <= Args;)
+	{
+		Stops.push_back(GetAnyColorPoint(L, NextArg));
+	}
+
+	ColorRamp* Ramp = CreateColorRamp(L, Stops, Encoding);
+	return 1;
+}
+
+
+const luaL_Reg LuaColorRampMeta[] = \
+{
+	{ NULL, NULL }
+};
+
+
+const luaL_Reg LuaColorLibrary[] = \
+{
+	{ "color", CreateLuaColorPoint },
+	{ "color_point", CreateLuaColorPoint },
+
+	{ "ramp", CreateLuaColorRamp },
+	{ "color_ramp", CreateLuaColorRamp },
+
+	{ NULL, NULL }
+};
+
+
 int LuaOpenColor(lua_State* L)
 {
 	luaL_newmetatable(L, "tangerine.color_point");
-	luaL_setfuncs(L, LuaColorMeta, 0);
-	luaL_newlib(L, LuaColorType);
+	luaL_setfuncs(L, LuaColorPointMeta, 0);
+
+	luaL_newmetatable(L, "tangerine.color_ramp");
+	luaL_setfuncs(L, LuaColorRampMeta, 0);
+
+	luaL_newlib(L, LuaColorLibrary);
 	return 1;
 }
 

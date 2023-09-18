@@ -25,6 +25,10 @@ ColorPoint* GetLuaColorPoint(lua_State* L, int Arg);
 ColorPoint* TestLuaColorPoint(lua_State* L, int Arg);
 
 
+ColorRamp* GetLuaColorRamp(lua_State* L, int Arg);
+ColorRamp* TestLuaColorRamp(lua_State* L, int Arg);
+
+
 ColorPoint GetAnyColorPoint(lua_State* L, int& NextArg);
 
 
