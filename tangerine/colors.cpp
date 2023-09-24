@@ -184,14 +184,13 @@ glm::vec3 ColorRamp::Eval(ColorSpace OutEncoding, float Alpha)
 	}
 	else if (Stops.size() > 1)
 	{
-		float Between = float(Stops.size()) * Alpha;
-		float LowStop = glm::floor(Between);
-		float HighStop = glm::ceil(Between);
-		float Wedge = 1.0 / float(Stops.size() - 1);
-		Alpha = (Alpha - (LowStop * Wedge)) / Wedge;
+		float WedgeCount = float(Stops.size() - 1);
+		float WedgeSpan = 1.0 / WedgeCount;
+		float LowStop = glm::floor(WedgeCount * Alpha);
+		float WedgeAlpha = (Alpha - (LowStop * WedgeSpan)) / WedgeSpan;
 		size_t LowIndex = size_t(LowStop);
-		size_t HighIndex = size_t(HighStop);
-		ColorPoint Intermediary(Encoding, glm::mix(Stops[LowIndex].Channels, Stops[HighIndex].Channels, Alpha));
+		size_t HighIndex = LowIndex + 1;
+		ColorPoint Intermediary(Encoding, glm::mix(Stops[LowIndex].Channels, Stops[HighIndex].Channels, WedgeAlpha));
 		return Intermediary.Eval(OutEncoding);
 	}
 	else
