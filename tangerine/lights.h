@@ -17,12 +17,38 @@
 
 #include "colors.h"
 #include <memory>
+#include <vector>
 
 
 struct LightInterface
 {
+	bool Active = true;
+
+	void Show()
+	{
+		Active = true;
+	}
+
+	void Hide()
+	{
+		Active = false;
+	}
+
 	virtual void Eval(glm::vec3 Point, glm::vec3& OutDir) = 0;
+
+	virtual ~LightInterface();
+
+protected:
+	static void Register(std::shared_ptr<LightInterface>& Light);
 };
+
+
+using LightShared = std::shared_ptr<LightInterface>;
+using LightWeakRef = std::weak_ptr<LightInterface>;
+
+
+void GetActiveLights(std::vector<LightWeakRef>& ActiveLights);
+void UnloadAllLights();
 
 
 struct DirectionalLight : public LightInterface
@@ -38,8 +64,12 @@ struct PointLight : public LightInterface
 	glm::vec3 Position;
 
 	virtual void Eval(glm::vec3 Point, glm::vec3& OutDir);
+
+	static LightShared Create(glm::vec3 InPosition);
+
+protected:
+	PointLight(glm::vec3 InPosition)
+		: Position(InPosition)
+	{
+	}
 };
-
-
-using LightShared = std::shared_ptr<LightInterface>;
-using LightWeakRef = std::weak_ptr<LightInterface>;

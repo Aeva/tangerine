@@ -18,9 +18,59 @@
 #include "glm_common.h"
 
 
+static std::vector<LightWeakRef> ActiveLights;
+
+
+void LightInterface::Register(LightShared& Light)
+{
+	ActiveLights.emplace_back(Light);
+}
+
+
+LightInterface::~LightInterface()
+{
+	for (int i = 0; i < ActiveLights.size(); ++i)
+	{
+		if (ActiveLights[i].expired())
+		{
+			ActiveLights.erase(ActiveLights.begin() + i);
+			break;
+		}
+	}
+}
+
+
+void GetActiveLights(std::vector<LightWeakRef>& OutActiveLights)
+{
+	for (LightWeakRef WeakRef : ActiveLights)
+	{
+		LightShared Light = WeakRef.lock();
+		if (Light && Light->Active)
+		{
+			OutActiveLights.push_back(Light);
+		}
+	}
+}
+
+
+void UnloadAllLights()
+{
+	ActiveLights.clear();
+}
+
+
 void DirectionalLight::Eval(glm::vec3 Point, glm::vec3& OutDir)
 {
 	OutDir = Direction;
+}
+
+
+LightShared PointLight::Create(glm::vec3 InPosition)
+{
+	LightShared NewLight = LightShared(new PointLight(InPosition));
+	LightInterface::Register(NewLight);
+
+	return NewLight;
 }
 
 
