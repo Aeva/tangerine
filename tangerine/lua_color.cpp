@@ -142,28 +142,28 @@ static int IndexColor(lua_State* L)
 	{
 		const char* Key = luaL_checklstring(L, 2, nullptr);
 
-		if (strcmp(Key, "encoding"))
+		if (strcmp(Key, "encoding") == 0)
 		{
 			std::string EncodingName = ColorSpaceName(Self->Encoding);
 			lua_pushstring(L, EncodingName.c_str());
 			return 1;
 		}
-		else if (strcmp(Key, "channels"))
+		else if (strcmp(Key, "channels") == 0)
 		{
 			LuaVec* NewVec = CreateVec(L, Self->Channels);
 			return 1;
 		}
-		else if (strcmp(Key, "sRGB"))
+		else if (strcmp(Key, "sRGB") == 0)
 		{
 			ColorPoint* NewColor = CreateColorPoint(L, ColorSpace::sRGB, *Self);
 			return 1;
 		}
-		else if (strcmp(Key, "OkLAB"))
+		else if (strcmp(Key, "OkLAB") == 0)
 		{
 			ColorPoint* NewColor = CreateColorPoint(L, ColorSpace::OkLAB, *Self);
 			return 1;
 		}
-		else if (strcmp(Key, "LinearRGB"))
+		else if (strcmp(Key, "LinearRGB") == 0)
 		{
 			ColorPoint* NewColor = CreateColorPoint(L, ColorSpace::LinearRGB, *Self);
 			return 1;
@@ -238,7 +238,7 @@ static int NewIndexColor(lua_State* L)
 	{
 		const char* Key = luaL_checklstring(L, 2, nullptr);
 
-		if (strcmp(Key, "encoding"))
+		if (strcmp(Key, "encoding") == 0)
 		{
 			const char* EncodingString = luaL_checklstring(L, 3, nullptr);
 			ColorSpace NewEncoding;
@@ -253,7 +253,7 @@ static int NewIndexColor(lua_State* L)
 			}
 			return 1;
 		}
-		else if (strcmp(Key, "channels"))
+		else if (strcmp(Key, "channels") == 0)
 		{
 			LuaVec* NewChannels = GetLuaVec(L, 3);
 			Self->MutateChannels(NewChannels->Vector.rgb());
@@ -375,8 +375,51 @@ static int CreateLuaColorRamp(lua_State* L)
 }
 
 
+static int EvalRamp(lua_State* L)
+{
+	ColorRamp* Ramp = GetLuaColorRamp(L, 1);
+	float Alpha = luaL_checknumber(L, 2);
+
+	ColorSpace Encoding = Ramp->Encoding;
+	glm::vec3 Channels = Ramp->Eval(Encoding, Alpha);
+
+	ColorPoint* NewColor = CreateColorPoint(L, Encoding, Channels);
+	return 1;
+}
+
+
+const luaL_Reg LuaColorRampType[] = \
+{
+	{ "eval", EvalRamp },
+	{ NULL, NULL }
+};
+
+
+static int IndexRamp(lua_State* L)
+{
+	ColorRamp* Self = GetLuaColorRamp(L, 1);
+	const char* Key = luaL_checklstring(L, 2, nullptr);
+
+	for (const luaL_Reg& Reg : LuaColorRampType)
+	{
+		if (Reg.name && strcmp(Reg.name, Key) == 0)
+		{
+			lua_pushcfunction(L, Reg.func);
+			break;
+		}
+		else if (!Reg.name)
+		{
+			lua_pushnil(L);
+		}
+	}
+
+	return 1;
+}
+
+
 const luaL_Reg LuaColorRampMeta[] = \
 {
+	{ "__index", IndexRamp },
 	{ NULL, NULL }
 };
 
