@@ -285,6 +285,12 @@
     <ClCompile Include="..\tangerine\lua_color.cpp">
       <Filter>Tangerine\Runtimes</Filter>
     </ClCompile>
+    <ClCompile Include="..\tangerine\lights.cpp">
+      <Filter>Tangerine</Filter>
+    </ClCompile>
+    <ClCompile Include="..\tangerine\lua_light.cpp">
+      <Filter>Tangerine\Runtimes</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\shaders\defines.h">
@@ -601,6 +607,12 @@
       <Filter>Third Party\OkLab</Filter>
     </ClInclude>
     <ClInclude Include="..\tangerine\lua_color.h">
+      <Filter>Tangerine\Runtimes</Filter>
+    </ClInclude>
+    <ClInclude Include="..\tangerine\lights.h">
+      <Filter>Tangerine</Filter>
+    </ClInclude>
+    <ClInclude Include="..\tangerine\lua_light.h">
       <Filter>Tangerine\Runtimes</Filter>
     </ClInclude>
   </ItemGroup>

@@ -182,8 +182,10 @@
     <ClCompile Include="..\tangerine\gl_debug.cpp" />
     <ClCompile Include="..\tangerine\gl_init.cpp" />
     <ClCompile Include="..\tangerine\installation.cpp" />
+    <ClCompile Include="..\tangerine\lights.cpp" />
     <ClCompile Include="..\tangerine\lua_color.cpp" />
     <ClCompile Include="..\tangerine\lua_env.cpp" />
+    <ClCompile Include="..\tangerine\lua_light.cpp" />
     <ClCompile Include="..\tangerine\lua_material.cpp" />
     <ClCompile Include="..\tangerine\lua_sdf.cpp" />
     <ClCompile Include="..\tangerine\lua_vec.cpp" />
@@ -263,8 +265,10 @@
     <ClInclude Include="..\tangerine\gl_debug.h" />
     <ClInclude Include="..\tangerine\gl_init.h" />
     <ClInclude Include="..\tangerine\installation.h" />
+    <ClInclude Include="..\tangerine\lights.h" />
     <ClInclude Include="..\tangerine\lua_color.h" />
     <ClInclude Include="..\tangerine\lua_env.h" />
+    <ClInclude Include="..\tangerine\lua_light.h" />
     <ClInclude Include="..\tangerine\lua_material.h" />
     <ClInclude Include="..\tangerine\lua_sdf.h" />
     <ClInclude Include="..\tangerine\lua_vec.h" />
