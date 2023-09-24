@@ -55,3 +55,11 @@ glm::vec4 MaterialDebugGradient::Eval(glm::vec3 Point, glm::vec3 Normal, glm::ve
 	float Alpha = glm::fract(SDF->Eval(Point) / Interval);
 	return glm::vec4(Ramp.Eval(ColorSpace::sRGB, Alpha), 1.0);
 }
+
+
+glm::vec4 MaterialGradientLight::Eval(glm::vec3 Point, glm::vec3 Normal, glm::vec3 View, glm::vec3 Light)
+{
+	float Alpha = glm::clamp(glm::dot(Normal, -Light), 0.0f, 1.0f);
+	//float Alpha = glm::clamp(-glm::dot(Normal, Light), -1.0f, 1.0f) * 0.5 + 0.5;
+	return glm::vec4(Ramp.Eval(ColorSpace::sRGB, Alpha), 1.0);
+}

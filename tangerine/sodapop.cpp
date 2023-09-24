@@ -925,7 +925,8 @@ bool ShaderTask::Run()
 
 					{
 						// TODO accumulate light
-						glm::vec3 Light = glm::vec3(0.0, 0.0, 1.0);
+						glm::vec3 Light = glm::vec3(0.0, 0.0, -1.0);
+						//glm::vec3 Light = glm::normalize(Point - glm::vec3(0.0, 0.0, 5.0));
 						NewColor = PhotonicMaterial->Eval(Point, Normal, View, Light);
 					}
 

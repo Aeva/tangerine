@@ -59,6 +59,7 @@ enum class MaterialType
 	PBRBR,
 	DebugNormals,
 	DebugGradient,
+	GradientLight,
 
 	Count
 };

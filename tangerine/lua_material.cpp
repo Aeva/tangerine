@@ -170,12 +170,21 @@ int LuaMaterialDebugGradient(lua_State* L)
 }
 
 
+int LuaMaterialGradientLight(lua_State* L)
+{
+	ColorRamp* ColorRamp = GetLuaColorRamp(L, 1);
+	MaterialShared Material = MaterialShared(new MaterialGradientLight(*ColorRamp));
+	return WrapMaterial(L, Material);
+}
+
+
 const luaL_Reg LuaMaterialReg[] = \
 {
 	{ "solid_material", LuaMaterialSolidColor },
 	{ "pbrbr_material", LuaMaterialPBRBR },
 	{ "normal_debug_material", LuaMaterialDebugNormals },
 	{ "gradient_debug_material", LuaMaterialDebugGradient },
+	{ "gradient_light_material", LuaMaterialGradientLight },
 
 	{ NULL, NULL }
 };

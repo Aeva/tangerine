@@ -115,3 +115,17 @@ struct PhotonicMaterialInterface : public ChthonicMaterialInterface
 		return Eval(Point, Normal, View, glm::vec3(0.0, 0.0, 1.0));
 	}
 };
+
+
+struct MaterialGradientLight : public PhotonicMaterialInterface
+{
+	ColorRamp Ramp;
+
+	MaterialGradientLight(ColorRamp InRamp)
+		: PhotonicMaterialInterface(MaterialType::GradientLight)
+		, Ramp(InRamp)
+	{
+	}
+
+	virtual glm::vec4 Eval(glm::vec3 Point, glm::vec3 Normal, glm::vec3 View, glm::vec3 Light);
+};
