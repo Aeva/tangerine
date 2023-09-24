@@ -2725,6 +2725,11 @@ void MainLoop()
 						RequestDraw = true;
 					}
 					static bool Dragging = false;
+					if (Dragging && FixedCamera)
+					{
+						Dragging = false;
+						SDL_SetRelativeMouseMode(SDL_FALSE);
+					}
 					if (!io.WantCaptureMouse && HasMouseFocus && LastRenderableCount > 0)
 					{
 						switch (Event.type)
@@ -2741,7 +2746,7 @@ void MainLoop()
 							}
 							break;
 						case SDL_MOUSEBUTTONDOWN:
-							if (DeliverMouseButton(MouseEvent(Event.button, RayOrigin, MouseRay)))
+							if (DeliverMouseButton(MouseEvent(Event.button, RayOrigin, MouseRay)) && !FixedCamera)
 							{
 								Dragging = true;
 								SDL_SetRelativeMouseMode(SDL_TRUE);
