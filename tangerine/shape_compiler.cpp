@@ -20,7 +20,7 @@
 #include "extern.h"
 #include "sdf_model.h"
 #include "shape_compiler.h"
-#include "profiling.h"
+#include "perf.h"
 
 
 using namespace glm;

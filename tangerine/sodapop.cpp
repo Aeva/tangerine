@@ -18,7 +18,7 @@
 
 #include "errors.h"
 #include "scheduler.h"
-#include "profiling.h"
+#include "perf.h"
 #include "sdf_model.h"
 #include "material.h"
 #include <fmt/format.h>

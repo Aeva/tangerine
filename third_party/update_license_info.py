@@ -52,6 +52,9 @@ if __name__ == "__main__":
     for path in paths:
         name = os.path.split(path)[0]
         projects.append((name, path))
+
+    projects.append(("freetype-2.13.2", "freetype-2.13.2/FTL.TXT"))
+
     projects.sort()
 
     inl = """

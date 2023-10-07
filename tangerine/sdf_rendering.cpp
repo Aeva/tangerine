@@ -15,7 +15,7 @@
 
 #include "sdf_rendering.h"
 #include "sdf_model.h"
-#include "profiling.h"
+#include "perf.h"
 #include <iostream>
 
 

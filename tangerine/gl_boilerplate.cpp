@@ -20,7 +20,7 @@
 #include <mutex>
 #include "gl_init.h"
 #include "gl_boilerplate.h"
-#include "profiling.h"
+#include "perf.h"
 #include "installation.h"
 #include "scheduler.h"
 

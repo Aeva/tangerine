@@ -15,7 +15,7 @@
 
 #include "sdf_model.h"
 #include "sdf_rendering.h"
-#include "profiling.h"
+#include "perf.h"
 #include "sodapop.h"
 #include "scheduler.h"
 #include <fmt/format.h>

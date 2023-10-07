@@ -15,7 +15,7 @@
 
 
 #include "extern.h"
-#include "profiling.h"
+#include "perf.h"
 #include "sdf_evaluator.h"
 
 using namespace glm;

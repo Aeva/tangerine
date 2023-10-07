@@ -14,7 +14,7 @@
 // limitations under the License.
 
 #include "scheduler.h"
-#include "profiling.h"
+#include "perf.h"
 #include "sodapop.h"
 #include "winders.h"
 #include "errors.h"

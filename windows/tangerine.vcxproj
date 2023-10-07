@@ -81,7 +81,7 @@
     <SourcePath>$(ProjectDir)..\backend;$(VC_SourcePath)</SourcePath>
     <OutDir>$(SolutionDir)..\</OutDir>
     <CustomBuildBeforeTargets>Link</CustomBuildBeforeTargets>
-    <LibraryPath>$(SolutionDir)..\third_party\sdl2\lib\x64;$(SolutionDir)..\third_party\racket\lib\x64;$(LibraryPath)</LibraryPath>
+    <LibraryPath>$(SolutionDir)..\third_party\sdl2\lib\x64;$(SolutionDir)..\third_party\racket\lib\x64;$(SolutionDir)..\third_party\freetype-2.13.2\release static\vs2015-2022\win64;$(LibraryPath)</LibraryPath>
     <IntDir>$(Platform)\$(Configuration)\tangerine\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -89,7 +89,7 @@
     <SourcePath>$(ProjectDir)..\backend;$(VC_SourcePath)</SourcePath>
     <OutDir>$(SolutionDir)..\</OutDir>
     <CustomBuildBeforeTargets>Link</CustomBuildBeforeTargets>
-    <LibraryPath>$(SolutionDir)..\third_party\sdl2\lib\x64;$(SolutionDir)..\third_party\racket\lib\x64;$(LibraryPath)</LibraryPath>
+    <LibraryPath>$(SolutionDir)..\third_party\sdl2\lib\x64;$(SolutionDir)..\third_party\racket\lib\x64;$(SolutionDir)..\third_party\freetype-2.13.2\release static\vs2015-2022\win64;$(LibraryPath)</LibraryPath>
     <IntDir>$(Platform)\$(Configuration)\tangerine\</IntDir>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
@@ -124,16 +124,16 @@
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>_DEBUG;_CONSOLE;IMGUI_USE_WCHAR32;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_DEBUG;_CONSOLE;IMGUI_USE_WCHAR32;RMLUI_STATIC_LIB;RMLUI_GL3_CUSTOM_LOADER &lt;glad/gl.h&gt;;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>$(SolutionDir)..\third_party\fmt\include;$(SolutionDir)..\third_party\imgui;$(SolutionDir)..\third_party\imgui\backends;$(SolutionDir)..\third_party\sdl2\include;$(SolutionDir)..\third_party\racket\include;$(SolutionDir)..\third_party\lua-5.4.4;$(SolutionDir)..\third_party\stb;$(SolutionDir)..\third_party\ImFileDialog;$(SolutionDir)..\third_party\whereami\src;$(SolutionDir)..\third_party\naive-surface-nets\include;$(SolutionDir)..\third_party\glm-0.9.9.8;$(SolutionDir)..\third_party\glad\include;$(SolutionDir)..\third_party\voxwriter;$(SolutionDir)..\third_party\atomic_queue\include;$(SolutionDir)..\third_party\oklab;$(SolutionDir)..\third_party\</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)..\third_party\fmt\include;$(SolutionDir)..\third_party\imgui;$(SolutionDir)..\third_party\imgui\backends;$(SolutionDir)..\third_party\sdl2\include;$(SolutionDir)..\third_party\racket\include;$(SolutionDir)..\third_party\lua-5.4.4;$(SolutionDir)..\third_party\stb;$(SolutionDir)..\third_party\ImFileDialog;$(SolutionDir)..\third_party\whereami\src;$(SolutionDir)..\third_party\naive-surface-nets\include;$(SolutionDir)..\third_party\glm-0.9.9.8;$(SolutionDir)..\third_party\glad\include;$(SolutionDir)..\third_party\voxwriter;$(SolutionDir)..\third_party\atomic_queue\include;$(SolutionDir)..\third_party\oklab;$(SolutionDir)..\third_party\freetype-2.13.2\include;$(SolutionDir)..\third_party\RmlUi-5.1\Include;$(SolutionDir)..\third_party\</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>libracketcs_db9xz4.lib;opengl32.lib;SDL2.lib;SDL2main.lib;comctl32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>libracketcs_db9xz4.lib;opengl32.lib;SDL2.lib;SDL2main.lib;comctl32.lib;freetype.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <StackReserveSize>10485760</StackReserveSize>
     </Link>
     <CustomBuildStep>
@@ -150,9 +150,9 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>NDEBUG;_CONSOLE;IMGUI_USE_WCHAR32;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>NDEBUG;_CONSOLE;IMGUI_USE_WCHAR32;RMLUI_STATIC_LIB;RMLUI_GL3_CUSTOM_LOADER &lt;glad/gl.h&gt;;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>$(SolutionDir)..\third_party\fmt\include;$(SolutionDir)..\third_party\imgui;$(SolutionDir)..\third_party\imgui\backends;$(SolutionDir)..\third_party\sdl2\include;$(SolutionDir)..\third_party\racket\include;$(SolutionDir)..\third_party\lua-5.4.4;$(SolutionDir)..\third_party\stb;$(SolutionDir)..\third_party\ImFileDialog;$(SolutionDir)..\third_party\whereami\src;$(SolutionDir)..\third_party\naive-surface-nets\include;$(SolutionDir)..\third_party\glm-0.9.9.8;$(SolutionDir)..\third_party\glad\include;$(SolutionDir)..\third_party\voxwriter;$(SolutionDir)..\third_party\atomic_queue\include;$(SolutionDir)..\third_party\oklab;$(SolutionDir)..\third_party\</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)..\third_party\fmt\include;$(SolutionDir)..\third_party\imgui;$(SolutionDir)..\third_party\imgui\backends;$(SolutionDir)..\third_party\sdl2\include;$(SolutionDir)..\third_party\racket\include;$(SolutionDir)..\third_party\lua-5.4.4;$(SolutionDir)..\third_party\stb;$(SolutionDir)..\third_party\ImFileDialog;$(SolutionDir)..\third_party\whereami\src;$(SolutionDir)..\third_party\naive-surface-nets\include;$(SolutionDir)..\third_party\glm-0.9.9.8;$(SolutionDir)..\third_party\glad\include;$(SolutionDir)..\third_party\voxwriter;$(SolutionDir)..\third_party\atomic_queue\include;$(SolutionDir)..\third_party\oklab;$(SolutionDir)..\third_party\freetype-2.13.2\include;$(SolutionDir)..\third_party\RmlUi-5.1\Include;$(SolutionDir)..\third_party\</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
     </ClCompile>
@@ -161,7 +161,7 @@
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>libracketcs_db9xz4.lib;opengl32.lib;SDL2.lib;SDL2main.lib;comctl32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>libracketcs_db9xz4.lib;opengl32.lib;SDL2.lib;SDL2main.lib;comctl32.lib;freetype.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <CustomBuildStep>
       <Command>$(SolutionDir)..\regen.bat</Command>
@@ -191,7 +191,7 @@
     <ClCompile Include="..\tangerine\lua_vec.cpp" />
     <ClCompile Include="..\tangerine\magica.cpp" />
     <ClCompile Include="..\tangerine\material.cpp" />
-    <ClCompile Include="..\tangerine\profiling.cpp" />
+    <ClCompile Include="..\tangerine\perf.cpp" />
     <ClCompile Include="..\tangerine\racket_env.cpp" />
     <ClCompile Include="..\tangerine\scheduler.cpp" />
     <ClCompile Include="..\tangerine\sdf_evaluator.cpp" />
@@ -246,6 +246,189 @@
     <ClCompile Include="..\third_party\lua-5.4.4\lua\lvm.c" />
     <ClCompile Include="..\third_party\lua-5.4.4\lua\lzio.c" />
     <ClCompile Include="..\third_party\naive-surface-nets\src\surface_nets.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Backends\RmlUi_Backend_SDL_GL3.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Backends\RmlUi_Platform_SDL.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Backends\RmlUi_Renderer_GL3.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\BaseXMLParser.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\Box.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\Clock.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\ComputedValues.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\ComputeProperty.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\Context.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\ContextInstancer.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\ContextInstancerDefault.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\ConvolutionFilter.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\Core.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\DataController.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\DataControllerDefault.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\DataExpression.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\DataModel.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\DataModelHandle.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\DataTypeRegister.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\DataVariable.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\DataView.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\DataViewDefault.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\Decorator.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\DecoratorGradient.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\DecoratorInstancer.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\DecoratorNinePatch.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\DecoratorTiled.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\DecoratorTiledBox.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\DecoratorTiledBoxInstancer.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\DecoratorTiledHorizontal.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\DecoratorTiledHorizontalInstancer.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\DecoratorTiledImage.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\DecoratorTiledImageInstancer.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\DecoratorTiledInstancer.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\DecoratorTiledVertical.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\DecoratorTiledVerticalInstancer.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\DocumentHeader.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\Element.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\ElementAnimation.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\ElementBackgroundBorder.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\ElementDecoration.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\ElementDefinition.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\ElementDocument.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\ElementHandle.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\ElementInstancer.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\ElementScroll.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\ElementStyle.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\Elements\DataFormatter.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\Elements\DataQuery.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\Elements\DataSource.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\Elements\DataSourceListener.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\Elements\ElementDataGrid.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\Elements\ElementDataGridCell.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\Elements\ElementDataGridExpandButton.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\Elements\ElementDataGridRow.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\Elements\ElementForm.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\Elements\ElementFormControl.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\Elements\ElementFormControlDataSelect.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\Elements\ElementFormControlInput.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\Elements\ElementFormControlSelect.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\Elements\ElementFormControlTextArea.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\Elements\ElementImage.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\Elements\ElementLabel.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\Elements\ElementProgress.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\Elements\ElementTabSet.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\Elements\ElementTextSelection.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\Elements\InputType.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\Elements\InputTypeButton.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\Elements\InputTypeCheckbox.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\Elements\InputTypeRadio.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\Elements\InputTypeRange.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\Elements\InputTypeSubmit.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\Elements\InputTypeText.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\Elements\WidgetDropDown.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\Elements\WidgetSlider.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\Elements\WidgetTextInput.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\Elements\WidgetTextInputMultiLine.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\Elements\WidgetTextInputSingleLine.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\Elements\WidgetTextInputSingleLinePassword.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\Elements\XMLNodeHandlerDataGrid.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\Elements\XMLNodeHandlerSelect.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\Elements\XMLNodeHandlerTabSet.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\Elements\XMLNodeHandlerTextArea.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\ElementText.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\ElementUtilities.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\Event.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\EventDispatcher.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\EventInstancer.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\EventInstancerDefault.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\EventListenerInstancer.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\EventSpecification.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\Factory.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\FileInterface.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\FileInterfaceDefault.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\FontEffect.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\FontEffectBlur.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\FontEffectGlow.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\FontEffectInstancer.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\FontEffectOutline.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\FontEffectShadow.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\FontEngineDefault\FontEngineInterfaceDefault.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\FontEngineDefault\FontFace.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\FontEngineDefault\FontFaceHandleDefault.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\FontEngineDefault\FontFaceLayer.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\FontEngineDefault\FontFamily.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\FontEngineDefault\FontProvider.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\FontEngineDefault\FreeTypeInterface.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\FontEngineInterface.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\Geometry.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\GeometryBackgroundBorder.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\GeometryDatabase.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\GeometryUtilities.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\LayoutBlockBox.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\LayoutBlockBoxSpace.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\LayoutDetails.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\LayoutEngine.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\LayoutFlex.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\LayoutInlineBox.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\LayoutInlineBoxText.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\LayoutLineBox.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\LayoutTable.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\LayoutTableDetails.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\Log.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\Math.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\Memory.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\ObserverPtr.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\Plugin.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\PluginRegistry.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\Profiling.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\PropertiesIteratorView.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\Property.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\PropertyDefinition.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\PropertyDictionary.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\PropertyParserAnimation.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\PropertyParserColour.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\PropertyParserDecorator.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\PropertyParserFontEffect.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\PropertyParserKeyword.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\PropertyParserNumber.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\PropertyParserRatio.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\PropertyParserString.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\PropertyParserTransform.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\PropertySpecification.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\RenderInterface.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\ScrollController.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\Spritesheet.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\Stream.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\StreamFile.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\StreamMemory.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\StringUtilities.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\StyleSheet.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\StyleSheetContainer.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\StyleSheetFactory.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\StyleSheetNode.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\StyleSheetParser.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\StyleSheetSelector.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\StyleSheetSpecification.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\SystemInterface.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\Template.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\TemplateCache.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\Texture.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\TextureDatabase.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\TextureLayout.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\TextureLayoutRectangle.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\TextureLayoutRow.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\TextureLayoutTexture.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\TextureResource.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\Transform.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\TransformPrimitive.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\TransformState.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\TransformUtilities.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\Tween.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\TypeConverter.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\URL.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\Variant.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\WidgetScroll.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\XMLNodeHandler.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\XMLNodeHandlerBody.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\XMLNodeHandlerDefault.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\XMLNodeHandlerHead.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\XMLNodeHandlerTemplate.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\XMLParser.cpp" />
+    <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\XMLParseTools.cpp" />
     <ClCompile Include="..\third_party\stb\stb.cpp" />
     <ClCompile Include="..\third_party\stb\stb_vorbis.c" />
     <ClCompile Include="..\third_party\voxwriter\VoxWriter.cpp" />
@@ -274,7 +457,7 @@
     <ClInclude Include="..\tangerine\lua_vec.h" />
     <ClInclude Include="..\tangerine\magica.h" />
     <ClInclude Include="..\tangerine\material.h" />
-    <ClInclude Include="..\tangerine\profiling.h" />
+    <ClInclude Include="..\tangerine\perf.h" />
     <ClInclude Include="..\tangerine\racket_env.h" />
     <ClInclude Include="..\tangerine\scheduler.h" />
     <ClInclude Include="..\tangerine\sdf_evaluator.h" />
@@ -337,6 +520,123 @@
     <ClInclude Include="..\third_party\naive-surface-nets\include\surface_nets.h" />
     <ClInclude Include="..\third_party\naive-surface-nets\include\triangle.h" />
     <ClInclude Include="..\third_party\oklab\oklab.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Backends\RmlUi_Backend.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Backends\RmlUi_Platform_SDL.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Backends\RmlUi_Renderer_GL3.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\Clock.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\ComputeProperty.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\ContextInstancerDefault.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\DataController.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\DataControllerDefault.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\DataExpression.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\DataModel.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\DataView.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\DataViewDefault.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\DecoratorGradient.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\DecoratorNinePatch.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\DecoratorTiled.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\DecoratorTiledBox.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\DecoratorTiledBoxInstancer.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\DecoratorTiledHorizontal.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\DecoratorTiledHorizontalInstancer.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\DecoratorTiledImage.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\DecoratorTiledImageInstancer.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\DecoratorTiledInstancer.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\DecoratorTiledVertical.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\DecoratorTiledVerticalInstancer.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\DocumentHeader.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\ElementAnimation.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\ElementBackgroundBorder.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\ElementDecoration.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\ElementDefinition.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\ElementHandle.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\ElementStyle.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\Elements\ElementImage.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\Elements\ElementLabel.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\Elements\ElementTextSelection.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\Elements\InputType.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\Elements\InputTypeButton.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\Elements\InputTypeCheckbox.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\Elements\InputTypeRadio.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\Elements\InputTypeRange.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\Elements\InputTypeSubmit.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\Elements\InputTypeText.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\Elements\WidgetDropDown.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\Elements\WidgetSlider.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\Elements\WidgetTextInput.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\Elements\WidgetTextInputMultiLine.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\Elements\WidgetTextInputSingleLine.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\Elements\WidgetTextInputSingleLinePassword.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\Elements\XMLNodeHandlerDataGrid.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\Elements\XMLNodeHandlerSelect.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\Elements\XMLNodeHandlerTabSet.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\Elements\XMLNodeHandlerTextArea.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\EventDispatcher.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\EventInstancerDefault.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\EventSpecification.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\FileInterfaceDefault.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\FontEffectBlur.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\FontEffectGlow.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\FontEffectOutline.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\FontEffectShadow.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\FontEngineDefault\FontEngineInterfaceDefault.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\FontEngineDefault\FontFace.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\FontEngineDefault\FontFaceHandleDefault.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\FontEngineDefault\FontFaceLayer.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\FontEngineDefault\FontFamily.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\FontEngineDefault\FontProvider.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\FontEngineDefault\FontTypes.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\FontEngineDefault\FreeTypeInterface.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\GeometryBackgroundBorder.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\GeometryDatabase.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\IdNameMap.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\LayoutBlockBox.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\LayoutBlockBoxSpace.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\LayoutDetails.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\LayoutEngine.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\LayoutFlex.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\LayoutInlineBox.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\LayoutInlineBoxText.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\LayoutLineBox.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\LayoutTable.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\LayoutTableDetails.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\Memory.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\PluginRegistry.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\Pool.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\precompiled.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\PropertiesIterator.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\PropertyParserAnimation.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\PropertyParserColour.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\PropertyParserDecorator.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\PropertyParserFontEffect.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\PropertyParserKeyword.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\PropertyParserNumber.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\PropertyParserRatio.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\PropertyParserString.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\PropertyParserTransform.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\PropertyShorthandDefinition.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\ScrollController.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\StreamFile.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\StyleSheetFactory.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\StyleSheetNode.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\StyleSheetParser.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\StyleSheetSelector.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\Template.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\TemplateCache.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\TextureDatabase.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\TextureLayout.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\TextureLayoutRectangle.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\TextureLayoutRow.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\TextureLayoutTexture.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\TextureResource.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\TransformState.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\TransformUtilities.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\WidgetScroll.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\XMLNodeHandlerBody.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\XMLNodeHandlerDefault.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\XMLNodeHandlerHead.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\XMLNodeHandlerTemplate.h" />
+    <ClInclude Include="..\third_party\RmlUi-5.1\Source\Core\XMLParseTools.h" />
     <ClInclude Include="..\third_party\stb\stb_connected_components.h" />
     <ClInclude Include="..\third_party\stb\stb_c_lexer.h" />
     <ClInclude Include="..\third_party\stb\stb_divide.h" />
@@ -386,6 +686,7 @@
     <None Include="..\shaders\tile_heap.glsl" />
     <None Include="..\third_party\licenses.inl" />
     <None Include="..\third_party\racket\lib\libracketcs_da32rk.def" />
+    <None Include="..\third_party\RmlUi-5.1\Source\Core\Pool.inl" />
     <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>

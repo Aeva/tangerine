@@ -27,6 +27,13 @@
 #include <imgui_impl_opengl3.h>
 #include <ImFileDialog.h>
 
+#if _WIN64
+#define ENABLE_RMLUI 1
+
+#include <RmlUi/Core.h>
+//#include <RmlUi_Backend.h>
+#endif
+
 #include "gl_init.h"
 #include "scheduler.h"
 
@@ -60,7 +67,7 @@
 
 #include <fmt/format.h>
 
-#include "profiling.h"
+#include "perf.h"
 
 #include "errors.h"
 #include "gl_boilerplate.h"
@@ -68,6 +75,7 @@
 #include "gl_debug.h"
 #include "../shaders/defines.h"
 #include "installation.h"
+
 
 // TODO: These were originally defined as a cross-platform compatibility hack for code
 // in this file that was using min/max macros from a Windows header.  The header is no
@@ -2560,6 +2568,11 @@ StatusCode Boot(int argc, char* argv[])
 #endif
 		std::cout << "Done!\n";
 	}
+#if ENABLE_RMLUI
+	{
+
+	}
+#endif
 
 	if (SetupRenderer() == StatusCode::FAIL)
 	{
