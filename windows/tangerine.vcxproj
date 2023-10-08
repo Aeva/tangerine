@@ -124,9 +124,9 @@
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>_DEBUG;_CONSOLE;IMGUI_USE_WCHAR32;RMLUI_STATIC_LIB;RMLUI_GL3_CUSTOM_LOADER &lt;glad/gl.h&gt;;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_DEBUG;_CONSOLE;IMGUI_USE_WCHAR32;RMLUI_STATIC_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>$(SolutionDir)..\third_party\fmt\include;$(SolutionDir)..\third_party\imgui;$(SolutionDir)..\third_party\imgui\backends;$(SolutionDir)..\third_party\sdl2\include;$(SolutionDir)..\third_party\racket\include;$(SolutionDir)..\third_party\lua-5.4.4;$(SolutionDir)..\third_party\stb;$(SolutionDir)..\third_party\ImFileDialog;$(SolutionDir)..\third_party\whereami\src;$(SolutionDir)..\third_party\naive-surface-nets\include;$(SolutionDir)..\third_party\glm-0.9.9.8;$(SolutionDir)..\third_party\glad\include;$(SolutionDir)..\third_party\voxwriter;$(SolutionDir)..\third_party\atomic_queue\include;$(SolutionDir)..\third_party\oklab;$(SolutionDir)..\third_party\freetype-2.13.2\include;$(SolutionDir)..\third_party\RmlUi-5.1\Include;$(SolutionDir)..\third_party\</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)..\third_party\fmt\include;$(SolutionDir)..\third_party\imgui;$(SolutionDir)..\third_party\imgui\backends;$(SolutionDir)..\third_party\sdl2\include;$(SolutionDir)..\third_party\racket\include;$(SolutionDir)..\third_party\lua-5.4.4;$(SolutionDir)..\third_party\stb;$(SolutionDir)..\third_party\ImFileDialog;$(SolutionDir)..\third_party\whereami\src;$(SolutionDir)..\third_party\naive-surface-nets\include;$(SolutionDir)..\third_party\glm-0.9.9.8;$(SolutionDir)..\third_party\glad\include;$(SolutionDir)..\third_party\voxwriter;$(SolutionDir)..\third_party\atomic_queue\include;$(SolutionDir)..\third_party\oklab;$(SolutionDir)..\third_party\freetype-2.13.2\include;$(SolutionDir)..\third_party\RmlUi-5.1\Include;$(SolutionDir)..\third_party\RmlUi-5.1\Backends;$(SolutionDir)..\third_party\</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
     </ClCompile>
@@ -150,9 +150,9 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>NDEBUG;_CONSOLE;IMGUI_USE_WCHAR32;RMLUI_STATIC_LIB;RMLUI_GL3_CUSTOM_LOADER &lt;glad/gl.h&gt;;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>NDEBUG;_CONSOLE;IMGUI_USE_WCHAR32;RMLUI_STATIC_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>$(SolutionDir)..\third_party\fmt\include;$(SolutionDir)..\third_party\imgui;$(SolutionDir)..\third_party\imgui\backends;$(SolutionDir)..\third_party\sdl2\include;$(SolutionDir)..\third_party\racket\include;$(SolutionDir)..\third_party\lua-5.4.4;$(SolutionDir)..\third_party\stb;$(SolutionDir)..\third_party\ImFileDialog;$(SolutionDir)..\third_party\whereami\src;$(SolutionDir)..\third_party\naive-surface-nets\include;$(SolutionDir)..\third_party\glm-0.9.9.8;$(SolutionDir)..\third_party\glad\include;$(SolutionDir)..\third_party\voxwriter;$(SolutionDir)..\third_party\atomic_queue\include;$(SolutionDir)..\third_party\oklab;$(SolutionDir)..\third_party\freetype-2.13.2\include;$(SolutionDir)..\third_party\RmlUi-5.1\Include;$(SolutionDir)..\third_party\</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)..\third_party\fmt\include;$(SolutionDir)..\third_party\imgui;$(SolutionDir)..\third_party\imgui\backends;$(SolutionDir)..\third_party\sdl2\include;$(SolutionDir)..\third_party\racket\include;$(SolutionDir)..\third_party\lua-5.4.4;$(SolutionDir)..\third_party\stb;$(SolutionDir)..\third_party\ImFileDialog;$(SolutionDir)..\third_party\whereami\src;$(SolutionDir)..\third_party\naive-surface-nets\include;$(SolutionDir)..\third_party\glm-0.9.9.8;$(SolutionDir)..\third_party\glad\include;$(SolutionDir)..\third_party\voxwriter;$(SolutionDir)..\third_party\atomic_queue\include;$(SolutionDir)..\third_party\oklab;$(SolutionDir)..\third_party\freetype-2.13.2\include;$(SolutionDir)..\third_party\RmlUi-5.1\Include;$(SolutionDir)..\third_party\RmlUi-5.1\Backends;$(SolutionDir)..\third_party\</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
     </ClCompile>
@@ -246,7 +246,6 @@
     <ClCompile Include="..\third_party\lua-5.4.4\lua\lvm.c" />
     <ClCompile Include="..\third_party\lua-5.4.4\lua\lzio.c" />
     <ClCompile Include="..\third_party\naive-surface-nets\src\surface_nets.cpp" />
-    <ClCompile Include="..\third_party\RmlUi-5.1\Backends\RmlUi_Backend_SDL_GL3.cpp" />
     <ClCompile Include="..\third_party\RmlUi-5.1\Backends\RmlUi_Platform_SDL.cpp" />
     <ClCompile Include="..\third_party\RmlUi-5.1\Backends\RmlUi_Renderer_GL3.cpp" />
     <ClCompile Include="..\third_party\RmlUi-5.1\Source\Core\BaseXMLParser.cpp" />

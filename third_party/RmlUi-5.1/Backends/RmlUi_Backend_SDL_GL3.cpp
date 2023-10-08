@@ -33,7 +33,11 @@
 #include <RmlUi/Core/Core.h>
 #include <RmlUi/Core/FileInterface.h>
 #include <SDL.h>
+// BEGIN TANGERINE MOD - Remove SDL_image dependency.
+#if 0
 #include <SDL_image.h>
+#endif
+// END TANGERINE MOD
 
 #if defined RMLUI_PLATFORM_EMSCRIPTEN
 	#include <emscripten.h>
@@ -48,6 +52,11 @@
 
     Overloads the OpenGL3 render interface to load textures through SDL_image's built-in texture loading functionality.
  */
+// BEGIN TANGERINE MOD - Remove SDL_image dependency.
+#if 1
+using RenderInterface_GL3_SDL = RenderInterface_GL3;
+#else
+// END TANGERINE MOD
 class RenderInterface_GL3_SDL : public RenderInterface_GL3 {
 public:
 	RenderInterface_GL3_SDL() {}
@@ -102,6 +111,9 @@ public:
 		return success;
 	}
 };
+// BEGIN TANGERINE MOD - Remove SDL_image dependency.
+#endif
+// END TANGERINE MOD
 
 /**
     Global data used by this backend.
@@ -123,6 +135,9 @@ bool Backend::Initialize(const char* window_name, int width, int height, bool al
 {
 	RMLUI_ASSERT(!data);
 
+// BEGIN TANGERINE MOD - Remove SDL init.
+#if 0
+// END TANGERINE MOD
 	if (SDL_Init(SDL_INIT_VIDEO) != 0)
 		return false;
 
@@ -169,6 +184,10 @@ bool Backend::Initialize(const char* window_name, int width, int height, bool al
 	SDL_GLContext glcontext = SDL_GL_CreateContext(window);
 	SDL_GL_MakeCurrent(window, glcontext);
 	SDL_GL_SetSwapInterval(1);
+
+// BEGIN TANGERINE MOD - Remove SDL init.
+#endif
+// END TANGERINE MOD
 
 	if (!RmlGL3::Initialize())
 	{

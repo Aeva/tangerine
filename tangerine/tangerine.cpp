@@ -29,9 +29,20 @@
 
 #if _WIN64
 #define ENABLE_RMLUI 1
+#endif
 
+#if ENABLE_RMLUI
 #include <RmlUi/Core.h>
-//#include <RmlUi_Backend.h>
+#include <RmlUi_Platform_SDL.h>
+#include <RmlUi_Renderer_GL3.h>
+#include <RmlUi/Core/Context.h>
+#include <RmlUi/Core/Core.h>
+#include <RmlUi/Core/FileInterface.h>
+
+SystemInterface_SDL* RmlUiSystemInterface = nullptr;
+RenderInterface_GL3* RmlUiRenderInterface = nullptr;
+Rml::Context* RmlUiContext = nullptr;
+Rml::ElementDocument* RmlUiDocument = nullptr;
 #endif
 
 #include "gl_init.h"
@@ -2568,9 +2579,30 @@ StatusCode Boot(int argc, char* argv[])
 #endif
 		std::cout << "Done!\n";
 	}
-#if ENABLE_RMLUI
-	{
 
+#if ENABLE_RMLUI
+	if (!RmlUiSystemInterface)
+	{
+		RmlUiSystemInterface = new SystemInterface_SDL();
+		RmlUiSystemInterface->SetWindow(Window);
+	}
+	if (!RmlUiRenderInterface)
+	{
+		RmlUiRenderInterface = new RenderInterface_GL3();
+		RmlUiRenderInterface->SetViewport(WindowWidth, WindowHeight);
+	}
+	Rml::SetSystemInterface(RmlUiSystemInterface);
+	Rml::SetRenderInterface(RmlUiRenderInterface);
+	Rml::Initialise();
+	RmlUiContext = Rml::CreateContext("Tangerine", Rml::Vector2i(WindowWidth, WindowHeight));
+	if (RmlUiContext)
+	{
+		const char* HelloWorld = \
+			"<rml><head><title>Hail Eris!</title></head><body>"
+			"<br/><br/><br/>Hail Eris!"
+			"</body></rml>";
+		RmlUiDocument = RmlUiContext->LoadDocumentFromMemory(HelloWorld);
+		RmlUiDocument->Show();
 	}
 #endif
 
@@ -2657,6 +2689,25 @@ void Teardown()
 		UnloadAllModels();
 		if (Context)
 		{
+#if ENABLE_RMLUI
+			if (RmlUiDocument)
+			{
+				RmlUiDocument->Close();
+				RmlUiDocument = nullptr;
+			}
+			Rml::Shutdown();
+			RmlUiContext = nullptr;
+			if (RmlUiRenderInterface)
+			{
+				delete RmlUiRenderInterface;
+				RmlUiRenderInterface = nullptr;
+			}
+			if (RmlUiSystemInterface)
+			{
+				delete RmlUiSystemInterface;
+				RmlUiSystemInterface = nullptr;
+			}
+#endif
 			if (!HeadlessMode)
 			{
 				SaveBookmarks();
@@ -2911,6 +2962,22 @@ void MainLoop()
 					{
 						RenderFrame(ScreenWidth, ScreenHeight, RenderableModels, LastView, RequestDraw);
 					}
+#if ENABLE_RMLUI
+					if (RmlUiContext && RmlUiDocument)
+					{
+						BeginEvent("RmlUi Draw");
+						glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "RmlUi");
+						RmlUiDocument->UpdateDocument();
+						RmlUiContext->Update();
+						RmlUiRenderInterface->SetViewport(ScreenWidth, ScreenHeight);
+						RmlUiRenderInterface->BeginFrame();
+						glClear(GL_STENCIL_BUFFER_BIT);
+						RmlUiContext->Render();
+						RmlUiRenderInterface->EndFrame();
+						glPopDebugGroup();
+						EndEvent();
+					}
+#endif
 					{
 						BeginEvent("Dear ImGui Draw");
 						glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Dear ImGui");

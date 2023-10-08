@@ -849,9 +849,6 @@
     <ClCompile Include="..\third_party\RmlUi-5.1\Backends\RmlUi_Platform_SDL.cpp">
       <Filter>Third Party\RmlUi\Backends</Filter>
     </ClCompile>
-    <ClCompile Include="..\third_party\RmlUi-5.1\Backends\RmlUi_Backend_SDL_GL3.cpp">
-      <Filter>Third Party\RmlUi\Backends</Filter>
-    </ClCompile>
     <ClCompile Include="..\third_party\RmlUi-5.1\Backends\RmlUi_Renderer_GL3.cpp">
       <Filter>Third Party\RmlUi\Backends</Filter>
     </ClCompile>

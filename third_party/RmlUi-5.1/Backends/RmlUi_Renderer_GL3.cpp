@@ -40,6 +40,10 @@
 	#pragma warning(disable : 4505)
 #endif
 
+// BEGIN TANGERINE MOD - Use Tangerine's version of GLAD
+#define RMLUI_GL3_CUSTOM_LOADER <glad/gl.h>
+// END TANGERINE MOD - Use Tangerine's version of GLAD
+
 #if defined RMLUI_PLATFORM_EMSCRIPTEN
 	#define RMLUI_SHADER_HEADER "#version 300 es\nprecision highp float;\n"
 	#include <GLES3/gl3.h>
