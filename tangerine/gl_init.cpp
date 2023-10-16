@@ -51,6 +51,17 @@ StatusCode CreateWindowGL(int& WindowWidth, int& WindowHeight, bool HeadlessMode
 		SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
 	}
 	SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
+#if ENABLE_RMLUI
+	SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8);
+#endif
+	{
+		// RmlUi's reference backend does this to setup AA, with a try again fallback
+		// w/ both attributes set to 0 for if the first case fails.  It might be worthwhile
+		// to have a similar try-again mechanism here before regressing to GLES.
+		SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "linear");
+		SDL_GL_SetAttribute(SDL_GL_MULTISAMPLEBUFFERS, 1);
+		SDL_GL_SetAttribute(SDL_GL_MULTISAMPLESAMPLES, 16); // At least 2
+	}
 	if (CreateDebugContext)
 	{
 		SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_DEBUG_FLAG);

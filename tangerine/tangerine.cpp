@@ -22,6 +22,18 @@
 #include <SDL_opengl.h>
 #include <SDL_clipboard.h>
 
+#ifdef ENABLE_RMLUI
+#include <RmlUi/Core.h>
+#include <RmlUi_Platform_SDL.h>
+#include <RmlUi_Renderer_GL3.h>
+#include <RmlUi/Debugger.h>
+
+SystemInterface_SDL* RmlUiSystemInterface = nullptr;
+RenderInterface_GL3* RmlUiRenderInterface = nullptr;
+Rml::Context* RmlUiContext = nullptr;
+Rml::ElementDocument* RmlUiDocument = nullptr;
+#endif
+
 #include <imgui.h>
 #include <imgui_impl_sdl.h>
 #include <imgui_impl_opengl3.h>
@@ -483,8 +495,13 @@ void SetPipelineDefaults()
 	if (GraphicsBackend == GraphicsAPI::OpenGL4_2)
 	{
 		// For drawing without a VBO bound.
-		GLuint NullVAO;
-		glGenVertexArrays(1, &NullVAO);
+		static GLuint NullVAO;
+		static bool CreatedNullVAO = false;
+		if (!CreatedNullVAO)
+		{
+			CreatedNullVAO = true;
+			glGenVertexArrays(1, &NullVAO);
+		}
 		glBindVertexArray(NullVAO);
 
 		// These don't appear to be available in ES2 :(
@@ -906,7 +923,11 @@ void RenderFrameGL4(int ScreenWidth, int ScreenHeight, std::vector<SDFModelWeakR
 				glDepthMask(GL_TRUE);
 				glEnable(GL_DEPTH_TEST);
 				glDepthFunc(GL_GREATER);
+#ifdef ENABLE_RMLUI
+				glClear(GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+#else
 				glClear(GL_DEPTH_BUFFER_BIT);
+#endif
 				if (ShowLeafCount)
 				{
 					glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
@@ -978,7 +999,11 @@ void RenderFrameGL4(int ScreenWidth, int ScreenHeight, std::vector<SDFModelWeakR
 			glDepthMask(GL_TRUE);
 			glEnable(GL_DEPTH_TEST);
 			glDepthFunc(GL_GREATER);
+#ifdef ENABLE_RMLUI
+			glClear(GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+#else
 			glClear(GL_DEPTH_BUFFER_BIT);
+#endif
 
 			SodapopShader.Activate();
 
@@ -1073,7 +1098,11 @@ void RenderFrameES2(int ScreenWidth, int ScreenHeight, std::vector<SDFModelWeakR
 			glDepthMask(GL_TRUE);
 			glEnable(GL_DEPTH_TEST);
 			glDepthFunc(GL_GREATER);
+#ifdef ENABLE_RMLUI
+			glClear(GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+#else
 			glClear(GL_DEPTH_BUFFER_BIT);
+#endif
 
 			SodapopShader.Activate();
 
@@ -2561,6 +2590,71 @@ StatusCode Boot(int argc, char* argv[])
 		std::cout << "Done!\n";
 	}
 
+#ifdef ENABLE_RMLUI
+	if (GraphicsBackend == GraphicsAPI::OpenGL4_2)
+	{
+		std::cout << "Setting up RmlUi... ";
+		if (!RmlUiSystemInterface)
+		{
+			RmlUiSystemInterface = new SystemInterface_SDL();
+			RmlUiSystemInterface->SetWindow(Window);
+		}
+		if (!RmlUiRenderInterface)
+		{
+			RmlUiRenderInterface = new RenderInterface_GL3();
+			RmlUiRenderInterface->SetViewport(WindowWidth, WindowHeight);
+		}
+		Rml::SetSystemInterface(RmlUiSystemInterface);
+		Rml::SetRenderInterface(RmlUiRenderInterface);
+		Rml::Initialise();
+		RmlUiContext = Rml::CreateContext("Tangerine", Rml::Vector2i(WindowWidth, WindowHeight));
+		if (RmlUiContext)
+		{
+			Rml::Debugger::Initialise(RmlUiContext);
+
+#if 0 // Enable to confirm basic functionality.
+			Rml::LoadFontFace("C:\\Windows\\Fonts\\segoeui.ttf");
+
+			const std::string Source = ""
+				"<rml><head>\n"
+				"<style>\n"
+				"body\n"
+				"{\n"
+				"	font-family: Segoe UI;\n"
+				"	font-weight: normal;\n"
+				"	font-style: normal;\n"
+				"	font-size: 32pt;\n"
+				"	font-effect: shadow(2px 2px black);\n"
+				"	color: white;\n"
+				//"	background-color: rgba(0, 0, 0, 128);\n"
+				"	width: 100%;\n"
+				"}\n"
+				"h1\n"
+				"{\n"
+				"	font-size: 64pt;\n"
+				"	font-weight: bold;\n"
+				"}\n"
+				"</style>\n"
+				"</head><body>\n"
+				"	<h1>Hail Eris!</h1><br/>\n"
+				"	Hark!  The quick brown fox jumps over the lazy dog!\n"
+				"	<br/>The flesh is weak, but the spirit is willing.\n"
+				"</body></rml>\n";
+
+			RmlUiDocument = RmlUiContext->LoadDocumentFromMemory(Source);
+			RmlUiDocument->Show();
+			RmlUiContext->Update();
+#endif
+
+			std::cout << "Done!\n";
+		}
+	}
+	else
+	{
+		std::cout << "Failed to initialize RmlUi.\n";
+	}
+#endif
+
 	if (SetupRenderer() == StatusCode::FAIL)
 	{
 		std::cout << "Failed to initialize the renderer.\n";
@@ -2644,6 +2738,25 @@ void Teardown()
 		UnloadAllModels();
 		if (Context)
 		{
+#ifdef ENABLE_RMLUI
+			if (RmlUiDocument)
+			{
+				RmlUiDocument->Close();
+				RmlUiDocument = nullptr;
+			}
+			Rml::Shutdown();
+			RmlUiContext = nullptr;
+			if (RmlUiRenderInterface)
+			{
+				delete RmlUiRenderInterface;
+				RmlUiRenderInterface = nullptr;
+			}
+			if (RmlUiSystemInterface)
+			{
+				delete RmlUiSystemInterface;
+				RmlUiSystemInterface = nullptr;
+			}
+#endif
 			if (!HeadlessMode)
 			{
 				SaveBookmarks();
@@ -2710,6 +2823,10 @@ void MainLoop()
 				bool RequestDraw = RealtimeMode || ShowStatsOverlay || LastRenderableCount == 0 || LastIncompleteCount > 0 || LastExportState != ExportInProgress || Scheduler::AsyncRedrawRequested();
 				LastExportState = ExportInProgress;
 
+#if ENABLE_RMLUI
+				bool RmlUiActive = RmlUiContext && RmlUiContext->GetNumDocuments() > 0;
+#endif
+
 				BeginEvent("Process Input");
 				while (SDL_PollEvent(&Event))
 				{
@@ -2724,6 +2841,16 @@ void MainLoop()
 					{
 						RequestDraw = true;
 					}
+#if ENABLE_RMLUI
+					if (RmlUiActive)
+					{
+						const bool ContinuePropagating = RmlSDL::InputEventHandler(RmlUiContext, Event);
+						if (!ContinuePropagating)
+						{
+							RmlUiContext->Update();
+						}
+					}
+#endif
 					static bool Dragging = false;
 					if (Dragging && FixedCamera)
 					{
@@ -2898,6 +3025,21 @@ void MainLoop()
 					{
 						RenderFrame(ScreenWidth, ScreenHeight, RenderableModels, LastView, RequestDraw);
 					}
+#ifdef ENABLE_RMLUI
+					if (RmlUiActive)
+					{
+						BeginEvent("RmlUi Draw");
+						glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "RmlUi");
+						RmlUiRenderInterface->SetViewport(ScreenWidth, ScreenHeight);
+						RmlUiRenderInterface->BeginFrame();
+
+						RmlUiContext->Render();
+						RmlUiRenderInterface->EndFrame();
+						glPopDebugGroup();
+						EndEvent();
+						SetPipelineDefaults();
+					}
+#endif
 					{
 						BeginEvent("Dear ImGui Draw");
 						glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Dear ImGui");

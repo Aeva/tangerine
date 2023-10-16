@@ -1,0 +1,6 @@
+RmlUi 5.1 library and sample binaries for win64.
+
+https://github.com/mikke89/RmlUi
+
+Built using Visual Studio 15 2017 Win64 on 2023-04-07 (build 1857).
+Commit id: 40edf1acfa7f13f0c9b2af91d6f09ed47aa2c2c9.

@@ -1,0 +1,3 @@
+The rlottie library includes source code licensed under Mozilla Public License Version 2.0.
+The source for this code can be found in the rlottie library at the following URL:
+https://github.com/Samsung/rlottie/blob/29b391b95913877b7234543da8b4a9ec6d8175d0/src/vector/vinterpolator.cpp

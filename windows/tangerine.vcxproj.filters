@@ -55,6 +55,12 @@
     <Filter Include="Third Party\OkLab">
       <UniqueIdentifier>{8fbb3d32-e80f-43af-bc6e-d985efae0dbd}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Third Party\RmlUi">
+      <UniqueIdentifier>{c37cb2f1-2620-47df-988c-ee517c6c4dcb}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Third Party\RmlUi\Backends">
+      <UniqueIdentifier>{07e6bb85-6cf6-469b-b0f4-94d9714baa2b}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\third_party\imgui\backends\imgui_impl_opengl3.cpp">
@@ -290,6 +296,12 @@
     </ClCompile>
     <ClCompile Include="..\tangerine\lua_light.cpp">
       <Filter>Tangerine\Runtimes</Filter>
+    </ClCompile>
+    <ClCompile Include="..\third_party\RmlUi-5.1-win64\Backends\RmlUi_Platform_SDL.cpp">
+      <Filter>Third Party\RmlUi\Backends</Filter>
+    </ClCompile>
+    <ClCompile Include="..\tangerine\rmlui_renderer_gl3.cpp">
+      <Filter>Tangerine</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -614,6 +626,15 @@
     </ClInclude>
     <ClInclude Include="..\tangerine\lua_light.h">
       <Filter>Tangerine\Runtimes</Filter>
+    </ClInclude>
+    <ClInclude Include="..\third_party\RmlUi-5.1-win64\Backends\RmlUi_Backend.h">
+      <Filter>Third Party\RmlUi\Backends</Filter>
+    </ClInclude>
+    <ClInclude Include="..\third_party\RmlUi-5.1-win64\Backends\RmlUi_Platform_SDL.h">
+      <Filter>Third Party\RmlUi\Backends</Filter>
+    </ClInclude>
+    <ClInclude Include="..\third_party\RmlUi-5.1-win64\Backends\RmlUi_Renderer_GL3.h">
+      <Filter>Third Party\RmlUi\Backends</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
