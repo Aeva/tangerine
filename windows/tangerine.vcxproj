@@ -193,7 +193,7 @@
     <ClCompile Include="..\tangerine\material.cpp" />
     <ClCompile Include="..\tangerine\profiling.cpp" />
     <ClCompile Include="..\tangerine\racket_env.cpp" />
-    <ClCompile Include="..\tangerine\rmlui_renderer_gl3.cpp" />
+    <ClCompile Include="..\tangerine\rmlui\rmlui_renderer_gl3.cpp" />
     <ClCompile Include="..\tangerine\scheduler.cpp" />
     <ClCompile Include="..\tangerine\sdf_evaluator.cpp" />
     <ClCompile Include="..\tangerine\sdf_model.cpp" />

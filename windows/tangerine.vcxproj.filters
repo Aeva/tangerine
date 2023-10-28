@@ -61,6 +61,9 @@
     <Filter Include="Third Party\RmlUi\Backends">
       <UniqueIdentifier>{07e6bb85-6cf6-469b-b0f4-94d9714baa2b}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Tangerine\RmlUi">
+      <UniqueIdentifier>{fa16eecd-63fa-4abd-8ef7-58e4f8ae7f06}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\third_party\imgui\backends\imgui_impl_opengl3.cpp">
@@ -300,8 +303,8 @@
     <ClCompile Include="..\third_party\RmlUi-5.1-win64\Backends\RmlUi_Platform_SDL.cpp">
       <Filter>Third Party\RmlUi\Backends</Filter>
     </ClCompile>
-    <ClCompile Include="..\tangerine\rmlui_renderer_gl3.cpp">
-      <Filter>Tangerine</Filter>
+    <ClCompile Include="..\tangerine\rmlui\rmlui_renderer_gl3.cpp">
+      <Filter>Tangerine\RmlUi</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
