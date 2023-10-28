@@ -26,7 +26,7 @@
 // can optimize away some polymorphism.
 
 #ifndef RENDERER_COMPILER
-#define RENDERER_COMPILER 1
+#define RENDERER_COMPILER 0
 #endif
 
 #ifndef RENDERER_SODAPOP

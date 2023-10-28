@@ -1516,6 +1516,7 @@ void RenderUI(SDL_Window* Window, bool& Live)
 		}
 		if (ImGui::BeginMenu("View"))
 		{
+#if MULTI_RENDERER
 			if (ImGui::BeginMenu("Renderer"))
 			{
 #if RENDERER_COMPILER
@@ -1524,15 +1525,16 @@ void RenderUI(SDL_Window* Window, bool& Live)
 				{
 					SetRenderer(Renderer::ShapeCompiler);
 				}
-#endif
+#endif // RENDERER_COMPILER
 #if RENDERER_SODAPOP
 				if (ImGui::MenuItem("Sodapop", nullptr, CurrentRenderer == Renderer::Sodapop))
 				{
 					SetRenderer(Renderer::Sodapop);
 				}
-#endif
+#endif // RENDERER_SODAPOP
 				ImGui::EndMenu();
 			}
+#endif // MULTI_RENDERER
 			if (ImGui::BeginMenu("Background"))
 			{
 				if (ImGui::MenuItem("Solid Color", nullptr, BackgroundMode == -1))
@@ -2478,10 +2480,12 @@ StatusCode Boot(int argc, char* argv[])
 		if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER) == 0)
 		{
 			RETURN_ON_FAIL(BootGL(WindowWidth, WindowHeight, HeadlessMode, ForceES2, CreateDebugContext, RequestedVSyncMode));
+#if MULTI_RENDERER
 			if (GraphicsBackend != GraphicsAPI::OpenGL4_2)
 			{
 				CurrentRenderer = Renderer::Sodapop;
 			}
+#endif
 		}
 		else
 		{

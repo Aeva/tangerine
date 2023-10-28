@@ -16,6 +16,7 @@
 #include "gl_init.h"
 #include "gl_debug.h"
 #include "errors.h"
+#include "sdf_rendering.h"
 
 #include <glad/gl.h>
 
@@ -208,9 +209,12 @@ StatusCode BootGL(int& WindowWidth, int& WindowHeight, bool HeadlessMode, bool F
 				Window = nullptr;
 			}
 
-			std::cout << "Setting up SDL2... ";
+#if RENDERER_SODAPOP
+			std::cout << "Setting up OpenGL... ";
+#endif
 		}
 
+#if RENDERER_SODAPOP
 		StatusCode Result = CreateWindowGL<GraphicsAPI::OpenGLES2>(
 			WindowWidth, WindowHeight, HeadlessMode, CreateDebugContext);
 		if (Result == StatusCode::PASS)
@@ -235,6 +239,7 @@ StatusCode BootGL(int& WindowWidth, int& WindowHeight, bool HeadlessMode, bool F
 				std::cout << "Failed to create OpenGL ES2 Rendering Context!\n";
 			}
 		}
+#endif
 	}
 
 	if (GraphicsBackend == GraphicsAPI::Invalid)
