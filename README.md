@@ -75,3 +75,11 @@ guix time-machine -C channels.scm -- \
 ```
 
 Adding `-- ./linux/build_majuscule.sh` to the end of that command will perform a build in the same way as the manual process described above.
+
+# Miscellaneous
+
+## FreeType License Disclosure
+
+Tangerine optionally integrates RmlUi, which in turn typically requires linking with FreeType.
+Per the FreeType project license, the use of FreeType must be acknowldeged somewhere in a project's documentation.
+The use of FreeType in Tangerine via an optional dependency is hereby acknowledged in Tangerine's documentation.
