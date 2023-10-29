@@ -243,7 +243,7 @@ void SodapopDrawable::Draw(
 		Instance->Dirty.store(true);
 	}
 
-	if (!MeshReady.load())
+	if (Instance->Visibility == VisibilityStates::Imminent || !MeshReady.load())
 	{
 		return;
 	}
@@ -288,7 +288,7 @@ void SodapopDrawable::Draw(
 		Instance->Dirty.store(true);
 	}
 
-	if (!MeshReady.load())
+	if (Instance->Visibility == VisibilityStates::Imminent || !MeshReady.load())
 	{
 		return;
 	}
@@ -332,40 +332,46 @@ void SDFModel::Draw(
 	const bool Wireframe,
 	ShaderProgram* DebugShader)
 {
-	if (!Visible || !Painter)
+	if (Painter && Visibility != VisibilityStates::Invisible)
 	{
-		return;
+		Transform.Fold();
+		ThreadSafeTransform.store(Transform.LastFoldInverse);
+
+		if (Visibility == VisibilityStates::Visible)
+		{
+			TransformUpload TransformData = {
+				Transform.LastFold,
+				Transform.LastFoldInverse
+			};
+			TransformBuffer.Upload((void*)&TransformData, sizeof(TransformUpload));
+			TransformBuffer.Bind(GL_UNIFORM_BUFFER, 1);
+		}
+
+		Painter->Draw(ShowOctree, ShowLeafCount, ShowHeatmap, Wireframe, DebugShader);
 	}
-
-	Transform.Fold();
-	TransformUpload TransformData = {
-		Transform.LastFold,
-		Transform.LastFoldInverse
-	};
-	TransformBuffer.Upload((void*)&TransformData, sizeof(TransformUpload));
-	TransformBuffer.Bind(GL_UNIFORM_BUFFER, 1);
-
-	Painter->Draw(ShowOctree, ShowLeafCount, ShowHeatmap, Wireframe, DebugShader);
 }
 
 
 void SDFModel::Draw(
 	glm::vec3 CameraOrigin)
 {
-	if (!Visible || !Painter)
+	if (Painter && Visibility != VisibilityStates::Invisible)
 	{
-		return;
+		Transform.Fold();
+		ThreadSafeTransform.store(Transform.LastFoldInverse);
+
+		if (Visibility == VisibilityStates::Visible)
+		{
+			TransformUpload TransformData = {
+				Transform.LastFold,
+				Transform.LastFoldInverse
+			};
+			TransformBuffer.Upload((void*)&TransformData, sizeof(TransformUpload));
+			TransformBuffer.Bind(GL_UNIFORM_BUFFER, 1);
+		}
+
+		Painter->Draw(CameraOrigin, this);
 	}
-
-	Transform.Fold();
-	TransformUpload TransformData = {
-		Transform.LastFold,
-		Transform.LastFoldInverse
-	};
-	TransformBuffer.Upload((void*)&TransformData, sizeof(TransformUpload));
-	TransformBuffer.Bind(GL_UNIFORM_BUFFER, 1);
-
-	Painter->Draw(CameraOrigin, this);
 }
 
 
@@ -375,13 +381,16 @@ void SDFModel::Draw(
 	const int PositionBinding,
 	const int ColorBinding)
 {
-	if (!Visible || !Painter)
+	if (Painter && Visibility != VisibilityStates::Invisible)
 	{
-		return;
+		Transform.Fold();
+		ThreadSafeTransform.store(Transform.LastFoldInverse);
+
+		if (Visibility == VisibilityStates::Visible)
+		{
+			glUniformMatrix4fv(LocalToWorldBinding, 1, false, (const GLfloat*)(&Transform.LastFold));
+		}
+
+		Painter->Draw(CameraOrigin, PositionBinding, ColorBinding, this);
 	}
-
-	Transform.Fold();
-	glUniformMatrix4fv(LocalToWorldBinding, 1, false, (const GLfloat*)(&Transform.LastFold));
-
-	Painter->Draw(CameraOrigin, PositionBinding, ColorBinding, this);
 }

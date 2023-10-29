@@ -838,7 +838,21 @@ LuaModel::~LuaModel()
 int LuaHideModel(lua_State* L)
 {
 	LuaModelShared& Self = *GetSDFModel(L, 1);
-	Self->Visible = false;
+	int Args = lua_gettop(L);
+	bool Imminent = false;
+	if (Args == 2)
+	{
+		Imminent = lua_toboolean(L, 2);
+		lua_pop(L, 1);
+	}
+	if (Imminent)
+	{
+		Self->Visibility = VisibilityStates::Imminent;
+	}
+	else
+	{
+		Self->Visibility = VisibilityStates::Invisible;
+	}
 	return 1;
 };
 
@@ -846,7 +860,7 @@ int LuaHideModel(lua_State* L)
 int LuaShowModel(lua_State* L)
 {
 	LuaModelShared& Self = *GetSDFModel(L, 1);
-	Self->Visible = true;
+	Self->Visibility = VisibilityStates::Visible;
 	return 1;
 };
 

@@ -37,6 +37,14 @@ using SDFModelShared = std::shared_ptr<SDFModel>;
 using SDFModelWeakRef = std::weak_ptr<SDFModel>;
 
 
+enum class VisibilityStates : int
+{
+	Invisible = 0,
+	Imminent,
+	Visible
+};
+
+
 struct Drawable
 {
 	std::string Name = "unknown";
@@ -140,7 +148,7 @@ struct SodapopDrawable final : Drawable
 	std::vector<glm::vec4> Colors;
 
 	struct MeshingScratch* Scratch = nullptr;
-	std::atomic_bool MeshReady;
+	std::atomic_bool MeshReady = false;
 	bool MeshUploaded = false;
 
 	// These are populated during the meshing process, but may be safely used after the mesh is ready.
@@ -188,16 +196,17 @@ struct SDFModel
 	SDFNodeShared Evaluator = nullptr;
 	DrawableShared Painter = nullptr;
 
-	bool Visible = true;
+	std::atomic<VisibilityStates> Visibility = VisibilityStates::Visible;
 	TransformMachine Transform;
 	Buffer TransformBuffer;
+	std::atomic<glm::mat4> ThreadSafeTransform = glm::identity<glm::mat4>();
 
 	int MouseListenFlags = 0;
 
 	std::string Name = "";
 
 #if RENDERER_SODAPOP
-	std::atomic_bool Dirty = true;
+	std::atomic_bool Dirty = false;
 	std::atomic_bool Drawing = false;
 	glm::vec3 CameraOrigin = glm::vec3(0.0, 0.0, 0.0);
 	std::vector<glm::vec4> Colors;

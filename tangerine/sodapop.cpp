@@ -861,7 +861,7 @@ bool ShaderTask::Run()
 
 	if (Instance && Painter)
 	{
-		if (Instance->Dirty.load() && Painter->MeshReady.load())
+		if (Instance->Dirty.load() && Painter->MeshReady.load() && Instance->Visibility != VisibilityStates::Invisible)
 		{
 			// The model instance requested a repaint and the painter is ready for drawing.
 
@@ -872,7 +872,7 @@ bool ShaderTask::Run()
 			}
 			Instance->SodapopCS.unlock();
 
-			glm::vec4 LocalEye = Instance->Transform.LastFoldInverse * glm::vec4(Instance->CameraOrigin, 1.0);
+			glm::vec4 LocalEye = Instance->ThreadSafeTransform.load() * glm::vec4(Instance->CameraOrigin, 1.0);
 
 			bool NeedsRepaint = false;
 
@@ -888,6 +888,15 @@ bool ShaderTask::Run()
 					NextUpdate = UpdateIndex + 1;
 
 					const int Vertex = VertexGroup->Vertices[UpdateIndex];
+
+					if (Vertex < 0 || Vertex >= Instance->Colors.size())
+					{
+						// Mitigation attempt for a tricky null access crash, which can be triggered by
+						// writing or comparing the color value for the current vertex.  In this situation
+						// the instance is not yet visible, the painter's Color array appears to be initialized,
+						// but the instance's Color array has a size of zero.
+						break;
+					}
 
 					glm::vec3 Normal = Painter->Normals[Vertex].xyz();
 					glm::vec4 NewColor = MaterialDebugNormals::StaticEval(Normal);
@@ -908,6 +917,15 @@ bool ShaderTask::Run()
 					NextUpdate = UpdateIndex + 1;
 
 					const int Vertex = VertexGroup->Vertices[UpdateIndex];
+
+					if (Vertex < 0 || Vertex >= Instance->Colors.size())
+					{
+						// Mitigation attempt for a tricky null access crash, which can be triggered by
+						// writing or comparing the color value for the current vertex.  In this situation
+						// the instance is not yet visible, the painter's Color array appears to be initialized,
+						// but the instance's Color array has a size of zero.
+						break;
+					}
 
 					glm::vec3 Point = Painter->Positions[Vertex].xyz();
 					glm::vec3 Normal = Painter->Normals[Vertex].xyz();
@@ -946,6 +964,15 @@ bool ShaderTask::Run()
 					NextUpdate = UpdateIndex + 1;
 
 					const int Vertex = VertexGroup->Vertices[UpdateIndex];
+
+					if (Vertex < 0 || Vertex >= Instance->Colors.size())
+					{
+						// Mitigation attempt for a tricky null access crash, which can be triggered by
+						// writing or comparing the color value for the current vertex.  In this situation
+						// the instance is not yet visible, the painter's Color array appears to be initialized,
+						// but the instance's Color array has a size of zero.
+						break;
+					}
 
 					glm::vec3 Point = Painter->Positions[Vertex].xyz();
 					glm::vec3 Normal = Painter->Normals[Vertex].xyz();

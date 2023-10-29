@@ -212,7 +212,7 @@ bool DeliverMouseButton(MouseEvent Event)
 				{
 					MouseUpRecipients.push_back(Model);
 				}
-				if (Model->Visible)
+				if (Model->Visibility == VisibilityStates::Visible)
 				{
 					RayHit Query = Model->RayMarch(Event.RayOrigin, Event.RayDir);
 					if (Query.Hit && Query.Travel < Nearest)
