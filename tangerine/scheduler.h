@@ -82,6 +82,8 @@ namespace Scheduler
 	void Advance();
 	void DropEverything();
 
+	void SetThrottlingMode(bool ThrottlingActive);
+
 	std::atomic_bool& GetState();
 
 	bool Live();
