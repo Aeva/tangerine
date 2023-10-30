@@ -621,7 +621,7 @@ void RenderFrameGL4(int ScreenWidth, int ScreenHeight, std::vector<SDFModelWeakR
 				SDFModelShared Model = ModelWeakRef.lock();
 				if (Model)
 				{
-					Model->Draw(UploadedView.CameraOrigin.xyz());
+					Model->DrawGL4(UploadedView.CameraOrigin.xyz());
 				}
 			}
 
@@ -717,7 +717,7 @@ void RenderFrameES2(int ScreenWidth, int ScreenHeight, std::vector<SDFModelWeakR
 				SDFModelShared Model = ModelWeakRef.lock();
 				if (Model)
 				{
-					Model->Draw(UploadedView.CameraOrigin.xyz(), LocalToWorldBinding, PositionBinding, ColorBinding);
+					Model->DrawES2(UploadedView.CameraOrigin.xyz(), LocalToWorldBinding, PositionBinding, ColorBinding);
 				}
 			}
 
@@ -1358,35 +1358,26 @@ void RenderUI(SDL_Window* Window, bool& Live)
 		{
 			for (std::pair<size_t, DrawableWeakRef> Cached : DrawableCache)
 			{
-				DrawableShared CachedPainter = Cached.second.lock();
-				if (CachedPainter)
+				DrawableShared Painter = Cached.second.lock();
+				if (Painter)
 				{
-					SodapopDrawableShared Painter = std::dynamic_pointer_cast<SodapopDrawable>(CachedPainter);
-					if (Painter)
+					if (Painter->MeshReady.load())
 					{
-						if (Painter->MeshReady.load())
-						{
-							std::string Message = fmt::format("READY: {}", Painter->Name);
-							ImGui::TextUnformatted(Message.c_str(), nullptr);
+						std::string Message = fmt::format("READY: {}", Painter->Name);
+						ImGui::TextUnformatted(Message.c_str(), nullptr);
 
-							Message = fmt::format(" - Elapsed time: {} ms", Painter->ReadyDelay.count());
-							ImGui::TextUnformatted(Message.c_str(), nullptr);
-						}
-						else
-						{
-							std::string Message = fmt::format("PENDING: {}", Painter->Name);
-							ImGui::TextUnformatted(Message.c_str(), nullptr);
-						}
+						Message = fmt::format(" - Elapsed time: {} ms", Painter->ReadyDelay.count());
+						ImGui::TextUnformatted(Message.c_str(), nullptr);
 					}
 					else
 					{
-						std::string Message = fmt::format("UNEXPECTED: {}", CachedPainter->Name);
+						std::string Message = fmt::format("PENDING: {}", Painter->Name);
 						ImGui::TextUnformatted(Message.c_str(), nullptr);
 					}
 				}
 				else
 				{
-					std::string Message = "EXPIRED";
+					std::string Message = fmt::format("UNEXPECTED: {}", Painter->Name);
 					ImGui::TextUnformatted(Message.c_str(), nullptr);
 				}
 			}

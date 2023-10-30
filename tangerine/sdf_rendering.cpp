@@ -26,7 +26,7 @@ struct TransformUpload
 };
 
 
-void SodapopDrawable::Draw(
+void Drawable::DrawGL4(
 	glm::vec3 CameraOrigin,
 	SDFModel* Instance)
 {
@@ -69,7 +69,7 @@ void SodapopDrawable::Draw(
 }
 
 
-void SodapopDrawable::Draw(
+void Drawable::DrawES2(
 	glm::vec3 CameraOrigin,
 	const int PositionBinding,
 	const int ColorBinding,
@@ -117,7 +117,7 @@ void SodapopDrawable::Draw(
 }
 
 
-void SDFModel::Draw(
+void SDFModel::DrawGL4(
 	glm::vec3 CameraOrigin)
 {
 	if (Painter && Visibility != VisibilityStates::Invisible)
@@ -135,12 +135,12 @@ void SDFModel::Draw(
 			TransformBuffer.Bind(GL_UNIFORM_BUFFER, 1);
 		}
 
-		Painter->Draw(CameraOrigin, this);
+		Painter->DrawGL4(CameraOrigin, this);
 	}
 }
 
 
-void SDFModel::Draw(
+void SDFModel::DrawES2(
 	glm::vec3 CameraOrigin,
 	const int LocalToWorldBinding,
 	const int PositionBinding,
@@ -156,6 +156,6 @@ void SDFModel::Draw(
 			glUniformMatrix4fv(LocalToWorldBinding, 1, false, (const GLfloat*)(&Transform.LastFold));
 		}
 
-		Painter->Draw(CameraOrigin, PositionBinding, ColorBinding, this);
+		Painter->DrawES2(CameraOrigin, PositionBinding, ColorBinding, this);
 	}
 }

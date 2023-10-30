@@ -18,10 +18,10 @@
 #include "sdf_rendering.h"
 
 
-struct SodapopDrawable;
+struct Drawable;
 struct MeshingScratch;
 struct SDFModel;
-using SodapopDrawableShared = std::shared_ptr<SodapopDrawable>;
+using DrawableShared = std::shared_ptr<Drawable>;
 using SDFModelShared = std::shared_ptr<SDFModel>;
 
 
@@ -35,7 +35,7 @@ enum class MaterialOverride
 
 namespace Sodapop
 {
-	void Populate(SodapopDrawableShared MeshPainter, float MeshingDensityPush);
+	void Populate(DrawableShared MeshPainter, float MeshingDensityPush);
 	void Attach(SDFModelShared& Instance);
 	void SetMaterialOverrideMode(MaterialOverride Mode);
 	void DeleteMeshingScratch(MeshingScratch* Scratch);

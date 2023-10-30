@@ -50,29 +50,6 @@ struct Drawable
 
 	SDFNodeShared Evaluator = nullptr;
 
-	// Used by SodapopDrawable for GL4
-	virtual void Draw(
-		glm::vec3 CameraOrigin,
-		SDFModel* Instance) = 0;
-
-	// Used by SodapopDrawable for ES2
-	virtual void Draw(
-		glm::vec3 CameraOrigin,
-		const int PositionBinding,
-		const int ColorBinding,
-		SDFModel* Instance) = 0;
-
-	virtual ~Drawable()
-	{
-	}
-};
-
-using DrawableShared = std::shared_ptr<Drawable>;
-using DrawableWeakRef = std::weak_ptr<Drawable>;
-
-
-struct SodapopDrawable final : Drawable
-{
 	Buffer IndexBuffer;
 	Buffer PositionBuffer;
 
@@ -95,33 +72,23 @@ struct SodapopDrawable final : Drawable
 	Clock::time_point MeshingComplete;
 	std::chrono::duration<double, std::milli> ReadyDelay;
 
-	SodapopDrawable(const std::string& InName, SDFNodeShared& InEvaluator);
+	Drawable(const std::string& InName, SDFNodeShared& InEvaluator);
 
-	virtual void Draw(
-		const bool ShowOctree,
-		const bool ShowLeafCount,
-		const bool ShowHeatmap,
-		const bool Wireframe,
-		struct ShaderProgram* DebugShader)
-	{
-		// Unused;
-	}
-
-	virtual void Draw(
+	void DrawGL4(
 		glm::vec3 CameraOrigin,
 		SDFModel* Instance);
 
-	virtual void Draw(
+	void DrawES2(
 		glm::vec3 CameraOrigin,
 		const int PositionBinding,
 		const int ColorBinding,
 		SDFModel* Instance);
 
-	virtual ~SodapopDrawable();
+	~Drawable();
 };
 
-using SodapopDrawableShared = std::shared_ptr<SodapopDrawable>;
-using SodapopDrawableWeakRef = std::weak_ptr<SodapopDrawable>;
+using DrawableShared = std::shared_ptr<Drawable>;
+using DrawableWeakRef = std::weak_ptr<Drawable>;
 
 
 struct SDFModel
@@ -145,11 +112,9 @@ struct SDFModel
 	std::mutex SodapopCS;
 	Buffer ColorBuffer;
 
-	// Used by SodapopDrawable for GL4
-	void Draw(glm::vec3 CameraOrigin);
+	void DrawGL4(glm::vec3 CameraOrigin);
 
-	// Used by SodapopDrawable for ES2
-	void Draw(
+	void DrawES2(
 		glm::vec3 CameraOrigin,
 		const int LocalToWorldBinding,
 		const int PositionBinding,

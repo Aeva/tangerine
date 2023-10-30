@@ -501,15 +501,11 @@ void MeshExport(std::string Path, bool UseBaseColor, ExportFormat Format, float 
 	for (SDFModelWeakRef& WeakRef : LiveModels)
 	{
 		SDFModelShared LiveModel = WeakRef.lock();
-		if (LiveModel)
+		if (LiveModel && LiveModel->Painter)
 		{
-			SodapopDrawableShared Painter = std::static_pointer_cast<SodapopDrawable>(LiveModel->Painter);
-			if (Painter)
-			{
-				ExportModels.push_back(LiveModel);
-				VertexCount += Painter->Positions.size();
-				TriangleCount += Painter->Indices.size();
-			}
+			ExportModels.push_back(LiveModel);
+			VertexCount += LiveModel->Painter->Positions.size();
+			TriangleCount += LiveModel->Painter->Indices.size();
 		}
 	}
 
@@ -521,7 +517,7 @@ void MeshExport(std::string Path, bool UseBaseColor, ExportFormat Format, float 
 
 	for (SDFModelShared& Model : ExportModels)
 	{
-		SodapopDrawableShared Painter = std::static_pointer_cast<SodapopDrawable>(Model->Painter);
+		DrawableShared Painter = Model->Painter;
 
 		Model->Transform.Fold();
 		glm::mat4 Transform = Model->Transform.LastFold;

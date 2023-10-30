@@ -82,8 +82,7 @@ void GetIncompleteModels(std::vector<SDFModelWeakRef>& Incomplete)
 		SDFModelShared Model = WeakRef.lock();
 		if (Model)
 		{
-			SodapopDrawableShared Painter = std::static_pointer_cast<SodapopDrawable>(Model->Painter);
-			if (!Painter->MeshReady.load())
+			if (!Model->Painter->MeshReady.load())
 			{
 				Incomplete.push_back(Model);
 			}
@@ -102,8 +101,7 @@ void GetRenderableModels(std::vector<SDFModelWeakRef>& Renderable)
 		SDFModelShared Model = WeakRef.lock();
 		if (Model)
 		{
-			SodapopDrawableShared Painter = std::static_pointer_cast<SodapopDrawable>(Model->Painter);
-			if (Painter->MeshReady.load())
+			if (Model->Painter->MeshReady.load())
 			{
 				Renderable.push_back(Model);
 			}
@@ -212,7 +210,7 @@ bool DeliverMouseScroll(glm::vec3 Origin, glm::vec3 RayDir, int ScrollX, int Scr
 }
 
 
-SodapopDrawable::SodapopDrawable(const std::string& InName, SDFNodeShared& InEvaluator)
+Drawable::Drawable(const std::string& InName, SDFNodeShared& InEvaluator)
 {
 	ReadyDelay = std::chrono::duration<double, std::milli>::zero();
 	Name = InName;
@@ -234,7 +232,7 @@ SodapopDrawable::SodapopDrawable(const std::string& InName, SDFNodeShared& InEva
 }
 
 
-SodapopDrawable::~SodapopDrawable()
+Drawable::~Drawable()
 {
 	if (Scratch != nullptr)
 	{
@@ -294,10 +292,9 @@ SDFModel::SDFModel(SDFNodeShared& InEvaluator, const std::string& InName, const 
 			// stronger thread safety guarantees.
 			Evaluator = InEvaluator->Copy(true);
 
-			SodapopDrawableShared MeshPainter = std::make_shared<SodapopDrawable>(Name, Evaluator);
-			Painter = std::static_pointer_cast<Drawable>(MeshPainter);
+			Painter = std::make_shared<Drawable>(Name, Evaluator);
 			DrawableCache.emplace_back(Key, Painter);
-			Sodapop::Populate(MeshPainter, MeshingDensityPush);
+			Sodapop::Populate(Painter, MeshingDensityPush);
 		}
 		else
 		{
