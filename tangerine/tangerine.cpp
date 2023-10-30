@@ -602,6 +602,8 @@ void RenderFrameGL4(int ScreenWidth, int ScreenHeight, std::vector<SDFModelWeakR
 			glPopDebugGroup();
 		}
 		{
+			Clock::time_point SodapopStartTime = Clock::now();
+
 			glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Sodapop");
 			glBindFramebuffer(GL_FRAMEBUFFER, ForwardPass);
 			DepthTimeQuery.Start();
@@ -627,6 +629,9 @@ void RenderFrameGL4(int ScreenWidth, int ScreenHeight, std::vector<SDFModelWeakR
 
 			DepthTimeQuery.Stop();
 			glPopDebugGroup();
+
+			std::chrono::duration<double, std::milli> DrawDelta = Clock::now() - SodapopStartTime;
+			TotalDrawTimeMS = DrawDelta.count();
 		}
 		{
 			glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Resolve Output");
