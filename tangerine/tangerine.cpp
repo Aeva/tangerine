@@ -46,7 +46,6 @@ Rml::ElementDocument* RmlUiDocument = nullptr;
 #include "sdf_evaluator.h"
 #include "sdf_rendering.h"
 #include "sdf_model.h"
-#include "shape_compiler.h"
 #include "units.h"
 #include "export.h"
 #include "magica.h"
@@ -76,10 +75,9 @@ Rml::ElementDocument* RmlUiDocument = nullptr;
 
 #include "errors.h"
 #include "gl_boilerplate.h"
-#include "gl_async.h"
 #include "gl_debug.h"
-#include "../shaders/defines.h"
 #include "installation.h"
+
 
 // TODO: These were originally defined as a cross-platform compatibility hack for code
 // in this file that was using min/max macros from a Windows header.  The header is no
@@ -87,17 +85,11 @@ Rml::ElementDocument* RmlUiDocument = nullptr;
 #define min(a, b) (a < b ? a : b)
 #define max(a, b) (a > b ? a : b)
 
-#define ASYNC_SHADER_COMPILE 0
 
 using Clock = std::chrono::high_resolution_clock;
 
 
 bool HeadlessMode;
-
-
-#if MULTI_RENDERER
-Renderer CurrentRenderer = Renderer::ShapeCompiler;
-#endif
 
 
 ScriptEnvironment* MainEnvironment = nullptr;
@@ -128,90 +120,30 @@ void ClearTreeEvaluator()
 }
 
 
-ShaderProgram PaintShader;
 ShaderProgram NoiseShader;
 ShaderProgram BgShader;
-ShaderProgram GatherDepthShader;
 ShaderProgram ResolveOutputShader;
-ShaderProgram OctreeDebugShader;
-
-#if RENDERER_SODAPOP
 ShaderProgram SodapopShader;
-#endif
+
 
 Buffer ViewInfo("ViewInfo Buffer");
-Buffer OutlinerOptions("Outliner Options Buffer");
 
 Buffer DepthTimeBuffer("Subtree Heatmap Buffer");
 
-GLuint DepthPass;
 GLuint ColorPass;
-#if RENDERER_SODAPOP
 GLuint ForwardPass;
-#endif
 GLuint FinalPass = 0;
 
 GLuint DepthBuffer;
-GLuint PositionBuffer;
-GLuint NormalBuffer;
-GLuint SubtreeBuffer;
-GLuint MaterialBuffer;
 GLuint ColorBuffer;
 GLuint FinalBuffer;
 
 TimingQuery DepthTimeQuery;
 TimingQuery GridBgTimeQuery;
-TimingQuery OutlinerTimeQuery;
 TimingQuery UiTimeQuery;
 
 const glm::vec3 DefaultBackgroundColor = glm::vec3(.6);
 glm::vec3 BackgroundColor = DefaultBackgroundColor;
-
-
-#if ENABLE_OCCLUSION_CULLING
-struct DepthPyramidSliceUpload
-{
-	int Width;
-	int Height;
-	int Level;
-	int Unused;
-};
-
-GLuint DepthPyramidBuffer;
-std::vector<Buffer> DepthPyramidSlices;
-
-#if DEBUG_OCCLUSION_CULLING
-GLuint OcclusionDebugBuffer;
-#endif
-
-void UpdateDepthPyramid(int ScreenWidth, int ScreenHeight)
-{
-	glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Depth Pyramid");
-	glDisable(GL_DEPTH_TEST);
-	GatherDepthShader.Activate();
-	glBindTextureUnit(3, DepthBuffer);
-
-	int Level = 0;
-	int LevelWidth = ScreenWidth;
-	int LevelHeight = ScreenHeight;
-	for (Buffer& DepthPyramidSlice : DepthPyramidSlices)
-	{
-		DepthPyramidSlice.Bind(GL_UNIFORM_BUFFER, 2);
-		if (Level > 0)
-		{
-			glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
-			glBindImageTexture(4, DepthPyramidBuffer, Level - 1, false, 0, GL_READ_ONLY, GL_R32F);
-		}
-		glBindImageTexture(5, DepthPyramidBuffer, Level, false, 0, GL_WRITE_ONLY, GL_R32F);
-		glDispatchCompute(DIV_UP(LevelWidth, TILE_SIZE_X), DIV_UP(LevelHeight, TILE_SIZE_Y), 1);
-
-		LevelWidth = max(LevelWidth / 2, 1);
-		LevelHeight = max(LevelHeight / 2, 1);
-		++Level;
-	}
-	glPopDebugGroup();
-}
-#endif
 
 
 void AllocateRenderTargets(int ScreenWidth, int ScreenHeight)
@@ -219,152 +151,20 @@ void AllocateRenderTargets(int ScreenWidth, int ScreenHeight)
 	static bool Initialized = false;
 	if (Initialized)
 	{
-		glDeleteFramebuffers(1, &DepthPass);
 		glDeleteFramebuffers(1, &ColorPass);
-#if RENDERER_SODAPOP
 		glDeleteFramebuffers(1, &ForwardPass);
-#endif // RENDERER_SODAPOP
 		glDeleteTextures(1, &DepthBuffer);
-		glDeleteTextures(1, &PositionBuffer);
-		glDeleteTextures(1, &NormalBuffer);
-		glDeleteTextures(1, &SubtreeBuffer);
-		glDeleteTextures(1, &MaterialBuffer);
 		glDeleteTextures(1, &ColorBuffer);
 		if (HeadlessMode)
 		{
 			glDeleteFramebuffers(1, &FinalPass);
 			glDeleteTextures(1, &FinalBuffer);
 		}
-#if ENABLE_OCCLUSION_CULLING
-		{
-			glDeleteTextures(1, &DepthPyramidBuffer);
-			for (Buffer& Slice : DepthPyramidSlices)
-			{
-				Slice.Release();
-			}
-			DepthPyramidSlices.clear();
-		}
-#if DEBUG_OCCLUSION_CULLING
-		glDeleteTextures(1, &OcclusionDebugBuffer);
-#endif
-#endif
 	}
 	else
 	{
 		Initialized = true;
 	}
-
-	// Depth Pass
-	{
-		glCreateTextures(GL_TEXTURE_2D, 1, &DepthBuffer);
-		glTextureStorage2D(DepthBuffer, 1, GL_DEPTH_COMPONENT32F, ScreenWidth, ScreenHeight);
-		glTextureParameteri(DepthBuffer, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-		glTextureParameteri(DepthBuffer, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-		glTextureParameteri(DepthBuffer, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-		glTextureParameteri(DepthBuffer, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-		glObjectLabel(GL_TEXTURE, DepthBuffer, -1, "DepthBuffer");
-
-		glCreateTextures(GL_TEXTURE_2D, 1, &PositionBuffer);
-		glTextureStorage2D(PositionBuffer, 1, GL_RGB32F, ScreenWidth, ScreenHeight);
-		glTextureParameteri(PositionBuffer, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-		glTextureParameteri(PositionBuffer, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-		glTextureParameteri(PositionBuffer, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-		glTextureParameteri(PositionBuffer, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-		glObjectLabel(GL_TEXTURE, PositionBuffer, -1, "World Position");
-
-		glCreateTextures(GL_TEXTURE_2D, 1, &NormalBuffer);
-#if VISUALIZE_TRACING_ERROR
-		glTextureStorage2D(NormalBuffer, 1, GL_RGBA8_SNORM, ScreenWidth, ScreenHeight);
-#else
-		glTextureStorage2D(NormalBuffer, 1, GL_RGB8_SNORM, ScreenWidth, ScreenHeight);
-#endif
-		glTextureParameteri(NormalBuffer, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-		glTextureParameteri(NormalBuffer, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-		glTextureParameteri(NormalBuffer, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-		glTextureParameteri(NormalBuffer, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-		glObjectLabel(GL_TEXTURE, NormalBuffer, -1, "World Normal");
-
-		glCreateTextures(GL_TEXTURE_2D, 1, &SubtreeBuffer);
-		glTextureStorage2D(SubtreeBuffer, 1, GL_R32UI, ScreenWidth, ScreenHeight);
-		glTextureParameteri(SubtreeBuffer, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-		glTextureParameteri(SubtreeBuffer, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-		glTextureParameteri(SubtreeBuffer, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-		glTextureParameteri(SubtreeBuffer, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-		glObjectLabel(GL_TEXTURE, SubtreeBuffer, -1, "Subtree ID");
-
-		glCreateTextures(GL_TEXTURE_2D, 1, &MaterialBuffer);
-		glTextureStorage2D(MaterialBuffer, 1, GL_RGB8, ScreenWidth, ScreenHeight);
-		glTextureParameteri(MaterialBuffer, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-		glTextureParameteri(MaterialBuffer, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-		glTextureParameteri(MaterialBuffer, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-		glTextureParameteri(MaterialBuffer, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-		glObjectLabel(GL_TEXTURE, MaterialBuffer, -1, "Material ID");
-
-#if DEBUG_OCCLUSION_CULLING
-		glCreateTextures(GL_TEXTURE_2D, 1, &OcclusionDebugBuffer);
-		glTextureStorage2D(OcclusionDebugBuffer, 1, GL_RGBA32F, ScreenWidth, ScreenHeight);
-		glTextureParameteri(OcclusionDebugBuffer, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-		glTextureParameteri(OcclusionDebugBuffer, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-		glTextureParameteri(OcclusionDebugBuffer, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-		glTextureParameteri(OcclusionDebugBuffer, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-		glObjectLabel(GL_TEXTURE, OcclusionDebugBuffer, -1, "Occlusion Debug");
-#endif
-
-		glCreateFramebuffers(1, &DepthPass);
-		glObjectLabel(GL_FRAMEBUFFER, DepthPass, -1, "Depth Pass");
-		glNamedFramebufferTexture(DepthPass, GL_DEPTH_ATTACHMENT, DepthBuffer, 0);
-		glNamedFramebufferTexture(DepthPass, GL_COLOR_ATTACHMENT0, PositionBuffer, 0);
-		glNamedFramebufferTexture(DepthPass, GL_COLOR_ATTACHMENT1, NormalBuffer, 0);
-		glNamedFramebufferTexture(DepthPass, GL_COLOR_ATTACHMENT2, SubtreeBuffer, 0);
-		glNamedFramebufferTexture(DepthPass, GL_COLOR_ATTACHMENT3, MaterialBuffer, 0);
-#if DEBUG_OCCLUSION_CULLING
-		glNamedFramebufferTexture(DepthPass, GL_COLOR_ATTACHMENT4, OcclusionDebugBuffer, 0);
-		GLenum ColorAttachments[5] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1, GL_COLOR_ATTACHMENT2, GL_COLOR_ATTACHMENT3, GL_COLOR_ATTACHMENT4 };
-		glNamedFramebufferDrawBuffers(DepthPass, 5, ColorAttachments);
-#else
-		GLenum ColorAttachments[4] = { GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1, GL_COLOR_ATTACHMENT2, GL_COLOR_ATTACHMENT3 };
-		glNamedFramebufferDrawBuffers(DepthPass, 4, ColorAttachments);
-#endif
-	}
-
-	// Depth pyramid.
-#if ENABLE_OCCLUSION_CULLING
-	{
-		const int Levels = (int)min(
-			max(floor(log2(double(ScreenWidth))), 1.0),
-			max(floor(log2(double(ScreenHeight))), 1.0)) + 1;
-
-		glCreateTextures(GL_TEXTURE_2D, 1, &DepthPyramidBuffer);
-		glTextureStorage2D(DepthPyramidBuffer, Levels, GL_R32F, ScreenWidth, ScreenHeight);
-		glTextureParameteri(DepthPyramidBuffer, GL_TEXTURE_MIN_FILTER, GL_NEAREST_MIPMAP_NEAREST);
-		glTextureParameteri(DepthPyramidBuffer, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-		glTextureParameteri(DepthPyramidBuffer, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-		glTextureParameteri(DepthPyramidBuffer, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-		glObjectLabel(GL_TEXTURE, DepthPyramidBuffer, -1, "Depth Pyramid");
-
-		DepthPyramidSlices.resize(Levels);
-
-		DepthPyramidSliceUpload BufferData = \
-		{
-			ScreenWidth,
-			ScreenHeight,
-			0,
-			0
-		};
-
-		for (int Level = 0; Level < Levels; ++Level)
-		{
-			DepthPyramidSlices[Level].Upload((void*)&BufferData, sizeof(BufferData));
-			BufferData.Width = max(BufferData.Width / 2, 1);
-			BufferData.Height = max(BufferData.Height / 2, 1);
-			BufferData.Level++;
-		}
-
-		glBindFramebuffer(GL_FRAMEBUFFER, DepthPass);
-		glClear(GL_DEPTH_BUFFER_BIT);
-		UpdateDepthPyramid(ScreenWidth, ScreenHeight);
-	}
-#endif
 
 	// Color passes.
 	{
@@ -383,9 +183,16 @@ void AllocateRenderTargets(int ScreenWidth, int ScreenHeight)
 		glNamedFramebufferDrawBuffers(ColorPass, 1, ColorAttachments);
 	}
 
-#if RENDERER_SODAPOP
 	// Forward rendering pass
 	{
+		glCreateTextures(GL_TEXTURE_2D, 1, &DepthBuffer);
+		glTextureStorage2D(DepthBuffer, 1, GL_DEPTH_COMPONENT32F, ScreenWidth, ScreenHeight);
+		glTextureParameteri(DepthBuffer, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+		glTextureParameteri(DepthBuffer, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+		glTextureParameteri(DepthBuffer, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+		glTextureParameteri(DepthBuffer, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+		glObjectLabel(GL_TEXTURE, DepthBuffer, -1, "DepthBuffer");
+
 		glCreateFramebuffers(1, &ForwardPass);
 		glObjectLabel(GL_FRAMEBUFFER, ForwardPass, -1, "Forward Rendering Pass");
 		glNamedFramebufferTexture(ForwardPass, GL_DEPTH_ATTACHMENT, DepthBuffer, 0);
@@ -393,7 +200,6 @@ void AllocateRenderTargets(int ScreenWidth, int ScreenHeight)
 		GLenum ColorAttachments[1] = { GL_COLOR_ATTACHMENT0 };
 		glNamedFramebufferDrawBuffers(ForwardPass, 1, ColorAttachments);
 	}
-#endif // RENDERER_SODAPOP
 
 	// Final pass
 	if (HeadlessMode)
@@ -466,7 +272,6 @@ void EncodeBase64(std::vector<unsigned char>& Bytes, std::vector<char>& Encoded)
 
 struct ViewInfoUpload
 {
-	glm::mat4 WorldToLastView = glm::identity<glm::mat4>();
 	glm::mat4 WorldToView = glm::identity<glm::mat4>();
 	glm::mat4 ViewToWorld = glm::identity<glm::mat4>();
 	glm::mat4 ViewToClip = glm::identity<glm::mat4>();
@@ -478,15 +283,6 @@ struct ViewInfoUpload
 	float CurrentTime = -1.0;
 	bool Perspective = true;
 	float Padding[2] = { 0 };
-};
-
-
-struct OutlinerOptionsUpload
-{
-	GLuint OutlinerFlags;
-	GLuint Unused1;
-	GLuint Unused2;
-	GLuint Unused3;
 };
 
 
@@ -526,27 +322,10 @@ StatusCode SetupRenderer()
 
 	if (GraphicsBackend == GraphicsAPI::OpenGL4_2)
 	{
-#if VISUALIZE_CLUSTER_COVERAGE
-		RETURN_ON_FAIL(ClusterCoverageShader.Setup(
-			{ {GL_VERTEX_SHADER, ShaderSource("cluster_coverage.vs.glsl", true)},
-			{GL_FRAGMENT_SHADER, ShaderSource("cluster_coverage.fs.glsl", true)} },
-			"Cluster Coverage Shader"));
-#else
-
-		RETURN_ON_FAIL(PaintShader.Setup(
-			{ {GL_VERTEX_SHADER, ShaderSource("splat.vs.glsl", true)},
-			{GL_FRAGMENT_SHADER, ShaderSource("outliner.fs.glsl", true)} },
-			"Outliner Shader"));
-
 		RETURN_ON_FAIL(BgShader.Setup(
 			{ {GL_VERTEX_SHADER, ShaderSource("splat.vs.glsl", true)},
 			{GL_FRAGMENT_SHADER, ShaderSource("bg.fs.glsl", true)} },
 			"Background Shader"));
-#endif
-
-		RETURN_ON_FAIL(GatherDepthShader.Setup(
-			{ {GL_COMPUTE_SHADER, ShaderSource("gather_depth.cs.glsl", true)} },
-			"Depth Pyramid Shader"));
 
 		RETURN_ON_FAIL(ResolveOutputShader.Setup(
 			{ {GL_VERTEX_SHADER, ShaderSource("splat.vs.glsl", true)},
@@ -557,11 +336,6 @@ StatusCode SetupRenderer()
 			{ {GL_VERTEX_SHADER, ShaderSource("splat.vs.glsl", true)},
 			{GL_FRAGMENT_SHADER, ShaderSource("noise.fs.glsl", true)} },
 			"Noise Shader"));
-
-		RETURN_ON_FAIL(OctreeDebugShader.Setup(
-			{ {GL_VERTEX_SHADER, ShaderSource("cluster_draw.vs.glsl", true)},
-			{GL_FRAGMENT_SHADER, GeneratedShader("math.glsl", "", "octree_debug.fs.glsl")} },
-			"Octree Debug Shader"));
 	}
 	else if (GraphicsBackend == GraphicsAPI::OpenGLES2)
 	{
@@ -571,59 +345,17 @@ StatusCode SetupRenderer()
 			"No Signal Shader"));
 	}
 
-#if RENDERER_SODAPOP
 	RETURN_ON_FAIL(SodapopShader.Setup(
 		{ {GL_VERTEX_SHADER, ShaderSource("sodapop.vs.glsl", true)},
 		{GL_FRAGMENT_SHADER, ShaderSource("sodapop.fs.glsl", true)} },
 		"Sodapop Shader"));
-#endif // RENDERER_SODAPOP
 
 	DepthTimeQuery.Create();
 	GridBgTimeQuery.Create();
-	OutlinerTimeQuery.Create();
 	UiTimeQuery.Create();
 
 	return StatusCode::PASS;
 }
-
-
-double ShaderCompilerConvergenceMs = 0.0;
-Clock::time_point ShaderCompilerStart;
-#if RENDERER_COMPILER
-void CompileNewShaders(std::vector<SDFModelWeakRef>& IncompleteModels, const double LastInnerFrameDeltaMs)
-{
-	BeginEvent("Compile New Shaders");
-	Clock::time_point ProcessingStart = Clock::now();
-
-	double Budget = 16.6 - LastInnerFrameDeltaMs;
-	Budget = fmaxf(Budget, 1.0);
-	Budget = fminf(Budget, 14.0);
-
-	for (SDFModelWeakRef ModelWeakRef : IncompleteModels)
-	{
-		SDFModelShared Model = ModelWeakRef.lock();
-		if (Model)
-		{
-			VoxelDrawableShared Painter = std::static_pointer_cast<VoxelDrawable>(Model->Painter);
-			while (Painter->HasPendingShaders())
-			{
-				Painter->CompileNextShader();
-
-				std::chrono::duration<double, std::milli> Delta = Clock::now() - ProcessingStart;
-				ShaderCompilerConvergenceMs += Delta.count();
-				if (!HeadlessMode && Delta.count() > Budget)
-				{
-					goto timeout;
-				}
-			}
-		}
-	}
-timeout:
-
-	glMemoryBarrier(GL_SHADER_STORAGE_BARRIER_BIT);
-	EndEvent();
-}
-#endif // RENDERER_COMPILER
 
 
 bool UsePerspective = true;
@@ -667,21 +399,13 @@ int MouseMotionX = 0;
 int MouseMotionY = 0;
 int MouseMotionZ = 0;
 int BackgroundMode = 0;
-int ForegroundMode = 0;
 
 bool FixedCamera = false;
 glm::vec3 FixedOrigin = glm::vec3(0, -1, 0);
 glm::vec3 FixedFocus = glm::vec3(0, 0, 0);
 glm::vec3 FixedUp = glm::vec3(0, 0, 1);
 
-bool ShowSubtrees = false;
-bool ShowHeatmap = false;
-bool HighlightEdges = true;
 bool ResetCamera = true;
-bool ShowOctree = false;
-bool ShowLeafCount = false;
-bool ShowWireframe = false;
-bool FreezeCulling = false;
 bool RealtimeMode = false;
 bool ShowStatsOverlay = false;
 float PresentFrequency = 0.0;
@@ -698,13 +422,12 @@ namespace SchedulerStats
 	size_t DeleteQueue;
 }
 
-#if RENDERER_SODAPOP
+
 // Total CPU time spent in per-model drawing paths
 double TotalDrawTimeMS = 0.0;
 
 // Total CPU time spent stalled on present
 double PresentTimeMs = 0.0;
-#endif // RENDERER_SODAPOP
 
 
 void RenderFrameGL4(int ScreenWidth, int ScreenHeight, std::vector<SDFModelWeakRef>& RenderableModels, ViewInfoUpload& UploadedView, bool FullRedraw);
@@ -737,9 +460,7 @@ void RenderFrame(int ScreenWidth, int ScreenHeight, std::vector<SDFModelWeakRef>
 	static int FrameNumber = 0;
 	++FrameNumber;
 
-#if RENDERER_SODAPOP
 	TotalDrawTimeMS = 0.0;
-#endif
 
 	static int Width = 0;
 	static int Height = 0;
@@ -756,9 +477,6 @@ void RenderFrame(int ScreenWidth, int ScreenHeight, std::vector<SDFModelWeakRef>
 		}
 	}
 
-
-	static glm::mat4 WorldToLastView = glm::identity<glm::mat4>();
-
 	if (FixedCamera)
 	{
 		const glm::mat4 WorldToView = glm::lookAt(FixedOrigin, FixedFocus, FixedUp);
@@ -768,7 +486,6 @@ void RenderFrame(int ScreenWidth, int ScreenHeight, std::vector<SDFModelWeakRef>
 		const glm::mat4 ClipToView = inverse(ViewToClip);
 
 		UploadedView = {
-			WorldToLastView,
 			WorldToView,
 			ViewToWorld,
 			ViewToClip,
@@ -823,7 +540,6 @@ void RenderFrame(int ScreenWidth, int ScreenHeight, std::vector<SDFModelWeakRef>
 		const glm::mat4 ClipToView = inverse(ViewToClip);
 
 		UploadedView = {
-			WorldToLastView,
 			WorldToView,
 			ViewToWorld,
 			ViewToClip,
@@ -835,11 +551,6 @@ void RenderFrame(int ScreenWidth, int ScreenHeight, std::vector<SDFModelWeakRef>
 			float(CurrentTime),
 			UsePerspective,
 		};
-	}
-
-	if (!FreezeCulling)
-	{
-		WorldToLastView = UploadedView.WorldToView;
 	}
 
 	if (GraphicsBackend == GraphicsAPI::OpenGL4_2)
@@ -867,108 +578,8 @@ void RenderFrameGL4(int ScreenWidth, int ScreenHeight, std::vector<SDFModelWeakR
 	ViewInfo.Upload((void*)&UploadedView, sizeof(UploadedView));
 	ViewInfo.Bind(GL_UNIFORM_BUFFER, 0);
 
-	{
-		GLuint OutlinerFlags = 0;
-		if (ShowSubtrees)
-		{
-			OutlinerFlags |= 1;
-		}
-		if (ShowHeatmap)
-		{
-			OutlinerFlags |= 1 << 1;
-		}
-		if (HighlightEdges)
-		{
-			OutlinerFlags |= 1 << 2;
-		}
-		if (ShowOctree)
-		{
-			OutlinerFlags |= 1 | 1 << 3;
-		}
-		if (ShowLeafCount)
-		{
-			OutlinerFlags |= 1 << 4;
-		}
-		if (ForegroundMode == 1)
-		{
-			OutlinerFlags |= 1 << 5;
-		}
-		if (ForegroundMode == 2)
-		{
-			OutlinerFlags |= 1 << 6;
-		}
-		OutlinerOptionsUpload BufferData = {
-			OutlinerFlags,
-			0,
-			0,
-			0
-		};
-		OutlinerOptions.Upload((void*)&BufferData, sizeof(BufferData));
-	}
-
 	if (RenderableModels.size() > 0)
 	{
-#if RENDERER_COMPILER
-		if (CurrentRenderer == Renderer::ShapeCompiler)
-		{
-			if (FullRedraw)
-			{
-				BeginEvent("Depth");
-				glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Depth");
-				DepthTimeQuery.Start();
-				glBindFramebuffer(GL_FRAMEBUFFER, DepthPass);
-#if ENABLE_OCCLUSION_CULLING
-				glBindTextureUnit(1, DepthPyramidBuffer);
-#endif
-				glDepthMask(GL_TRUE);
-				glEnable(GL_DEPTH_TEST);
-				glDepthFunc(GL_GREATER);
-#ifdef ENABLE_RMLUI
-				glClear(GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
-#else
-				glClear(GL_DEPTH_BUFFER_BIT);
-#endif
-				if (ShowLeafCount)
-				{
-					glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
-					glClear(GL_COLOR_BUFFER_BIT);
-				}
-				if (ShowHeatmap)
-				{
-					DepthTimeQuery.Stop();
-				}
-
-				{
-					struct ShaderProgram* DebugShader = nullptr;
-					if (ShowOctree || ShowLeafCount)
-					{
-						DebugShader = &OctreeDebugShader;
-					}
-					for (SDFModelWeakRef ModelWeakRef : RenderableModels)
-					{
-						SDFModelShared Model = ModelWeakRef.lock();
-						if (Model)
-						{
-							Model->Draw(ShowOctree, ShowLeafCount, ShowHeatmap, ShowWireframe, DebugShader);
-						}
-					}
-				}
-
-				if (!ShowHeatmap)
-				{
-					DepthTimeQuery.Stop();
-				}
-				glPopDebugGroup();
-				EndEvent();
-			}
-#if ENABLE_OCCLUSION_CULLING
-			if (!FreezeCulling)
-			{
-				UpdateDepthPyramid(ScreenWidth, ScreenHeight);
-			}
-#endif
-		}
-#endif // RENDERER_COMPILER
 		{
 			glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Background");
 			glBindFramebuffer(GL_FRAMEBUFFER, ColorPass);
@@ -990,8 +601,6 @@ void RenderFrameGL4(int ScreenWidth, int ScreenHeight, std::vector<SDFModelWeakR
 			GridBgTimeQuery.Stop();
 			glPopDebugGroup();
 		}
-#if RENDERER_SODAPOP
-		if (CurrentRenderer == Renderer::Sodapop)
 		{
 			glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Sodapop");
 			glBindFramebuffer(GL_FRAMEBUFFER, ForwardPass);
@@ -1019,25 +628,6 @@ void RenderFrameGL4(int ScreenWidth, int ScreenHeight, std::vector<SDFModelWeakR
 			DepthTimeQuery.Stop();
 			glPopDebugGroup();
 		}
-#endif // RENDERER_SODAPOP
-#if RENDERER_COMPILER
-		if (CurrentRenderer == Renderer::ShapeCompiler)
-		{
-			glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Paint");
-			OutlinerTimeQuery.Start();
-			glBindTextureUnit(1, DepthBuffer);
-			glBindTextureUnit(2, PositionBuffer);
-			glBindTextureUnit(3, NormalBuffer);
-			glBindTextureUnit(4, SubtreeBuffer);
-			glBindTextureUnit(5, MaterialBuffer);
-			OutlinerOptions.Bind(GL_UNIFORM_BUFFER, 2);
-			DepthTimeBuffer.Bind(GL_SHADER_STORAGE_BUFFER, 2);
-			PaintShader.Activate();
-			glDrawArrays(GL_TRIANGLES, 0, 3);
-			OutlinerTimeQuery.Stop();
-			glPopDebugGroup();
-		}
-#endif // RENDERER_COMPILER
 		{
 			glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Resolve Output");
 			glDisable(GL_DEPTH_TEST);
@@ -1067,8 +657,7 @@ void RenderFrameES2(int ScreenWidth, int ScreenHeight, std::vector<SDFModelWeakR
 	glDisable(GL_FRAMEBUFFER_SRGB);
 	glBindFramebuffer(GL_FRAMEBUFFER, FinalPass);
 
-#if RENDERER_SODAPOP
-	if (CurrentRenderer == Renderer::Sodapop && RenderableModels.size() > 0)
+	if (RenderableModels.size() > 0)
 	{
 		{
 			glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Background");
@@ -1139,7 +728,6 @@ void RenderFrameES2(int ScreenWidth, int ScreenHeight, std::vector<SDFModelWeakR
 		}
 	}
 	else
-#endif // RENDERER_SODAPOP
 	{
 		glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Dead Channel");
 		glDepthMask(GL_FALSE);
@@ -1167,12 +755,6 @@ void SetClearColor(glm::vec3& Color)
 {
 	BackgroundMode = 1;
 	BackgroundColor = Color;
-}
-
-
-void SetOutline(bool OutlinerState)
-{
-	HighlightEdges = OutlinerState;
 }
 
 
@@ -1221,8 +803,6 @@ void LoadModelCommon(std::function<void()> LoadingCallback)
 	Clock::time_point EndTimePoint = Clock::now();
 	std::chrono::duration<double, std::milli> Delta = EndTimePoint - StartTimePoint;
 	ModelProcessingStallMs = Delta.count();
-	ShaderCompilerConvergenceMs = 0.0;
-	ShaderCompilerStart = Clock::now();
 	EndEvent();
 }
 
@@ -1282,18 +862,6 @@ void LoadModel(std::string Path, Language Runtime)
 void ReloadModel()
 {
 	LoadModel("", Language::Unknown);
-}
-
-
-void SetRenderer(Renderer NewRenderer)
-{
-#if MULTI_RENDERER
-	if (NewRenderer != CurrentRenderer)
-	{
-		CurrentRenderer = NewRenderer;
-		ReloadModel();
-	}
-#endif
 }
 
 
@@ -1393,17 +961,6 @@ void OpenModel()
 }
 
 
-void GetMouseStateForGL(SDL_Window* Window, int& OutMouseX, int& OutMouseY)
-{
-	int TmpMouseY;
-	SDL_GetMouseState(&OutMouseX, &TmpMouseY);
-	int WindowWidth;
-	int WindowHeight;
-	SDL_GetWindowSize(Window, &WindowWidth, &WindowHeight);
-	OutMouseY = WindowHeight - TmpMouseY - 1;
-}
-
-
 void WorldSpaceRay(const ViewInfoUpload& View, int ScreenX, int ScreenY, int ScreenWidth, int ScreenHeight, glm::vec3& Origin, glm::vec3& Direction)
 {
 	glm::vec4 ViewPosition;
@@ -1444,7 +1001,6 @@ void WorldSpaceRay(const ViewInfoUpload& View, int ScreenX, int ScreenY, int Scr
 // These are GPU times
 double DepthElapsedTimeMs = 0.0;
 double GridBgElapsedTimeMs = 0.0;
-double OutlinerElapsedTimeMs = 0.0;
 double UiElapsedTimeMs = 0.0;
 
 void RenderUI(SDL_Window* Window, bool& Live)
@@ -1461,11 +1017,9 @@ void RenderUI(SDL_Window* Window, bool& Live)
 	static bool ShowLicenses = false;
 
 	static bool ShowFocusOverlay = false;
-	static bool ShowPrettyTrees = false;
 	static bool ShowReadyDelays = false;
 
 	static bool ShowExportOptions = false;
-	static bool ExportFromSodapop;
 	static float ExportStepSize;
 	static float ExportSplitStep[3];
 	static float ExportScale;
@@ -1476,9 +1030,6 @@ void RenderUI(SDL_Window* Window, bool& Live)
 	static float MagicaGridSize = 1.0;
 	static int MagicaColorIndex = 0;
 	static std::string ExportPath;
-
-	static bool ShowChangeIterations = false;
-	static int NewMaxIterations = 0;
 
 	const bool DefaultExportSkipRefine = false;
 	const float DefaultExportStepSize = 0.05;
@@ -1516,25 +1067,6 @@ void RenderUI(SDL_Window* Window, bool& Live)
 		}
 		if (ImGui::BeginMenu("View"))
 		{
-#if MULTI_RENDERER
-			if (ImGui::BeginMenu("Renderer"))
-			{
-#if RENDERER_COMPILER
-				const bool AllowShapeCompiler = GraphicsBackend == GraphicsAPI::OpenGL4_2;
-				if (ImGui::MenuItem("Shape Compiler", nullptr, CurrentRenderer == Renderer::ShapeCompiler, AllowShapeCompiler))
-				{
-					SetRenderer(Renderer::ShapeCompiler);
-				}
-#endif // RENDERER_COMPILER
-#if RENDERER_SODAPOP
-				if (ImGui::MenuItem("Sodapop", nullptr, CurrentRenderer == Renderer::Sodapop))
-				{
-					SetRenderer(Renderer::Sodapop);
-				}
-#endif // RENDERER_SODAPOP
-				ImGui::EndMenu();
-			}
-#endif // MULTI_RENDERER
 			if (ImGui::BeginMenu("Background"))
 			{
 				if (ImGui::MenuItem("Solid Color", nullptr, BackgroundMode == -1))
@@ -1547,62 +1079,33 @@ void RenderUI(SDL_Window* Window, bool& Live)
 				}
 				ImGui::EndMenu();
 			}
-#if RENDERER_COMPILER
-			if (CurrentRenderer == Renderer::ShapeCompiler)
+			if (ImGui::BeginMenu("Foreground"))
 			{
-				if (ImGui::BeginMenu("Foreground"))
+				static MaterialOverride OverrideMode = MaterialOverride::Off;
+
+				bool MaterialOverrideOff = OverrideMode == MaterialOverride::Off;
+				if (ImGui::MenuItem("No Override", nullptr, &MaterialOverrideOff))
 				{
-					if (ImGui::MenuItem("PBRBR", nullptr, ForegroundMode == 0))
-					{
-						ForegroundMode = 0;
-					}
-					if (ImGui::MenuItem("Metalic", nullptr, ForegroundMode == 1))
-					{
-						ForegroundMode = 1;
-					}
-					if (ImGui::MenuItem("Vaporwave", nullptr, ForegroundMode == 2))
-					{
-						ForegroundMode = 2;
-					}
-					ImGui::EndMenu();
+					OverrideMode = MaterialOverride::Off;
+					Sodapop::SetMaterialOverrideMode(OverrideMode);
 				}
-				if (ImGui::MenuItem("Highlight Edges", nullptr, &HighlightEdges))
+
+				bool MaterialOverrideInvariant = OverrideMode == MaterialOverride::Invariant;
+				if (ImGui::MenuItem("View Invariant", nullptr, &MaterialOverrideInvariant))
 				{
+					OverrideMode = MaterialOverride::Invariant;
+					Sodapop::SetMaterialOverrideMode(OverrideMode);
 				}
+
+				bool MaterialOverrideNormals = OverrideMode == MaterialOverride::Normals;
+				if (ImGui::MenuItem("Debug Normals", nullptr, &MaterialOverrideNormals))
+				{
+					OverrideMode = MaterialOverride::Normals;
+					Sodapop::SetMaterialOverrideMode(OverrideMode);
+				}
+
+				ImGui::EndMenu();
 			}
-#endif // RENDERER_COMPILER
-#if RENDERER_SODAPOP
-			if (CurrentRenderer == Renderer::Sodapop)
-			{
-				if (ImGui::BeginMenu("Foreground"))
-				{
-					static MaterialOverride OverrideMode = MaterialOverride::Off;
-
-					bool MaterialOverrideOff = OverrideMode == MaterialOverride::Off;
-					if (ImGui::MenuItem("No Override", nullptr, &MaterialOverrideOff))
-					{
-						OverrideMode = MaterialOverride::Off;
-						Sodapop::SetMaterialOverrideMode(OverrideMode);
-					}
-
-					bool MaterialOverrideInvariant = OverrideMode == MaterialOverride::Invariant;
-					if (ImGui::MenuItem("View Invariant", nullptr, &MaterialOverrideInvariant))
-					{
-						OverrideMode = MaterialOverride::Invariant;
-						Sodapop::SetMaterialOverrideMode(OverrideMode);
-					}
-
-					bool MaterialOverrideNormals = OverrideMode == MaterialOverride::Normals;
-					if (ImGui::MenuItem("Debug Normals", nullptr, &MaterialOverrideNormals))
-					{
-						OverrideMode = MaterialOverride::Normals;
-						Sodapop::SetMaterialOverrideMode(OverrideMode);
-					}
-
-					ImGui::EndMenu();
-				}
-			}
-#endif
 			if (ImGui::MenuItem("Recenter"))
 			{
 				ResetCamera = true;
@@ -1613,57 +1116,6 @@ void RenderUI(SDL_Window* Window, bool& Live)
 			}
 			ImGui::EndMenu();
 		}
-#if RENDERER_COMPILER
-		if (CurrentRenderer == Renderer::ShapeCompiler)
-		{
-			if (ImGui::BeginMenu("Debug"))
-			{
-				bool DebugOff = !(ShowSubtrees || ShowHeatmap || ShowOctree || ShowLeafCount);
-				if (ImGui::MenuItem("Off", nullptr, &DebugOff))
-				{
-					ShowSubtrees = false;
-					ShowOctree = false;
-					ShowHeatmap = false;
-					ShowLeafCount = false;
-				}
-				if (ImGui::MenuItem("Shader Groups", nullptr, &ShowSubtrees))
-				{
-					ShowOctree = false;
-					ShowHeatmap = false;
-					ShowLeafCount = false;
-				}
-				if (ImGui::MenuItem("Shader Heatmap", nullptr, &ShowHeatmap))
-				{
-					ShowOctree = false;
-					ShowSubtrees = false;
-					ShowLeafCount = false;
-				}
-				if (ImGui::MenuItem("Octree", nullptr, &ShowOctree))
-				{
-					ShowHeatmap = false;
-					ShowSubtrees = false;
-					ShowLeafCount = false;
-				}
-				if (ImGui::MenuItem("CSG Leaf Count", nullptr, &ShowLeafCount))
-				{
-					ShowOctree = false;
-					ShowHeatmap = false;
-					ShowSubtrees = false;
-				}
-				ImGui::Separator();
-				if (ImGui::MenuItem("Wireframe", nullptr, &ShowWireframe))
-				{
-				}
-				if (ImGui::MenuItem("Freeze Culling", nullptr, &FreezeCulling))
-				{
-				}
-				if (ImGui::MenuItem("Force Redraw", nullptr, &RealtimeMode))
-				{
-				}
-				ImGui::EndMenu();
-			}
-		}
-#endif // RENDERER_COMPILER
 		if (ImGui::BeginMenu("Window"))
 		{
 			if (ImGui::MenuItem("Camera Parameters", nullptr, &ShowFocusOverlay))
@@ -1672,22 +1124,9 @@ void RenderUI(SDL_Window* Window, bool& Live)
 			if (ImGui::MenuItem("Performance Stats", nullptr, &ShowStatsOverlay))
 			{
 			}
-#if RENDERER_COMPILER
-			if (CurrentRenderer == Renderer::ShapeCompiler)
+			if (ImGui::MenuItem("Meshing Stats", nullptr, &ShowReadyDelays))
 			{
-				if (ImGui::MenuItem("CSG Subtrees", nullptr, &ShowPrettyTrees))
-				{
-				}
 			}
-#endif // RENDERER_COMPILER
-#if RENDERER_SODAPOP
-			if (CurrentRenderer == Renderer::Sodapop)
-			{
-				if (ImGui::MenuItem("Meshing Stats", nullptr, &ShowReadyDelays))
-				{
-				}
-			}
-#endif // RENDERER_SODAPOP
 			ImGui::EndMenu();
 		}
 		if (ImGui::BeginMenu("Help"))
@@ -1743,17 +1182,6 @@ void RenderUI(SDL_Window* Window, bool& Live)
 					ExportStepSize = DefaultExportStepSize;
 				}
 
-#if RENDERER_SODAPOP
-				if (CurrentRenderer == Renderer::Sodapop)
-				{
-					ExportFromSodapop = true;
-				}
-				else
-#endif
-				{
-					ExportFromSodapop = false;
-				}
-
 				for (int i = 0; i < 3; ++i)
 				{
 					ExportSplitStep[i] = ExportStepSize;
@@ -1771,43 +1199,6 @@ void RenderUI(SDL_Window* Window, bool& Live)
 			}
 			ifd::FileDialog::Instance().Close();
 		}
-
-#if RENDERER_COMPILER
-		if (CurrentRenderer == Renderer::ShapeCompiler)
-		{
-			bool ToggleInterpreted = false;
-			if (Interpreted)
-			{
-				if (ImGui::MenuItem("[Interpreted Shaders]", nullptr, &ToggleInterpreted))
-				{
-					Interpreted = false;
-					ReloadModel();
-				}
-			}
-			else
-			{
-				if (ImGui::MenuItem("[Compiled Shaders]", nullptr, &ToggleInterpreted))
-				{
-					Interpreted = true;
-					ReloadModel();
-				}
-			}
-
-			bool ChangeIterations = false;
-			std::string IterationsLabel = fmt::format("[Max Iterations: {}]", MaxIterations);
-			if (ImGui::MenuItem(IterationsLabel.c_str(), nullptr, &ChangeIterations))
-			{
-				ShowChangeIterations = true;
-				NewMaxIterations = MaxIterations;
-			}
-		}
-#endif
-#if RENDERER_SODAPOP
-		if (CurrentRenderer == Renderer::Sodapop)
-		{
-			ImGui::Text("[Sodapop]");
-		}
-#endif
 
 		ImGui::EndMainMenuBar();
 	}
@@ -1835,50 +1226,6 @@ void RenderUI(SDL_Window* Window, bool& Live)
 			}
 		}
 		ImGui::End();
-	}
-
-#if RENDERER_COMPILER
-	if (ShowChangeIterations && CurrentRenderer == Renderer::ShapeCompiler)
-	{
-		ImGuiWindowFlags WindowFlags = \
-			ImGuiWindowFlags_AlwaysAutoResize |
-			ImGuiWindowFlags_NoSavedSettings |
-			ImGuiWindowFlags_NoFocusOnAppearing;
-
-		if (ImGui::Begin("Change Ray Marching Iterations", &ShowChangeIterations, WindowFlags))
-		{
-			ImGui::Text("MaxIterations");
-			ImGui::SameLine();
-			ImGui::InputInt("##MaxIterations", &NewMaxIterations, 10);
-			if (NewMaxIterations < 1)
-			{
-				NewMaxIterations = 1;
-			}
-			if (ImGui::Button("Apply"))
-			{
-				ShowChangeIterations = false;
-				OverrideMaxIterations(NewMaxIterations);
-				ReloadModel();
-			}
-		}
-		ImGui::End();
-	}
-#endif // RENDERER_COMPILER
-
-	if (ShowLeafCount)
-	{
-		int MouseX;
-		int MouseY;
-		GetMouseStateForGL(Window, MouseX, MouseY);
-
-		int LeafCount = 0;
-		glBindFramebuffer(GL_READ_FRAMEBUFFER, DepthPass);
-		glReadBuffer(GL_COLOR_ATTACHMENT2);
-		glReadPixels(MouseX, MouseY, 1, 1, GL_RED_INTEGER, GL_UNSIGNED_INT, &LeafCount);
-		glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
-
-		std::string Msg = fmt::format("CSG Leaf Count: {}\n", LeafCount);
-		ImGui::SetTooltip("%s", Msg.c_str());
 	}
 
 	if (ShowFocusOverlay)
@@ -1954,35 +1301,11 @@ void RenderUI(SDL_Window* Window, bool& Live)
 
 		if (ImGui::Begin("Performance Stats", &ShowStatsOverlay, WindowFlags))
 		{
-			ImGui::Text("Cadence\n");
-			ImGui::Text(" %.0f hz\n", round(PresentFrequency));
-			ImGui::Text(" %.1f ms\n", PresentDeltaMs);
-
-#if RENDERER_COMPILER
-			if (ShowChangeIterations && CurrentRenderer == Renderer::ShapeCompiler)
 			{
-				ImGui::Separator();
-				ImGui::Text("GPU Timeline\n");
-				double TotalTimeMs = \
-					DepthElapsedTimeMs +
-					GridBgElapsedTimeMs +
-					OutlinerElapsedTimeMs +
-					UiElapsedTimeMs;
-				ImGui::Text("   Depth: %.2f ms\n", DepthElapsedTimeMs);
-				ImGui::Text("   'Sky': %.2f ms\n", GridBgElapsedTimeMs);
-				ImGui::Text(" Outline: %.2f ms\n", OutlinerElapsedTimeMs);
-				ImGui::Text("      UI: %.2f ms\n", UiElapsedTimeMs);
-				ImGui::Text("   Total: %.2f ms\n", TotalTimeMs);
-
-				ImGui::Separator();
-				ImGui::Text("Model Loading\n");
-				ImGui::Text("  Processing: %.3f s\n", ModelProcessingStallMs / 1000.0);
-				ImGui::Text(" Convergence: %.3f s\n", ShaderCompilerConvergenceMs / 1000.0);
+				ImGui::Text("Cadence\n");
+				ImGui::Text(" %.0f hz\n", round(PresentFrequency));
+				ImGui::Text(" %.1f ms\n", PresentDeltaMs);
 			}
-#endif // RENDERER_COMPILER
-
-#if RENDERER_SODAPOP
-			if (CurrentRenderer == Renderer::Sodapop)
 			{
 				ImGui::Separator();
 				ImGui::Text("CPU Frame Times\n");
@@ -1992,13 +1315,12 @@ void RenderUI(SDL_Window* Window, bool& Live)
 				ImGui::Text(" Drawing: %.2f ms\n", TotalDrawTimeMS);
 				ImGui::Text(" Present: %.2f ms\n", PresentTimeMs);
 				ImGui::Text("   Total: %.2f ms\n", TotalTimeMs);
-
+			}
+			{
 				ImGui::Separator();
 				ImGui::Text("Model Loading\n");
 				ImGui::Text("  Processing: %.3f s\n", ModelProcessingStallMs / 1000.0);
 			}
-#endif // RENDERER_SODAPOP
-
 			{
 				Scheduler::Stats(
 					SchedulerStats::Inbox,
@@ -2020,50 +1342,9 @@ void RenderUI(SDL_Window* Window, bool& Live)
 	}
 
 	std::vector<SDFModelWeakRef>& LiveModels = GetLiveModels();
-#if RENDERER_COMPILER
-	if (ShowPrettyTrees && LiveModels.size() > 0 && CurrentRenderer == Renderer::ShapeCompiler)
-	{
-		ImGuiWindowFlags WindowFlags = \
-			ImGuiWindowFlags_HorizontalScrollbar |
-			ImGuiWindowFlags_NoSavedSettings |
-			ImGuiWindowFlags_NoFocusOnAppearing;
 
-		ImGui::SetNextWindowPos(ImVec2(10.0, 32.0), ImGuiCond_Appearing, ImVec2(0.0, 0.0));
-		ImGui::SetNextWindowSize(ImVec2(256, 512), ImGuiCond_Appearing);
-
-		if (ImGui::Begin("Shader Permutations", &ShowPrettyTrees, WindowFlags))
-		{
-			std::vector<ProgramTemplate*> AllProgramTemplates;
-			for (SDFModelWeakRef& WeakRef : LiveModels)
-			{
-				SDFModelShared LiveModel = WeakRef.lock();
-				if (LiveModel)
-				{
-					VoxelDrawableShared Painter = std::static_pointer_cast<VoxelDrawable>(LiveModel->Painter);
-					for (ProgramTemplate& ProgramFamily : Painter->ProgramTemplates)
-					{
-						AllProgramTemplates.push_back(&ProgramFamily);
-					}
-				}
-			}
-
-			std::string Message = fmt::format("Shader Count: {}", AllProgramTemplates.size());
-			ImGui::TextUnformatted(Message.c_str(), nullptr);
-
-			bool First = true;
-			for (ProgramTemplate* ProgramFamily : AllProgramTemplates)
-			{
-				ImGui::Separator();
-				ImGui::TextUnformatted(ProgramFamily->PrettyTree.c_str(), nullptr);
-			}
-		}
-		ImGui::End();
-	}
-#endif // RENDERER_COMPILER
-
-#if RENDERER_SODAPOP
 	std::vector<std::pair<size_t, DrawableWeakRef>>& DrawableCache = GetDrawableCache();
-	if (ShowReadyDelays && DrawableCache.size() > 0 && CurrentRenderer == Renderer::Sodapop)
+	if (ShowReadyDelays && DrawableCache.size() > 0)
 	{
 		ImGuiWindowFlags WindowFlags = \
 			ImGuiWindowFlags_HorizontalScrollbar |
@@ -2112,8 +1393,6 @@ void RenderUI(SDL_Window* Window, bool& Live)
 		}
 		ImGui::End();
 	}
-#endif // RENDERER_SODAPOP
-
 	{
 		ExportProgress Progress = GetExportProgress();
 		if (Progress.Stage != 0)
@@ -2175,6 +1454,7 @@ void RenderUI(SDL_Window* Window, bool& Live)
 				}
 				else
 				{
+					const bool ExportFromSodapop = true;
 					// TODO: expose ExportFromSodapop as an option or something
 					if (!ExportFromSodapop)
 					{
@@ -2385,23 +1665,6 @@ StatusCode Boot(int argc, char* argv[])
 				continue;
 			}
 #endif
-#if RENDERER_COMPILER
-			else if (Args[Cursor] == "--iterations" && (Cursor + 1) < Args.size())
-			{
-				const int MaxIterations = atoi(Args[Cursor + 1].c_str());
-				OverrideMaxIterations(MaxIterations);
-				Cursor += 2;
-				continue;
-			}
-			else if (Args[Cursor] == "--use-rounded-stack")
-			{
-				// Implies "--interpreted"
-				UseInterpreter();
-				UseRoundedStackSize();
-				Cursor += 1;
-				continue;
-			}
-#endif
 			else if (Args[Cursor] == "--llvmpipe")
 			{
 #if _WIN64
@@ -2480,12 +1743,6 @@ StatusCode Boot(int argc, char* argv[])
 		if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER) == 0)
 		{
 			RETURN_ON_FAIL(BootGL(WindowWidth, WindowHeight, HeadlessMode, ForceES2, CreateDebugContext, RequestedVSyncMode));
-#if MULTI_RENDERER
-			if (GraphicsBackend != GraphicsAPI::OpenGL4_2)
-			{
-				CurrentRenderer = Renderer::Sodapop;
-			}
-#endif
 		}
 		else
 		{
@@ -2664,9 +1921,6 @@ StatusCode Boot(int argc, char* argv[])
 		std::cout << "Failed to initialize the renderer.\n";
 		return StatusCode::FAIL;
 	}
-	{
-		StartWorkerThreads();
-	}
 
 	if (LoadFromStandardIn)
 	{
@@ -2688,17 +1942,6 @@ StatusCode Boot(int argc, char* argv[])
 			MouseMotionX = 45;
 			MouseMotionY = 45;
 
-#if RENDERER_COMPILER
-			if (CurrentRenderer == Renderer::ShapeCompiler)
-			{
-				std::vector<SDFModelWeakRef> IncompleteModels;
-				GetIncompleteModels(IncompleteModels);
-				if (IncompleteModels.size() > 0)
-				{
-					CompileNewShaders(IncompleteModels, LastInnerFrameDeltaMs);
-				}
-			}
-#endif
 			std::vector<SDFModelWeakRef> RenderableModels;
 			GetRenderableModels(RenderableModels);
 
@@ -2738,7 +1981,6 @@ void Teardown()
 		delete MainEnvironment;
 	}
 	{
-		JoinWorkerThreads();
 		UnloadAllModels();
 		if (Context)
 		{
@@ -3035,15 +2277,7 @@ void MainLoop()
 					{
 						GetIncompleteModels(IncompleteModels);
 						LastIncompleteCount = IncompleteModels.size();
-#if RENDERER_COMPILER
-						if (CurrentRenderer == Renderer::ShapeCompiler)
-						{
-							if (IncompleteModels.size() > 0)
-							{
-								CompileNewShaders(IncompleteModels, LastInnerFrameDeltaMs);
-							}
-						}
-#endif
+
 						GetRenderableModels(RenderableModels);
 						LastRenderableCount = RenderableModels.size();
 					}
@@ -3086,37 +2320,8 @@ void MainLoop()
 						BeginEvent("Query Results");
 						DepthElapsedTimeMs = DepthTimeQuery.ReadMs();
 						GridBgElapsedTimeMs = GridBgTimeQuery.ReadMs();
-						OutlinerElapsedTimeMs = OutlinerTimeQuery.ReadMs();
 						UiElapsedTimeMs = UiTimeQuery.ReadMs();
 
-#if RENDERER_COMPILER
-						if (ShowHeatmap && CurrentRenderer == Renderer::ShapeCompiler)
-						{
-							float Range = 0.0;
-							std::vector<float> Upload;
-							for (SDFModelWeakRef ModelWeakRef : RenderableModels)
-							{
-								SDFModelShared Model = ModelWeakRef.lock();
-								if (Model)
-								{
-									VoxelDrawableShared Painter = std::static_pointer_cast<VoxelDrawable>(Model->Painter);
-									for (ProgramTemplate* CompiledTemplate : Painter->CompiledTemplates)
-									{
-										double ElapsedTimeMs = CompiledTemplate->DepthQuery.ReadMs();
-										Upload.push_back(float(ElapsedTimeMs));
-										DepthElapsedTimeMs += ElapsedTimeMs;
-										Range = fmax(Range, float(ElapsedTimeMs));
-									}
-								}
-							}
-							for (float& ElapsedTimeMs : Upload)
-							{
-								ElapsedTimeMs /= Range;
-							}
-
-							DepthTimeBuffer.Upload(Upload.data(), Upload.size() * sizeof(float));
-						}
-#endif // RENDERER_COMPILER
 						EndEvent();
 					}
 					if (FlushPendingFileDialogTextureDeletes)

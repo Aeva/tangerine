@@ -20,5 +20,4 @@
 void PostScriptError(std::string ErrorMessage);
 void LoadModelCommon(std::function<void()> LoadingCallback);
 void SetClearColor(glm::vec3& Color);
-void SetOutline(bool OutlinerState);
 void SetFixedCamera(glm::vec3& Origin, glm::vec3& Focus, glm::vec3& Up);

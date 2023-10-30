@@ -584,14 +584,6 @@ int LuaClearColor(lua_State* L)
 }
 
 
-int LuaOutliner(lua_State* L)
-{
-	const bool OutlinerState = lua_toboolean(L, 1);
-	SetOutline(OutlinerState);
-	return 0;
-}
-
-
 int LuaFixedCamera(lua_State* L)
 {
 	int NextArg = 1;
@@ -747,7 +739,6 @@ const luaL_Reg LuaSDFType[] = \
 	{ "pivot_towards", LuaPivotTowards },
 
 	{ "set_bg", LuaClearColor },
-	{ "set_outline", LuaOutliner },
 	{ "set_fixed_camera", LuaFixedCamera },
 
 	{ "random_seed", LuaRandomSeed },

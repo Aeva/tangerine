@@ -21,11 +21,10 @@
 #include "sdf_rendering.h"
 #include "material.h"
 
-#if RENDERER_SODAPOP
 #include "sodapop.h"
 #include <atomic>
 #include <mutex>
-#endif
+
 #include <string>
 #include <chrono>
 #include <map>
@@ -51,14 +50,6 @@ struct Drawable
 
 	SDFNodeShared Evaluator = nullptr;
 
-	// Used by VoxelDrawable
-	virtual void Draw(
-		const bool ShowOctree,
-		const bool ShowLeafCount,
-		const bool ShowHeatmap,
-		const bool Wireframe,
-		struct ShaderProgram* DebugShader) = 0;
-
 	// Used by SodapopDrawable for GL4
 	virtual void Draw(
 		glm::vec3 CameraOrigin,
@@ -80,63 +71,6 @@ using DrawableShared = std::shared_ptr<Drawable>;
 using DrawableWeakRef = std::weak_ptr<Drawable>;
 
 
-#if RENDERER_COMPILER
-struct VoxelDrawable final : Drawable
-{
-	std::map<std::string, size_t> ProgramTemplateSourceMap;
-	std::vector<ProgramTemplate> ProgramTemplates;
-
-	std::vector<size_t> PendingShaders;
-	std::vector<ProgramTemplate*> CompiledTemplates;
-
-	VoxelDrawable(const std::string& InName, SDFNodeShared& InEvaluator)
-	{
-		Name = InName;
-		Evaluator = InEvaluator;
-	}
-
-	bool HasPendingShaders();
-	bool HasCompleteShaders();
-	void CompileNextShader();
-
-	void Compile(const float VoxelSize);
-
-	virtual void Draw(
-		const bool ShowOctree,
-		const bool ShowLeafCount,
-		const bool ShowHeatmap,
-		const bool Wireframe,
-		struct ShaderProgram* DebugShader);
-
-	virtual void Draw(
-		glm::vec3 CameraOrigin,
-		SDFModel* Instance)
-	{
-		// Unused
-	};
-
-	virtual void Draw(
-		glm::vec3 CameraOrigin,
-		const int PositionBinding,
-		const int ColorBinding,
-		SDFModel* Instance)
-	{
-		// Unused
-	};
-
-	virtual ~VoxelDrawable();
-
-private:
-	size_t AddProgramTemplate(std::string Source, std::string Pretty, int LeafCount);
-	void AddProgramVariant(size_t ShaderIndex, uint32_t SubtreeIndex, const std::vector<float>& Params, const std::vector<AABB>& Voxels);
-	ProgramBuffer* PendingVoxels = nullptr;
-};
-
-using VoxelDrawableShared = std::shared_ptr<VoxelDrawable>;
-#endif // RENDERER_COMPILER
-
-
-#if RENDERER_SODAPOP
 struct SodapopDrawable final : Drawable
 {
 	Buffer IndexBuffer;
@@ -188,7 +122,6 @@ struct SodapopDrawable final : Drawable
 
 using SodapopDrawableShared = std::shared_ptr<SodapopDrawable>;
 using SodapopDrawableWeakRef = std::weak_ptr<SodapopDrawable>;
-#endif // RENDERER_SODAPOP
 
 
 struct SDFModel
@@ -205,22 +138,12 @@ struct SDFModel
 
 	std::string Name = "";
 
-#if RENDERER_SODAPOP
 	std::atomic_bool Dirty = false;
 	std::atomic_bool Drawing = false;
 	glm::vec3 CameraOrigin = glm::vec3(0.0, 0.0, 0.0);
 	std::vector<glm::vec4> Colors;
 	std::mutex SodapopCS;
 	Buffer ColorBuffer;
-#endif // RENDERER_SODAPOP
-
-	// Used by VoxelDrawable
-	void Draw(
-		const bool ShowOctree,
-		const bool ShowLeafCount,
-		const bool ShowHeatmap,
-		const bool Wireframe,
-		struct ShaderProgram* DebugShader);
 
 	// Used by SodapopDrawable for GL4
 	void Draw(glm::vec3 CameraOrigin);

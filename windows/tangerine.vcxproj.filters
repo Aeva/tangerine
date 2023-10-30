@@ -99,12 +99,6 @@
     <ClCompile Include="..\tangerine\profiling.cpp">
       <Filter>Tangerine</Filter>
     </ClCompile>
-    <ClCompile Include="..\tangerine\shape_compiler.cpp">
-      <Filter>Tangerine</Filter>
-    </ClCompile>
-    <ClCompile Include="..\tangerine\gl_async.cpp">
-      <Filter>Tangerine</Filter>
-    </ClCompile>
     <ClCompile Include="..\tangerine\magica.cpp">
       <Filter>Tangerine</Filter>
     </ClCompile>
@@ -308,9 +302,6 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\shaders\defines.h">
-      <Filter>Shaders</Filter>
-    </ClInclude>
     <ClInclude Include="..\third_party\imgui\backends\imgui_impl_opengl3.h">
       <Filter>Third Party\Dear ImGui</Filter>
     </ClInclude>
@@ -349,12 +340,6 @@
       <Filter>Tangerine</Filter>
     </ClInclude>
     <ClInclude Include="..\tangerine\profiling.h">
-      <Filter>Tangerine</Filter>
-    </ClInclude>
-    <ClInclude Include="..\tangerine\shape_compiler.h">
-      <Filter>Tangerine</Filter>
-    </ClInclude>
-    <ClInclude Include="..\tangerine\gl_async.h">
       <Filter>Tangerine</Filter>
     </ClInclude>
     <ClInclude Include="..\tangerine\extern.h">
@@ -644,13 +629,7 @@
     <None Include="..\shaders\math.glsl">
       <Filter>Shaders</Filter>
     </None>
-    <None Include="..\shaders\outliner.fs.glsl">
-      <Filter>Shaders</Filter>
-    </None>
     <None Include="..\shaders\splat.vs.glsl">
-      <Filter>Shaders</Filter>
-    </None>
-    <None Include="..\shaders\tile_heap.glsl">
       <Filter>Shaders</Filter>
     </None>
     <None Include="..\shaders\noise.fs.glsl">
@@ -660,15 +639,6 @@
       <Filter>Racket Stuff</Filter>
     </None>
     <None Include="..\shaders\bg.fs.glsl">
-      <Filter>Shaders</Filter>
-    </None>
-    <None Include="..\shaders\cluster_draw.fs.glsl">
-      <Filter>Shaders</Filter>
-    </None>
-    <None Include="..\shaders\cluster_draw.vs.glsl">
-      <Filter>Shaders</Filter>
-    </None>
-    <None Include="..\shaders\gather_depth.cs.glsl">
       <Filter>Shaders</Filter>
     </None>
     <None Include="..\shaders\resolve.fs.glsl">
@@ -696,14 +666,8 @@
       <Filter>Racket Stuff</Filter>
     </None>
     <None Include="packages.config" />
-    <None Include="..\shaders\interpreter.glsl">
-      <Filter>Shaders</Filter>
-    </None>
     <None Include="..\third_party\licenses.inl">
       <Filter>Third Party</Filter>
-    </None>
-    <None Include="..\shaders\octree_debug.fs.glsl">
-      <Filter>Shaders</Filter>
     </None>
     <None Include="..\shaders\sodapop.fs.glsl">
       <Filter>Shaders</Filter>

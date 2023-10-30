@@ -37,7 +37,6 @@ void main()
 layout(std140, binding = 0)
 uniform ViewInfoBlock
 {
-	mat4 WorldToLastView;
 	mat4 WorldToView;
 	mat4 ViewToWorld;
 	mat4 ViewToClip;

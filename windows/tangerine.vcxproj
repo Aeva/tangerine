@@ -80,7 +80,8 @@
     <LinkIncremental>true</LinkIncremental>
     <SourcePath>$(ProjectDir)..\backend;$(VC_SourcePath)</SourcePath>
     <OutDir>$(SolutionDir)..\</OutDir>
-    <CustomBuildBeforeTargets>Link</CustomBuildBeforeTargets>
+    <CustomBuildBeforeTargets>
+    </CustomBuildBeforeTargets>
     <LibraryPath>$(SolutionDir)..\third_party\sdl2\lib\x64;$(SolutionDir)..\third_party\RmlUi-5.1-win64\Bin\Dynamic-Release;$(SolutionDir)..\third_party\racket\lib\x64;$(LibraryPath)</LibraryPath>
     <IntDir>$(Platform)\$(Configuration)\tangerine\</IntDir>
   </PropertyGroup>
@@ -88,7 +89,8 @@
     <LinkIncremental>false</LinkIncremental>
     <SourcePath>$(ProjectDir)..\backend;$(VC_SourcePath)</SourcePath>
     <OutDir>$(SolutionDir)..\</OutDir>
-    <CustomBuildBeforeTargets>Link</CustomBuildBeforeTargets>
+    <CustomBuildBeforeTargets>
+    </CustomBuildBeforeTargets>
     <LibraryPath>$(SolutionDir)..\third_party\sdl2\lib\x64;$(SolutionDir)..\third_party\RmlUi-5.1-win64\Bin\Dynamic-Release;$(SolutionDir)..\third_party\racket\lib\x64;$(LibraryPath)</LibraryPath>
     <IntDir>$(Platform)\$(Configuration)\tangerine\</IntDir>
   </PropertyGroup>
@@ -137,11 +139,14 @@
       <StackReserveSize>10485760</StackReserveSize>
     </Link>
     <CustomBuildStep>
-      <Command>$(SolutionDir)..\regen.bat</Command>
+      <Command>
+      </Command>
     </CustomBuildStep>
     <CustomBuildStep>
-      <Message>Generating Racket Boilerplate</Message>
-      <Outputs>libracketcs_d9hn5s.lib</Outputs>
+      <Message>
+      </Message>
+      <Outputs>
+      </Outputs>
     </CustomBuildStep>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -164,11 +169,14 @@
       <AdditionalDependencies>libracketcs_db9xz4.lib;opengl32.lib;SDL2.lib;SDL2main.lib;RmlCore.lib;RmlDebugger.lib;comctl32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <CustomBuildStep>
-      <Command>$(SolutionDir)..\regen.bat</Command>
+      <Command>
+      </Command>
     </CustomBuildStep>
     <CustomBuildStep>
-      <Message>Generating Racket Boilerplate</Message>
-      <Outputs>libracketcs_d9hn5s.lib</Outputs>
+      <Message>
+      </Message>
+      <Outputs>
+      </Outputs>
     </CustomBuildStep>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -177,7 +185,6 @@
     <ClCompile Include="..\tangerine\errors.cpp" />
     <ClCompile Include="..\tangerine\events.cpp" />
     <ClCompile Include="..\tangerine\export.cpp" />
-    <ClCompile Include="..\tangerine\gl_async.cpp" />
     <ClCompile Include="..\tangerine\gl_boilerplate.cpp" />
     <ClCompile Include="..\tangerine\gl_debug.cpp" />
     <ClCompile Include="..\tangerine\gl_init.cpp" />
@@ -198,7 +205,6 @@
     <ClCompile Include="..\tangerine\sdf_evaluator.cpp" />
     <ClCompile Include="..\tangerine\sdf_model.cpp" />
     <ClCompile Include="..\tangerine\sdf_rendering.cpp" />
-    <ClCompile Include="..\tangerine\shape_compiler.cpp" />
     <ClCompile Include="..\tangerine\sodapop.cpp" />
     <ClCompile Include="..\tangerine\tangerine.cpp" />
     <ClCompile Include="..\tangerine\threadpool.cpp" />
@@ -254,7 +260,6 @@
     <ClCompile Include="..\third_party\whereami\src\whereami.c" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\shaders\defines.h" />
     <ClInclude Include="..\tangerine\colors.h" />
     <ClInclude Include="..\tangerine\embedding.h" />
     <ClInclude Include="..\tangerine\errors.h" />
@@ -262,7 +267,6 @@
     <ClInclude Include="..\tangerine\export.h" />
     <ClInclude Include="..\tangerine\extern.h" />
     <ClInclude Include="..\tangerine\glm_common.h" />
-    <ClInclude Include="..\tangerine\gl_async.h" />
     <ClInclude Include="..\tangerine\gl_boilerplate.h" />
     <ClInclude Include="..\tangerine\gl_debug.h" />
     <ClInclude Include="..\tangerine\gl_init.h" />
@@ -282,7 +286,6 @@
     <ClInclude Include="..\tangerine\sdf_evaluator.h" />
     <ClInclude Include="..\tangerine\sdf_model.h" />
     <ClInclude Include="..\tangerine\sdf_rendering.h" />
-    <ClInclude Include="..\tangerine\shape_compiler.h" />
     <ClInclude Include="..\tangerine\sodapop.h" />
     <ClInclude Include="..\tangerine\tangerine.h" />
     <ClInclude Include="..\tangerine\threadpool.h" />
@@ -375,20 +378,13 @@
     <None Include="..\materials\white.glsl" />
     <None Include="..\regen.bat" />
     <None Include="..\shaders\bg.fs.glsl" />
-    <None Include="..\shaders\cluster_draw.fs.glsl" />
-    <None Include="..\shaders\cluster_draw.vs.glsl" />
-    <None Include="..\shaders\gather_depth.cs.glsl" />
-    <None Include="..\shaders\interpreter.glsl" />
     <None Include="..\shaders\math.glsl" />
     <None Include="..\shaders\noise.fs.glsl" />
     <None Include="..\shaders\nosignal.fs.glsl" />
-    <None Include="..\shaders\octree_debug.fs.glsl" />
-    <None Include="..\shaders\outliner.fs.glsl" />
     <None Include="..\shaders\resolve.fs.glsl" />
     <None Include="..\shaders\sodapop.fs.glsl" />
     <None Include="..\shaders\sodapop.vs.glsl" />
     <None Include="..\shaders\splat.vs.glsl" />
-    <None Include="..\shaders\tile_heap.glsl" />
     <None Include="..\third_party\licenses.inl" />
     <None Include="..\third_party\racket\lib\libracketcs_da32rk.def" />
     <None Include="packages.config" />

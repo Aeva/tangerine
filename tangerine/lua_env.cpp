@@ -17,7 +17,6 @@
 #if EMBED_LUA
 
 #include "tangerine.h"
-#include "shape_compiler.h"
 #include "sodapop.h"
 #include "units.h"
 #include "lua_material.h"
@@ -62,10 +61,8 @@ int LuaEnvironment::LuaSetAdvanceEvent(lua_State* L)
 
 int LuaEnvironment::LuaPushMeshingDensity(lua_State* L)
 {
-#if RENDERER_SODAPOP
 	LuaEnvironment* Env = GetScriptEnvironment(L);
 	Env->MeshingDensityPush = luaL_checknumber(L, 1);
-#endif
 	return 0;
 }
 

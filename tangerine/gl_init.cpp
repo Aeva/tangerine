@@ -209,12 +209,9 @@ StatusCode BootGL(int& WindowWidth, int& WindowHeight, bool HeadlessMode, bool F
 				Window = nullptr;
 			}
 
-#if RENDERER_SODAPOP
 			std::cout << "Setting up OpenGL... ";
-#endif
 		}
 
-#if RENDERER_SODAPOP
 		StatusCode Result = CreateWindowGL<GraphicsAPI::OpenGLES2>(
 			WindowWidth, WindowHeight, HeadlessMode, CreateDebugContext);
 		if (Result == StatusCode::PASS)
@@ -239,7 +236,6 @@ StatusCode BootGL(int& WindowWidth, int& WindowHeight, bool HeadlessMode, bool F
 				std::cout << "Failed to create OpenGL ES2 Rendering Context!\n";
 			}
 		}
-#endif
 	}
 
 	if (GraphicsBackend == GraphicsAPI::Invalid)

@@ -14,7 +14,6 @@
 // limitations under the License.
 
 #include "sodapop.h"
-#if RENDERER_SODAPOP
 
 #include "errors.h"
 #include "scheduler.h"
@@ -1014,6 +1013,3 @@ bool ShaderTask::Run()
 		return false;
 	}
 }
-
-
-#endif // RENDERER_SODAPOP

@@ -77,40 +77,18 @@ void GetIncompleteModels(std::vector<SDFModelWeakRef>& Incomplete)
 	Incomplete.clear();
 	Incomplete.reserve(LiveModels.size());
 
-#if RENDERER_COMPILER
-	if (CurrentRenderer == Renderer::ShapeCompiler)
+	for (SDFModelWeakRef WeakRef : LiveModels)
 	{
-		for (SDFModelWeakRef WeakRef : LiveModels)
+		SDFModelShared Model = WeakRef.lock();
+		if (Model)
 		{
-			SDFModelShared Model = WeakRef.lock();
-			if (Model)
+			SodapopDrawableShared Painter = std::static_pointer_cast<SodapopDrawable>(Model->Painter);
+			if (!Painter->MeshReady.load())
 			{
-				VoxelDrawableShared Painter = std::static_pointer_cast<VoxelDrawable>(Model->Painter);
-				if (Painter->HasPendingShaders())
-				{
-					Incomplete.push_back(Model);
-				}
+				Incomplete.push_back(Model);
 			}
 		}
 	}
-#endif // RENDERER_COMPILER
-#if RENDERER_SODAPOP
-	if (CurrentRenderer == Renderer::Sodapop)
-	{
-		for (SDFModelWeakRef WeakRef : LiveModels)
-		{
-			SDFModelShared Model = WeakRef.lock();
-			if (Model)
-			{
-				SodapopDrawableShared Painter = std::static_pointer_cast<SodapopDrawable>(Model->Painter);
-				if (!Painter->MeshReady.load())
-				{
-					Incomplete.push_back(Model);
-				}
-			}
-		}
-	}
-#endif // RENDERER_SODAPOP
 }
 
 
@@ -119,40 +97,18 @@ void GetRenderableModels(std::vector<SDFModelWeakRef>& Renderable)
 	Renderable.clear();
 	Renderable.reserve(LiveModels.size());
 
-#if RENDERER_COMPILER
-	if (CurrentRenderer == Renderer::ShapeCompiler)
+	for (SDFModelWeakRef WeakRef : LiveModels)
 	{
-		for (SDFModelWeakRef WeakRef : LiveModels)
+		SDFModelShared Model = WeakRef.lock();
+		if (Model)
 		{
-			SDFModelShared Model = WeakRef.lock();
-			if (Model)
+			SodapopDrawableShared Painter = std::static_pointer_cast<SodapopDrawable>(Model->Painter);
+			if (Painter->MeshReady.load())
 			{
-				VoxelDrawableShared Painter = std::static_pointer_cast<VoxelDrawable>(Model->Painter);
-				if (Painter->HasCompleteShaders())
-				{
-					Renderable.push_back(Model);
-				}
+				Renderable.push_back(Model);
 			}
 		}
 	}
-#endif // RENDERER_COMPILER
-#if RENDERER_SODAPOP
-	if (CurrentRenderer == Renderer::Sodapop)
-	{
-		for (SDFModelWeakRef WeakRef : LiveModels)
-		{
-			SDFModelShared Model = WeakRef.lock();
-			if (Model)
-			{
-				SodapopDrawableShared Painter = std::static_pointer_cast<SodapopDrawable>(Model->Painter);
-				if (Painter->MeshReady.load())
-				{
-					Renderable.push_back(Model);
-				}
-			}
-		}
-	}
-#endif // RENDERER_SODAPOP
 }
 
 
@@ -256,55 +212,6 @@ bool DeliverMouseScroll(glm::vec3 Origin, glm::vec3 RayDir, int ScrollX, int Scr
 }
 
 
-#if RENDERER_COMPILER
-bool VoxelDrawable::HasPendingShaders()
-{
-	return PendingShaders.size() > 0;
-}
-
-
-bool VoxelDrawable::HasCompleteShaders()
-{
-	return CompiledTemplates.size() > 0;
-}
-
-
-void VoxelDrawable::CompileNextShader()
-{
-	BeginEvent("Compile Shader");
-
-	size_t TemplateIndex = PendingShaders.back();
-	PendingShaders.pop_back();
-
-	ProgramTemplate& ProgramFamily = ProgramTemplates[TemplateIndex];
-	ProgramFamily.StartCompile();
-	if (ProgramFamily.ProgramVariants.size() > 0)
-	{
-		CompiledTemplates.push_back(&ProgramFamily);
-	}
-
-	EndEvent();
-}
-
-
-VoxelDrawable::~VoxelDrawable()
-{
-	Scheduler::EnqueueDelete(PruneStaleDrawableFromCache);
-
-	for (ProgramTemplate& ProgramFamily : ProgramTemplates)
-	{
-		ProgramFamily.Release();
-	}
-
-	ProgramTemplates.clear();
-	ProgramTemplateSourceMap.clear();
-	PendingShaders.clear();
-	CompiledTemplates.clear();
-}
-#endif // RENDERER_COMPILER
-
-
-#if RENDERER_SODAPOP
 SodapopDrawable::SodapopDrawable(const std::string& InName, SDFNodeShared& InEvaluator)
 {
 	ReadyDelay = std::chrono::duration<double, std::milli>::zero();
@@ -339,7 +246,6 @@ SodapopDrawable::~SodapopDrawable()
 	SlotLookup.clear();
 	Scheduler::EnqueueDelete(PruneStaleDrawableFromCache);
 }
-#endif // RENDERER_SODAPOP
 
 
 RayHit SDFModel::RayMarch(glm::vec3 RayStart, glm::vec3 RayDir, int MaxIterations, float Epsilon)
@@ -388,24 +294,10 @@ SDFModel::SDFModel(SDFNodeShared& InEvaluator, const std::string& InName, const 
 			// stronger thread safety guarantees.
 			Evaluator = InEvaluator->Copy(true);
 
-#if RENDERER_COMPILER
-			if (CurrentRenderer == Renderer::ShapeCompiler)
-			{
-				VoxelDrawableShared VoxelPainter = std::make_shared<VoxelDrawable>(Name, Evaluator);
-				VoxelPainter->Compile(VoxelSize);
-				Painter = std::static_pointer_cast<Drawable>(VoxelPainter);
-				DrawableCache.emplace_back(Key, Painter);
-			}
-#endif // RENDERER_COMPILER
-#if RENDERER_SODAPOP
-			if (CurrentRenderer == Renderer::Sodapop)
-			{
-				SodapopDrawableShared MeshPainter = std::make_shared<SodapopDrawable>(Name, Evaluator);
-				Painter = std::static_pointer_cast<Drawable>(MeshPainter);
-				DrawableCache.emplace_back(Key, Painter);
-				Sodapop::Populate(MeshPainter, MeshingDensityPush);
-			}
-#endif // RENDERER_SODAPOP
+			SodapopDrawableShared MeshPainter = std::make_shared<SodapopDrawable>(Name, Evaluator);
+			Painter = std::static_pointer_cast<Drawable>(MeshPainter);
+			DrawableCache.emplace_back(Key, Painter);
+			Sodapop::Populate(MeshPainter, MeshingDensityPush);
 		}
 		else
 		{

@@ -18,8 +18,6 @@
 #include "sdf_rendering.h"
 
 
-#if RENDERER_SODAPOP
-
 struct SodapopDrawable;
 struct MeshingScratch;
 struct SDFModel;
@@ -42,6 +40,3 @@ namespace Sodapop
 	void SetMaterialOverrideMode(MaterialOverride Mode);
 	void DeleteMeshingScratch(MeshingScratch* Scratch);
 }
-
-
-#endif // RENDERER_SODAPOP
