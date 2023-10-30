@@ -621,7 +621,7 @@ void RenderFrameGL4(int ScreenWidth, int ScreenHeight, std::vector<SDFModelWeakR
 			for (SDFModelWeakRef ModelWeakRef : RenderableModels)
 			{
 				SDFModelShared Model = ModelWeakRef.lock();
-				if (Model)
+				if (Model && Model->Painter)
 				{
 					Model->DrawGL4(UploadedView.CameraOrigin.xyz());
 				}
@@ -720,7 +720,7 @@ void RenderFrameES2(int ScreenWidth, int ScreenHeight, std::vector<SDFModelWeakR
 			for (SDFModelWeakRef ModelWeakRef : RenderableModels)
 			{
 				SDFModelShared Model = ModelWeakRef.lock();
-				if (Model)
+				if (Model && Model->Painter)
 				{
 					Model->DrawES2(UploadedView.CameraOrigin.xyz(), LocalToWorldBinding, PositionBinding, ColorBinding);
 				}

@@ -80,7 +80,7 @@ void GetIncompleteModels(std::vector<SDFModelWeakRef>& Incomplete)
 	for (SDFModelWeakRef WeakRef : LiveModels)
 	{
 		SDFModelShared Model = WeakRef.lock();
-		if (Model)
+		if (Model && Model->Painter)
 		{
 			if (!Model->Painter->MeshReady.load())
 			{
@@ -99,7 +99,7 @@ void GetRenderableModels(std::vector<SDFModelWeakRef>& Renderable)
 	for (SDFModelWeakRef WeakRef : LiveModels)
 	{
 		SDFModelShared Model = WeakRef.lock();
-		if (Model)
+		if (Model && Model->Painter)
 		{
 			if (Model->Painter->MeshReady.load())
 			{
