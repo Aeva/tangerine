@@ -28,7 +28,7 @@
 #include "tangerine.h"
 
 
-std::default_random_engine RNGesus;
+static std::mt19937 RNGesus; // MSVC's default for std::default_random_engine
 
 
 SDFNodeShared* GetSDFNode(lua_State* L, int Arg)
@@ -806,6 +806,7 @@ LuaModelShared LuaModel::Create(lua_State* L, SDFNodeShared& InEvaluator, const 
 	LuaModelShared NewModel(new LuaModel(L, Env, InEvaluator, InName, VoxelSize));
 	SDFModelShared Up = std::static_pointer_cast<SDFModel>(NewModel);
 	SDFModel::RegisterNewModel(Up);
+	Env->GarbageCollectionRequested = true;
 	return NewModel;
 }
 
@@ -1003,6 +1004,7 @@ void LuaModel::OnMouseEvent(MouseEvent& Event, bool Picked)
 	lua_State* L = Env->L;
 	int& CallbackRef = MouseCallbackRefs[Event.Type];
 	int ErrorStatus = LUA_OK;
+	bool CallbackCalled = false;
 	switch (Event.Type)
 	{
 	case MOUSE_DOWN:
@@ -1036,6 +1038,7 @@ void LuaModel::OnMouseEvent(MouseEvent& Event, bool Picked)
 				lua_setfield(L, -2, "cursor");
 			}
 			ErrorStatus = lua_pcall(L, 1, 0, 0);
+			CallbackCalled = true;
 		}
 		break;
 
@@ -1049,6 +1052,10 @@ void LuaModel::OnMouseEvent(MouseEvent& Event, bool Picked)
 		CallbackRef = LUA_REFNIL;
 		const int EventFlag = MOUSE_FLAG(Event.Type);
 		MouseListenFlags = MouseListenFlags & ~EventFlag;
+	}
+	else if (CallbackCalled)
+	{
+		Env->MaybeRunGarbageCollection();
 	}
 }
 

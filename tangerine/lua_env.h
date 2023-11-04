@@ -25,6 +25,7 @@ struct LuaEnvironment : public ScriptEnvironment
 	struct lua_State* L = nullptr;
 	std::string Name = "";
 	float MeshingDensityPush = 0.0;
+	bool GarbageCollectionRequested = false;
 
 	LuaEnvironment();
 
@@ -32,6 +33,8 @@ struct LuaEnvironment : public ScriptEnvironment
 	{
 		return Language::Lua;
 	}
+
+	void MaybeRunGarbageCollection();
 
 	virtual void Advance(double DeltaTimeMs, double ElapsedTimeMs);
 

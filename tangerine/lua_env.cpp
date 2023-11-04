@@ -174,6 +174,16 @@ LuaEnvironment::~LuaEnvironment()
 }
 
 
+void LuaEnvironment::MaybeRunGarbageCollection()
+{
+	if (GarbageCollectionRequested)
+	{
+		GarbageCollectionRequested = false;
+		lua_gc(L, LUA_GCCOLLECT);
+	}
+}
+
+
 void LuaEnvironment::Advance(double DeltaTimeMs, double ElapsedTimeMs)
 {
 	if (AdvanceCallbackRef != LUA_REFNIL)
@@ -186,6 +196,10 @@ void LuaEnvironment::Advance(double DeltaTimeMs, double ElapsedTimeMs)
 		{
 			luaL_unref(L, LUA_REGISTRYINDEX, AdvanceCallbackRef);
 			AdvanceCallbackRef = LUA_REFNIL;
+		}
+		else
+		{
+			MaybeRunGarbageCollection();
 		}
 	}
 }
@@ -209,6 +223,7 @@ bool LuaEnvironment::HandleError(int Error)
 
 void LuaEnvironment::LoadLuaModelCommon()
 {
+	MaybeRunGarbageCollection();
 	lua_getglobal(L, "model");
 	void* LuaData = luaL_testudata(L, -1, "tangerine.sdf");
 	if (LuaData)
