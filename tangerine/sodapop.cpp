@@ -24,17 +24,12 @@
 #include <surface_nets.h>
 #include <concepts>
 #include <iterator>
-#include <random>
 #include <atomic>
 #include <mutex>
 #include <set>
 
 
 #define USE_GRADIENT_NORMALS 1
-
-
-static thread_local std::default_random_engine RNGesus;
-static thread_local std::uniform_real_distribution<double> Roll(-1.0, std::nextafter(1.0, DBL_MAX));
 
 static const float DefaultMeshingDensity = 20.0;
 
