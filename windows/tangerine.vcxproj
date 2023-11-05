@@ -82,7 +82,7 @@
     <OutDir>$(SolutionDir)..\</OutDir>
     <CustomBuildBeforeTargets>
     </CustomBuildBeforeTargets>
-    <LibraryPath>$(SolutionDir)..\third_party\sdl2\lib\x64;$(SolutionDir)..\third_party\RmlUi-5.1-win64\Bin\Dynamic-Release;$(SolutionDir)..\third_party\racket\lib\x64;$(LibraryPath)</LibraryPath>
+    <LibraryPath>$(SolutionDir)..\third_party\sdl2\lib\x64;$(SolutionDir)..\third_party\RmlUi\Bin;$(SolutionDir)..\third_party\freetype\lib;$(SolutionDir)..\third_party\racket\lib\x64;$(LibraryPath)</LibraryPath>
     <IntDir>$(Platform)\$(Configuration)\tangerine\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -91,7 +91,7 @@
     <OutDir>$(SolutionDir)..\</OutDir>
     <CustomBuildBeforeTargets>
     </CustomBuildBeforeTargets>
-    <LibraryPath>$(SolutionDir)..\third_party\sdl2\lib\x64;$(SolutionDir)..\third_party\RmlUi-5.1-win64\Bin\Dynamic-Release;$(SolutionDir)..\third_party\racket\lib\x64;$(LibraryPath)</LibraryPath>
+    <LibraryPath>$(SolutionDir)..\third_party\sdl2\lib\x64;$(SolutionDir)..\third_party\RmlUi\Bin;$(SolutionDir)..\third_party\freetype\lib;$(SolutionDir)..\third_party\racket\lib\x64;$(LibraryPath)</LibraryPath>
     <IntDir>$(Platform)\$(Configuration)\tangerine\</IntDir>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
@@ -126,16 +126,16 @@
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>_DEBUG;_CONSOLE;ENABLE_RMLUI;IMGUI_USE_WCHAR32;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_DEBUG;_CONSOLE;ENABLE_RMLUI;RMLUI_STATIC_LIB;IMGUI_USE_WCHAR32;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>$(SolutionDir)..\third_party\fmt\include;$(SolutionDir)..\third_party\imgui;$(SolutionDir)..\third_party\imgui\backends;$(SolutionDir)..\third_party\sdl2\include;$(SolutionDir)..\third_party\RmlUi-5.1-win64\Include;$(SolutionDir)..\third_party\RmlUi-5.1-win64\Backends;$(SolutionDir)..\third_party\racket\include;$(SolutionDir)..\third_party\lua-5.4.4;$(SolutionDir)..\third_party\stb;$(SolutionDir)..\third_party\ImFileDialog;$(SolutionDir)..\third_party\whereami\src;$(SolutionDir)..\third_party\naive-surface-nets\include;$(SolutionDir)..\third_party\glm-0.9.9.8;$(SolutionDir)..\third_party\glad\include;$(SolutionDir)..\third_party\voxwriter;$(SolutionDir)..\third_party\atomic_queue\include;$(SolutionDir)..\third_party\oklab;$(SolutionDir)..\third_party\</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)..\third_party\fmt\include;$(SolutionDir)..\third_party\imgui;$(SolutionDir)..\third_party\imgui\backends;$(SolutionDir)..\third_party\sdl2\include;$(SolutionDir)..\third_party\RmlUi\Include;$(SolutionDir)..\third_party\RmlUi\Backends;$(SolutionDir)..\third_party\racket\include;$(SolutionDir)..\third_party\lua-5.4.4;$(SolutionDir)..\third_party\stb;$(SolutionDir)..\third_party\ImFileDialog;$(SolutionDir)..\third_party\whereami\src;$(SolutionDir)..\third_party\naive-surface-nets\include;$(SolutionDir)..\third_party\glm-0.9.9.8;$(SolutionDir)..\third_party\glad\include;$(SolutionDir)..\third_party\voxwriter;$(SolutionDir)..\third_party\atomic_queue\include;$(SolutionDir)..\third_party\oklab;$(SolutionDir)..\third_party\</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>libracketcs_db9xz4.lib;opengl32.lib;SDL2.lib;SDL2main.lib;RmlCore.lib;RmlDebugger.lib;comctl32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>libracketcs_db9xz4.lib;opengl32.lib;SDL2.lib;SDL2main.lib;freetype.lib;RmlCore.lib;RmlDebugger.lib;comctl32.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <StackReserveSize>10485760</StackReserveSize>
     </Link>
     <CustomBuildStep>
@@ -155,9 +155,9 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>NDEBUG;_CONSOLE;ENABLE_RMLUI;IMGUI_USE_WCHAR32;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>NDEBUG;_CONSOLE;ENABLE_RMLUI;RMLUI_STATIC_LIB;IMGUI_USE_WCHAR32;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>$(SolutionDir)..\third_party\fmt\include;$(SolutionDir)..\third_party\imgui;$(SolutionDir)..\third_party\imgui\backends;$(SolutionDir)..\third_party\sdl2\include;$(SolutionDir)..\third_party\RmlUi-5.1-win64\Include;$(SolutionDir)..\third_party\RmlUi-5.1-win64\Backends;$(SolutionDir)..\third_party\racket\include;$(SolutionDir)..\third_party\lua-5.4.4;$(SolutionDir)..\third_party\stb;$(SolutionDir)..\third_party\ImFileDialog;$(SolutionDir)..\third_party\whereami\src;$(SolutionDir)..\third_party\naive-surface-nets\include;$(SolutionDir)..\third_party\glm-0.9.9.8;$(SolutionDir)..\third_party\glad\include;$(SolutionDir)..\third_party\voxwriter;$(SolutionDir)..\third_party\atomic_queue\include;$(SolutionDir)..\third_party\oklab;$(SolutionDir)..\third_party\</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)..\third_party\fmt\include;$(SolutionDir)..\third_party\imgui;$(SolutionDir)..\third_party\imgui\backends;$(SolutionDir)..\third_party\sdl2\include;$(SolutionDir)..\third_party\RmlUi\Include;$(SolutionDir)..\third_party\RmlUi\Backends;$(SolutionDir)..\third_party\racket\include;$(SolutionDir)..\third_party\lua-5.4.4;$(SolutionDir)..\third_party\stb;$(SolutionDir)..\third_party\ImFileDialog;$(SolutionDir)..\third_party\whereami\src;$(SolutionDir)..\third_party\naive-surface-nets\include;$(SolutionDir)..\third_party\glm-0.9.9.8;$(SolutionDir)..\third_party\glad\include;$(SolutionDir)..\third_party\voxwriter;$(SolutionDir)..\third_party\atomic_queue\include;$(SolutionDir)..\third_party\oklab;$(SolutionDir)..\third_party\</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
     </ClCompile>
@@ -166,7 +166,7 @@
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>libracketcs_db9xz4.lib;opengl32.lib;SDL2.lib;SDL2main.lib;RmlCore.lib;RmlDebugger.lib;comctl32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>libracketcs_db9xz4.lib;opengl32.lib;SDL2.lib;SDL2main.lib;freetype.lib;RmlCore.lib;RmlDebugger.lib;comctl32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <CustomBuildStep>
       <Command>
@@ -253,7 +253,7 @@
     <ClCompile Include="..\third_party\lua-5.4.4\lua\lvm.c" />
     <ClCompile Include="..\third_party\lua-5.4.4\lua\lzio.c" />
     <ClCompile Include="..\third_party\naive-surface-nets\src\surface_nets.cpp" />
-    <ClCompile Include="..\third_party\RmlUi-5.1-win64\Backends\RmlUi_Platform_SDL.cpp" />
+    <ClCompile Include="..\third_party\RmlUi\Backends\RmlUi_Platform_SDL.cpp" />
     <ClCompile Include="..\third_party\stb\stb.cpp" />
     <ClCompile Include="..\third_party\stb\stb_vorbis.c" />
     <ClCompile Include="..\third_party\voxwriter\VoxWriter.cpp" />
@@ -342,9 +342,9 @@
     <ClInclude Include="..\third_party\naive-surface-nets\include\surface_nets.h" />
     <ClInclude Include="..\third_party\naive-surface-nets\include\triangle.h" />
     <ClInclude Include="..\third_party\oklab\oklab.h" />
-    <ClInclude Include="..\third_party\RmlUi-5.1-win64\Backends\RmlUi_Backend.h" />
-    <ClInclude Include="..\third_party\RmlUi-5.1-win64\Backends\RmlUi_Platform_SDL.h" />
-    <ClInclude Include="..\third_party\RmlUi-5.1-win64\Backends\RmlUi_Renderer_GL3.h" />
+    <ClInclude Include="..\third_party\RmlUi\Backends\RmlUi_Backend.h" />
+    <ClInclude Include="..\third_party\RmlUi\Backends\RmlUi_Platform_SDL.h" />
+    <ClInclude Include="..\third_party\RmlUi\Backends\RmlUi_Renderer_GL3.h" />
     <ClInclude Include="..\third_party\stb\stb_connected_components.h" />
     <ClInclude Include="..\third_party\stb\stb_c_lexer.h" />
     <ClInclude Include="..\third_party\stb\stb_divide.h" />

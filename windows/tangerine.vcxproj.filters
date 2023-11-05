@@ -294,11 +294,11 @@
     <ClCompile Include="..\tangerine\lua_light.cpp">
       <Filter>Tangerine\Runtimes</Filter>
     </ClCompile>
-    <ClCompile Include="..\third_party\RmlUi-5.1-win64\Backends\RmlUi_Platform_SDL.cpp">
-      <Filter>Third Party\RmlUi\Backends</Filter>
-    </ClCompile>
     <ClCompile Include="..\tangerine\rmlui\rmlui_renderer_gl3.cpp">
       <Filter>Tangerine\RmlUi</Filter>
+    </ClCompile>
+    <ClCompile Include="..\third_party\RmlUi\Backends\RmlUi_Platform_SDL.cpp">
+      <Filter>Third Party\RmlUi\Backends</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -615,13 +615,13 @@
     <ClInclude Include="..\tangerine\lua_light.h">
       <Filter>Tangerine\Runtimes</Filter>
     </ClInclude>
-    <ClInclude Include="..\third_party\RmlUi-5.1-win64\Backends\RmlUi_Backend.h">
+    <ClInclude Include="..\third_party\RmlUi\Backends\RmlUi_Backend.h">
       <Filter>Third Party\RmlUi\Backends</Filter>
     </ClInclude>
-    <ClInclude Include="..\third_party\RmlUi-5.1-win64\Backends\RmlUi_Platform_SDL.h">
+    <ClInclude Include="..\third_party\RmlUi\Backends\RmlUi_Renderer_GL3.h">
       <Filter>Third Party\RmlUi\Backends</Filter>
     </ClInclude>
-    <ClInclude Include="..\third_party\RmlUi-5.1-win64\Backends\RmlUi_Renderer_GL3.h">
+    <ClInclude Include="..\third_party\RmlUi\Backends\RmlUi_Platform_SDL.h">
       <Filter>Third Party\RmlUi\Backends</Filter>
     </ClInclude>
   </ItemGroup>

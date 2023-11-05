@@ -17,11 +17,6 @@ import os.path, glob
 
 
 rewrite = {
-    "RmlUi-5.1-win64" : "RmlUi-5.1",
-    "RmlUi-5.1-win64/Dependencies/freetype-2.10.1" : "freetype-2.10.1",
-    "RmlUi-5.1-win64/Dependencies/lunasvg" : "lunasvg",
-    "RmlUi-5.1-win64/Dependencies/rlottie" : "rlottie",
-    "RmlUi-5.1-win64/Dependencies/rlottie/licenses" : "rlottie",
 }
 
 
@@ -58,7 +53,7 @@ def splat_license(project, path):
 
 if __name__ == "__main__":
     paths = []
-    variants = ["LICENSE", "copying"]
+    variants = ["LICENSE", "FTL", "copying"]
     for variant in variants:
         paths += glob.glob(f"*/{variant}*")
 
@@ -67,19 +62,6 @@ if __name__ == "__main__":
         name = os.path.split(path)[0]
         name = rewrite.get(name, name)
         projects.append((name, path))
-
-    paths = []
-    variants = ["LICENSE", "copying", "COPYING", "FTL", "MPL_SOURCE"]
-    for variant in variants:
-        paths += glob.glob(f"RmlUi-5.1-win64/Dependencies/*/{variant}*")
-        paths += glob.glob(f"RmlUi-5.1-win64/Dependencies/*/licenses/{variant}*")
-
-    for path in paths:
-        if os.path.isfile(path):
-            path = path.replace("\\", "/")
-            name = os.path.split(path)[0]
-            name = rewrite.get(name, name)
-            projects.append((name, path))
 
     projects.sort()
 
