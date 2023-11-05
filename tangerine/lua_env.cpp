@@ -16,6 +16,7 @@
 #include "lua_env.h"
 #if EMBED_LUA
 
+#include "errors.h"
 #include "tangerine.h"
 #include "sodapop.h"
 #include "units.h"
@@ -28,12 +29,20 @@
 #include <filesystem>
 
 
-LuaEnvironment* LuaEnvironment::GetScriptEnvironment(struct lua_State* L)
+LuaEnvironment* LuaEnvironment::GetScriptEnvironment(lua_State* L)
 {
 	lua_getfield(L, LUA_REGISTRYINDEX, "tangerine.env");
-	LuaEnvironment* Env = (LuaEnvironment*)lua_touserdata(L, 2);
+	LuaEnvironment* Env = (LuaEnvironment*)lua_touserdata(L, lua_gettop(L));
 	lua_pop(L, 1);
 	return Env;
+}
+
+
+LuaRandomGeneratorT& LuaEnvironment::GetRandomNumberEngine(lua_State* L)
+{
+	LuaEnvironment* Env = GetScriptEnvironment(L);
+	Assert(Env != nullptr);
+	return Env->RandomNumberGenerator;
 }
 
 

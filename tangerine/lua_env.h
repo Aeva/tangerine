@@ -18,7 +18,10 @@
 #include "embedding.h"
 #if EMBED_LUA
 #include <string>
+#include <random>
 #include "sdf_model.h"
+
+using LuaRandomGeneratorT = std::mt19937;
 
 struct LuaEnvironment : public ScriptEnvironment
 {
@@ -26,6 +29,7 @@ struct LuaEnvironment : public ScriptEnvironment
 	std::string Name = "";
 	float MeshingDensityPush = 0.0;
 	bool GarbageCollectionRequested = false;
+	LuaRandomGeneratorT RandomNumberGenerator = LuaRandomGeneratorT();
 
 	LuaEnvironment();
 
@@ -47,6 +51,9 @@ struct LuaEnvironment : public ScriptEnvironment
 	static int LuaPushMeshingDensity(struct lua_State* L);
 
 	bool HandleError(int Error);
+
+	static LuaRandomGeneratorT& GetRandomNumberEngine(struct lua_State* L);
+
 private:
 	int AdvanceCallbackRef;
 	SDFModelShared GlobalModel;

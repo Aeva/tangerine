@@ -28,9 +28,6 @@
 #include "tangerine.h"
 
 
-static std::mt19937 RNGesus; // MSVC's default for std::default_random_engine
-
-
 SDFNodeShared* GetSDFNode(lua_State* L, int Arg)
 {
 	SDFNodeShared* Node = (SDFNodeShared*)luaL_checkudata(L, Arg, "tangerine.sdf");
@@ -516,6 +513,8 @@ int LuaPivotTowards(lua_State* L)
 			}
 			else
 			{
+				LuaRandomGeneratorT& RNGesus = LuaEnvironment::GetRandomNumberEngine(L);
+
 				// The normal is antiparallel to the down vector, so just pick a random pivot.
 				while (AxisLen == 0.0)
 				{
@@ -598,13 +597,14 @@ int LuaFixedCamera(lua_State* L)
 int LuaRandomSeed(lua_State* L)
 {
 	lua_Integer Seed = luaL_checkinteger(L, 1);
-	RNGesus.seed(Seed);
+	LuaEnvironment::GetRandomNumberEngine(L).seed(Seed);
 	return 0;
 }
 
 
 int LuaRandom(lua_State* L)
 {
+	LuaRandomGeneratorT& RNGesus = LuaEnvironment::GetRandomNumberEngine(L);
 	if (lua_gettop(L) == 0)
 	{
 		// Return a random float between 0.0 and 1.0, inclusive.
@@ -640,6 +640,7 @@ int LuaShuffleSequence(lua_State* L)
 	lua_Integer Count = luaL_checkinteger(L, 1);
 	if (Count > 0)
 	{
+		LuaRandomGeneratorT& RNGesus = LuaEnvironment::GetRandomNumberEngine(L);
 		std::vector<int> Deck;
 		Deck.reserve(Count);
 		for (int i = 1; i <= Count; ++i)
