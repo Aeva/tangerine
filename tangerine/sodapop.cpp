@@ -756,6 +756,7 @@ void MeshingJob::Run()
 
 				Scheduler::EnqueueDelete([PainterWeakRef]()
 				{
+#if 0
 					// TODO: rethink how the outbox queue works to avoid hacks like this.
 
 					DrawableShared Painter = PainterWeakRef.lock();
@@ -763,6 +764,7 @@ void MeshingJob::Run()
 					{
 						fmt::print("Meshing complete: {}\n", Painter->Name);
 					}
+#endif
 				});
 			};
 
@@ -782,7 +784,6 @@ void MeshingJob::Done()
 	if (Painter && Evaluator)
 	{
 		void* JobPtr = (void*)this;
-		fmt::print("[{}] Parallel tasks started.\n", JobPtr);
 	}
 	else
 	{
@@ -793,7 +794,6 @@ void MeshingJob::Done()
 
 void MeshingJob::Abort()
 {
-	fmt::print("[{}] Job cancelled.\n", (void*)this);
 }
 
 

@@ -260,7 +260,6 @@ void Scheduler::Enqueue(AsyncTask* Task, bool Unstoppable)
 		Task->Unstoppable = Unstoppable;
 		Inbox.BlockingPush(Task);
 	}
-	fmt::print("[{}] New async task\n", (void*)Task);
 }
 
 
@@ -350,7 +349,6 @@ void Scheduler::Advance()
 
 		while (AsyncTask* Task = Outbox.TryPop())
 		{
-			fmt::print("[{}] Async task complete\n", (void*)Task);
 			Task->Done();
 			delete Task;
 		}
