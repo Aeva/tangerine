@@ -22,10 +22,13 @@
 #include <string.h>
 #include <random>
 #include <algorithm>
+#include <chrono>
 #include <fmt/format.h>
 
 #include "sdf_evaluator.h"
 #include "tangerine.h"
+
+using Clock = std::chrono::high_resolution_clock;
 
 
 SDFNodeShared* GetSDFNode(lua_State* L, int Arg)
@@ -596,9 +599,21 @@ int LuaFixedCamera(lua_State* L)
 
 int LuaRandomSeed(lua_State* L)
 {
-	lua_Integer Seed = luaL_checkinteger(L, 1);
+	lua_Integer Seed = 0;
+	if (lua_gettop(L) == 0 || lua_isnil(L, 1))
+	{
+		std::random_device MaybeNonDeterministic;
+		std::uniform_int_distribution<lua_Integer> Dist(1000000000, std::numeric_limits<lua_Integer>::max());
+		std::chrono::duration<lua_Integer, std::nano> Now = Clock::now().time_since_epoch();
+		Seed = glm::abs(Now.count() + Dist(MaybeNonDeterministic));
+	}
+	else
+	{
+		Seed = luaL_checkinteger(L, 1);
+	}
+	lua_pushinteger(L, Seed);
 	LuaEnvironment::GetRandomNumberEngine(L).seed(Seed);
-	return 0;
+	return 1;
 }
 
 
