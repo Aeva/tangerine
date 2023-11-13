@@ -37,18 +37,17 @@ struct AABB
 	glm::vec3 Min;
 	glm::vec3 Max;
 
-	glm::vec3 Extent() const
-	{
-		return Max - Min;
-	}
+	bool Degenerate() const;
 
-	AABB operator+(const glm::vec3& Offset) const
-	{
-		return {
-			Min + Offset,
-			Max + Offset
-		};
-	}
+	glm::vec3 Extent() const;
+
+	glm::vec3 Center() const;
+
+	float Volume() const;
+
+	AABB BoundingCube() const;
+
+	AABB operator+(float Margin) const;
 };
 
 
@@ -287,7 +286,7 @@ struct SDFOctree
 	SDFInterpreterShared Interpreter;
 	bool Incomplete = false;
 
-	static SDFOctreeShared Create(SDFNodeShared& Evaluator, float TargetSize = 0.25, bool Coalesce = true, int MaxDepth = -1);
+	static SDFOctreeShared Create(SDFNodeShared& Evaluator, float TargetSize = 0.25, bool Coalesce = true, int MaxDepth = -1, float Margin = 0.0);
 	void Populate(bool Coalesce, int Depth, int MaxDepth = -1);
 	~SDFOctree();
 	SDFOctree* Descend(const glm::vec3 Point, const bool Exact = true);

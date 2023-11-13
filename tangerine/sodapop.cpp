@@ -31,6 +31,10 @@
 
 #define USE_GRADIENT_NORMALS 1
 
+#define MESHING_STRATEGY_NAIVE_SURFACE_NETS 1
+
+#define MESHING_STRATEGY MESHING_STRATEGY_NAIVE_SURFACE_NETS
+
 static const float DefaultMeshingDensity = 20.0;
 
 
@@ -420,43 +424,47 @@ void MeshingJob::Run()
 	ProfileScope MeshingJobRun("MeshingJob::Run");
 	DrawableShared Painter = PainterWeakRef.lock();
 	SDFOctreeShared Evaluator = nullptr;
-	if (Painter)
 	{
-		SDFNodeShared RootNode = EvaluatorWeakRef.lock();
-		if (RootNode)
+		// Create an evaluator octree for meshing, but only populate it enough that the rest can be populated in parallel.
+		if (Painter)
 		{
-			Painter->EvaluatorOctree = Evaluator = SDFOctree::Create(Painter->Evaluator, .25, false, 3);
-
-			if (Evaluator == nullptr)
+			SDFNodeShared RootNode = EvaluatorWeakRef.lock();
+			if (RootNode)
 			{
-				return;
-			}
+				float Margin = 0.0;
+				Painter->EvaluatorOctree = Evaluator = SDFOctree::Create(Painter->Evaluator, .25, false, 3, Margin);
 
-			SDFOctree::CallbackType IncompleteSearch = [&](SDFOctree& Leaf)
-			{
-				if (Leaf.Incomplete)
+				if (Evaluator == nullptr)
 				{
-					Painter->Scratch->Incompletes.push_back(&Leaf);
+					return;
 				}
-			};
 
-			BeginEvent("Evaluator::Walk IncompleteSearch");
-			Evaluator->Walk(IncompleteSearch);
-			EndEvent();
+				SDFOctree::CallbackType IncompleteSearch = [&](SDFOctree& Leaf)
+				{
+					if (Leaf.Incomplete)
+					{
+						Painter->Scratch->Incompletes.push_back(&Leaf);
+					}
+				};
+
+				BeginEvent("Evaluator::Walk IncompleteSearch");
+				Evaluator->Walk(IncompleteSearch);
+				EndEvent();
+			}
+		}
+
+		if (!Painter || !Evaluator)
+		{
+			return;
+		}
+		else
+		{
+			Assert(!Evaluator->Bounds.Degenerate());
+			Assert(Evaluator->Bounds.Volume() > 0);
 		}
 	}
 
-	if (!Painter || !Evaluator)
-	{
-		return;
-	}
-
-	AABB Bounds = Evaluator->Bounds;
-
-	const glm::vec3 ModelExtent = Bounds.Extent();
-	const float ModelVolume = ModelExtent.x * ModelExtent.y * ModelExtent.z;
-
-	if (ModelVolume > 0)
+#if MESHING_STRATEGY == MESHING_STRATEGY_NAIVE_SURFACE_NETS
 	{
 		Painter->MeshingStart = Clock::now();
 
@@ -774,6 +782,7 @@ void MeshingJob::Run()
 
 		Scheduler::EnqueueParallel(MeshingOctreeTask);
 	}
+#endif // MESHING_STRATEGY == MESHING_STRATEGY_NAIVE_SURFACE_NETS
 }
 
 

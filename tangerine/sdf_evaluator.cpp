@@ -57,6 +57,92 @@ MaterialShared GetDefaultMaterial()
 }
 
 
+bool AABB::Degenerate() const
+{
+	const bool AnyInf = glm::any(glm::isinf(Min)) || glm::any(glm::isinf(Max));
+	const bool AnyNan = glm::any(glm::isnan(Min)) || glm::any(glm::isnan(Max));
+	const bool NotWellFormed = glm::any(glm::lessThanEqual(Max, Min));
+	return AnyInf || AnyNan || NotWellFormed;
+}
+
+
+glm::vec3 AABB::Extent() const
+{
+	if (Degenerate())
+	{
+		return glm::vec3(0.0, 0.0, 0.0);
+	}
+	else
+	{
+		return Max - Min;
+	}
+}
+
+
+glm::vec3 AABB::Center() const
+{
+	if (Degenerate())
+	{
+		return glm::vec3(0.0, 0.0, 0.0);
+	}
+	else
+	{
+		return Extent() * glm::vec3(0.5) + Min;
+	}
+}
+
+
+float AABB::Volume() const
+{
+	if (Degenerate())
+	{
+		return 0.0;
+	}
+	else
+	{
+		const glm::vec3 MyExtent = Extent();
+		return MyExtent.x * MyExtent.y * MyExtent.z;
+	}
+}
+
+
+AABB AABB::BoundingCube() const
+{
+	if (Degenerate())
+	{
+		glm::vec3 Zeros = glm::vec3(0.0);
+		return { Zeros, Zeros };
+	}
+	else
+	{
+		glm::vec3 MyExtent = Extent();
+		float Longest = max(max(MyExtent.x, MyExtent.y), MyExtent.z);
+		glm::vec3 Padding = (glm::vec3(Longest) - MyExtent) * glm::vec3(0.5);
+		return {
+			Min - Padding,
+			Max + Padding
+		};
+	}
+}
+
+
+AABB AABB::operator+(float Margin) const
+{
+	if (Degenerate())
+	{
+		glm::vec3 Zeros = glm::vec3(0.0);
+		return { Zeros, Zeros };
+	}
+	else
+	{
+		return {
+			Min - glm::vec3(Margin),
+			Max + glm::vec3(Margin)
+		};
+	}
+}
+
+
 namespace SDFMath
 {
 #define SDF_MATH_ONLY
@@ -1812,19 +1898,18 @@ float SDFInterpreter::Eval(glm::vec3 EvalPoint)
 
 
 // SDFOctree function implementations
-SDFOctreeShared SDFOctree::Create(SDFNodeShared& Evaluator, float TargetSize, bool Coalesce, int MaxDepth)
+SDFOctreeShared SDFOctree::Create(SDFNodeShared& Evaluator, float TargetSize, bool Coalesce, int MaxDepth, float Margin)
 {
 	if (Evaluator->HasFiniteBounds())
 	{
 		ProfileScope Fnord("SDFOctree::Create");
 
 		// Determine the octree's bounding cube from the evaluator's bounding box.
-		AABB Bounds = Evaluator->Bounds();
-		vec3 Extent = Bounds.Max - Bounds.Min;
-		float Span = max(max(Extent.x, Extent.y), Extent.z);
-		vec3 Padding = (vec3(Span) - Extent) * vec3(0.5);
-		Bounds.Min -= Padding;
-		Bounds.Max += Padding;
+		AABB Bounds = Evaluator->Bounds().BoundingCube() + Margin;
+		if (Bounds.Volume() == 0.0)
+		{
+			return nullptr;
+		}
 
 		SDFOctree* Tree = new SDFOctree(nullptr, Evaluator, TargetSize, Coalesce, Bounds, 1, MaxDepth);
 		if (Tree->Evaluator)
