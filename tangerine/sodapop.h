@@ -25,6 +25,13 @@ using DrawableShared = std::shared_ptr<Drawable>;
 using SDFModelShared = std::shared_ptr<SDFModel>;
 
 
+enum class MeshingAlgorithms
+{
+	Debug = 0,
+	NaiveSurfaceNets = 1,
+};
+
+
 enum class MaterialOverride
 {
 	Off,

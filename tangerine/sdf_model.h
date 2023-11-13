@@ -62,6 +62,8 @@ struct Drawable
 	std::atomic_bool MeshReady = false;
 	bool MeshUploaded = false;
 
+	MeshingAlgorithms MeshingAlgorithm = MeshingAlgorithms::NaiveSurfaceNets;
+
 	// These are populated during the meshing process, but may be safely used after the mesh is ready.
 	SDFOctreeShared EvaluatorOctree = nullptr;
 	std::vector<MaterialVertexGroup> MaterialSlots;

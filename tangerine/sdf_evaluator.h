@@ -277,7 +277,9 @@ struct SDFOctree
 	glm::vec3 Pivot;
 	float TargetSize;
 	bool Terminus;
-	int LeafCount;
+	int EvaluatorLeaves;
+	int OctreeLeafCount = 0;
+	int DebugLeafIndex = -1;
 	SDFNodeShared Evaluator;
 	SDFOctree* Children[8];
 	SDFOctree* Parent;
@@ -293,7 +295,7 @@ struct SDFOctree
 	SDFNodeShared SelectEvaluator(const glm::vec3 Point, const bool Exact = true);
 	SDFInterpreterShared SelectInterpreter(const glm::vec3 Point, const bool Exact = true);
 
-	SDFOctree* LinkLeavesInner(SDFOctree* Previous = nullptr);
+	SDFOctree* LinkLeavesInner(SDFOctree* Previous, int& LeafCounter);
 	void LinkLeaves();
 
 	using CallbackType = std::function<void(SDFOctree&)>;

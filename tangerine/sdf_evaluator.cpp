@@ -1929,6 +1929,7 @@ SDFOctreeShared SDFOctree::Create(SDFNodeShared& Evaluator, float TargetSize, bo
 	}
 }
 
+
 SDFOctree::SDFOctree(SDFOctree* InParent, SDFNodeShared& InEvaluator, float InTargetSize, bool Coalesce, AABB InBounds, int Depth, int MaxDepth)
 	: Parent(InParent)
 	, TargetSize(InTargetSize)
@@ -1942,11 +1943,11 @@ SDFOctree::SDFOctree(SDFOctree* InParent, SDFNodeShared& InEvaluator, float InTa
 	Evaluator = InEvaluator->Clip(Pivot, Radius);
 	if (Evaluator)
 	{
-		LeafCount = Evaluator->LeafCount();
+		EvaluatorLeaves = Evaluator->LeafCount();
 	}
 	else
 	{
-		LeafCount = 0;
+		EvaluatorLeaves = 0;
 	}
 
 	Terminus = Span <= TargetSize || Evaluator == nullptr;
@@ -1989,6 +1990,7 @@ SDFOctree::SDFOctree(SDFOctree* InParent, SDFNodeShared& InEvaluator, float InTa
 		}
 	}
 }
+
 
 void SDFOctree::Populate(bool Coalesce, int Depth, int MaxDepth)
 {
@@ -2056,7 +2058,7 @@ void SDFOctree::Populate(bool Coalesce, int Depth, int MaxDepth)
 				Bounds.Max = max(Bounds.Max, Live[i]->Bounds.Max);
 			}
 
-			if (Coalesce && ((Penultimate && Uniform) || LeafCount <= max(Depth, 3)))
+			if (Coalesce && ((Penultimate && Uniform) || EvaluatorLeaves <= max(Depth, 3)))
 			{
 				for (int i = 0; i < 8; ++i)
 				{
@@ -2072,6 +2074,7 @@ void SDFOctree::Populate(bool Coalesce, int Depth, int MaxDepth)
 	}
 }
 
+
 SDFOctree::~SDFOctree()
 {
 	for (int i = 0; i < 8; ++i)
@@ -2085,6 +2088,7 @@ SDFOctree::~SDFOctree()
 	Evaluator.reset();
 	Interpreter.reset();
 }
+
 
 SDFOctree* SDFOctree::Descend(const vec3 Point, const bool Exact)
 {
@@ -2122,6 +2126,7 @@ SDFOctree* SDFOctree::Descend(const vec3 Point, const bool Exact)
 	return Evaluator ? this : nullptr;
 };
 
+
 SDFNodeShared SDFOctree::SelectEvaluator(const glm::vec3 Point, const bool Exact)
 {
 	SDFOctree* Match = Descend(Point, Exact);
@@ -2134,6 +2139,7 @@ SDFNodeShared SDFOctree::SelectEvaluator(const glm::vec3 Point, const bool Exact
 		return nullptr;
 	}
 }
+
 
 SDFInterpreterShared SDFOctree::SelectInterpreter(const glm::vec3 Point, const bool Exact)
 {
@@ -2148,12 +2154,22 @@ SDFInterpreterShared SDFOctree::SelectInterpreter(const glm::vec3 Point, const b
 	}
 }
 
-SDFOctree* SDFOctree::LinkLeavesInner(SDFOctree* Cursor)
+
+SDFOctree* SDFOctree::LinkLeavesInner(SDFOctree* Cursor, int& OctreeLeafCounter)
 {
 	if (Terminus)
 	{
-		Next = Cursor;
-		return this;
+		if (!Evaluator)
+		{
+			Next = Cursor;
+			return Cursor;
+		}
+		else
+		{
+			DebugLeafIndex = OctreeLeafCounter++;
+			Next = Cursor;
+			return this;
+		}
 	}
 	else
 	{
@@ -2162,7 +2178,7 @@ SDFOctree* SDFOctree::LinkLeavesInner(SDFOctree* Cursor)
 			SDFOctree* Child = Children[i];
 			if (Child)
 			{
-				Cursor = Child->LinkLeavesInner(Cursor);
+				Cursor = Child->LinkLeavesInner(Cursor, OctreeLeafCounter);
 			}
 		}
 		Next = Cursor;
@@ -2170,10 +2186,12 @@ SDFOctree* SDFOctree::LinkLeavesInner(SDFOctree* Cursor)
 	}
 }
 
+
 void SDFOctree::LinkLeaves()
 {
-	Next = LinkLeavesInner(nullptr);
+	Next = LinkLeavesInner(nullptr, OctreeLeafCount);
 }
+
 
 void SDFOctree::Walk(SDFOctree::CallbackType& Callback)
 {
