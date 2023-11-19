@@ -870,7 +870,7 @@ void ReloadModel()
 }
 
 
-void ReadInputModel(Language Runtime)
+void LoadFromPipe(Language Runtime)
 {
 	std::istreambuf_iterator<char> begin(std::cin), end;
 	std::string Source(begin, end);
@@ -1606,6 +1606,75 @@ void SaveBookmarks()
 }
 
 
+enum class DefaultModelLoadingMethod
+{
+	None,
+	ImplicitFileLoad,
+	ExplicitFileLoad,
+	ExplicitPipeLoad
+};
+
+
+StatusCode LoadDefaultModel(DefaultModelLoadingMethod Method, Language Runtime, std::filesystem::path ModelPath = "")
+{
+	if (Method == DefaultModelLoadingMethod::None)
+	{
+		return StatusCode::PASS;
+	}
+	else if (Method == DefaultModelLoadingMethod::ExplicitPipeLoad)
+	{
+		if (Runtime == Language::Unknown)
+		{
+			fmt::print("Reading from stdin requires specifying a language runtime.\n");
+			return StatusCode::FAIL;
+		}
+		else
+		{
+			LoadFromPipe(Runtime);
+			return StatusCode::PASS;
+		}
+	}
+	else
+	{
+		const bool ExplicitRequest = Method == DefaultModelLoadingMethod::ExplicitFileLoad;
+
+		if (Runtime == Language::Unknown)
+		{
+			Runtime = LanguageForPath(ModelPath.string());
+		}
+
+		if (Runtime == Language::Unknown)
+		{
+			if (ExplicitRequest)
+			{
+				fmt::print("Unable to determine the runtime language for loading model {}.\n", ModelPath.string());
+				return StatusCode::FAIL;
+			}
+			else
+			{
+				return StatusCode::PASS;
+			}
+		}
+
+		if (std::filesystem::is_regular_file(ModelPath))
+		{
+			LoadModel(ModelPath.string(), Runtime);
+			return StatusCode::PASS;
+		}
+		else if (ExplicitRequest)
+		{
+			fmt::print("Unable to read default model from {}.\n", ModelPath.string());
+			return StatusCode::FAIL;
+		}
+	}
+}
+
+
+StatusCode LoadDefaultModel(Language Runtime)
+{
+}
+
+
 StatusCode Boot(int argc, char* argv[])
 {
 	RETURN_ON_FAIL(Installed.PopulateInstallationPaths());
@@ -1629,8 +1698,10 @@ StatusCode Boot(int argc, char* argv[])
 	int WindowWidth = 900;
 	int WindowHeight = 900;
 	HeadlessMode = false;
-	bool LoadFromStandardIn = false;
-	Language PipeRuntime = Language::Unknown;
+
+	DefaultModelLoadingMethod InitModelFrom = DefaultModelLoadingMethod::ImplicitFileLoad;
+	std::filesystem::path InitModelFilePath = Installed.ModelsDir / "init.lua";
+	Language InitModelRuntime = Language::Unknown;
 	{
 		int Cursor = 0;
 		while (Cursor < Args.size())
@@ -1643,11 +1714,29 @@ StatusCode Boot(int argc, char* argv[])
 				Cursor += 3;
 				continue;
 			}
+			else if (Args[Cursor] == "--skipdefault")
+			{
+				InitModelFrom = DefaultModelLoadingMethod::None;
+				Cursor += 1;
+				continue;
+			}
+			else if (Args[Cursor] == "--file")
+			{
+				InitModelFrom = DefaultModelLoadingMethod::ExplicitFileLoad;
+				InitModelFilePath = std::filesystem::path(Args[Cursor + 1].c_str());
+				Cursor += 2;
+				continue;
+			}
+			else if (Args[Cursor] == "--pipe")
+			{
+				InitModelFrom = DefaultModelLoadingMethod::ExplicitPipeLoad;
+				Cursor += 1;
+				continue;
+			}
 #if EMBED_LUA
 			else if (Args[Cursor] == "--lua")
 			{
-				LoadFromStandardIn = true;
-				PipeRuntime = Language::Lua;
+				InitModelRuntime = Language::Lua;
 				Cursor += 1;
 				continue;
 			}
@@ -1655,8 +1744,7 @@ StatusCode Boot(int argc, char* argv[])
 #if EMBED_RACKET
 			else if (Args[Cursor] == "--racket")
 			{
-				LoadFromStandardIn = true;
-				PipeRuntime = Language::Racket;
+				InitModelRuntime = Language::Racket;
 				Cursor += 1;
 				continue;
 			}
@@ -1918,10 +2006,7 @@ StatusCode Boot(int argc, char* argv[])
 		return StatusCode::FAIL;
 	}
 
-	if (LoadFromStandardIn)
-	{
-		ReadInputModel(PipeRuntime);
-	}
+	RETURN_ON_FAIL(LoadDefaultModel(InitModelFrom, InitModelRuntime, InitModelFilePath));
 
 	if (HeadlessMode)
 	{
