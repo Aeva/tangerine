@@ -22,7 +22,7 @@ rewrite = {
 
 template = """
 #if {}
-if (ImGui::BeginTabItem("{}"))
+if ({}ImGui::BeginTabItem("{}"))
 {{
 	const char* LicenseText = \\{};
 	ImGui::TextUnformatted(LicenseText, nullptr);
@@ -33,12 +33,19 @@ if (ImGui::BeginTabItem("{}"))
 
 
 def splat_license(project, path):
+    build_condition = "1"
+    run_condition = ""
+
     if project.lower().startswith("racket"):
-        condition = "EMBED_RACKET"
+        build_condition = "EMBED_RACKET"
+
     elif project.lower().startswith("lua"):
-        condition = "EMBED_LUA"
-    else:
-        condition = "1"
+        build_condition = "EMBED_LUA"
+
+    elif project.lower().startswith("psmove"):
+        build_condition = "ENABLE_PSMOVE_BINDINGS"
+        run_condition = "PSMoveAvailable() && "
+
     with open(path, "r") as INFILE:
         license = INFILE.read()
         license = license.replace("\r", "")
@@ -48,7 +55,7 @@ def splat_license(project, path):
         for part in parts:
             text += '\n		"{}"'.format(part)
 
-        return template.format(condition, project, text)
+        return template.format(build_condition, run_condition, project, text)
 
 
 if __name__ == "__main__":

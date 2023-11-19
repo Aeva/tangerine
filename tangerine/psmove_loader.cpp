@@ -130,6 +130,7 @@ void BootPSMove()
 	PSMoveRuntime = LoadLibrary(TEXT("psmoveapi.dll"));
 	if (PSMoveRuntime != NULL)
 	{
+		fmt::print("Setting up PS Move runtime found on system... ");
 		LOAD_PROC(PSMOVE_INIT_PROC, psmove_init);
 
 		if (psmove_init(PSMOVE_CURRENT_VERSION))
@@ -203,12 +204,15 @@ void BootPSMove()
 			LOAD_PROC(PSMOVE_UTIL_GET_SYSTEM_FILE_PATH_PROC, psmove_util_get_system_file_path);
 			LOAD_PROC(PSMOVE_UTIL_GET_TICKS_PROC, psmove_util_get_ticks);
 			LOAD_PROC(PSMOVE_UTIL_SLEEP_MS_PROC, psmove_util_sleep_ms);
-
-			fmt::print("Initialized PS Move runtime found on system.\n");
+			fmt::print("Done!\n");
 		}
 		else
 		{
-			fmt::print("Unable to initialize PS Move runtime found on system.\n");
+			fmt::print("Failed!\n");
+			fmt::print("Unable to initialize PS Move runtime found on system.  Tangerine requires verison {}.{}.{}.\n",
+				PSMOVEAPI_VERSION_MAJOR,
+				PSMOVEAPI_VERSION_MINOR,
+				PSMOVEAPI_VERSION_PATCH);
 			TeardownPSMove();
 		}
 	}
