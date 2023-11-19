@@ -199,6 +199,7 @@
     <ClCompile Include="..\tangerine\magica.cpp" />
     <ClCompile Include="..\tangerine\material.cpp" />
     <ClCompile Include="..\tangerine\profiling.cpp" />
+    <ClCompile Include="..\tangerine\psmove_loader.cpp" />
     <ClCompile Include="..\tangerine\racket_env.cpp" />
     <ClCompile Include="..\tangerine\rmlui\rmlui_renderer_gl3.cpp" />
     <ClCompile Include="..\tangerine\scheduler.cpp" />
@@ -281,6 +282,8 @@
     <ClInclude Include="..\tangerine\magica.h" />
     <ClInclude Include="..\tangerine\material.h" />
     <ClInclude Include="..\tangerine\profiling.h" />
+    <ClInclude Include="..\tangerine\psmove\psmove.h" />
+    <ClInclude Include="..\tangerine\psmove_loader.h" />
     <ClInclude Include="..\tangerine\racket_env.h" />
     <ClInclude Include="..\tangerine\scheduler.h" />
     <ClInclude Include="..\tangerine\sdf_evaluator.h" />

@@ -55,6 +55,8 @@ Rml::ElementDocument* RmlUiDocument = nullptr;
 #include "racket_env.h"
 #include "tangerine.h"
 
+#include "psmove_loader.h"
+
 #if !_WIN64
 #include "linux.h"
 #endif
@@ -1670,11 +1672,6 @@ StatusCode LoadDefaultModel(DefaultModelLoadingMethod Method, Language Runtime, 
 }
 
 
-StatusCode LoadDefaultModel(Language Runtime)
-{
-}
-
-
 StatusCode Boot(int argc, char* argv[])
 {
 	RETURN_ON_FAIL(Installed.PopulateInstallationPaths());
@@ -2006,6 +2003,13 @@ StatusCode Boot(int argc, char* argv[])
 		return StatusCode::FAIL;
 	}
 
+	if (!HeadlessMode)
+	{
+#if ENABLE_PSMOVE_BINDINGS
+		BootPSMove();
+#endif
+	}
+
 	RETURN_ON_FAIL(LoadDefaultModel(InitModelFrom, InitModelRuntime, InitModelFilePath));
 
 	if (HeadlessMode)
@@ -2063,6 +2067,11 @@ void Teardown()
 	}
 	{
 		UnloadAllModels();
+
+#if ENABLE_PSMOVE_BINDINGS
+		TeardownPSMove();
+#endif
+
 		if (Context)
 		{
 #ifdef ENABLE_RMLUI
