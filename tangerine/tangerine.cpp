@@ -397,10 +397,38 @@ void ProcessPendingFileDialogTextureDeletes()
 }
 
 
+int BackgroundMode = 1;
+int UserRequestedBackground = -1;
+int ProgramRequestedBackground = -1;
+
+int GetBackgroundMode()
+{
+	if (GraphicsBackend == GraphicsAPI::OpenGLES2)
+	{
+		// Only the solid color mode is supported right now.
+		return 0;
+	}
+	else
+	{
+		int RequestedMode = BackgroundMode;
+
+		if (UserRequestedBackground > -1)
+		{
+			RequestedMode = UserRequestedBackground;
+		}
+		else if (ProgramRequestedBackground > -1)
+		{
+			RequestedMode = ProgramRequestedBackground;
+		}
+
+		return RequestedMode;
+	}
+}
+
+
 int MouseMotionX = 0;
 int MouseMotionY = 0;
 int MouseMotionZ = 0;
-int BackgroundMode = 0;
 
 bool FixedCamera = false;
 glm::vec3 FixedOrigin = glm::vec3(0, -1, 0);
@@ -589,14 +617,14 @@ void RenderFrameGL4(int ScreenWidth, int ScreenHeight, std::vector<SDFModelWeakR
 			glEnable(GL_DEPTH_TEST);
 			glDepthMask(GL_FALSE);
 			glDepthFunc(GL_EQUAL);
-			switch (BackgroundMode)
+			switch (GetBackgroundMode())
 			{
-			case 0:
+			case 1:
 				BgShader.Activate();
 				glDrawArrays(GL_TRIANGLES, 0, 3);
 				break;
+			case 0:
 			default:
-				BackgroundMode = -1;
 				glClearColor(BackgroundColor.r, BackgroundColor.g, BackgroundColor.b, 1.0f);
 				glClear(GL_COLOR_BUFFER_BIT);
 			}
@@ -671,17 +699,18 @@ void RenderFrameES2(int ScreenWidth, int ScreenHeight, std::vector<SDFModelWeakR
 			glEnable(GL_DEPTH_TEST);
 			glDepthMask(GL_FALSE);
 			glDepthFunc(GL_EQUAL);
-			switch (BackgroundMode)
+			switch (GetBackgroundMode())
 			{
+			case 1:
 				// TODO port the bg shader to ES2
+				Assert(false); // GetBackgroundMode() is meant to enforce this being unreachable.
 #if 0
-			case 0:
 				BgShader.Activate();
 				glDrawArrays(GL_TRIANGLES, 0, 3);
-				break;
 #endif
+				break;
+			case 0:
 			default:
-				BackgroundMode = -1;
 				glClearColor(BackgroundColor.r, BackgroundColor.g, BackgroundColor.b, 1.0f);
 				glClear(GL_COLOR_BUFFER_BIT);
 			}
@@ -760,7 +789,7 @@ void RenderFrameES2(int ScreenWidth, int ScreenHeight, std::vector<SDFModelWeakR
 
 void SetClearColor(glm::vec3& Color)
 {
-	BackgroundMode = 1;
+	ProgramRequestedBackground = 0;
 	BackgroundColor = Color;
 }
 
@@ -801,6 +830,12 @@ void LoadModelCommon(std::function<void()> LoadingCallback)
 
 	FixedCamera = false;
 
+	if (UserRequestedBackground > -1)
+	{
+		BackgroundMode = UserRequestedBackground;
+	}
+	UserRequestedBackground = -1;
+	ProgramRequestedBackground = -1;
 	BackgroundColor = DefaultBackgroundColor;
 
 	Clock::time_point StartTimePoint = Clock::now();
@@ -1076,13 +1111,14 @@ void RenderUI(SDL_Window* Window, bool& Live)
 		{
 			if (ImGui::BeginMenu("Background"))
 			{
-				if (ImGui::MenuItem("Solid Color", nullptr, BackgroundMode == -1))
+				int CurrentMode = GetBackgroundMode();
+				if (ImGui::MenuItem("Solid Color", nullptr, CurrentMode == 0))
 				{
-					BackgroundMode = -1;
+					UserRequestedBackground = 0;
 				}
-				if (ImGui::MenuItem("Test Grid", nullptr, BackgroundMode == 0))
+				if (ImGui::MenuItem("Test Grid", nullptr, CurrentMode == 1))
 				{
-					BackgroundMode = 0;
+					UserRequestedBackground = 1;
 				}
 				ImGui::EndMenu();
 			}
