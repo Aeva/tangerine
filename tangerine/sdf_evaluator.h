@@ -15,21 +15,22 @@
 
 #pragma once
 
+#ifndef USE_VARIANT_INSTEAD_OF_UNION
+#define USE_VARIANT_INSTEAD_OF_UNION 0
+#endif
+
 #include <memory>
 #include <functional>
 #include <vector>
 #include <string>
 #include <mutex>
+
+#if USE_VARIANT_INSTEAD_OF_UNION
+#include <variant>
+#endif
+
 #include "glm_common.h"
 #include "errors.h"
-
-
-template<typename T>
-inline float AsFloat(T Word)
-{
-	static_assert(sizeof(T) == sizeof(float));
-	return *((float*)(&Word));
-}
 
 
 struct AABB
@@ -94,6 +95,92 @@ struct RayHit
 };
 
 
+enum class OpcodeT : std::uint32_t
+{
+	Stop = 0,
+	Push,
+
+	Sphere,
+	Ellipsoid,
+	Box,
+	Torus,
+	Cylinder,
+	Cone,
+	Coninder,
+	Plane,
+
+	Union,
+	Inter,
+	Diff,
+	BlendUnion,
+	BlendInter,
+	BlendDiff,
+	Flate,
+
+	Offset,
+	Matrix,
+	ScaleField,
+
+	Paint,
+};
+
+
+struct ProgramBuffer
+{
+#if USE_VARIANT_INSTEAD_OF_UNION
+	using Word = std::variant<OpcodeT, float>;
+
+#else
+	struct Word
+	{
+		union
+		{
+			OpcodeT Opcode;
+			float Scalar;
+		};
+
+		Word(OpcodeT InOpcode)
+			: Opcode(InOpcode)
+		{
+		}
+
+		Word(float InScalar)
+			: Scalar(InScalar)
+		{
+		}
+	};
+	static_assert(sizeof(Word) == sizeof(float));
+#endif
+
+	std::vector<Word> Words;
+
+	size_t Size()
+	{
+		return Words.size();
+	}
+
+	void Push(OpcodeT InOpcode);
+	void Push(float InScalar);
+	void Push(glm::vec3& InVector);
+	void Push(glm::mat4& InMatrix);
+
+	template<typename ContainerT>
+	void Push(ContainerT& Params)
+	{
+		for (const float& Param : Params)
+		{
+			Push(Param);
+		}
+	}
+
+	OpcodeT ReadOpcode(size_t& ProgramCounter);
+
+	float ReadScalar(size_t& ProgramCounter);
+	glm::vec3 ReadVector(size_t& ProgramCounter);
+	glm::mat4 ReadMatrix(size_t& ProgramCounter);
+};
+
+
 struct SDFNode;
 using SDFNodeShared = std::shared_ptr<SDFNode>;
 using SDFNodeWeakRef = std::weak_ptr<SDFNode>;
@@ -111,13 +198,9 @@ struct SDFNode
 
 	virtual AABB InnerBounds() = 0;
 
-	virtual std::string Compile(const bool WithOpcodes, std::vector<float>& TreeParams, std::string& Point) = 0;
+	virtual void Compile(ProgramBuffer& Program) = 0;
 
 	virtual uint32_t StackSize(const uint32_t Depth = 1) = 0;
-
-	void AddTerminus(std::vector<float>& TreeParams);
-
-	virtual std::string Pretty() = 0;
 
 	glm::vec3 Gradient(glm::vec3 Point);
 
@@ -206,7 +289,7 @@ namespace SDF
 struct SDFInterpreter
 {
 	SDFNodeShared Root;
-	std::vector<float> Program;
+	ProgramBuffer Program;
 	int StackDepth;
 
 	SDFInterpreter(SDFNodeShared InEvaluator);

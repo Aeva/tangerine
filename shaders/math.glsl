@@ -13,32 +13,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#define OPCODE_UNION 0
-#define OPCODE_INTER 1
-#define OPCODE_DIFF  2
-#define OPCODE_SMOOTH 3
-#define OPCODE_SMOOTH_UNION (OPCODE_SMOOTH + OPCODE_UNION)
-#define OPCODE_SMOOTH_INTER (OPCODE_SMOOTH + OPCODE_INTER)
-#define OPCODE_SMOOTH_DIFF  (OPCODE_SMOOTH + OPCODE_DIFF)
-
-#define OPCODE_SPHERE    6
-#define OPCODE_ELLIPSOID 7
-#define OPCODE_BOX       8
-#define OPCODE_TORUS     9
-#define OPCODE_CYLINDER  10
-#define OPCODE_PLANE     11
-#define OPCODE_CONE      12
-#define OPCODE_CONINDER 13
-
-#define OPCODE_OFFSET 14
-#define OPCODE_MATRIX 15
-#define OPCODE_SCALE  16
-#define OPCODE_FLATE  17
-#define OPCODE_PAINT  18
-
-#define OPCODE_RETURN 0xFFFFFFFF
-#define OPCODE_PUSH   (OPCODE_RETURN - 1)
-
 
 #ifdef GLM_FORCE_PURE
 #define SWIZ(expr) expr()

@@ -23,6 +23,7 @@
 
 #include "sdf_evaluator.h"
 #include "material.h"
+#include "transform.h"
 #include <glm/gtc/type_ptr.hpp>
 
 
@@ -143,6 +144,127 @@ AABB AABB::operator+(float Margin) const
 }
 
 
+void ProgramBuffer::Push(OpcodeT InOpcode)
+{
+	Words.emplace_back(InOpcode);
+}
+
+
+void ProgramBuffer::Push(float InScalar)
+{
+	Words.emplace_back(InScalar);
+}
+
+
+void ProgramBuffer::Push(vec3& InVector)
+{
+	for (int i = 0; i < 3; ++i)
+	{
+		Push(InVector[i]);
+	}
+}
+
+
+void ProgramBuffer::Push(mat4& InMatrix)
+{
+	for (int i = 0; i < 16; ++i)
+	{
+		float Cell = value_ptr(InMatrix)[i];
+		Push(Cell);
+	}
+}
+
+
+OpcodeT ProgramBuffer::ReadOpcode(size_t& ProgramCounter)
+{
+#if USE_VARIANT_INSTEAD_OF_UNION
+	return std::get<OpcodeT>(Words[ProgramCounter++]);
+#else
+	return Words[ProgramCounter++].Opcode;
+#endif
+}
+
+
+float ProgramBuffer::ReadScalar(size_t& ProgramCounter)
+{
+#if USE_VARIANT_INSTEAD_OF_UNION
+	return std::get<float>(Words[ProgramCounter++]);
+#else
+	return Words[ProgramCounter++].Scalar;
+#endif
+}
+
+
+vec3 ProgramBuffer::ReadVector(size_t& ProgramCounter)
+{
+#if USE_VARIANT_INSTEAD_OF_UNION
+	vec3 Vector = \
+	{
+		std::get<float>(Words[ProgramCounter + 0]),
+		std::get<float>(Words[ProgramCounter + 1]),
+		std::get<float>(Words[ProgramCounter + 2])
+	};
+	ProgramCounter += 3;
+	return Vector;
+#else
+	vec3 Vector = \
+	{
+		Words[ProgramCounter + 0].Scalar,
+		Words[ProgramCounter + 1].Scalar,
+		Words[ProgramCounter + 2].Scalar
+	};
+	ProgramCounter += 3;
+	return Vector;
+#endif
+}
+
+
+mat4 ProgramBuffer::ReadMatrix(size_t& ProgramCounter)
+{
+#if USE_VARIANT_INSTEAD_OF_UNION
+	mat4 Matrix = mat4(
+		std::get<float>(Words[ProgramCounter + 0]),
+		std::get<float>(Words[ProgramCounter + 1]),
+		std::get<float>(Words[ProgramCounter + 2]),
+		std::get<float>(Words[ProgramCounter + 3]),
+		std::get<float>(Words[ProgramCounter + 4]),
+		std::get<float>(Words[ProgramCounter + 5]),
+		std::get<float>(Words[ProgramCounter + 6]),
+		std::get<float>(Words[ProgramCounter + 7]),
+		std::get<float>(Words[ProgramCounter + 8]),
+		std::get<float>(Words[ProgramCounter + 9]),
+		std::get<float>(Words[ProgramCounter + 10]),
+		std::get<float>(Words[ProgramCounter + 11]),
+		std::get<float>(Words[ProgramCounter + 12]),
+		std::get<float>(Words[ProgramCounter + 13]),
+		std::get<float>(Words[ProgramCounter + 14]),
+		std::get<float>(Words[ProgramCounter + 15]));
+	ProgramCounter += 16;
+	return Matrix;
+#else
+	mat4 Matrix = mat4(
+		Words[ProgramCounter + 0].Scalar,
+		Words[ProgramCounter + 1].Scalar,
+		Words[ProgramCounter + 2].Scalar,
+		Words[ProgramCounter + 3].Scalar,
+		Words[ProgramCounter + 4].Scalar,
+		Words[ProgramCounter + 5].Scalar,
+		Words[ProgramCounter + 6].Scalar,
+		Words[ProgramCounter + 7].Scalar,
+		Words[ProgramCounter + 8].Scalar,
+		Words[ProgramCounter + 9].Scalar,
+		Words[ProgramCounter + 10].Scalar,
+		Words[ProgramCounter + 11].Scalar,
+		Words[ProgramCounter + 12].Scalar,
+		Words[ProgramCounter + 13].Scalar,
+		Words[ProgramCounter + 14].Scalar,
+		Words[ProgramCounter + 15].Scalar);
+	ProgramCounter += 16;
+	return Matrix;
+#endif
+}
+
+
 namespace SDFMath
 {
 #define SDF_MATH_ONLY
@@ -188,12 +310,6 @@ vec3 SDFNode::Gradient(vec3 Point)
 }
 
 
-void SDFNode::AddTerminus(std::vector<float>& TreeParams)
-{
-	TreeParams.push_back(AsFloat(OPCODE_RETURN));
-}
-
-
 RayHit SDFNode::RayMarch(glm::vec3 RayStart, glm::vec3 RayDir, int MaxIterations, float Epsilon)
 {
 	RayDir = normalize(RayDir);
@@ -219,29 +335,6 @@ using SetMixin = std::function<float(float, float)>;
 
 
 const vec4 NullColor = vec4(1.0, 1.0, 1.0, 0.0);
-
-
-template<typename ParamsT>
-int StoreParams(std::vector<float>& TreeParams, const ParamsT& NodeParams)
-{
-	const int Offset = (int)TreeParams.size();
-	for (const float& Param : NodeParams)
-	{
-		TreeParams.push_back(Param);
-	}
-	return Offset;
-}
-
-
-std::string MakeParamList(int Offset, int Count)
-{
-	std::string Params = fmt::format("PARAMS[{}]", Offset++);
-	for (int i = 1; i < Count; ++i)
-	{
-		Params = fmt::format("{}, PARAMS[{}]", Params, Offset++);
-	}
-	return Params;
-}
 
 
 struct TransformMachine
@@ -275,16 +368,15 @@ struct TransformMachine
 	glm::vec3 ApplyInverse(glm::vec3 Point);
 	glm::vec3 Apply(glm::vec3 Point);
 	AABB Apply(const AABB InBounds);
-	std::string Compile(const bool WithOpcodes, std::vector<float>& TreeParams, std::string Point);
-	std::string Pretty(std::string Brush);
+	void Compile(ProgramBuffer& Program);
 	bool operator==(TransformMachine& Other);
 
 private:
 
 	AABB ApplyOffset(const AABB InBounds);
 	AABB ApplyMatrix(const AABB InBounds);
-	std::string CompileOffset(const bool WithOpcodes, std::vector<float>& TreeParams, std::string Point);
-	std::string CompileMatrix(const bool WithOpcodes, std::vector<float>& TreeParams, std::string Point);
+	void CompileOffset(ProgramBuffer& Program);
+	void CompileMatrix(ProgramBuffer& Program);
 };
 
 TransformMachine::TransformMachine()
@@ -395,38 +487,24 @@ AABB TransformMachine::Apply(const AABB InBounds)
 	UNREACHABLE();
 }
 
-std::string TransformMachine::Compile(const bool WithOpcodes, std::vector<float>& TreeParams, std::string Point)
+void TransformMachine::Compile(ProgramBuffer& Program)
 {
 	Fold();
 	switch (FoldState)
 	{
 	case State::Identity:
-		return Point;
+		break;
 
 	case State::Offset:
-		return CompileOffset(WithOpcodes, TreeParams, Point);
+		CompileOffset(Program);
+		break;
 
 	case State::Matrix:
-		return CompileMatrix(WithOpcodes, TreeParams, Point);
+		CompileMatrix(Program);
+		break;
+	default:
+		break;
 	}
-	UNREACHABLE();
-}
-
-std::string TransformMachine::Pretty(std::string Brush)
-{
-	Fold();
-	switch (FoldState)
-	{
-	case State::Identity:
-		return Brush;
-
-	case State::Offset:
-		return fmt::format("Move({})", Brush);
-
-	case State::Matrix:
-		return fmt::format("Matrix({})", Brush);
-	}
-	UNREACHABLE();
 }
 
 bool TransformMachine::operator==(TransformMachine& Other)
@@ -486,42 +564,24 @@ AABB TransformMachine::ApplyMatrix(const AABB InBounds)
 	return Bounds;
 }
 
-std::string TransformMachine::CompileOffset(const bool WithOpcodes, std::vector<float>& TreeParams, std::string Point)
+void TransformMachine::CompileOffset(ProgramBuffer& Program)
 {
-	if (WithOpcodes)
-	{
-		TreeParams.push_back(AsFloat(OPCODE_OFFSET));
-	}
-	const int Offset = TreeParams.size();
-	TreeParams.push_back(LastFold[3].x);
-	TreeParams.push_back(LastFold[3].y);
-	TreeParams.push_back(LastFold[3].z);
-	std::string Params = MakeParamList(Offset, 3);
-	return fmt::format("({} - vec3({}))", Point, Params);
+	Program.Push(OpcodeT::Offset);
+	vec3 Offset = LastFold[3].xyz();
+	Program.Push(Offset);
 }
 
-std::string TransformMachine::CompileMatrix(const bool WithOpcodes, std::vector<float>& TreeParams, std::string Point)
+void TransformMachine::CompileMatrix(ProgramBuffer& Program)
 {
-	if (WithOpcodes)
-	{
-		TreeParams.push_back(AsFloat(OPCODE_MATRIX));
-	}
-	const int Offset = TreeParams.size();
-	for (int i = 0; i < 16; ++i)
-	{
-		float Cell = value_ptr(LastFoldInverse)[i];
-		TreeParams.push_back(Cell);
-	}
-	std::string Params = MakeParamList(Offset, 16);
-	return fmt::format("MatrixTransform({}, mat4({}))", Point, Params);
+	Program.Push(OpcodeT::Matrix);
+	Program.Push(LastFoldInverse);
 }
 
 
 template<typename ParamsT>
 struct BrushNode : public SDFNode
 {
-	uint32_t Opcode;
-	std::string BrushFnName;
+	OpcodeT Opcode;
 	ParamsT NodeParams;
 	BrushMixin BrushFn;
 	AABB BrushAABB;
@@ -530,19 +590,17 @@ struct BrushNode : public SDFNode
 
 	vec3 Color = vec3(-1.0);
 
-	BrushNode(uint32_t InOpcode, const std::string& InBrushFnName, const ParamsT& InNodeParams, BrushMixin& InBrushFn, AABB& InBrushAABB)
+	BrushNode(OpcodeT InOpcode, const ParamsT& InNodeParams, BrushMixin& InBrushFn, AABB& InBrushAABB)
 		: Opcode(InOpcode)
-		, BrushFnName(InBrushFnName)
 		, NodeParams(InNodeParams)
 		, BrushFn(InBrushFn)
 		, BrushAABB(InBrushAABB)
 	{
 	}
 
-	BrushNode(uint32_t InOpcode, const std::string& InBrushFnName, const ParamsT& InNodeParams, BrushMixin& InBrushFn, AABB& InBrushAABB,
+	BrushNode(OpcodeT InOpcode, const ParamsT& InNodeParams, BrushMixin& InBrushFn, AABB& InBrushAABB,
 		TransformMachine& InTransform, MaterialShared& InMaterial, vec3& InColor)
 		: Opcode(InOpcode)
-		, BrushFnName(InBrushFnName)
 		, NodeParams(InNodeParams)
 		, BrushFn(InBrushFn)
 		, BrushAABB(InBrushAABB)
@@ -575,7 +633,7 @@ struct BrushNode : public SDFNode
 		{
 			Transform.Fold();
 		}
-		return SDFNodeShared(new BrushNode(Opcode, BrushFnName, NodeParams, BrushFn, BrushAABB, Transform, Material, Color));
+		return SDFNodeShared(new BrushNode(Opcode, NodeParams, BrushFn, BrushAABB, Transform, Material, Color));
 	}
 
 	virtual AABB Bounds()
@@ -588,64 +646,37 @@ struct BrushNode : public SDFNode
 		return Bounds();
 	}
 
-	std::string CompileScale(const bool WithOpcodes, std::vector<float>& TreeParams, std::string& NestedExpr)
+	void CompileScale(ProgramBuffer& Program)
 	{
-		if (WithOpcodes)
-		{
-			TreeParams.push_back(AsFloat(OPCODE_SCALE));
-		}
-		float Scale = Transform.AccumulatedScale;
-		TreeParams.push_back(Scale);
-		return fmt::format("({} * {})", NestedExpr, Scale);
+		Program.Push(OpcodeT::ScaleField);
+		Program.Push(Transform.AccumulatedScale);
 	}
 
-	std::string CompilePaint(const bool WithOpcodes, std::vector<float>& TreeParams, std::string& NestedExpr)
+	void CompilePaint(ProgramBuffer& Program)
 	{
-		if (WithOpcodes)
-		{
-			TreeParams.push_back(AsFloat(OPCODE_PAINT));
-		}
-		const int Offset = (int)TreeParams.size();
-		TreeParams.push_back(Color.r);
-		TreeParams.push_back(Color.g);
-		TreeParams.push_back(Color.b);
-		std::string ColorParams = MakeParamList(Offset, 3);
-		return fmt::format("MaterialDist(vec3({}), {})", ColorParams, NestedExpr);
+		Program.Push(OpcodeT::Paint);
+		Program.Push(Color);
 	}
 
-	virtual std::string Compile(const bool WithOpcodes, std::vector<float>& TreeParams, std::string& Point)
+	void Compile(ProgramBuffer& Program)
 	{
-		std::string TransformedPoint = Transform.Compile(WithOpcodes, TreeParams, Point);
+		Transform.Compile(Program);
+		Program.Push(Opcode);
+		Program.Push(NodeParams);
 
-		if (WithOpcodes)
-		{
-			TreeParams.push_back(AsFloat(Opcode));
-		}
-		const int Offset = StoreParams(TreeParams, NodeParams);
-		std::string Params = MakeParamList(Offset, (int)NodeParams.size());
-		std::string CompiledShape = fmt::format("{}({}, {})", BrushFnName, TransformedPoint, Params);
 		if (Transform.AccumulatedScale != 1.0)
 		{
-			CompiledShape = CompileScale(WithOpcodes, TreeParams, CompiledShape);
+			CompileScale(Program);
 		}
 		if (HasPaint())
 		{
-			return CompilePaint(WithOpcodes, TreeParams, CompiledShape);
-		}
-		else
-		{
-			return CompiledShape;
+			CompilePaint(Program);
 		}
 	}
 
 	virtual uint32_t StackSize(const uint32_t Depth)
 	{
 		return Depth;
-	}
-
-	virtual std::string Pretty()
-	{
-		return Transform.Pretty(BrushFnName);
 	}
 
 	virtual void Move(vec3 Offset)
@@ -727,7 +758,7 @@ struct BrushNode : public SDFNode
 	virtual bool operator==(SDFNode& Other)
 	{
 		BrushNode* OtherBrush = dynamic_cast<BrushNode*>(&Other);
-		if (OtherBrush && OtherBrush->BrushFnName == BrushFnName && OtherBrush->Material == Material && OtherBrush->Transform == Transform)
+		if (OtherBrush && OtherBrush->Opcode == Opcode && OtherBrush->Material == Material && OtherBrush->Transform == Transform)
 		{
 			for (int i = 0; i < NodeParams.size(); ++i)
 			{
@@ -791,19 +822,14 @@ struct StencilMaskNode : public SDFNode
 		return Child->InnerBounds();
 	}
 
-	virtual std::string Compile(const bool WithOpcodes, std::vector<float>& TreeParams, std::string& Point)
+	virtual void Compile(ProgramBuffer& Program)
 	{
-		return Child->Compile(WithOpcodes, TreeParams, Point);
+		return Child->Compile(Program);
 	}
 
 	virtual uint32_t StackSize(const uint32_t Depth)
 	{
 		return Child->StackSize(Depth);
-	}
-
-	virtual std::string Pretty()
-	{
-		return fmt::format("StencilMask({})", Child->Pretty());
 	}
 
 	virtual void Move(vec3 Offset)
@@ -899,18 +925,18 @@ struct StencilMaskNode : public SDFNode
 };
 
 
-enum class SetFamily : uint32_t
+enum class SetFamily
 {
-	Union = OPCODE_UNION,
-	Inter = OPCODE_INTER,
-	Diff = OPCODE_DIFF
+	Union,
+	Inter,
+	Diff
 };
 
 
 template<SetFamily Family, bool BlendMode>
 struct SetNode : public SDFNode
 {
-	uint32_t Opcode;
+	OpcodeT Opcode;
 	SetMixin SetFn;
 	SDFNodeShared LHS;
 	SDFNodeShared RHS;
@@ -922,11 +948,23 @@ struct SetNode : public SDFNode
 		, RHS(InRHS)
 		, Threshold(InThreshold)
 	{
-		Opcode = (uint32_t)Family;
-		if (BlendMode)
+		if (Family == SetFamily::Union)
 		{
-			Opcode += OPCODE_SMOOTH;
+			Opcode = BlendMode ? OpcodeT::BlendUnion : OpcodeT::Union;
 		}
+		else if (Family == SetFamily::Inter)
+		{
+			Opcode = BlendMode ? OpcodeT::BlendInter : OpcodeT::Inter;
+		}
+		else if (Family == SetFamily::Diff)
+		{
+			Opcode = BlendMode ? OpcodeT::BlendDiff : OpcodeT::Diff;
+		}
+		else
+		{
+			Assert(false);
+		}
+
 		if (Family != SetFamily::Diff && RHS->StackSize() > LHS->StackSize())
 		{
 			// When possible, swap the left and right operands to ensure the tree is left leaning.
@@ -1078,80 +1116,22 @@ struct SetNode : public SDFNode
 		return Combined;
 	}
 
-	virtual std::string Compile(const bool WithOpcodes, std::vector<float>& TreeParams, std::string& Point)
+	virtual void Compile(ProgramBuffer& Program)
 	{
-		const std::string CompiledLHS = LHS->Compile(WithOpcodes, TreeParams, Point);
-		if (WithOpcodes)
-		{
-			TreeParams.push_back(AsFloat(OPCODE_PUSH));
-		}
-		const std::string CompiledRHS = RHS->Compile(WithOpcodes, TreeParams, Point);
-		if (WithOpcodes)
-		{
-			TreeParams.push_back(AsFloat(Opcode));
-		}
+		LHS->Compile(Program);
+		Program.Push(OpcodeT::Push);
+
+		RHS->Compile(Program);
+		Program.Push(Opcode);
 		if (BlendMode)
 		{
-			const int Offset = (int)TreeParams.size();
-			TreeParams.push_back(Threshold);
-
-			if (Family == SetFamily::Union)
-			{
-				return fmt::format("SmoothUnionOp({}, {}, PARAMS[{}])", CompiledLHS, CompiledRHS, Offset);
-			}
-			else if (Family == SetFamily::Diff)
-			{
-				return fmt::format("SmoothDiffOp({}, {}, PARAMS[{}])", CompiledLHS, CompiledRHS, Offset);
-			}
-			else if (Family == SetFamily::Inter)
-			{
-				return fmt::format("SmoothInterOp({}, {}, PARAMS[{}])", CompiledLHS, CompiledRHS, Offset);
-			}
-		}
-		else
-		{
-			if (Family == SetFamily::Union)
-			{
-				return fmt::format("UnionOp({}, {})", CompiledLHS, CompiledRHS);
-			}
-			else if (Family == SetFamily::Diff)
-			{
-				return fmt::format("DiffOp({}, {})", CompiledLHS, CompiledRHS);
-			}
-			else if (Family == SetFamily::Inter)
-			{
-				return fmt::format("InterOp({}, {})", CompiledLHS, CompiledRHS);
-			}
+			Program.Push(Threshold);
 		}
 	}
 
 	virtual uint32_t StackSize(const uint32_t Depth)
 	{
 		return max(max(Depth + 1, LHS->StackSize(Depth)), RHS->StackSize(Depth + 1));
-	}
-
-	virtual std::string Pretty()
-	{
-		std::string Name = "Unknown";
-		if (Family == SetFamily::Union)
-		{
-			Name = "Union";
-		}
-		else if (Family == SetFamily::Diff)
-		{
-			Name = "Diff";
-		}
-		else if (Family == SetFamily::Inter)
-		{
-			Name = "Inter";
-		}
-		if (BlendMode)
-		{
-			Name = fmt::format("Blend{}", Name);
-		}
-		std::string PrettyL = LHS->Pretty();
-		std::string PrettyR = RHS->Pretty();
-		return fmt::format("{}(\n\t{},\n\t{})", Name, PrettyL, PrettyR);
 	}
 
 	virtual void Move(vec3 Offset)
@@ -1322,8 +1302,8 @@ struct SetNode : public SDFNode
 
 	virtual bool operator==(SDFNode& Other)
 	{
-		SetNode<Family, BlendMode>* OtherSet = dynamic_cast<SetNode<Family, BlendMode>*>(&Other);
-		if (OtherSet && Threshold == OtherSet->Threshold)
+		SetNode* OtherSet = dynamic_cast<SetNode*>(&Other);
+		if (OtherSet && Opcode == OtherSet->Opcode && Threshold == OtherSet->Threshold)
 		{
 			return *LHS == *(OtherSet->LHS) && *RHS == *(OtherSet->RHS);
 		}
@@ -1388,26 +1368,16 @@ struct FlateNode : public SDFNode
 		return ChildBounds;
 	}
 
-	virtual std::string Compile(const bool WithOpcodes, std::vector<float>& TreeParams, std::string& Point)
+	virtual void Compile(ProgramBuffer& Program)
 	{
-		std::string CompiledChild = Child->Compile(WithOpcodes, TreeParams, Point);
-		if (WithOpcodes)
-		{
-			TreeParams.push_back(AsFloat(OPCODE_FLATE));
-		}
-		const int Offset = TreeParams.size();
-		TreeParams.push_back(Radius);
-		return fmt::format("FlateOp({}, PARAMS[{}])", CompiledChild, Offset);
+		Child->Compile(Program);
+		Program.Push(OpcodeT::Flate);
+		Program.Push(Radius);
 	}
 
 	virtual uint32_t StackSize(const uint32_t Depth)
 	{
 		return Child->StackSize(Depth);
-	}
-
-	virtual std::string Pretty()
-	{
-		return fmt::format("FlateOp({})", Child->Pretty());
 	}
 
 	virtual void Move(vec3 Offset)
@@ -1528,7 +1498,7 @@ namespace SDF
 		BrushMixin Eval = std::bind(SDFMath::SphereBrush, _1, Radius);
 
 		AABB Bounds = SymmetricalBounds(vec3(Radius));
-		return SDFNodeShared(new BrushNode(OPCODE_SPHERE, "SphereBrush", Params, Eval, Bounds));
+		return SDFNodeShared(new BrushNode(OpcodeT::Sphere, Params, Eval, Bounds));
 	}
 
 	SDFNodeShared Ellipsoid(float RadipodeX, float RadipodeY, float RadipodeZ)
@@ -1539,7 +1509,7 @@ namespace SDF
 		BrushMixin Eval = std::bind((EllipsoidBrushPtr)SDFMath::EllipsoidBrush, _1, vec3(RadipodeX, RadipodeY, RadipodeZ));
 
 		AABB Bounds = SymmetricalBounds(vec3(RadipodeX, RadipodeY, RadipodeZ));
-		return SDFNodeShared(new BrushNode(OPCODE_ELLIPSOID, "EllipsoidBrush", Params, Eval, Bounds));
+		return SDFNodeShared(new BrushNode(OpcodeT::Ellipsoid, Params, Eval, Bounds));
 	}
 
 	SDFNodeShared Box(float ExtentX, float ExtentY, float ExtentZ)
@@ -1550,7 +1520,7 @@ namespace SDF
 		BrushMixin Eval = std::bind((BoxBrushPtr)SDFMath::BoxBrush, _1, vec3(ExtentX, ExtentY, ExtentZ));
 
 		AABB Bounds = SymmetricalBounds(vec3(ExtentX, ExtentY, ExtentZ));
-		return SDFNodeShared(new BrushNode(OPCODE_BOX, "BoxBrush", Params, Eval, Bounds));
+		return SDFNodeShared(new BrushNode(OpcodeT::Box, Params, Eval, Bounds));
 	}
 
 	SDFNodeShared Torus(float MajorRadius, float MinorRadius)
@@ -1562,7 +1532,7 @@ namespace SDF
 		float Radius = MajorRadius + MinorRadius;
 		AABB Bounds = SymmetricalBounds(vec3(Radius, Radius, MinorRadius));
 
-		return SDFNodeShared(new BrushNode(OPCODE_TORUS, "TorusBrush", Params, Eval, Bounds));
+		return SDFNodeShared(new BrushNode(OpcodeT::Torus, Params, Eval, Bounds));
 	}
 
 	SDFNodeShared Cylinder(float Radius, float Extent)
@@ -1572,7 +1542,7 @@ namespace SDF
 		BrushMixin Eval = std::bind(SDFMath::CylinderBrush, _1, Radius, Extent);
 
 		AABB Bounds = SymmetricalBounds(vec3(Radius, Radius, Extent));
-		return SDFNodeShared(new BrushNode(OPCODE_CYLINDER, "CylinderBrush", Params, Eval, Bounds));
+		return SDFNodeShared(new BrushNode(OpcodeT::Cylinder, Params, Eval, Bounds));
 	}
 
 	SDFNodeShared Plane(float NormalX, float NormalY, float NormalZ)
@@ -1608,7 +1578,7 @@ namespace SDF
 		{
 			Unbound.Max.z = 0.0;
 		}
-		return SDFNodeShared(new BrushNode(OPCODE_PLANE, "Plane", Params, Eval, Unbound));
+		return SDFNodeShared(new BrushNode(OpcodeT::Plane, Params, Eval, Unbound));
 	}
 
 	SDFNodeShared Cone(float Radius, float Height)
@@ -1619,7 +1589,7 @@ namespace SDF
 		BrushMixin Eval = std::bind(SDFMath::ConeBrush, _1, Tangent, Height);
 
 		AABB Bounds = SymmetricalBounds(vec3(Radius, Radius, Height * .5));
-		return SDFNodeShared(new BrushNode(OPCODE_CONE, "ConeBrush", Params, Eval, Bounds));
+		return SDFNodeShared(new BrushNode(OpcodeT::Cone, Params, Eval, Bounds));
 	}
 
 	SDFNodeShared Coninder(float RadiusL, float RadiusH, float Height)
@@ -1631,7 +1601,7 @@ namespace SDF
 
 		float MaxRadius = max(RadiusL, RadiusH);
 		AABB Bounds = SymmetricalBounds(vec3(MaxRadius, MaxRadius, HalfHeight));
-		return SDFNodeShared(new BrushNode(OPCODE_CONINDER, "ConinderBrush", Params, Eval, Bounds));
+		return SDFNodeShared(new BrushNode(OpcodeT::Coninder, Params, Eval, Bounds));
 	}
 
 	// The following functions construct CSG set operator nodes.
@@ -1695,11 +1665,8 @@ SDFInterpreter::SDFInterpreter(SDFNodeShared InEvaluator)
 	: Root(InEvaluator)
 {
 	std::string PointVar = "";
-	std::string Ignore = Root->Compile(true, Program, PointVar);
-#if 0
-	// Not necessary, because overflowing the program also indicates this for the CPU interpreter.
-	Root->AddTerminus(Program);
-#endif
+	Root->Compile(Program);
+	Program.Push(OpcodeT::Stop);
 	StackDepth = Root->StackSize();
 }
 
@@ -1714,226 +1681,212 @@ float SDFInterpreter::Eval(glm::vec3 EvalPoint)
 	std::vector<float> Stack;
 	Stack.resize(StackDepth, 0.0);
 
-	uint StackPointer = 0;
-	uint ProgramCounter = 0;
+	size_t StackPointer = 0;
+	size_t ProgramCounter = 0;
 	vec3 Point = EvalPoint;
 
-	while (ProgramCounter < Program.size())
+	while (ProgramCounter < Program.Size())
 	{
-		const uint Opcode = floatBitsToUint(Program[ProgramCounter++]);
+		switch (Program.ReadOpcode(ProgramCounter))
+		{
+		case OpcodeT::Stop:
+		{
+			Assert(ProgramCounter == Program.Size());
+			//Stack[0].Color = abs(Stack[0].Color);
+			return Stack[0];
+		}
 
-		// Set operators
-		if (Opcode < OPCODE_SPHERE)
+		case OpcodeT::Push:
+		{
+			++StackPointer;
+			Stack[StackPointer] = 0.0;
+			//Stack[StackPointer].Color = vec3(-1.0);
+			break;
+		}
+
+		case OpcodeT::Sphere:
+		{
+			const float Radius = Program.ReadScalar(ProgramCounter);
+			Stack[StackPointer] = SDFMath::SphereBrush(Point, Radius);
+			Point = EvalPoint;
+			break;
+		}
+
+		case OpcodeT::Ellipsoid:
+		{
+			const vec3 Radipodes = Program.ReadVector(ProgramCounter);
+			Stack[StackPointer] = SDFMath::EllipsoidBrush(Point, Radipodes);
+			Point = EvalPoint;
+			break;
+		}
+
+		case OpcodeT::Box:
+		{
+			const vec3 Extent = Program.ReadVector(ProgramCounter);
+			Stack[StackPointer] = SDFMath::BoxBrush(Point, Extent);
+			Point = EvalPoint;
+			break;
+		}
+
+		case OpcodeT::Torus:
+		{
+			const float MajorRadius = Program.ReadScalar(ProgramCounter);
+			const float MinorRadius = Program.ReadScalar(ProgramCounter);
+			Stack[StackPointer] = SDFMath::TorusBrush(Point, MajorRadius, MinorRadius);
+			Point = EvalPoint;
+			break;
+		}
+
+		case OpcodeT::Cylinder:
+		{
+			const float Radius = Program.ReadScalar(ProgramCounter);
+			const float Extent = Program.ReadScalar(ProgramCounter);
+			Stack[StackPointer] = SDFMath::CylinderBrush(Point, Radius, Extent);
+			Point = EvalPoint;
+			break;
+		}
+
+		case OpcodeT::Cone:
+		{
+			const float Tangent = Program.ReadScalar(ProgramCounter);
+			const float Height = Program.ReadScalar(ProgramCounter);
+			Stack[StackPointer] = SDFMath::ConeBrush(Point, Tangent, Height);
+			Point = EvalPoint;
+			break;
+		}
+
+		case OpcodeT::Coninder:
+		{
+			const float RadiusL = Program.ReadScalar(ProgramCounter);
+			const float RadiusH = Program.ReadScalar(ProgramCounter);
+			const float Height = Program.ReadScalar(ProgramCounter);
+			Stack[StackPointer] = SDFMath::ConinderBrush(Point, RadiusL, RadiusH, Height);
+			Point = EvalPoint;
+			break;
+		}
+
+		case OpcodeT::Plane:
+		{
+			const vec3 Normal = Program.ReadVector(ProgramCounter);
+			Stack[StackPointer] = SDFMath::Plane(Point, Normal);
+			Point = EvalPoint;
+			break;
+		}
+
+		case OpcodeT::Union:
 		{
 			--StackPointer;
-
-			if (Opcode < OPCODE_SMOOTH)
-			{
-				if (Opcode == OPCODE_UNION)
-				{
-					Stack[StackPointer] = SDFMath::UnionOp(Stack[StackPointer], Stack[StackPointer + 1]);
-					continue;
-				}
-				else if (Opcode == OPCODE_INTER)
-				{
-					// TODO : SDFMath::InterpretedInterOp is needed for material support, should we ever add it.
-#if 0
-					Stack[StackPointer] = SDFMath::InterpretedInterOp(Stack[StackPointer], Stack[StackPointer + 1]);
-#else
-					Stack[StackPointer] = SDFMath::InterOp(Stack[StackPointer], Stack[StackPointer + 1]);
-#endif
-					continue;
-				}
-				else if (Opcode == OPCODE_DIFF)
-				{
-					Stack[StackPointer] = SDFMath::DiffOp(Stack[StackPointer], Stack[StackPointer + 1]);
-					continue;
-				}
-			}
-			else
-			{
-				float Threshold = Program[ProgramCounter++];
-				if (Opcode == OPCODE_SMOOTH_UNION)
-				{
-					Stack[StackPointer] = SDFMath::SmoothUnionOp(Stack[StackPointer], Stack[StackPointer + 1], Threshold);
-					continue;
-				}
-				else if (Opcode == OPCODE_SMOOTH_INTER)
-				{
-					// TODO : SDFMath::InterpretedSmoothInterOp is needed for material support, should we ever add it.
-#if 0
-					Stack[StackPointer] = SDFMath::InterpretedSmoothInterOp(Stack[StackPointer], Stack[StackPointer + 1], Threshold);
-#else
-					Stack[StackPointer] = SDFMath::SmoothInterOp(Stack[StackPointer], Stack[StackPointer + 1], Threshold);
-#endif
-					continue;
-				}
-				else if (Opcode == OPCODE_SMOOTH_DIFF)
-				{
-					Stack[StackPointer] = SDFMath::SmoothDiffOp(Stack[StackPointer], Stack[StackPointer + 1], Threshold);
-					continue;
-				}
-			}
+			const float LHS = Stack[StackPointer];
+			const float RHS = Stack[StackPointer + 1];
+			Stack[StackPointer] = SDFMath::UnionOp(LHS, RHS);
+			break;
 		}
 
-		// Brush operands
-		else if (Opcode < OPCODE_OFFSET)
+		case OpcodeT::Inter:
 		{
-			if (Opcode == OPCODE_SPHERE)
-			{
-				Stack[StackPointer] = SDFMath::SphereBrush(Point,
-					Program[ProgramCounter++]);
-				Point = EvalPoint;
-				continue;
-			}
-			else if (Opcode == OPCODE_ELLIPSOID)
-			{
-				Stack[StackPointer] = SDFMath::EllipsoidBrush(Point,
-					Program[ProgramCounter + 0],
-					Program[ProgramCounter + 1],
-					Program[ProgramCounter + 2]);
-				ProgramCounter += 3;
-				Point = EvalPoint;
-				continue;
-			}
-			else if (Opcode == OPCODE_BOX)
-			{
-				Stack[StackPointer] = SDFMath::BoxBrush(Point,
-					Program[ProgramCounter + 0],
-					Program[ProgramCounter + 1],
-					Program[ProgramCounter + 2]);
-				ProgramCounter += 3;
-				Point = EvalPoint;
-				continue;
-			}
-			else if (Opcode == OPCODE_TORUS)
-			{
-				Stack[StackPointer] = SDFMath::TorusBrush(Point,
-					Program[ProgramCounter + 0],
-					Program[ProgramCounter + 1]);
-				ProgramCounter += 2;
-				Point = EvalPoint;
-				continue;
-			}
-			else if (Opcode == OPCODE_CYLINDER)
-			{
-				Stack[StackPointer] = SDFMath::CylinderBrush(Point,
-					Program[ProgramCounter + 0],
-					Program[ProgramCounter + 1]);
-				ProgramCounter += 2;
-				Point = EvalPoint;
-				continue;
-			}
-			else if (Opcode == OPCODE_PLANE)
-			{
-				Stack[StackPointer] = SDFMath::Plane(Point,
-					Program[ProgramCounter + 0],
-					Program[ProgramCounter + 1],
-					Program[ProgramCounter + 2]);
-				ProgramCounter += 3;
-				Point = EvalPoint;
-				continue;
-			}
-			else if (Opcode == OPCODE_CONE)
-			{
-				Stack[StackPointer] = SDFMath::ConeBrush(Point,
-					Program[ProgramCounter + 0],
-					Program[ProgramCounter + 1]);
-				ProgramCounter += 2;
-				Point = EvalPoint;
-				continue;
-			}
-			else if (Opcode == OPCODE_CONINDER)
-			{
-				Stack[StackPointer] = SDFMath::ConinderBrush(Point,
-					Program[ProgramCounter + 0],
-					Program[ProgramCounter + 1],
-					Program[ProgramCounter + 2]);
-				ProgramCounter += 3;
-				Point = EvalPoint;
-				continue;
-			}
+			--StackPointer;
+			const float LHS = Stack[StackPointer];
+			const float RHS = Stack[StackPointer + 1];
+			// TODO : SDFMath::InterpretedInterOp is needed for material support, should we ever add it.
+#if 0
+			Stack[StackPointer] = SDFMath::InterpretedInterOp(LHS, RHS);
+#else
+			Stack[StackPointer] = SDFMath::InterOp(LHS, RHS);
+#endif
+			break;
 		}
 
-		// Misc
-		else
+		case OpcodeT::Diff:
 		{
-			if (Opcode == OPCODE_OFFSET)
-			{
-				vec3 Offset = vec3(
-					Program[ProgramCounter + 0],
-					Program[ProgramCounter + 1],
-					Program[ProgramCounter + 2]);
-				ProgramCounter += 3;
-				Point -= Offset;
-				continue;
-			}
-			else if (Opcode == OPCODE_MATRIX)
-			{
-				mat4 Transform = mat4(
-					Program[ProgramCounter + 0],
-					Program[ProgramCounter + 1],
-					Program[ProgramCounter + 2],
-					Program[ProgramCounter + 3],
-					Program[ProgramCounter + 4],
-					Program[ProgramCounter + 5],
-					Program[ProgramCounter + 6],
-					Program[ProgramCounter + 7],
-					Program[ProgramCounter + 8],
-					Program[ProgramCounter + 9],
-					Program[ProgramCounter + 10],
-					Program[ProgramCounter + 11],
-					Program[ProgramCounter + 12],
-					Program[ProgramCounter + 13],
-					Program[ProgramCounter + 14],
-					Program[ProgramCounter + 15]);
-				ProgramCounter += 16;
-				Point = (Transform * vec4(Point, 1.0)).xyz();
-				continue;
-			}
-			else if (Opcode == OPCODE_SCALE)
-			{
-				Stack[StackPointer] *= Program[ProgramCounter++];
-				continue;
-			}
-			else if (Opcode == OPCODE_FLATE)
-			{
-				Stack[StackPointer] -= Program[ProgramCounter++];
-				continue;
-			}
-			else if (Opcode == OPCODE_PAINT)
-			{
-#if 0
-				Stack[StackPointer].Color.r = Program[ProgramCounter++];
-				Stack[StackPointer].Color.g = Program[ProgramCounter++];
-				Stack[StackPointer].Color.b = Program[ProgramCounter++];
-#else
-				ProgramCounter += 3;
-#endif
-				continue;
-			}
-			else if (Opcode == OPCODE_PUSH)
-			{
-				++StackPointer;
-				Stack[StackPointer] = 0.0;
-				//Stack[StackPointer].Color = vec3(-1.0);
-				continue;
-			}
-			else if (Opcode == OPCODE_RETURN)
-			{
-				break;
-			}
-			else
-			{
-				// Unknown opcode.  Halt and catch fire.
-				//return MaterialDist(vec3(1.0, 0.0, 0.0), 0.0);
-				return 0.0;
-			}
+			--StackPointer;
+			const float LHS = Stack[StackPointer];
+			const float RHS = Stack[StackPointer + 1];
+			Stack[StackPointer] = SDFMath::DiffOp(LHS, RHS);
+			break;
 		}
+
+		case OpcodeT::BlendUnion:
+		{
+			--StackPointer;
+			const float LHS = Stack[StackPointer];
+			const float RHS = Stack[StackPointer + 1];
+			const float Threshold = Program.ReadScalar(ProgramCounter);
+			Stack[StackPointer] = SDFMath::SmoothUnionOp(LHS, RHS, Threshold);
+			break;
+		}
+
+		case OpcodeT::BlendInter:
+		{
+			--StackPointer;
+			const float LHS = Stack[StackPointer];
+			const float RHS = Stack[StackPointer + 1];
+			const float Threshold = Program.ReadScalar(ProgramCounter);
+			// TODO : SDFMath::InterpretedSmoothInterOp is needed for material support, should we ever add it.
+#if 0
+			Stack[StackPointer] = SDFMath::InterpretedSmoothInterOp(LHS, RHS, Threshold);
+#else
+			Stack[StackPointer] = SDFMath::SmoothInterOp(LHS, RHS, Threshold);
+#endif
+			break;
+		}
+
+		case OpcodeT::BlendDiff:
+		{
+			--StackPointer;
+			const float LHS = Stack[StackPointer];
+			const float RHS = Stack[StackPointer + 1];
+			const float Threshold = Program.ReadScalar(ProgramCounter);
+			Stack[StackPointer] = SDFMath::SmoothDiffOp(LHS, RHS, Threshold);
+			break;
+		}
+
+		case OpcodeT::Flate:
+		{
+			Stack[StackPointer] -= Program.ReadScalar(ProgramCounter);
+			break;
+		}
+
+		case OpcodeT::Offset:
+		{
+			Point = EvalPoint - Program.ReadVector(ProgramCounter);
+			break;
+		}
+
+		case OpcodeT::Matrix:
+		{
+			Point = (Program.ReadMatrix(ProgramCounter) * vec4(EvalPoint, 1.0)).xyz();
+			break;
+		}
+
+		case OpcodeT::ScaleField:
+		{
+			Stack[StackPointer] *= Program.ReadScalar(ProgramCounter);
+			break;
+		}
+
+		case OpcodeT::Paint:
+		{
+#if 0
+			Stack[StackPointer].Color = Program.ReadVector(ProgramCounter);
+#else
+			ProgramCounter += 3;
+#endif
+			break;
+		}
+
+		default:
+		{
+			// Unknown opcode.  Halt and catch fire.
+			Assert(false);
+			//return MaterialDist(vec3(1.0, 0.0, 0.0), 0.0);
+			return 0.0;
+		}
+		};
 	}
 
-	//Stack[0].Color = abs(Stack[0].Color);
-	return Stack[0];
+	// Program terminated without encountering the stop instruction.
+	Assert(false);
+	return 0.0;
 }
 
 
