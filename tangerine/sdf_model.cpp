@@ -248,9 +248,8 @@ Drawable::~Drawable()
 
 RayHit SDFModel::RayMarch(glm::vec3 RayStart, glm::vec3 RayDir, int MaxIterations, float Epsilon)
 {
-	glm::vec3 RelativeOrigin = Transform.ApplyInverse(RayStart);
-	glm::mat3 Rotation = (glm::mat3)Transform.LastFoldInverse;
-	glm::vec3 RelativeRayDir = Rotation * RayDir;
+	glm::vec3 RelativeOrigin = LocalToWorld.ApplyInv(RayStart);
+	glm::vec3 RelativeRayDir = glm::rotate(glm::inverse(LocalToWorld.Rotation), RayDir);
 	return Evaluator->RayMarch(RelativeOrigin, RelativeRayDir, 1000);
 }
 

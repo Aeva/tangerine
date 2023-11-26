@@ -1041,7 +1041,7 @@ bool ShaderTask::Run()
 			}
 			Instance->SodapopCS.unlock();
 
-			glm::vec4 LocalEye = Instance->ThreadSafeTransform.load() * glm::vec4(Instance->CameraOrigin, 1.0);
+			glm::vec3 LocalEye = Instance->AtomicWorldToLocal.load().Apply(Instance->CameraOrigin);
 
 			bool NeedsRepaint = false;
 
@@ -1107,7 +1107,7 @@ bool ShaderTask::Run()
 					}
 					else
 					{
-						View = glm::normalize(LocalEye.xyz() - Point);
+						View = glm::normalize(LocalEye - Point);
 					}
 
 					{
@@ -1154,7 +1154,7 @@ bool ShaderTask::Run()
 					}
 					else
 					{
-						View = glm::normalize(LocalEye.xyz() - Point);
+						View = glm::normalize(LocalEye - Point);
 					}
 
 					NewColor = ChthonicMaterial->Eval(Point, Normal, View);

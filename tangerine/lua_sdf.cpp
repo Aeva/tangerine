@@ -878,7 +878,7 @@ int LuaModelMove(lua_State* L)
 	LuaModelShared& Self = *GetSDFModel(L, 1);
 	int NextArg = 2;
 	glm::vec3 Offset = GetVec3(L, NextArg);
-	Self->Transform.Move(Offset);
+	Self->LocalToWorld.Move(Offset);
 	lua_pop(L, 3);
 	return 1;
 }
@@ -891,7 +891,7 @@ int LuaModelMoveX(lua_State* L)
 		(float)luaL_checknumber(L, 2),
 		0.0,
 		0.0);
-	Self->Transform.Move(Offset);
+	Self->LocalToWorld.Move(Offset);
 	lua_pop(L, 1);
 	return 1;
 }
@@ -904,7 +904,7 @@ int LuaModelMoveY(lua_State* L)
 		0.0,
 		(float)luaL_checknumber(L, 2),
 		0.0);
-	Self->Transform.Move(Offset);
+	Self->LocalToWorld.Move(Offset);
 	lua_pop(L, 1);
 	return 1;
 }
@@ -917,7 +917,7 @@ int LuaModelMoveZ(lua_State* L)
 		0.0,
 		0.0,
 		(float)luaL_checknumber(L, 2));
-	Self->Transform.Move(Offset);
+	Self->LocalToWorld.Move(Offset);
 	lua_pop(L, 1);
 	return 1;
 }
@@ -931,7 +931,7 @@ int LuaModelRotate(lua_State* L)
 		(float)luaL_checknumber(L, 2),
 		(float)luaL_checknumber(L, 3),
 		(float)luaL_checknumber(L, 4));
-	Self->Transform.Rotate(Quat);
+	Self->LocalToWorld.Rotate(Quat);
 	lua_pop(L, 4);
 	return 1;
 }
@@ -944,7 +944,7 @@ int LuaModelRotateX(lua_State* L)
 	float R = glm::radians(Degrees) * .5;
 	float S = sin(R);
 	float C = cos(R);
-	Self->Transform.Rotate(glm::quat(C, S, 0, 0));
+	Self->LocalToWorld.Rotate(glm::quat(C, S, 0, 0));
 	lua_pop(L, 1);
 	return 1;
 }
@@ -957,7 +957,7 @@ int LuaModelRotateY(lua_State* L)
 	float R = glm::radians(Degrees) * .5;
 	float S = sin(R);
 	float C = cos(R);
-	Self->Transform.Rotate(glm::quat(C, 0, S, 0));
+	Self->LocalToWorld.Rotate(glm::quat(C, 0, S, 0));
 	lua_pop(L, 1);
 	return 1;
 }
@@ -970,7 +970,17 @@ int LuaModelRotateZ(lua_State* L)
 	float R = glm::radians(Degrees) * .5;
 	float S = sin(R);
 	float C = cos(R);
-	Self->Transform.Rotate(glm::quat(C, 0, 0, S));
+	Self->LocalToWorld.Rotate(glm::quat(C, 0, 0, S));
+	lua_pop(L, 1);
+	return 1;
+}
+
+
+int LuaModelScale(lua_State* L)
+{
+	LuaModelShared& Self = *GetSDFModel(L, 1);
+	float Scale = luaL_checknumber(L, 2);
+	Self->LocalToWorld.Scale(Scale);
 	lua_pop(L, 1);
 	return 1;
 }
@@ -979,7 +989,7 @@ int LuaModelRotateZ(lua_State* L)
 int LuaModelResetTransform(lua_State* L)
 {
 	LuaModelShared& Self = *GetSDFModel(L, 1);
-	Self->Transform.Reset();
+	Self->LocalToWorld.Reset();
 	return 1;
 }
 
@@ -1090,6 +1100,8 @@ const luaL_Reg LuaModelType[] = \
 	{ "rotate_x", LuaModelRotateX },
 	{ "rotate_y", LuaModelRotateY },
 	{ "rotate_z", LuaModelRotateZ },
+
+	{ "scale", LuaModelScale },
 
 	{ "reset_transform", LuaModelResetTransform },
 

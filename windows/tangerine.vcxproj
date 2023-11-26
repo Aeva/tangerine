@@ -209,6 +209,7 @@
     <ClCompile Include="..\tangerine\sodapop.cpp" />
     <ClCompile Include="..\tangerine\tangerine.cpp" />
     <ClCompile Include="..\tangerine\threadpool.cpp" />
+    <ClCompile Include="..\tangerine\transform.cpp" />
     <ClCompile Include="..\tangerine\units.cpp" />
     <ClCompile Include="..\tangerine\winders.cpp" />
     <ClCompile Include="..\third_party\fmt\src\format.cc" />
@@ -292,6 +293,7 @@
     <ClInclude Include="..\tangerine\sodapop.h" />
     <ClInclude Include="..\tangerine\tangerine.h" />
     <ClInclude Include="..\tangerine\threadpool.h" />
+    <ClInclude Include="..\tangerine\transform.h" />
     <ClInclude Include="..\tangerine\units.h" />
     <ClInclude Include="..\tangerine\winders.h" />
     <ClInclude Include="..\third_party\atomic_queue\include\atomic_queue\atomic_queue.h" />

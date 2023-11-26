@@ -519,15 +519,14 @@ void MeshExport(std::string Path, bool UseBaseColor, ExportFormat Format, float 
 	{
 		DrawableShared Painter = Model->Painter;
 
-		Model->Transform.Fold();
-		glm::mat4 Transform = Model->Transform.LastFold;
+		glm::mat4 LocalToWorld = Model->LocalToWorld.ToMatrix();
 
 		const std::vector<glm::vec4>& ColorTarget = UseBaseColor ? Painter->Colors : Model->Colors;
 
 		for (size_t i = 0; i < Painter->Positions.size(); ++i)
 		{
 			const glm::vec4& Position = Painter->Positions[i];
-			Vertices.push_back((Transform * Position).xyz() * glm::vec3(Scale));
+			Vertices.push_back((LocalToWorld * Position).xyz() * glm::vec3(Scale));
 
 			Normals.push_back(Painter->Normals[i].xyz());
 

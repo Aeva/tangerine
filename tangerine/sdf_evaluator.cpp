@@ -244,8 +244,48 @@ std::string MakeParamList(int Offset, int Count)
 }
 
 
-// The following structs are used to implement executable signed distance
-// functions, to be constructed indirectly from Racket.
+struct TransformMachine
+{
+	enum class State
+	{
+		Identity = 0,
+		Offset = 1,
+		Matrix = 2
+	};
+
+	State FoldState;
+	float AccumulatedScale;
+
+	glm::mat4 LastFold;
+	glm::mat4 LastFoldInverse;
+
+	bool OffsetPending;
+	glm::vec3 OffsetRun;
+	bool RotatePending;
+	glm::quat RotateRun;
+
+	TransformMachine();
+	void Reset();
+	void FoldOffset();
+	void FoldRotation();
+	void Fold();
+	void Move(glm::vec3 Offset);
+	void Rotate(glm::quat Rotation);
+	void Scale(float ScaleBy);
+	glm::vec3 ApplyInverse(glm::vec3 Point);
+	glm::vec3 Apply(glm::vec3 Point);
+	AABB Apply(const AABB InBounds);
+	std::string Compile(const bool WithOpcodes, std::vector<float>& TreeParams, std::string Point);
+	std::string Pretty(std::string Brush);
+	bool operator==(TransformMachine& Other);
+
+private:
+
+	AABB ApplyOffset(const AABB InBounds);
+	AABB ApplyMatrix(const AABB InBounds);
+	std::string CompileOffset(const bool WithOpcodes, std::vector<float>& TreeParams, std::string Point);
+	std::string CompileMatrix(const bool WithOpcodes, std::vector<float>& TreeParams, std::string Point);
+};
 
 TransformMachine::TransformMachine()
 {

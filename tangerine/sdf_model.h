@@ -19,6 +19,7 @@
 #include "embedding.h"
 #include "sdf_evaluator.h"
 #include "sdf_rendering.h"
+#include "transform.h"
 #include "material.h"
 
 #include "sodapop.h"
@@ -99,9 +100,9 @@ struct SDFModel
 	DrawableShared Painter = nullptr;
 
 	std::atomic<VisibilityStates> Visibility = VisibilityStates::Visible;
-	TransformMachine Transform;
+	Transform LocalToWorld;
 	Buffer TransformBuffer;
-	std::atomic<glm::mat4> ThreadSafeTransform = glm::identity<glm::mat4>();
+	std::atomic<Transform> AtomicWorldToLocal;
 
 	int MouseListenFlags = 0;
 

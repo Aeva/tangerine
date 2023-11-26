@@ -306,6 +306,9 @@
     <ClCompile Include="..\tangerine\psmove_loader.cpp">
       <Filter>Tangerine</Filter>
     </ClCompile>
+    <ClCompile Include="..\tangerine\transform.cpp">
+      <Filter>Tangerine</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\third_party\imgui\backends\imgui_impl_opengl3.h">
@@ -635,6 +638,9 @@
     </ClInclude>
     <ClInclude Include="..\tangerine\psmove\psmove.h">
       <Filter>Tangerine\psmove</Filter>
+    </ClInclude>
+    <ClInclude Include="..\tangerine\transform.h">
+      <Filter>Tangerine</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

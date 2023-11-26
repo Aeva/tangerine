@@ -122,14 +122,15 @@ void SDFModel::DrawGL4(
 {
 	if (Painter && Visibility != VisibilityStates::Invisible)
 	{
-		Transform.Fold();
-		ThreadSafeTransform.store(Transform.LastFoldInverse);
+		glm::mat4 LocalToWorldMatrix = LocalToWorld.ToMatrix();
+		glm::mat4 WorldToLocalMatrix = glm::inverse(LocalToWorldMatrix);
+		AtomicWorldToLocal.store(LocalToWorld.Inverse());
 
 		if (Visibility == VisibilityStates::Visible)
 		{
 			TransformUpload TransformData = {
-				Transform.LastFold,
-				Transform.LastFoldInverse
+				LocalToWorldMatrix,
+				WorldToLocalMatrix
 			};
 			TransformBuffer.Upload((void*)&TransformData, sizeof(TransformUpload));
 			TransformBuffer.Bind(GL_UNIFORM_BUFFER, 1);
@@ -148,12 +149,12 @@ void SDFModel::DrawES2(
 {
 	if (Painter && Visibility != VisibilityStates::Invisible)
 	{
-		Transform.Fold();
-		ThreadSafeTransform.store(Transform.LastFoldInverse);
+		glm::mat4 LocalToWorldMatrix = LocalToWorld.ToMatrix();
+		AtomicWorldToLocal.store(LocalToWorld.Inverse());
 
 		if (Visibility == VisibilityStates::Visible)
 		{
-			glUniformMatrix4fv(LocalToWorldBinding, 1, false, (const GLfloat*)(&Transform.LastFold));
+			glUniformMatrix4fv(LocalToWorldBinding, 1, false, (const GLfloat*)(&LocalToWorldMatrix));
 		}
 
 		Painter->DrawES2(CameraOrigin, PositionBinding, ColorBinding, this);
