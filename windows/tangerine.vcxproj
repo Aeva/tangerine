@@ -383,7 +383,6 @@
     <None Include="..\materials\white.glsl" />
     <None Include="..\regen.bat" />
     <None Include="..\shaders\bg.fs.glsl" />
-    <None Include="..\shaders\math.glsl" />
     <None Include="..\shaders\noise.fs.glsl" />
     <None Include="..\shaders\nosignal.fs.glsl" />
     <None Include="..\shaders\resolve.fs.glsl" />

@@ -267,8 +267,135 @@ mat4 ProgramBuffer::ReadMatrix(size_t& ProgramCounter)
 
 namespace SDFMath
 {
-#define SDF_MATH_ONLY
-#include "../shaders/math.glsl"
+	float Sphere(vec3 Point, float Radius)
+	{
+		return length(Point) - Radius;
+	}
+
+
+	float Ellipsoid(vec3 Point, vec3 Radipodes)
+	{
+		float K0 = length(vec3(Point / Radipodes));
+		float K1 = length(vec3(Point / (Radipodes * Radipodes)));
+		return K0 * (K0 - 1.0) / K1;
+	}
+
+
+	// This exists to simplify parameter generation.
+	float Ellipsoid(vec3 Point, float RadipodeX, float RadipodeY, float RadipodeZ)
+	{
+		return Ellipsoid(Point, vec3(RadipodeX, RadipodeY, RadipodeZ));
+	}
+
+
+	float Box(vec3 Point, vec3 Extent)
+	{
+		vec3 A = abs(Point) - Extent;
+		return length(max(A, 0.0)) + min(max(max(A.x, A.y), A.z), 0.0);
+	}
+
+
+	// This exists to simplify parameter generation.
+	float Box(vec3 Point, float ExtentX, float ExtentY, float ExtentZ)
+	{
+		return Box(Point, vec3(ExtentX, ExtentY, ExtentZ));
+	}
+
+
+	float Torus(vec3 Point, float MajorRadius, float MinorRadius)
+	{
+		return length(vec2(length(vec2(Point.xy())) - MajorRadius, Point.z)) - MinorRadius;
+	}
+
+
+	float Cylinder(vec3 Point, float Radius, float Extent)
+	{
+		vec2 D = abs(vec2(length(vec2(Point.xy())), Point.z)) - vec2(Radius, Extent);
+		return min(max(D.x, D.y), 0.0) + length(max(D, 0.0));
+	}
+
+
+	float Plane(vec3 Point, vec3 Normal)
+	{
+		return dot(Point, Normal);
+	}
+
+
+	float Plane(vec3 Point, float NormalX, float NormalY, float NormalZ)
+	{
+		return Plane(Point, vec3(NormalX, NormalY, NormalZ));
+	}
+
+
+	float Cone(vec3 Point, float Tangent, float Height)
+	{
+		vec2 Q = Height * vec2(Tangent, -1.0);
+		vec2 W = vec2(length(vec2(Point.xy())), Height * -.5 + Point.z);
+		vec2 A = W - Q * clamp(float(dot(W, Q) / dot(Q, Q)), 0.0f, 1.0f);
+		vec2 B = W - Q * vec2(clamp(float(W.x / Q.x), 0.0f, 1.0f), 1.0);
+		float K = sign(Q.y);
+		float D = min(dot(A, A), dot(B, B));
+		float S = max(K * (W.x * Q.y - W.y * Q.x), K * (W.y - Q.y));
+		return sqrt(D) * sign(S);
+	}
+
+
+	float Coninder(vec3 Point, float RadiusL, float RadiusH, float Height)
+	{
+		vec2 Q = vec2(length(vec2(Point.xy())), Point.z);
+		vec2 K1 = vec2(RadiusH, Height);
+		vec2 K2 = vec2(RadiusH - RadiusL, 2.0 * Height);
+		vec2 CA = vec2(Q.x - min(Q.x, (Q.y < 0.0) ? RadiusL : RadiusH), abs(Q.y) - Height);
+		vec2 CB = Q - K1 + K2 * clamp(dot(K1 - Q, K2) / dot(K2, K2), 0.0f, 1.0f);
+		float S = (CB.x < 0.0 && CA.y < 0.0) ? -1.0f : 1.0f;
+		return S * sqrt(min(dot(CA, CA), dot(CB, CB)));
+	}
+
+
+	float Union(float LHS, float RHS)
+	{
+		return min(LHS, RHS);
+	}
+
+
+	float Inter(float LHS, float RHS)
+	{
+		return max(LHS, RHS);
+	}
+
+
+	float Diff(float LHS, float RHS)
+	{
+		return max(LHS, -RHS);
+	}
+
+
+	float BlendUnion(float LHS, float RHS, float Threshold)
+	{
+		float H = max(Threshold - abs(LHS - RHS), 0.0);
+		return min(LHS, RHS) - H * H * 0.25 / Threshold;
+	}
+
+
+
+	float BlendInter(float LHS, float RHS, float Threshold)
+	{
+		float H = max(Threshold - abs(LHS - RHS), 0.0);
+		return max(LHS, RHS) + H * H * 0.25 / Threshold;
+	}
+
+
+	float BlendDiff(float LHS, float RHS, float Threshold)
+	{
+		float H = max(Threshold - abs(LHS + RHS), 0.0);
+		return max(LHS, -RHS) + H * H * 0.25 / Threshold;
+	}
+
+
+	float Flate(float Dist, float Radius)
+	{
+		return Dist - Radius;
+	}
 }
 
 
@@ -1495,7 +1622,7 @@ namespace SDF
 	{
 		std::array<float, 1> Params = { Radius };
 
-		BrushMixin Eval = std::bind(SDFMath::SphereBrush, _1, Radius);
+		BrushMixin Eval = std::bind(SDFMath::Sphere, _1, Radius);
 
 		AABB Bounds = SymmetricalBounds(vec3(Radius));
 		return SDFNodeShared(new BrushNode(OpcodeT::Sphere, Params, Eval, Bounds));
@@ -1506,7 +1633,7 @@ namespace SDF
 		std::array<float, 3> Params = { RadipodeX, RadipodeY, RadipodeZ };
 
 		using EllipsoidBrushPtr = float(*)(vec3, vec3);
-		BrushMixin Eval = std::bind((EllipsoidBrushPtr)SDFMath::EllipsoidBrush, _1, vec3(RadipodeX, RadipodeY, RadipodeZ));
+		BrushMixin Eval = std::bind((EllipsoidBrushPtr)SDFMath::Ellipsoid, _1, vec3(RadipodeX, RadipodeY, RadipodeZ));
 
 		AABB Bounds = SymmetricalBounds(vec3(RadipodeX, RadipodeY, RadipodeZ));
 		return SDFNodeShared(new BrushNode(OpcodeT::Ellipsoid, Params, Eval, Bounds));
@@ -1517,7 +1644,7 @@ namespace SDF
 		std::array<float, 3> Params = { ExtentX, ExtentY, ExtentZ };
 
 		using BoxBrushPtr = float(*)(vec3, vec3);
-		BrushMixin Eval = std::bind((BoxBrushPtr)SDFMath::BoxBrush, _1, vec3(ExtentX, ExtentY, ExtentZ));
+		BrushMixin Eval = std::bind((BoxBrushPtr)SDFMath::Box, _1, vec3(ExtentX, ExtentY, ExtentZ));
 
 		AABB Bounds = SymmetricalBounds(vec3(ExtentX, ExtentY, ExtentZ));
 		return SDFNodeShared(new BrushNode(OpcodeT::Box, Params, Eval, Bounds));
@@ -1527,7 +1654,7 @@ namespace SDF
 	{
 		std::array<float, 2> Params = { MajorRadius, MinorRadius };
 
-		BrushMixin Eval = std::bind(SDFMath::TorusBrush, _1, MajorRadius, MinorRadius);
+		BrushMixin Eval = std::bind(SDFMath::Torus, _1, MajorRadius, MinorRadius);
 
 		float Radius = MajorRadius + MinorRadius;
 		AABB Bounds = SymmetricalBounds(vec3(Radius, Radius, MinorRadius));
@@ -1539,7 +1666,7 @@ namespace SDF
 	{
 		std::array<float, 2> Params = { Radius, Extent };
 
-		BrushMixin Eval = std::bind(SDFMath::CylinderBrush, _1, Radius, Extent);
+		BrushMixin Eval = std::bind(SDFMath::Cylinder, _1, Radius, Extent);
 
 		AABB Bounds = SymmetricalBounds(vec3(Radius, Radius, Extent));
 		return SDFNodeShared(new BrushNode(OpcodeT::Cylinder, Params, Eval, Bounds));
@@ -1586,7 +1713,7 @@ namespace SDF
 		float Tangent = Radius / Height;
 		std::array<float, 2> Params = { Tangent, Height };
 
-		BrushMixin Eval = std::bind(SDFMath::ConeBrush, _1, Tangent, Height);
+		BrushMixin Eval = std::bind(SDFMath::Cone, _1, Tangent, Height);
 
 		AABB Bounds = SymmetricalBounds(vec3(Radius, Radius, Height * .5));
 		return SDFNodeShared(new BrushNode(OpcodeT::Cone, Params, Eval, Bounds));
@@ -1597,7 +1724,7 @@ namespace SDF
 		float HalfHeight = Height * .5;
 		std::array<float, 3> Params = { RadiusL, RadiusH, HalfHeight };
 
-		BrushMixin Eval = std::bind(SDFMath::ConinderBrush, _1, RadiusL, RadiusH, HalfHeight);
+		BrushMixin Eval = std::bind(SDFMath::Coninder, _1, RadiusL, RadiusH, HalfHeight);
 
 		float MaxRadius = max(RadiusL, RadiusH);
 		AABB Bounds = SymmetricalBounds(vec3(MaxRadius, MaxRadius, HalfHeight));
@@ -1607,37 +1734,37 @@ namespace SDF
 	// The following functions construct CSG set operator nodes.
 	SDFNodeShared Union(SDFNodeShared& LHS, SDFNodeShared& RHS)
 	{
-		SetMixin Eval = std::bind(SDFMath::UnionOp, _1, _2);
+		SetMixin Eval = std::bind(SDFMath::Union, _1, _2);
 		return SDFNodeShared(new SetNode<SetFamily::Union, false>(Eval, LHS, RHS, 0.0));
 	}
 
 	SDFNodeShared Diff(SDFNodeShared& LHS, SDFNodeShared& RHS)
 	{
-		SetMixin Eval = std::bind(SDFMath::DiffOp, _1, _2);
+		SetMixin Eval = std::bind(SDFMath::Diff, _1, _2);
 		return SDFNodeShared(new SetNode<SetFamily::Diff, false>(Eval, LHS, RHS, 0.0));
 	}
 
 	SDFNodeShared Inter(SDFNodeShared& LHS, SDFNodeShared& RHS)
 	{
-		SetMixin Eval = std::bind(SDFMath::InterOp, _1, _2);
+		SetMixin Eval = std::bind(SDFMath::Inter, _1, _2);
 		return SDFNodeShared(new SetNode<SetFamily::Inter, false>(Eval, LHS, RHS, 0.0));
 	}
 
 	SDFNodeShared BlendUnion(float Threshold, SDFNodeShared& LHS, SDFNodeShared& RHS)
 	{
-		SetMixin Eval = std::bind(SDFMath::SmoothUnionOp, _1, _2, Threshold);
+		SetMixin Eval = std::bind(SDFMath::BlendUnion, _1, _2, Threshold);
 		return SDFNodeShared(new SetNode<SetFamily::Union, true>(Eval, LHS, RHS, Threshold));
 	}
 
 	SDFNodeShared BlendDiff(float Threshold, SDFNodeShared& LHS, SDFNodeShared& RHS)
 	{
-		SetMixin Eval = std::bind(SDFMath::SmoothDiffOp, _1, _2, Threshold);
+		SetMixin Eval = std::bind(SDFMath::BlendDiff, _1, _2, Threshold);
 		return SDFNodeShared(new SetNode<SetFamily::Diff, true>(Eval, LHS, RHS, Threshold));
 	}
 
 	SDFNodeShared BlendInter(float Threshold, SDFNodeShared& LHS, SDFNodeShared& RHS)
 	{
-		SetMixin Eval = std::bind(SDFMath::SmoothInterOp, _1, _2, Threshold);
+		SetMixin Eval = std::bind(SDFMath::BlendInter, _1, _2, Threshold);
 		return SDFNodeShared(new SetNode<SetFamily::Inter, true>(Eval, LHS, RHS, Threshold));
 	}
 
@@ -1707,7 +1834,7 @@ float SDFInterpreter::Eval(glm::vec3 EvalPoint)
 		case OpcodeT::Sphere:
 		{
 			const float Radius = Program.ReadScalar(ProgramCounter);
-			Stack[StackPointer] = SDFMath::SphereBrush(Point, Radius);
+			Stack[StackPointer] = SDFMath::Sphere(Point, Radius);
 			Point = EvalPoint;
 			break;
 		}
@@ -1715,7 +1842,7 @@ float SDFInterpreter::Eval(glm::vec3 EvalPoint)
 		case OpcodeT::Ellipsoid:
 		{
 			const vec3 Radipodes = Program.ReadVector(ProgramCounter);
-			Stack[StackPointer] = SDFMath::EllipsoidBrush(Point, Radipodes);
+			Stack[StackPointer] = SDFMath::Ellipsoid(Point, Radipodes);
 			Point = EvalPoint;
 			break;
 		}
@@ -1723,7 +1850,7 @@ float SDFInterpreter::Eval(glm::vec3 EvalPoint)
 		case OpcodeT::Box:
 		{
 			const vec3 Extent = Program.ReadVector(ProgramCounter);
-			Stack[StackPointer] = SDFMath::BoxBrush(Point, Extent);
+			Stack[StackPointer] = SDFMath::Box(Point, Extent);
 			Point = EvalPoint;
 			break;
 		}
@@ -1732,7 +1859,7 @@ float SDFInterpreter::Eval(glm::vec3 EvalPoint)
 		{
 			const float MajorRadius = Program.ReadScalar(ProgramCounter);
 			const float MinorRadius = Program.ReadScalar(ProgramCounter);
-			Stack[StackPointer] = SDFMath::TorusBrush(Point, MajorRadius, MinorRadius);
+			Stack[StackPointer] = SDFMath::Torus(Point, MajorRadius, MinorRadius);
 			Point = EvalPoint;
 			break;
 		}
@@ -1741,7 +1868,7 @@ float SDFInterpreter::Eval(glm::vec3 EvalPoint)
 		{
 			const float Radius = Program.ReadScalar(ProgramCounter);
 			const float Extent = Program.ReadScalar(ProgramCounter);
-			Stack[StackPointer] = SDFMath::CylinderBrush(Point, Radius, Extent);
+			Stack[StackPointer] = SDFMath::Cylinder(Point, Radius, Extent);
 			Point = EvalPoint;
 			break;
 		}
@@ -1750,7 +1877,7 @@ float SDFInterpreter::Eval(glm::vec3 EvalPoint)
 		{
 			const float Tangent = Program.ReadScalar(ProgramCounter);
 			const float Height = Program.ReadScalar(ProgramCounter);
-			Stack[StackPointer] = SDFMath::ConeBrush(Point, Tangent, Height);
+			Stack[StackPointer] = SDFMath::Cone(Point, Tangent, Height);
 			Point = EvalPoint;
 			break;
 		}
@@ -1760,7 +1887,7 @@ float SDFInterpreter::Eval(glm::vec3 EvalPoint)
 			const float RadiusL = Program.ReadScalar(ProgramCounter);
 			const float RadiusH = Program.ReadScalar(ProgramCounter);
 			const float Height = Program.ReadScalar(ProgramCounter);
-			Stack[StackPointer] = SDFMath::ConinderBrush(Point, RadiusL, RadiusH, Height);
+			Stack[StackPointer] = SDFMath::Coninder(Point, RadiusL, RadiusH, Height);
 			Point = EvalPoint;
 			break;
 		}
@@ -1778,7 +1905,7 @@ float SDFInterpreter::Eval(glm::vec3 EvalPoint)
 			--StackPointer;
 			const float LHS = Stack[StackPointer];
 			const float RHS = Stack[StackPointer + 1];
-			Stack[StackPointer] = SDFMath::UnionOp(LHS, RHS);
+			Stack[StackPointer] = SDFMath::Union(LHS, RHS);
 			break;
 		}
 
@@ -1791,7 +1918,7 @@ float SDFInterpreter::Eval(glm::vec3 EvalPoint)
 #if 0
 			Stack[StackPointer] = SDFMath::InterpretedInterOp(LHS, RHS);
 #else
-			Stack[StackPointer] = SDFMath::InterOp(LHS, RHS);
+			Stack[StackPointer] = SDFMath::Inter(LHS, RHS);
 #endif
 			break;
 		}
@@ -1801,7 +1928,7 @@ float SDFInterpreter::Eval(glm::vec3 EvalPoint)
 			--StackPointer;
 			const float LHS = Stack[StackPointer];
 			const float RHS = Stack[StackPointer + 1];
-			Stack[StackPointer] = SDFMath::DiffOp(LHS, RHS);
+			Stack[StackPointer] = SDFMath::Diff(LHS, RHS);
 			break;
 		}
 
@@ -1811,7 +1938,7 @@ float SDFInterpreter::Eval(glm::vec3 EvalPoint)
 			const float LHS = Stack[StackPointer];
 			const float RHS = Stack[StackPointer + 1];
 			const float Threshold = Program.ReadScalar(ProgramCounter);
-			Stack[StackPointer] = SDFMath::SmoothUnionOp(LHS, RHS, Threshold);
+			Stack[StackPointer] = SDFMath::BlendUnion(LHS, RHS, Threshold);
 			break;
 		}
 
@@ -1825,7 +1952,7 @@ float SDFInterpreter::Eval(glm::vec3 EvalPoint)
 #if 0
 			Stack[StackPointer] = SDFMath::InterpretedSmoothInterOp(LHS, RHS, Threshold);
 #else
-			Stack[StackPointer] = SDFMath::SmoothInterOp(LHS, RHS, Threshold);
+			Stack[StackPointer] = SDFMath::BlendInter(LHS, RHS, Threshold);
 #endif
 			break;
 		}
@@ -1836,7 +1963,7 @@ float SDFInterpreter::Eval(glm::vec3 EvalPoint)
 			const float LHS = Stack[StackPointer];
 			const float RHS = Stack[StackPointer + 1];
 			const float Threshold = Program.ReadScalar(ProgramCounter);
-			Stack[StackPointer] = SDFMath::SmoothDiffOp(LHS, RHS, Threshold);
+			Stack[StackPointer] = SDFMath::BlendDiff(LHS, RHS, Threshold);
 			break;
 		}
 
