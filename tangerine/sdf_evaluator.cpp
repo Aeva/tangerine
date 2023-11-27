@@ -917,8 +917,6 @@ struct SetNode : public SDFNode
 	virtual void Compile(ProgramBuffer& Program)
 	{
 		LHS->Compile(Program);
-		Program.Push(OpcodeT::Push);
-
 		RHS->Compile(Program);
 		Program.Push(Opcode);
 		if (BlendMode)
@@ -1399,9 +1397,8 @@ SDFInterpreter::SDFInterpreter(SDFNodeShared InEvaluator)
 float SDFInterpreter::Eval(glm::vec3 EvalPoint)
 {
 	std::vector<float> Stack;
-	Stack.resize(StackDepth, 0.0);
+	Stack.reserve(StackDepth);
 
-	size_t StackPointer = 0;
 	size_t ProgramCounter = 0;
 	vec3 Point = EvalPoint;
 
@@ -1412,20 +1409,14 @@ float SDFInterpreter::Eval(glm::vec3 EvalPoint)
 		case OpcodeT::Stop:
 		{
 			Assert(ProgramCounter == Program.Size());
-			return Stack[0];
-		}
-
-		case OpcodeT::Push:
-		{
-			++StackPointer;
-			Stack[StackPointer] = 0.0;
-			break;
+			Assert(Stack.size() == 1);
+			return Stack.back();
 		}
 
 		case OpcodeT::Sphere:
 		{
 			const float Radius = Program.ReadScalar(ProgramCounter);
-			Stack[StackPointer] = SDFMath::Sphere(Point, Radius);
+			Stack.push_back(SDFMath::Sphere(Point, Radius));
 			Point = EvalPoint;
 			break;
 		}
@@ -1433,7 +1424,7 @@ float SDFInterpreter::Eval(glm::vec3 EvalPoint)
 		case OpcodeT::Ellipsoid:
 		{
 			const vec3 Radipodes = Program.ReadVector(ProgramCounter);
-			Stack[StackPointer] = SDFMath::Ellipsoid(Point, Radipodes);
+			Stack.push_back(SDFMath::Ellipsoid(Point, Radipodes));
 			Point = EvalPoint;
 			break;
 		}
@@ -1441,7 +1432,7 @@ float SDFInterpreter::Eval(glm::vec3 EvalPoint)
 		case OpcodeT::Box:
 		{
 			const vec3 Extent = Program.ReadVector(ProgramCounter);
-			Stack[StackPointer] = SDFMath::Box(Point, Extent);
+			Stack.push_back(SDFMath::Box(Point, Extent));
 			Point = EvalPoint;
 			break;
 		}
@@ -1450,7 +1441,7 @@ float SDFInterpreter::Eval(glm::vec3 EvalPoint)
 		{
 			const float MajorRadius = Program.ReadScalar(ProgramCounter);
 			const float MinorRadius = Program.ReadScalar(ProgramCounter);
-			Stack[StackPointer] = SDFMath::Torus(Point, MajorRadius, MinorRadius);
+			Stack.push_back(SDFMath::Torus(Point, MajorRadius, MinorRadius));
 			Point = EvalPoint;
 			break;
 		}
@@ -1459,7 +1450,7 @@ float SDFInterpreter::Eval(glm::vec3 EvalPoint)
 		{
 			const float Radius = Program.ReadScalar(ProgramCounter);
 			const float Extent = Program.ReadScalar(ProgramCounter);
-			Stack[StackPointer] = SDFMath::Cylinder(Point, Radius, Extent);
+			Stack.push_back(SDFMath::Cylinder(Point, Radius, Extent));
 			Point = EvalPoint;
 			break;
 		}
@@ -1468,7 +1459,7 @@ float SDFInterpreter::Eval(glm::vec3 EvalPoint)
 		{
 			const float Tangent = Program.ReadScalar(ProgramCounter);
 			const float Height = Program.ReadScalar(ProgramCounter);
-			Stack[StackPointer] = SDFMath::Cone(Point, Tangent, Height);
+			Stack.push_back(SDFMath::Cone(Point, Tangent, Height));
 			Point = EvalPoint;
 			break;
 		}
@@ -1478,7 +1469,7 @@ float SDFInterpreter::Eval(glm::vec3 EvalPoint)
 			const float RadiusL = Program.ReadScalar(ProgramCounter);
 			const float RadiusH = Program.ReadScalar(ProgramCounter);
 			const float Height = Program.ReadScalar(ProgramCounter);
-			Stack[StackPointer] = SDFMath::Coninder(Point, RadiusL, RadiusH, Height);
+			Stack.push_back(SDFMath::Coninder(Point, RadiusL, RadiusH, Height));
 			Point = EvalPoint;
 			break;
 		}
@@ -1486,81 +1477,92 @@ float SDFInterpreter::Eval(glm::vec3 EvalPoint)
 		case OpcodeT::Plane:
 		{
 			const vec3 Normal = Program.ReadVector(ProgramCounter);
-			Stack[StackPointer] = SDFMath::Plane(Point, Normal);
+			Stack.push_back(SDFMath::Plane(Point, Normal));
 			Point = EvalPoint;
 			break;
 		}
 
 		case OpcodeT::Union:
 		{
-			--StackPointer;
-			const float LHS = Stack[StackPointer];
-			const float RHS = Stack[StackPointer + 1];
-			Stack[StackPointer] = SDFMath::Union(LHS, RHS, 0.0f);
+			const float RHS = Stack.back();
+			Stack.pop_back();
+			const float LHS = Stack.back();
+			Stack.pop_back();
+
+			Stack.push_back(SDFMath::Union(LHS, RHS, 0.0f));
 			break;
 		}
 
 		case OpcodeT::Inter:
 		{
-			--StackPointer;
-			const float LHS = Stack[StackPointer];
-			const float RHS = Stack[StackPointer + 1];
-			// TODO : SDFMath::InterpretedInterOp is needed for material support, should we ever add it.
+			const float RHS = Stack.back();
+			Stack.pop_back();
+			const float LHS = Stack.back();
+			Stack.pop_back();
 #if 0
-			Stack[StackPointer] = SDFMath::InterpretedInterOp(LHS, RHS);
+			// TODO : This is a throwback to an earlier version of the interpreter that supported materials.
+			Stack.push_back(SDFMath::InterpretedInterOp(LHS, RHS));
 #else
-			Stack[StackPointer] = SDFMath::Inter(LHS, RHS, 0.0f);
+			Stack.push_back(SDFMath::Inter(LHS, RHS, 0.0f));
 #endif
 			break;
 		}
 
 		case OpcodeT::Diff:
 		{
-			--StackPointer;
-			const float LHS = Stack[StackPointer];
-			const float RHS = Stack[StackPointer + 1];
-			Stack[StackPointer] = SDFMath::Diff(LHS, RHS, 0.0f);
+			const float RHS = Stack.back();
+			Stack.pop_back();
+			const float LHS = Stack.back();
+			Stack.pop_back();
+
+			Stack.push_back(SDFMath::Diff(LHS, RHS, 0.0f));
 			break;
 		}
 
 		case OpcodeT::BlendUnion:
 		{
-			--StackPointer;
-			const float LHS = Stack[StackPointer];
-			const float RHS = Stack[StackPointer + 1];
+			const float RHS = Stack.back();
+			Stack.pop_back();
+			const float LHS = Stack.back();
+			Stack.pop_back();
+
 			const float Threshold = Program.ReadScalar(ProgramCounter);
-			Stack[StackPointer] = SDFMath::BlendUnion(LHS, RHS, Threshold);
+			Stack.push_back(SDFMath::BlendUnion(LHS, RHS, Threshold));
 			break;
 		}
 
 		case OpcodeT::BlendInter:
 		{
-			--StackPointer;
-			const float LHS = Stack[StackPointer];
-			const float RHS = Stack[StackPointer + 1];
+			const float RHS = Stack.back();
+			Stack.pop_back();
+			const float LHS = Stack.back();
+			Stack.pop_back();
+
 			const float Threshold = Program.ReadScalar(ProgramCounter);
-			// TODO : SDFMath::InterpretedSmoothInterOp is needed for material support, should we ever add it.
 #if 0
-			Stack[StackPointer] = SDFMath::InterpretedSmoothInterOp(LHS, RHS, Threshold);
+			// TODO : This is a throwback to an earlier version of the interpreter that supported materials.
+			Stack.push_back(SDFMath::InterpretedSmoothInterOp(LHS, RHS, Threshold));
 #else
-			Stack[StackPointer] = SDFMath::BlendInter(LHS, RHS, Threshold);
+			Stack.push_back(SDFMath::BlendInter(LHS, RHS, Threshold));
 #endif
 			break;
 		}
 
 		case OpcodeT::BlendDiff:
 		{
-			--StackPointer;
-			const float LHS = Stack[StackPointer];
-			const float RHS = Stack[StackPointer + 1];
+			const float RHS = Stack.back();
+			Stack.pop_back();
+			const float LHS = Stack.back();
+			Stack.pop_back();
+
 			const float Threshold = Program.ReadScalar(ProgramCounter);
-			Stack[StackPointer] = SDFMath::BlendDiff(LHS, RHS, Threshold);
+			Stack.push_back(SDFMath::BlendDiff(LHS, RHS, Threshold));
 			break;
 		}
 
 		case OpcodeT::Flate:
 		{
-			Stack[StackPointer] -= Program.ReadScalar(ProgramCounter);
+			Stack.back() -= Program.ReadScalar(ProgramCounter);
 			break;
 		}
 
@@ -1578,7 +1580,7 @@ float SDFInterpreter::Eval(glm::vec3 EvalPoint)
 
 		case OpcodeT::ScaleField:
 		{
-			Stack[StackPointer] *= Program.ReadScalar(ProgramCounter);
+			Stack.back() *= Program.ReadScalar(ProgramCounter);
 			break;
 		}
 

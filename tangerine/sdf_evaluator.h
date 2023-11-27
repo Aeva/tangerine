@@ -83,7 +83,6 @@ struct RayHit
 enum class OpcodeT : std::uint32_t
 {
 	Stop = 0,
-	Push,
 
 	Sphere,
 	Ellipsoid,
