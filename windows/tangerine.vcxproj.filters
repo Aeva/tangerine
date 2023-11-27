@@ -108,9 +108,6 @@
     <ClCompile Include="..\third_party\voxwriter\VoxWriter.cpp">
       <Filter>Third Party\VoxWriter</Filter>
     </ClCompile>
-    <ClCompile Include="..\third_party\fmt\src\format.cc">
-      <Filter>Third Party\FMT</Filter>
-    </ClCompile>
     <ClCompile Include="..\tangerine\threadpool.cpp">
       <Filter>Tangerine</Filter>
     </ClCompile>
@@ -308,6 +305,9 @@
     </ClCompile>
     <ClCompile Include="..\tangerine\transform.cpp">
       <Filter>Tangerine</Filter>
+    </ClCompile>
+    <ClCompile Include="..\third_party\fmt\src\format.cc">
+      <Filter>Third Party\FMT</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
