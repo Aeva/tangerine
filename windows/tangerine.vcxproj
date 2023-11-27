@@ -180,6 +180,7 @@
     </CustomBuildStep>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="..\tangerine\aabb.cpp" />
     <ClCompile Include="..\tangerine\colors.cpp" />
     <ClCompile Include="..\tangerine\c_sdf.cpp" />
     <ClCompile Include="..\tangerine\errors.cpp" />
@@ -262,6 +263,7 @@
     <ClCompile Include="..\third_party\whereami\src\whereami.c" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\tangerine\aabb.h" />
     <ClInclude Include="..\tangerine\colors.h" />
     <ClInclude Include="..\tangerine\embedding.h" />
     <ClInclude Include="..\tangerine\errors.h" />
