@@ -170,6 +170,8 @@ using SDFNodeWeakRef = std::weak_ptr<SDFNode>;
 
 struct SDFNode
 {
+	size_t StackSize = 0;
+
 	virtual float Eval(glm::vec3 Point) = 0;
 
 	virtual SDFNodeShared Clip(glm::vec3 Point, float Radius) = 0;
@@ -181,8 +183,6 @@ struct SDFNode
 	virtual AABB InnerBounds() = 0;
 
 	virtual void Compile(ProgramBuffer& Program) = 0;
-
-	virtual uint32_t StackSize(const uint32_t Depth = 1) = 0;
 
 	glm::vec3 Gradient(glm::vec3 Point);
 
@@ -268,7 +268,7 @@ struct SDFInterpreter
 {
 	SDFNodeShared Root;
 	ProgramBuffer Program;
-	int StackDepth;
+	size_t StackSize;
 
 	SDFInterpreter(SDFNodeShared InEvaluator);
 

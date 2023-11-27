@@ -443,6 +443,7 @@ struct BrushNode : public SDFNode
 		, BrushFn(InBrushFn)
 		, BrushAABB(InBrushAABB)
 	{
+		StackSize = 1;
 	}
 
 	BrushNode(OpcodeT InOpcode, const ParamsT& InNodeParams, BrushMixin& InBrushFn, AABB& InBrushAABB,
@@ -454,6 +455,7 @@ struct BrushNode : public SDFNode
 		, LocalToWorld(InLocalToWorld)
 		, Material(InMaterial)
 	{
+		StackSize = 1;
 	}
 
 	virtual float Eval(vec3 Point)
@@ -500,11 +502,6 @@ struct BrushNode : public SDFNode
 			Program.Push(OpcodeT::ScaleField);
 			Program.Push(InvScalation);
 		}
-	}
-
-	virtual uint32_t StackSize(const uint32_t Depth)
-	{
-		return Depth;
 	}
 
 	virtual void Move(vec3 Offset)
@@ -593,6 +590,7 @@ struct StencilMaskNode : public SDFNode
 		, StencilMask(InStencilMask)
 		, Material(InMaterial)
 	{
+		StackSize = Child->StackSize;
 	}
 
 	virtual float Eval(vec3 Point)
@@ -632,11 +630,6 @@ struct StencilMaskNode : public SDFNode
 	virtual void Compile(ProgramBuffer& Program)
 	{
 		return Child->Compile(Program);
-	}
-
-	virtual uint32_t StackSize(const uint32_t Depth)
-	{
-		return Child->StackSize(Depth);
 	}
 
 	virtual void Move(vec3 Offset)
@@ -761,8 +754,9 @@ struct SetNode : public SDFNode
 		{
 			Assert(false);
 		}
-
-		if (Family != SetFamily::Diff && RHS->StackSize() > LHS->StackSize())
+#if 1
+		// TODO : Unclear if this optimization is still beneficial anymore.
+		if (Family != SetFamily::Diff && RHS->StackSize > LHS->StackSize)
 		{
 			// When possible, swap the left and right operands to ensure the tree is left leaning.
 			// This can reduce the total stack size needed to render the model in interpreted mode,
@@ -771,6 +765,8 @@ struct SetNode : public SDFNode
 			// mode by ensuring equivalent trees have the same form more often.
 			std::swap(LHS, RHS);
 		}
+#endif
+		StackSize = max(LHS->StackSize, RHS->StackSize + 1);
 	}
 
 	virtual float Eval(vec3 Point)
@@ -925,11 +921,6 @@ struct SetNode : public SDFNode
 		}
 	}
 
-	virtual uint32_t StackSize(const uint32_t Depth)
-	{
-		return max(max(Depth + 1, LHS->StackSize(Depth)), RHS->StackSize(Depth + 1));
-	}
-
 	virtual void Move(vec3 Offset)
 	{
 		LHS->Move(Offset);
@@ -1060,6 +1051,7 @@ struct FlateNode : public SDFNode
 		: Child(InChild)
 		, Radius(InRadius)
 	{
+		StackSize = Child->StackSize;
 	}
 
 	virtual float Eval(vec3 Point)
@@ -1106,11 +1098,6 @@ struct FlateNode : public SDFNode
 		Child->Compile(Program);
 		Program.Push(OpcodeT::Flate);
 		Program.Push(Radius);
-	}
-
-	virtual uint32_t StackSize(const uint32_t Depth)
-	{
-		return Child->StackSize(Depth);
 	}
 
 	virtual void Move(vec3 Offset)
@@ -1390,26 +1377,38 @@ SDFInterpreter::SDFInterpreter(SDFNodeShared InEvaluator)
 	std::string PointVar = "";
 	Root->Compile(Program);
 	Program.Push(OpcodeT::Stop);
-	StackDepth = Root->StackSize();
+	StackSize = Root->StackSize;
 }
 
 
 float SDFInterpreter::Eval(glm::vec3 EvalPoint)
 {
 	std::vector<float> Stack;
-	Stack.reserve(StackDepth);
+	Stack.reserve(StackSize);
 
 	size_t ProgramCounter = 0;
 	vec3 Point = EvalPoint;
 
+	constexpr bool ValidateStackEstimate = false;
+	size_t HighWaterMark = 0;
+
 	while (ProgramCounter < Program.Size())
 	{
+		if (ValidateStackEstimate)
+		{
+			HighWaterMark = max(HighWaterMark, Stack.size());
+		}
+
 		switch (Program.ReadOpcode(ProgramCounter))
 		{
 		case OpcodeT::Stop:
 		{
 			Assert(ProgramCounter == Program.Size());
 			Assert(Stack.size() == 1);
+			if (ValidateStackEstimate)
+			{
+				Assert(HighWaterMark == StackSize);
+			}
 			return Stack.back();
 		}
 
