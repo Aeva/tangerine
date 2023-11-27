@@ -144,19 +144,19 @@ AABB AABB::operator+(float Margin) const
 }
 
 
-void ProgramBuffer::Push(OpcodeT InOpcode)
+void ProgramBuffer::Push(const OpcodeT InOpcode)
 {
 	Words.emplace_back(InOpcode);
 }
 
 
-void ProgramBuffer::Push(float InScalar)
+void ProgramBuffer::Push(const float InScalar)
 {
 	Words.emplace_back(InScalar);
 }
 
 
-void ProgramBuffer::Push(vec3& InVector)
+void ProgramBuffer::Push(const vec3& InVector)
 {
 	for (int i = 0; i < 3; ++i)
 	{
@@ -165,7 +165,7 @@ void ProgramBuffer::Push(vec3& InVector)
 }
 
 
-void ProgramBuffer::Push(mat4& InMatrix)
+void ProgramBuffer::Push(const mat4& InMatrix)
 {
 	for (int i = 0; i < 16; ++i)
 	{
@@ -377,7 +377,6 @@ namespace SDFMath
 	}
 
 
-
 	float BlendInter(float LHS, float RHS, float Threshold)
 	{
 		float H = max(Threshold - abs(LHS - RHS), 0.0);
@@ -464,244 +463,75 @@ using SetMixin = std::function<float(float, float)>;
 const vec4 NullColor = vec4(1.0, 1.0, 1.0, 0.0);
 
 
-struct TransformMachine
+struct EvaluatorTransform : public Transform
 {
-	enum class State
-	{
-		Identity = 0,
-		Offset = 1,
-		Matrix = 2
-	};
-
-	State FoldState;
-	float AccumulatedScale;
-
-	glm::mat4 LastFold;
-	glm::mat4 LastFoldInverse;
-
-	bool OffsetPending;
-	glm::vec3 OffsetRun;
-	bool RotatePending;
-	glm::quat RotateRun;
-
-	TransformMachine();
-	void Reset();
-	void FoldOffset();
-	void FoldRotation();
-	void Fold();
-	void Move(glm::vec3 Offset);
-	void Rotate(glm::quat Rotation);
-	void Scale(float ScaleBy);
-	glm::vec3 ApplyInverse(glm::vec3 Point);
-	glm::vec3 Apply(glm::vec3 Point);
-	AABB Apply(const AABB InBounds);
-	void Compile(ProgramBuffer& Program);
-	bool operator==(TransformMachine& Other);
-
-private:
-
-	AABB ApplyOffset(const AABB InBounds);
-	AABB ApplyMatrix(const AABB InBounds);
-	void CompileOffset(ProgramBuffer& Program);
-	void CompileMatrix(ProgramBuffer& Program);
+	AABB Apply(const AABB InBounds) const;
+	void Compile(ProgramBuffer& Program) const;
 };
 
-TransformMachine::TransformMachine()
-{
-	Reset();
-}
 
-void TransformMachine::Reset()
+AABB EvaluatorTransform::Apply(const AABB InBounds) const
 {
-	FoldState = State::Identity;
-	LastFold = identity<mat4>();
-	LastFoldInverse = identity<mat4>();
-	OffsetPending = false;
-	OffsetRun = vec3(0.0);
-	RotatePending = false;
-	RotateRun = identity<quat>();
-	AccumulatedScale = 1.0;
-}
-
-void TransformMachine::FoldOffset()
-{
-	FoldState = (State)max((int)FoldState, (int)State::Offset);
-	LastFoldInverse = translate(LastFoldInverse, OffsetRun);
-	LastFold = inverse(LastFoldInverse);
-	OffsetRun = vec3(0.0);
-	OffsetPending = false;
-	FoldState = (State)max((int)FoldState, (int)State::Offset);
-}
-
-void TransformMachine::FoldRotation()
-{
-	LastFoldInverse *= transpose(toMat4(RotateRun));
-	LastFold = inverse(LastFoldInverse);
-	RotateRun = identity<quat>();
-	RotatePending = false;
-	FoldState = (State)max((int)FoldState, (int)State::Matrix);
-}
-
-void TransformMachine::Fold()
-{
-	if (RotatePending)
+	if (Rotation == identity<quat>())
 	{
-		FoldRotation();
-	}
-	else if (OffsetPending)
-	{
-		FoldOffset();
-	}
-}
-
-void TransformMachine::Move(vec3 Offset)
-{
-	if (RotatePending)
-	{
-		FoldRotation();
-	}
-	OffsetRun -= Offset;
-	OffsetPending = true;
-}
-
-void TransformMachine::Rotate(quat Rotation)
-{
-	if (OffsetPending)
-	{
-		FoldOffset();
-	}
-	RotateRun = Rotation * RotateRun;
-	RotatePending = true;
-}
-
-void TransformMachine::Scale(float ScaleBy)
-{
-	Fold();
-	LastFoldInverse = scale_slow(LastFoldInverse, vec3(1.0 / ScaleBy));
-	LastFold = inverse(LastFoldInverse);
-	AccumulatedScale *= ScaleBy;
-	FoldState = State::Matrix;
-}
-
-vec3 TransformMachine::ApplyInverse(vec3 Point)
-{
-	Fold();
-	vec4 Tmp = LastFoldInverse * vec4(Point, 1.0);
-	return Tmp.xyz() / Tmp.www();
-}
-
-vec3 TransformMachine::Apply(vec3 Point)
-{
-	Fold();
-	vec4 Tmp = LastFold * vec4(Point, 1.0);
-	return Tmp.xyz() / Tmp.www();
-}
-
-AABB TransformMachine::Apply(const AABB InBounds)
-{
-	Fold();
-	switch (FoldState)
-	{
-	case State::Identity:
-		return InBounds;
-
-	case State::Offset:
-		return ApplyOffset(InBounds);
-
-	case State::Matrix:
-		return ApplyMatrix(InBounds);
-	}
-	UNREACHABLE();
-}
-
-void TransformMachine::Compile(ProgramBuffer& Program)
-{
-	Fold();
-	switch (FoldState)
-	{
-	case State::Identity:
-		break;
-
-	case State::Offset:
-		CompileOffset(Program);
-		break;
-
-	case State::Matrix:
-		CompileMatrix(Program);
-		break;
-	default:
-		break;
-	}
-}
-
-bool TransformMachine::operator==(TransformMachine& Other)
-{
-	Fold();
-	Other.Fold();
-	if (FoldState == Other.FoldState)
-	{
-		if (FoldState == State::Identity)
+		return \
 		{
-			return true;
-		}
-		else
-		{
-			return LastFold == Other.LastFold;
-		}
+			(InBounds.Min * Scalation) + Translation,
+			(InBounds.Max * Scalation) + Translation
+		};
 	}
-	return false;
-}
-
-AABB TransformMachine::ApplyOffset(const AABB InBounds)
-{
-	vec3 Offset = LastFold[3].xyz();
-	return {
-		InBounds.Min + Offset,
-		InBounds.Max + Offset
-	};
-}
-
-AABB TransformMachine::ApplyMatrix(const AABB InBounds)
-{
-	const vec3 A = InBounds.Min;
-	const vec3 B = InBounds.Max;
-
-	const vec3 Points[7] = \
+	else
 	{
-		B,
+		const vec3 A = InBounds.Min;
+		const vec3 B = InBounds.Max;
+
+		const vec3 Points[7] = \
+		{
+			B,
 			vec3(B.x, A.yz()),
 			vec3(A.x, B.y, A.z),
 			vec3(A.xy(), B.z),
 			vec3(A.x, B.yz()),
 			vec3(B.x, A.y, B.z),
 			vec3(B.xy(), A.z)
-	};
+		};
 
-	AABB Bounds;
-	Bounds.Min = Apply(A);
-	Bounds.Max = Bounds.Min;
+		AABB Bounds;
+		Bounds.Min = Transform::Apply(A);
+		Bounds.Max = Bounds.Min;
 
-	for (const vec3& Point : Points)
-	{
-		const vec3 Tmp = Apply(Point);
-		Bounds.Min = min(Bounds.Min, Tmp);
-		Bounds.Max = max(Bounds.Max, Tmp);
+		for (const vec3& Point : Points)
+		{
+			const vec3 Tmp = Transform::Apply(Point);
+			Bounds.Min = min(Bounds.Min, Tmp);
+			Bounds.Max = max(Bounds.Max, Tmp);
+		}
+
+		return Bounds;
 	}
-
-	return Bounds;
 }
 
-void TransformMachine::CompileOffset(ProgramBuffer& Program)
-{
-	Program.Push(OpcodeT::Offset);
-	vec3 Offset = LastFold[3].xyz();
-	Program.Push(Offset);
-}
 
-void TransformMachine::CompileMatrix(ProgramBuffer& Program)
+void EvaluatorTransform::Compile(ProgramBuffer& Program) const
 {
-	Program.Push(OpcodeT::Matrix);
-	Program.Push(LastFoldInverse);
+	const bool HasRotation = Rotation != identity<quat>();
+	const bool HasScalation = Scalation != 1.0;
+	const bool HasTranslation = Translation != vec3(0.0, 0.0, 0.0);
+	const bool CompileMatrix = HasRotation || HasScalation;
+	const bool CompileOffset = HasTranslation && !CompileMatrix;
+
+	if (CompileMatrix)
+	{
+		const mat4 Matrix = inverse(ToMatrix());
+		Program.Push(OpcodeT::Matrix);
+		Program.Push(Matrix);
+	}
+	else if (CompileOffset)
+	{
+		const vec3 Offset = -Translation;
+		Program.Push(OpcodeT::Offset);
+		Program.Push(Offset);
+	}
 }
 
 
@@ -712,7 +542,7 @@ struct BrushNode : public SDFNode
 	ParamsT NodeParams;
 	BrushMixin BrushFn;
 	AABB BrushAABB;
-	TransformMachine Transform;
+	EvaluatorTransform LocalToWorld;
 	MaterialShared Material = nullptr;
 
 	vec3 Color = vec3(-1.0);
@@ -726,12 +556,12 @@ struct BrushNode : public SDFNode
 	}
 
 	BrushNode(OpcodeT InOpcode, const ParamsT& InNodeParams, BrushMixin& InBrushFn, AABB& InBrushAABB,
-		TransformMachine& InTransform, MaterialShared& InMaterial, vec3& InColor)
+		EvaluatorTransform& InLocalToWorld, MaterialShared& InMaterial, vec3& InColor)
 		: Opcode(InOpcode)
 		, NodeParams(InNodeParams)
 		, BrushFn(InBrushFn)
 		, BrushAABB(InBrushAABB)
-		, Transform(InTransform)
+		, LocalToWorld(InLocalToWorld)
 		, Material(InMaterial)
 		, Color(InColor)
 	{
@@ -739,14 +569,14 @@ struct BrushNode : public SDFNode
 
 	virtual float Eval(vec3 Point)
 	{
-		return BrushFn(Transform.ApplyInverse(Point)) * Transform.AccumulatedScale;
+		return BrushFn(LocalToWorld.Transform::ApplyInv(Point)) * LocalToWorld.Scalation;
 	}
 
 	virtual SDFNodeShared Clip(vec3 Point, float Radius)
 	{
 		if (Eval(Point) <= Radius)
 		{
-			return Copy(false);
+			return Copy();
 		}
 		else
 		{
@@ -754,18 +584,14 @@ struct BrushNode : public SDFNode
 		}
 	}
 
-	virtual SDFNodeShared Copy(bool AndFold)
+	virtual SDFNodeShared Copy()
 	{
-		if (AndFold)
-		{
-			Transform.Fold();
-		}
-		return SDFNodeShared(new BrushNode(Opcode, NodeParams, BrushFn, BrushAABB, Transform, Material, Color));
+		return SDFNodeShared(new BrushNode(Opcode, NodeParams, BrushFn, BrushAABB, LocalToWorld, Material, Color));
 	}
 
 	virtual AABB Bounds()
 	{
-		return Transform.Apply(BrushAABB);
+		return LocalToWorld.Apply(BrushAABB);
 	}
 
 	virtual AABB InnerBounds()
@@ -773,31 +599,23 @@ struct BrushNode : public SDFNode
 		return Bounds();
 	}
 
-	void CompileScale(ProgramBuffer& Program)
-	{
-		Program.Push(OpcodeT::ScaleField);
-		Program.Push(Transform.AccumulatedScale);
-	}
-
-	void CompilePaint(ProgramBuffer& Program)
-	{
-		Program.Push(OpcodeT::Paint);
-		Program.Push(Color);
-	}
-
 	void Compile(ProgramBuffer& Program)
 	{
-		Transform.Compile(Program);
+		LocalToWorld.Compile(Program);
 		Program.Push(Opcode);
 		Program.Push(NodeParams);
 
-		if (Transform.AccumulatedScale != 1.0)
+		if (LocalToWorld.Scalation != 1.0)
 		{
-			CompileScale(Program);
+			const float InvScalation = LocalToWorld.Scalation;
+			Program.Push(OpcodeT::ScaleField);
+			Program.Push(InvScalation);
 		}
+
 		if (HasPaint())
 		{
-			CompilePaint(Program);
+			Program.Push(OpcodeT::Paint);
+			Program.Push(Color);
 		}
 	}
 
@@ -808,17 +626,17 @@ struct BrushNode : public SDFNode
 
 	virtual void Move(vec3 Offset)
 	{
-		Transform.Move(Offset);
+		LocalToWorld.Move(Offset);
 	}
 
 	virtual void Rotate(quat Rotation)
 	{
-		Transform.Rotate(Rotation);
+		LocalToWorld.Rotate(Rotation);
 	}
 
 	virtual void Scale(float Scale)
 	{
-		Transform.Scale(Scale);
+		LocalToWorld.Scale(Scale);
 	}
 
 	virtual void ApplyMaterial(glm::vec3 InColor, bool Force)
@@ -885,7 +703,7 @@ struct BrushNode : public SDFNode
 	virtual bool operator==(SDFNode& Other)
 	{
 		BrushNode* OtherBrush = dynamic_cast<BrushNode*>(&Other);
-		if (OtherBrush && OtherBrush->Opcode == Opcode && OtherBrush->Material == Material && OtherBrush->Transform == Transform)
+		if (OtherBrush && OtherBrush->Opcode == Opcode && OtherBrush->Material == Material && OtherBrush->LocalToWorld == LocalToWorld)
 		{
 			for (int i = 0; i < NodeParams.size(); ++i)
 			{
@@ -926,7 +744,7 @@ struct StencilMaskNode : public SDFNode
 		if (NewChild)
 		{
 			// TODO : we can probably cull on the StencilMask here too
-			return SDFNodeShared(new StencilMaskNode<ApplyToNegative>(NewChild, StencilMask->Copy(true), Material));
+			return SDFNodeShared(new StencilMaskNode<ApplyToNegative>(NewChild, StencilMask->Copy(), Material));
 		}
 		else
 		{
@@ -934,9 +752,9 @@ struct StencilMaskNode : public SDFNode
 		}
 	}
 
-	virtual SDFNodeShared Copy(bool AndFold)
+	virtual SDFNodeShared Copy()
 	{
-		return SDFNodeShared(new StencilMaskNode<ApplyToNegative>(Child->Copy(AndFold), StencilMask->Copy(AndFold), Material));
+		return SDFNodeShared(new StencilMaskNode<ApplyToNegative>(Child->Copy(), StencilMask->Copy(), Material));
 	}
 
 	virtual AABB Bounds()
@@ -1180,9 +998,9 @@ struct SetNode : public SDFNode
 		return nullptr;
 	}
 
-	virtual SDFNodeShared Copy(bool AndFold)
+	virtual SDFNodeShared Copy()
 	{
-		return SDFNodeShared(new SetNode<Family, BlendMode>(SetFn, LHS->Copy(AndFold), RHS->Copy(AndFold), Threshold));
+		return SDFNodeShared(new SetNode<Family, BlendMode>(SetFn, LHS->Copy(), RHS->Copy(), Threshold));
 	}
 
 	virtual AABB Bounds()
@@ -1474,9 +1292,9 @@ struct FlateNode : public SDFNode
 		}
 	}
 
-	virtual SDFNodeShared Copy(bool AndFold)
+	virtual SDFNodeShared Copy()
 	{
-		return SDFNodeShared(new FlateNode(Child->Copy(AndFold), Radius));
+		return SDFNodeShared(new FlateNode(Child->Copy(), Radius));
 	}
 
 	virtual AABB Bounds()
@@ -1975,7 +1793,7 @@ float SDFInterpreter::Eval(glm::vec3 EvalPoint)
 
 		case OpcodeT::Offset:
 		{
-			Point = EvalPoint - Program.ReadVector(ProgramCounter);
+			Point = EvalPoint + Program.ReadVector(ProgramCounter);
 			break;
 		}
 

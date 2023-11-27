@@ -289,7 +289,8 @@ SDFModel::SDFModel(SDFNodeShared& InEvaluator, const std::string& InName, const 
 			// all of its transforms folded, and no branches in common with another model.  As this new
 			// evaluator is still mutable, it would be best to replace it with something that provides
 			// stronger thread safety guarantees.
-			Evaluator = InEvaluator->Copy(true);
+			// TODO TODO:  Transform folding is no longer a thing, so maybe this is safe (ish) now without the copy?
+			Evaluator = InEvaluator->Copy();
 
 			Painter = std::make_shared<Drawable>(Name, Evaluator);
 			DrawableCache.emplace_back(Key, Painter);

@@ -32,7 +32,7 @@ void Transform::Move(vec3 OffsetBy)
 }
 
 
-void Transform::Rotate(glm::quat RotateBy)
+void Transform::Rotate(quat RotateBy)
 {
 	Translation = rotate(RotateBy, Translation);
 	Rotation = RotateBy * Rotation;
@@ -41,6 +41,7 @@ void Transform::Rotate(glm::quat RotateBy)
 
 void Transform::Scale(float ScaleBy)
 {
+	Translation *= ScaleBy;
 	Scalation *= ScaleBy;
 }
 
@@ -62,8 +63,8 @@ mat4 Transform::ToMatrix() const
 {
 	mat4 RotationMatrix = toMat4(Rotation);
 	mat4 TranslationMatrix = translate(identity<mat4>(), Translation);
-	mat4 ScalationMatrix = scale(identity<mat4>(), vec3(Scalation));
-	return TranslationMatrix * RotationMatrix * ScalationMatrix;
+	mat4 ScalationMatrix = scale_slow(TranslationMatrix, vec3(Scalation));
+	return ScalationMatrix * RotationMatrix;
 }
 
 
@@ -75,5 +76,17 @@ vec3 Transform::Apply(vec3 Point) const
 
 vec3 Transform::ApplyInv(vec3 Point) const
 {
-	return (rotate(inverse(Rotation), Point - Translation)) / Scalation;
+	return rotate(inverse(Rotation), Point - Translation) / Scalation;
+}
+
+
+bool Transform::operator==(Transform& Other)
+{
+	return Rotation == Other.Rotation && Translation == Other.Translation && Scalation == Other.Scalation;
+}
+
+
+bool Transform::operator==(Transform& Other) const
+{
+	return Rotation == Other.Rotation && Translation == Other.Translation && Scalation == Other.Scalation;
 }

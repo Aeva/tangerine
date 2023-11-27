@@ -159,13 +159,13 @@ struct ProgramBuffer
 		return Words.size();
 	}
 
-	void Push(OpcodeT InOpcode);
-	void Push(float InScalar);
-	void Push(glm::vec3& InVector);
-	void Push(glm::mat4& InMatrix);
+	void Push(const OpcodeT InOpcode);
+	void Push(const float InScalar);
+	void Push(const glm::vec3& InVector);
+	void Push(const glm::mat4& InMatrix);
 
 	template<typename ContainerT>
-	void Push(ContainerT& Params)
+	void Push(const ContainerT& Params)
 	{
 		for (const float& Param : Params)
 		{
@@ -192,7 +192,7 @@ struct SDFNode
 
 	virtual SDFNodeShared Clip(glm::vec3 Point, float Radius) = 0;
 
-	virtual SDFNodeShared Copy(bool AndFold = false) = 0;
+	virtual SDFNodeShared Copy() = 0;
 
 	virtual AABB Bounds() = 0;
 

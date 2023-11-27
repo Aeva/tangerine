@@ -35,4 +35,7 @@ struct Transform
 
 	glm::vec3 Apply(glm::vec3 Point) const;
 	glm::vec3 ApplyInv(glm::vec3 Point) const;
+
+	bool operator==(Transform& Other);
+	bool operator==(Transform& Other) const;
 };

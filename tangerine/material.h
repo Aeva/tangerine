@@ -91,7 +91,7 @@ struct MaterialDebugGradient : public ChthonicMaterialInterface
 
 	MaterialDebugGradient(SDFNodeShared InSDF, float InInterval, ColorRamp InRamp)
 		: ChthonicMaterialInterface(MaterialType::DebugGradient)
-		, SDF(InSDF->Copy(true))
+		, SDF(InSDF->Copy())
 		, Interval(InInterval)
 		, Ramp(InRamp)
 	{
