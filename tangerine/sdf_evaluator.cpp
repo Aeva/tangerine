@@ -352,19 +352,19 @@ namespace SDFMath
 	}
 
 
-	float Union(float LHS, float RHS)
+	float Union(float LHS, float RHS, float Unused)
 	{
 		return min(LHS, RHS);
 	}
 
 
-	float Inter(float LHS, float RHS)
+	float Inter(float LHS, float RHS, float Unused)
 	{
 		return max(LHS, RHS);
 	}
 
 
-	float Diff(float LHS, float RHS)
+	float Diff(float LHS, float RHS, float Unused)
 	{
 		return max(LHS, -RHS);
 	}
@@ -457,7 +457,7 @@ RayHit SDFNode::RayMarch(glm::vec3 RayStart, glm::vec3 RayDir, int MaxIterations
 
 
 using BrushMixin = std::function<float(vec3)>;
-using SetMixin = std::function<float(float, float)>;
+using SetMixin = std::function<float(float, float, float)>;
 
 
 const vec4 NullColor = vec4(1.0, 1.0, 1.0, 0.0);
@@ -925,7 +925,8 @@ struct SetNode : public SDFNode
 	{
 		return SetFn(
 			LHS->Eval(Point),
-			RHS->Eval(Point));
+			RHS->Eval(Point),
+			Threshold);
 	}
 
 	virtual SDFNodeShared Clip(vec3 Point, float Radius)
@@ -1126,7 +1127,7 @@ struct SetNode : public SDFNode
 		{
 			const float EvalLHS = LHS->Eval(Point);
 			const float EvalRHS = RHS->Eval(Point);
-			const float Dist = SetFn(EvalLHS, EvalRHS);
+			const float Dist = SetFn(EvalLHS, EvalRHS, Threshold);
 
 			bool TakeLeft;
 			if (BlendMode)
@@ -1193,7 +1194,7 @@ struct SetNode : public SDFNode
 		{
 			const float EvalLHS = LHS->Eval(Point);
 			const float EvalRHS = RHS->Eval(Point);
-			const float Dist = SetFn(EvalLHS, EvalRHS);
+			const float Dist = SetFn(EvalLHS, EvalRHS, Threshold);
 
 			bool TakeLeft;
 			if (BlendMode)
@@ -1552,37 +1553,37 @@ namespace SDF
 	// The following functions construct CSG set operator nodes.
 	SDFNodeShared Union(SDFNodeShared& LHS, SDFNodeShared& RHS)
 	{
-		SetMixin Eval = std::bind(SDFMath::Union, _1, _2);
+		SetMixin Eval = std::bind(SDFMath::Union, _1, _2, _3);
 		return SDFNodeShared(new SetNode<SetFamily::Union, false>(Eval, LHS, RHS, 0.0));
 	}
 
 	SDFNodeShared Diff(SDFNodeShared& LHS, SDFNodeShared& RHS)
 	{
-		SetMixin Eval = std::bind(SDFMath::Diff, _1, _2);
+		SetMixin Eval = std::bind(SDFMath::Diff, _1, _2, _3);
 		return SDFNodeShared(new SetNode<SetFamily::Diff, false>(Eval, LHS, RHS, 0.0));
 	}
 
 	SDFNodeShared Inter(SDFNodeShared& LHS, SDFNodeShared& RHS)
 	{
-		SetMixin Eval = std::bind(SDFMath::Inter, _1, _2);
+		SetMixin Eval = std::bind(SDFMath::Inter, _1, _2, _3);
 		return SDFNodeShared(new SetNode<SetFamily::Inter, false>(Eval, LHS, RHS, 0.0));
 	}
 
 	SDFNodeShared BlendUnion(float Threshold, SDFNodeShared& LHS, SDFNodeShared& RHS)
 	{
-		SetMixin Eval = std::bind(SDFMath::BlendUnion, _1, _2, Threshold);
+		SetMixin Eval = std::bind(SDFMath::BlendUnion, _1, _2, _3);
 		return SDFNodeShared(new SetNode<SetFamily::Union, true>(Eval, LHS, RHS, Threshold));
 	}
 
 	SDFNodeShared BlendDiff(float Threshold, SDFNodeShared& LHS, SDFNodeShared& RHS)
 	{
-		SetMixin Eval = std::bind(SDFMath::BlendDiff, _1, _2, Threshold);
+		SetMixin Eval = std::bind(SDFMath::BlendDiff, _1, _2, _3);
 		return SDFNodeShared(new SetNode<SetFamily::Diff, true>(Eval, LHS, RHS, Threshold));
 	}
 
 	SDFNodeShared BlendInter(float Threshold, SDFNodeShared& LHS, SDFNodeShared& RHS)
 	{
-		SetMixin Eval = std::bind(SDFMath::BlendInter, _1, _2, Threshold);
+		SetMixin Eval = std::bind(SDFMath::BlendInter, _1, _2, _3);
 		return SDFNodeShared(new SetNode<SetFamily::Inter, true>(Eval, LHS, RHS, Threshold));
 	}
 
@@ -1723,7 +1724,7 @@ float SDFInterpreter::Eval(glm::vec3 EvalPoint)
 			--StackPointer;
 			const float LHS = Stack[StackPointer];
 			const float RHS = Stack[StackPointer + 1];
-			Stack[StackPointer] = SDFMath::Union(LHS, RHS);
+			Stack[StackPointer] = SDFMath::Union(LHS, RHS, 0.0f);
 			break;
 		}
 
@@ -1736,7 +1737,7 @@ float SDFInterpreter::Eval(glm::vec3 EvalPoint)
 #if 0
 			Stack[StackPointer] = SDFMath::InterpretedInterOp(LHS, RHS);
 #else
-			Stack[StackPointer] = SDFMath::Inter(LHS, RHS);
+			Stack[StackPointer] = SDFMath::Inter(LHS, RHS, 0.0f);
 #endif
 			break;
 		}
@@ -1746,7 +1747,7 @@ float SDFInterpreter::Eval(glm::vec3 EvalPoint)
 			--StackPointer;
 			const float LHS = Stack[StackPointer];
 			const float RHS = Stack[StackPointer + 1];
-			Stack[StackPointer] = SDFMath::Diff(LHS, RHS);
+			Stack[StackPointer] = SDFMath::Diff(LHS, RHS, 0.0f);
 			break;
 		}
 
