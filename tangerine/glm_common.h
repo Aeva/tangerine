@@ -1,5 +1,5 @@
 
-// Copyright 2022 Aeva Palecek
+// Copyright 2023 Aeva Palecek
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -33,3 +33,22 @@
 #include <glm/ext/matrix_clip_space.hpp>
 #include <glm/gtx/extended_min_max.hpp>
 #include <glm/gtx/quaternion.hpp>
+
+
+// These are to patch over some differences between glsl and glm.
+inline float min(float LHS, float RHS)
+{
+	return std::fminf(LHS, RHS);
+}
+inline float max(float LHS, float RHS)
+{
+	return std::fmaxf(LHS, RHS);
+}
+inline glm::vec2 max(glm::vec2 LHS, float RHS)
+{
+	return glm::max(LHS, glm::vec2(RHS));
+}
+inline glm::vec3 max(glm::vec3 LHS, float RHS)
+{
+	return glm::max(LHS, glm::vec3(RHS));
+}

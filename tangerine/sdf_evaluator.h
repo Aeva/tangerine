@@ -30,26 +30,8 @@
 #endif
 
 #include "glm_common.h"
+#include "aabb.h"
 #include "errors.h"
-
-
-struct AABB
-{
-	glm::vec3 Min;
-	glm::vec3 Max;
-
-	bool Degenerate() const;
-
-	glm::vec3 Extent() const;
-
-	glm::vec3 Center() const;
-
-	float Volume() const;
-
-	AABB BoundingCube() const;
-
-	AABB operator+(float Margin) const;
-};
 
 
 enum class MaterialType
