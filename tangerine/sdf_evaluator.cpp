@@ -355,9 +355,6 @@ using BrushMixin = std::function<float(vec3)>;
 using SetMixin = std::function<float(float, float, float)>;
 
 
-const vec4 NullColor = vec4(1.0, 1.0, 1.0, 0.0);
-
-
 struct EvaluatorTransform : public Transform
 {
 	AABB Apply(const AABB InBounds) const;
@@ -440,8 +437,6 @@ struct BrushNode : public SDFNode
 	EvaluatorTransform LocalToWorld;
 	MaterialShared Material = nullptr;
 
-	vec3 Color = vec3(-1.0);
-
 	BrushNode(OpcodeT InOpcode, const ParamsT& InNodeParams, BrushMixin& InBrushFn, AABB& InBrushAABB)
 		: Opcode(InOpcode)
 		, NodeParams(InNodeParams)
@@ -451,14 +446,13 @@ struct BrushNode : public SDFNode
 	}
 
 	BrushNode(OpcodeT InOpcode, const ParamsT& InNodeParams, BrushMixin& InBrushFn, AABB& InBrushAABB,
-		EvaluatorTransform& InLocalToWorld, MaterialShared& InMaterial, vec3& InColor)
+		EvaluatorTransform& InLocalToWorld, MaterialShared& InMaterial)
 		: Opcode(InOpcode)
 		, NodeParams(InNodeParams)
 		, BrushFn(InBrushFn)
 		, BrushAABB(InBrushAABB)
 		, LocalToWorld(InLocalToWorld)
 		, Material(InMaterial)
-		, Color(InColor)
 	{
 	}
 
@@ -481,7 +475,7 @@ struct BrushNode : public SDFNode
 
 	virtual SDFNodeShared Copy()
 	{
-		return SDFNodeShared(new BrushNode(Opcode, NodeParams, BrushFn, BrushAABB, LocalToWorld, Material, Color));
+		return SDFNodeShared(new BrushNode(Opcode, NodeParams, BrushFn, BrushAABB, LocalToWorld, Material));
 	}
 
 	virtual AABB Bounds()
@@ -506,12 +500,6 @@ struct BrushNode : public SDFNode
 			Program.Push(OpcodeT::ScaleField);
 			Program.Push(InvScalation);
 		}
-
-		if (HasPaint())
-		{
-			Program.Push(OpcodeT::Paint);
-			Program.Push(Color);
-		}
 	}
 
 	virtual uint32_t StackSize(const uint32_t Depth)
@@ -532,15 +520,6 @@ struct BrushNode : public SDFNode
 	virtual void Scale(float Scale)
 	{
 		LocalToWorld.Scale(Scale);
-	}
-
-	virtual void ApplyMaterial(glm::vec3 InColor, bool Force)
-	{
-		if (!HasPaint() || Force)
-		{
-			Color = InColor;
-			Material = MaterialShared(new MaterialPBRBR(ColorPoint(InColor)));
-		}
 	}
 
 	virtual void ApplyMaterial(MaterialShared InMaterial, bool Force)
@@ -576,18 +555,6 @@ struct BrushNode : public SDFNode
 	virtual bool HasFiniteBounds()
 	{
 		return !(any(isinf(BrushAABB.Min)) || any(isinf(BrushAABB.Max)));
-	}
-
-	virtual vec4 Sample(vec3 Point)
-	{
-		if (HasPaint())
-		{
-			return vec4(Color, 1.0);
-		}
-		else
-		{
-			return NullColor;
-		}
 	}
 
 	virtual int LeafCount()
@@ -690,11 +657,6 @@ struct StencilMaskNode : public SDFNode
 		StencilMask->Scale(Scale);
 	}
 
-	virtual void ApplyMaterial(vec3 InColor, bool Force)
-	{
-		// TODO : I'm unsure what the correct behavior is here.
-	}
-
 	virtual void ApplyMaterial(MaterialShared Material, bool Force)
 	{
 		// TODO : I'm unsure what the correct behavior is here.
@@ -729,11 +691,6 @@ struct StencilMaskNode : public SDFNode
 	virtual bool HasFiniteBounds()
 	{
 		return Child->HasFiniteBounds();
-	}
-
-	virtual vec4 Sample(vec3 Point)
-	{
-		return Child->Sample(Point);
 	}
 
 	virtual int LeafCount()
@@ -994,12 +951,6 @@ struct SetNode : public SDFNode
 		RHS->Scale(Scale);
 	}
 
-	virtual void ApplyMaterial(glm::vec3 Color, bool Force)
-	{
-		LHS->ApplyMaterial(Color, Force);
-		RHS->ApplyMaterial(Color, Force);
-	}
-
 	virtual void ApplyMaterial(MaterialShared Material, bool Force)
 	{
 		LHS->ApplyMaterial(Material, Force);
@@ -1077,63 +1028,6 @@ struct SetNode : public SDFNode
 	virtual bool HasFiniteBounds()
 	{
 		return LHS->HasFiniteBounds() || RHS->HasFiniteBounds();
-	}
-
-	virtual vec4 Sample(vec3 Point)
-	{
-		if (Family == SetFamily::Diff)
-		{
-			return LHS->Sample(Point);
-		}
-		else
-		{
-			const float EvalLHS = LHS->Eval(Point);
-			const float EvalRHS = RHS->Eval(Point);
-			const float Dist = SetFn(EvalLHS, EvalRHS, Threshold);
-
-			bool TakeLeft;
-			if (BlendMode)
-			{
-				TakeLeft = abs(EvalLHS - Dist) <= abs(EvalRHS - Dist);
-			}
-			else
-			{
-				TakeLeft = TakeLeft = (Dist == EvalLHS);
-			}
-
-			if (Family == SetFamily::Union)
-			{
-				if (TakeLeft)
-				{
-					return LHS->Sample(Point);
-				}
-				else
-				{
-					return RHS->Sample(Point);
-				}
-			}
-			else
-			{
-				const vec4 SampleLHS = LHS->Sample(Point);
-				const vec4 SampleRHS = RHS->Sample(Point);
-
-				const bool LHSValid = SampleLHS.a > 0.0;
-				const bool RHSValid = SampleRHS.a > 0.0;
-
-				if (LHSValid && RHSValid)
-				{
-					return TakeLeft ? SampleLHS : SampleRHS;
-				}
-				else if (LHSValid)
-				{
-					return SampleLHS;
-				}
-				else
-				{
-					return SampleRHS;
-				}
-			}
-		}
 	}
 
 	virtual int LeafCount()
@@ -1236,11 +1130,6 @@ struct FlateNode : public SDFNode
 		Child->Scale(Scale);
 	}
 
-	virtual void ApplyMaterial(vec3 InColor, bool Force)
-	{
-		Child->ApplyMaterial(InColor, Force);
-	}
-
 	virtual void ApplyMaterial(MaterialShared Material, bool Force)
 	{
 		Child->ApplyMaterial(Material, Force);
@@ -1264,11 +1153,6 @@ struct FlateNode : public SDFNode
 	virtual bool HasFiniteBounds()
 	{
 		return Child->HasFiniteBounds();
-	}
-
-	virtual vec4 Sample(vec3 Point)
-	{
-		return Child->Sample(Point);
 	}
 
 	virtual int LeafCount()
@@ -1514,11 +1398,6 @@ SDFInterpreter::SDFInterpreter(SDFNodeShared InEvaluator)
 
 float SDFInterpreter::Eval(glm::vec3 EvalPoint)
 {
-	// This corresponds more or less directly to the interpreter implemented in "interpreter.glsl", with these differences:
-	//  1. We can just use std::vector to implement the stack, which eliminates the need for permuting the interpreter.
-	//  2. This version doesn't support paint nodes or materials.
-	//  3. C++ doesn't seem to follow the same parameter resolution rules as GLSL (assuming this wasn't UB in the first place?!).
-
 	std::vector<float> Stack;
 	Stack.resize(StackDepth, 0.0);
 
@@ -1533,7 +1412,6 @@ float SDFInterpreter::Eval(glm::vec3 EvalPoint)
 		case OpcodeT::Stop:
 		{
 			Assert(ProgramCounter == Program.Size());
-			//Stack[0].Color = abs(Stack[0].Color);
 			return Stack[0];
 		}
 
@@ -1541,7 +1419,6 @@ float SDFInterpreter::Eval(glm::vec3 EvalPoint)
 		{
 			++StackPointer;
 			Stack[StackPointer] = 0.0;
-			//Stack[StackPointer].Color = vec3(-1.0);
 			break;
 		}
 
@@ -1705,21 +1582,10 @@ float SDFInterpreter::Eval(glm::vec3 EvalPoint)
 			break;
 		}
 
-		case OpcodeT::Paint:
-		{
-#if 0
-			Stack[StackPointer].Color = Program.ReadVector(ProgramCounter);
-#else
-			ProgramCounter += 3;
-#endif
-			break;
-		}
-
 		default:
 		{
 			// Unknown opcode.  Halt and catch fire.
 			Assert(false);
-			//return MaterialDist(vec3(1.0, 0.0, 0.0), 0.0);
 			return 0.0;
 		}
 		};

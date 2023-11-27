@@ -19,7 +19,9 @@
 #if EMBED_LUA
 #include <string>
 #include <random>
+#include <map>
 #include "sdf_model.h"
+#include "lua_material.h"
 
 using LuaRandomGeneratorT = std::mt19937;
 
@@ -54,9 +56,12 @@ struct LuaEnvironment : public ScriptEnvironment
 
 	static LuaRandomGeneratorT& GetRandomNumberEngine(struct lua_State* L);
 
+	static MaterialShared GetGenericMaterial(lua_State* L, const ColorPoint Color);
+
 private:
 	int AdvanceCallbackRef;
 	SDFModelShared GlobalModel;
+	std::map<const ColorPoint, MaterialShared, ColorPointCmp> GenericMaterialVault;
 
 	void LoadLuaModelCommon();
 };

@@ -156,6 +156,30 @@ void ColorPoint::MutateChannels(glm::vec3 NewChannels)
 }
 
 
+bool ColorPointCmp::operator()(const ColorPoint& LHS, const ColorPoint& RHS) const
+{
+	if (LHS.Encoding < RHS.Encoding)
+	{
+		return true;
+	}
+	else if (LHS.Encoding == RHS.Encoding)
+	{
+		for (int i = 0; i < 3; ++i)
+		{
+			if (LHS.Channels[i] < RHS.Channels[i])
+			{
+				return true;
+			}
+			else if (LHS.Channels[i] > RHS.Channels[i])
+			{
+				break;
+			}
+		}
+	}
+	return false;
+}
+
+
 ColorRamp::ColorRamp(std::vector<ColorPoint>& InStops, ColorSpace InEncoding)
 	: Encoding(InEncoding)
 {

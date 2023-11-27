@@ -75,6 +75,12 @@ struct ColorPoint
 };
 
 
+struct ColorPointCmp
+{
+	bool operator()(const ColorPoint& LHS, const ColorPoint& RHS) const;
+};
+
+
 struct ColorRamp
 {
 	ColorSpace Encoding;

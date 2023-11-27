@@ -187,17 +187,25 @@ int LuaPaint(lua_State* L)
 	SDFNodeShared& Node = *GetSDFNode(L, 1);
 	SDFNodeShared NewNode = Node->Copy();
 
-	MaterialShared* Material = TestLuaMaterial(L, 2);
-	if (Material)
+	MaterialShared Material = nullptr;
+
+	if (MaterialShared* LuaMaterial = TestLuaMaterial(L, 2))
 	{
-		NewNode->ApplyMaterial(*Material, Force);
+		Material = *LuaMaterial;
 	}
 	else
 	{
 		int NextArg = 2;
-		ColorPoint Color = GetAnyColorPoint(L, NextArg);
-		NewNode->ApplyMaterial(Color.Eval(ColorSpace::sRGB), Force);
+		ColorPoint Color = GetAnyColorPoint(L, NextArg).Eval(ColorSpace::sRGB);
+		Material = LuaEnvironment::GetGenericMaterial(L, Color);
 	}
+
+	if (Material)
+	{
+		NewNode->ApplyMaterial(Material, Force);
+	}
+
+
 	return WrapSDFNode(L, NewNode);
 }
 
@@ -396,17 +404,6 @@ int LuaGradient(lua_State* L)
 	glm::vec3 Point = GetVec3(L, NextArg);
 	glm::vec3 Gradient = Node->Gradient(Point);
 	CreateVec(L, Gradient);
-	return 1;
-}
-
-
-int LuaPickColor(lua_State* L)
-{
-	SDFNodeShared& Node = *GetSDFNode(L, 1);
-	int NextArg = 2;
-	glm::vec3 Point = GetVec3(L, NextArg);
-	glm::vec4 Color = Node->Sample(Point);
-	CreateVec(L, Color);
 	return 1;
 }
 
@@ -749,7 +746,6 @@ const luaL_Reg LuaSDFType[] = \
 
 	{ "eval", LuaEval },
 	{ "gradient", LuaGradient },
-	{ "pick_color", LuaPickColor },
 	{ "ray_cast", LuaRayCast<false> },
 	{ "magnet", LuaRayCast<true> },
 	{ "pivot_towards", LuaPivotTowards },

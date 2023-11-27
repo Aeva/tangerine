@@ -38,6 +38,11 @@ struct ChthonicMaterialInterface : public MaterialInterface
 	{
 	}
 
+	virtual ColorSampler GuessColor()
+	{
+		return ColorPoint(glm::vec3(1.0f));
+	}
+
 	virtual glm::vec4 Eval(glm::vec3 Point, glm::vec3 Normal, glm::vec3 View) = 0;
 };
 
@@ -52,6 +57,11 @@ struct MaterialSolidColor : public ChthonicMaterialInterface
 	{
 	}
 
+	virtual ColorSampler GuessColor()
+	{
+		return BaseColor;
+	}
+
 	virtual glm::vec4 Eval(glm::vec3 Point, glm::vec3 Normal, glm::vec3 View);
 };
 
@@ -64,6 +74,11 @@ struct MaterialPBRBR : public ChthonicMaterialInterface
 		: ChthonicMaterialInterface(MaterialType::PBRBR)
 		, BaseColor(InBaseColor)
 	{
+	}
+
+	virtual ColorSampler GuessColor()
+	{
+		return BaseColor;
 	}
 
 	virtual glm::vec4 Eval(glm::vec3 Point, glm::vec3 Normal, glm::vec3 View);
@@ -97,6 +112,11 @@ struct MaterialDebugGradient : public ChthonicMaterialInterface
 	{
 	}
 
+	virtual ColorSampler GuessColor()
+	{
+		return Ramp;
+	}
+
 	virtual glm::vec4 Eval(glm::vec3 Point, glm::vec3 Normal, glm::vec3 View);
 };
 
@@ -125,6 +145,11 @@ struct MaterialGradientLight : public PhotonicMaterialInterface
 		: PhotonicMaterialInterface(MaterialType::GradientLight)
 		, Ramp(InRamp)
 	{
+	}
+
+	virtual ColorSampler GuessColor()
+	{
+		return Ramp;
 	}
 
 	virtual glm::vec4 Eval(glm::vec3 Point, glm::vec3 Normal, glm::vec3 View, glm::vec3 Light);

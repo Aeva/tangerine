@@ -31,6 +31,7 @@
 
 #include "glm_common.h"
 #include "aabb.h"
+#include "colors.h"
 #include "errors.h"
 
 
@@ -55,6 +56,8 @@ struct MaterialInterface
 		: Type(InType)
 	{
 	}
+
+	virtual ColorSampler GuessColor() = 0;
 
 	virtual ~MaterialInterface()
 	{
@@ -102,8 +105,6 @@ enum class OpcodeT : std::uint32_t
 	Offset,
 	Matrix,
 	ScaleField,
-
-	Paint,
 };
 
 
@@ -192,8 +193,6 @@ struct SDFNode
 
 	virtual void Scale(float Scale) = 0;
 
-	virtual void ApplyMaterial(glm::vec3 Color, bool Force) = 0;
-
 	virtual void ApplyMaterial(MaterialShared Material, bool Force) = 0;
 
 	using MaterialWalkCallback = std::function<void(MaterialShared)>;
@@ -204,8 +203,6 @@ struct SDFNode
 	virtual bool HasPaint() = 0;
 
 	virtual bool HasFiniteBounds() = 0;
-
-	virtual glm::vec4 Sample(glm::vec3 Point) = 0;
 
 	virtual int LeafCount() = 0;
 
@@ -327,11 +324,6 @@ struct SDFOctree
 	{
 		SDFNodeShared Node = SelectEvaluator(Point);
 		return Node->Gradient(Point);
-	}
-	glm::vec3 Sample(glm::vec3 Point)
-	{
-		SDFNodeShared Node = SelectEvaluator(Point);
-		return Node->Sample(Point);
 	}
 	MaterialShared GetMaterial(glm::vec3 Point)
 	{

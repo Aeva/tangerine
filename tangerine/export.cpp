@@ -299,7 +299,12 @@ void WritePLY(SDFOctreeShared Octree, std::string Path, std::vector<vec3> Vertic
 		Normals.push_back(Octree->Gradient(Vertices[v]));
 		if (ExportColor)
 		{
-			vec3 Color = Octree->Sample(Vertices[v]);
+			vec3 Color = vec3(1.0f);
+			MaterialShared Material = Octree->GetMaterial(Vertices[v]);
+			if (Material)
+			{
+				Color = SampleColor(Material->GuessColor());
+			}
 			Colors.push_back(0xFF * Color.r);
 			Colors.push_back(0xFF * Color.g);
 			Colors.push_back(0xFF * Color.b);

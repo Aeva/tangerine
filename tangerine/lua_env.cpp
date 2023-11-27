@@ -46,6 +46,20 @@ LuaRandomGeneratorT& LuaEnvironment::GetRandomNumberEngine(lua_State* L)
 }
 
 
+MaterialShared LuaEnvironment::GetGenericMaterial(lua_State* L, const ColorPoint Color)
+{
+	LuaEnvironment* Env = GetScriptEnvironment(L);
+	Assert(Env != nullptr);
+
+	MaterialShared& Found = Env->GenericMaterialVault[Color];
+	if (!Found)
+	{
+		Found = MaterialShared(new MaterialPBRBR(Color));
+	}
+	return Found;
+}
+
+
 int LuaEnvironment::LuaSetAdvanceEvent(lua_State* L)
 {
 	LuaEnvironment* Env = GetScriptEnvironment(L);
@@ -71,7 +85,7 @@ int LuaEnvironment::LuaSetAdvanceEvent(lua_State* L)
 int LuaEnvironment::LuaPushMeshingDensity(lua_State* L)
 {
 	LuaEnvironment* Env = GetScriptEnvironment(L);
-	Env->MeshingDensityPush = luaL_checknumber(L, 1);
+	Env->MeshingDensityPush = (float)luaL_checknumber(L, 1);
 	return 0;
 }
 
