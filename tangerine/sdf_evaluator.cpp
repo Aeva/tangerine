@@ -70,27 +70,34 @@ void ProgramBuffer::Push(const mat4& InMatrix)
 }
 
 
-OpcodeT ProgramBuffer::ReadOpcode(size_t& ProgramCounter)
+OpcodeT ProgramBuffer::ReadOpcodeAt(const size_t ProgramCounter) const
 {
 #if USE_VARIANT_INSTEAD_OF_UNION
-	return std::get<OpcodeT>(Words[ProgramCounter++]);
+	if (ProgramCounter < Words.size() && std::holds_alternative<OpcodeT>(Words[ProgramCounter]))
+	{
+		return std::get<OpcodeT>(Words[ProgramCounter]);
+	}
+	else
+	{
+		return OpcodeT::Stop;
+	}
 #else
-	return Words[ProgramCounter++].Opcode;
+	return Words[ProgramCounter].Opcode;
 #endif
 }
 
 
-float ProgramBuffer::ReadScalar(size_t& ProgramCounter)
+float ProgramBuffer::ReadScalarAt(const size_t ProgramCounter) const
 {
 #if USE_VARIANT_INSTEAD_OF_UNION
-	return std::get<float>(Words[ProgramCounter++]);
+	return std::get<float>(Words[ProgramCounter]);
 #else
-	return Words[ProgramCounter++].Scalar;
+	return Words[ProgramCounter].Scalar;
 #endif
 }
 
 
-vec3 ProgramBuffer::ReadVector(size_t& ProgramCounter)
+vec3 ProgramBuffer::ReadVectorAt(const size_t ProgramCounter) const
 {
 #if USE_VARIANT_INSTEAD_OF_UNION
 	vec3 Vector = \
@@ -99,7 +106,6 @@ vec3 ProgramBuffer::ReadVector(size_t& ProgramCounter)
 		std::get<float>(Words[ProgramCounter + 1]),
 		std::get<float>(Words[ProgramCounter + 2])
 	};
-	ProgramCounter += 3;
 	return Vector;
 #else
 	vec3 Vector = \
@@ -108,13 +114,12 @@ vec3 ProgramBuffer::ReadVector(size_t& ProgramCounter)
 		Words[ProgramCounter + 1].Scalar,
 		Words[ProgramCounter + 2].Scalar
 	};
-	ProgramCounter += 3;
 	return Vector;
 #endif
 }
 
 
-mat4 ProgramBuffer::ReadMatrix(size_t& ProgramCounter)
+mat4 ProgramBuffer::ReadMatrixAt(const size_t ProgramCounter) const
 {
 #if USE_VARIANT_INSTEAD_OF_UNION
 	mat4 Matrix = mat4(
@@ -134,7 +139,6 @@ mat4 ProgramBuffer::ReadMatrix(size_t& ProgramCounter)
 		std::get<float>(Words[ProgramCounter + 13]),
 		std::get<float>(Words[ProgramCounter + 14]),
 		std::get<float>(Words[ProgramCounter + 15]));
-	ProgramCounter += 16;
 	return Matrix;
 #else
 	mat4 Matrix = mat4(
@@ -154,7 +158,6 @@ mat4 ProgramBuffer::ReadMatrix(size_t& ProgramCounter)
 		Words[ProgramCounter + 13].Scalar,
 		Words[ProgramCounter + 14].Scalar,
 		Words[ProgramCounter + 15].Scalar);
-	ProgramCounter += 16;
 	return Matrix;
 #endif
 }
@@ -1399,7 +1402,7 @@ float SDFInterpreter::Eval(glm::vec3 EvalPoint)
 			HighWaterMark = max(HighWaterMark, Stack.size());
 		}
 
-		switch (Program.ReadOpcode(ProgramCounter))
+		switch (Program.ReadOpcodeAt(ProgramCounter++))
 		{
 		case OpcodeT::Stop:
 		{
@@ -1414,7 +1417,7 @@ float SDFInterpreter::Eval(glm::vec3 EvalPoint)
 
 		case OpcodeT::Sphere:
 		{
-			const float Radius = Program.ReadScalar(ProgramCounter);
+			const float Radius = Program.ReadScalarAt(ProgramCounter++);
 			Stack.push_back(SDFMath::Sphere(Point, Radius));
 			Point = EvalPoint;
 			break;
@@ -1422,7 +1425,8 @@ float SDFInterpreter::Eval(glm::vec3 EvalPoint)
 
 		case OpcodeT::Ellipsoid:
 		{
-			const vec3 Radipodes = Program.ReadVector(ProgramCounter);
+			const vec3 Radipodes = Program.ReadVectorAt(ProgramCounter);
+			ProgramCounter += 3;
 			Stack.push_back(SDFMath::Ellipsoid(Point, Radipodes));
 			Point = EvalPoint;
 			break;
@@ -1430,7 +1434,8 @@ float SDFInterpreter::Eval(glm::vec3 EvalPoint)
 
 		case OpcodeT::Box:
 		{
-			const vec3 Extent = Program.ReadVector(ProgramCounter);
+			const vec3 Extent = Program.ReadVectorAt(ProgramCounter);
+			ProgramCounter += 3;
 			Stack.push_back(SDFMath::Box(Point, Extent));
 			Point = EvalPoint;
 			break;
@@ -1438,8 +1443,8 @@ float SDFInterpreter::Eval(glm::vec3 EvalPoint)
 
 		case OpcodeT::Torus:
 		{
-			const float MajorRadius = Program.ReadScalar(ProgramCounter);
-			const float MinorRadius = Program.ReadScalar(ProgramCounter);
+			const float MajorRadius = Program.ReadScalarAt(ProgramCounter++);
+			const float MinorRadius = Program.ReadScalarAt(ProgramCounter++);
 			Stack.push_back(SDFMath::Torus(Point, MajorRadius, MinorRadius));
 			Point = EvalPoint;
 			break;
@@ -1447,8 +1452,8 @@ float SDFInterpreter::Eval(glm::vec3 EvalPoint)
 
 		case OpcodeT::Cylinder:
 		{
-			const float Radius = Program.ReadScalar(ProgramCounter);
-			const float Extent = Program.ReadScalar(ProgramCounter);
+			const float Radius = Program.ReadScalarAt(ProgramCounter++);
+			const float Extent = Program.ReadScalarAt(ProgramCounter++);
 			Stack.push_back(SDFMath::Cylinder(Point, Radius, Extent));
 			Point = EvalPoint;
 			break;
@@ -1456,8 +1461,8 @@ float SDFInterpreter::Eval(glm::vec3 EvalPoint)
 
 		case OpcodeT::Cone:
 		{
-			const float Tangent = Program.ReadScalar(ProgramCounter);
-			const float Height = Program.ReadScalar(ProgramCounter);
+			const float Tangent = Program.ReadScalarAt(ProgramCounter++);
+			const float Height = Program.ReadScalarAt(ProgramCounter++);
 			Stack.push_back(SDFMath::Cone(Point, Tangent, Height));
 			Point = EvalPoint;
 			break;
@@ -1465,9 +1470,9 @@ float SDFInterpreter::Eval(glm::vec3 EvalPoint)
 
 		case OpcodeT::Coninder:
 		{
-			const float RadiusL = Program.ReadScalar(ProgramCounter);
-			const float RadiusH = Program.ReadScalar(ProgramCounter);
-			const float Height = Program.ReadScalar(ProgramCounter);
+			const float RadiusL = Program.ReadScalarAt(ProgramCounter++);
+			const float RadiusH = Program.ReadScalarAt(ProgramCounter++);
+			const float Height = Program.ReadScalarAt(ProgramCounter++);
 			Stack.push_back(SDFMath::Coninder(Point, RadiusL, RadiusH, Height));
 			Point = EvalPoint;
 			break;
@@ -1475,7 +1480,8 @@ float SDFInterpreter::Eval(glm::vec3 EvalPoint)
 
 		case OpcodeT::Plane:
 		{
-			const vec3 Normal = Program.ReadVector(ProgramCounter);
+			const vec3 Normal = Program.ReadVectorAt(ProgramCounter);
+			ProgramCounter += 3;
 			Stack.push_back(SDFMath::Plane(Point, Normal));
 			Point = EvalPoint;
 			break;
@@ -1525,7 +1531,7 @@ float SDFInterpreter::Eval(glm::vec3 EvalPoint)
 			const float LHS = Stack.back();
 			Stack.pop_back();
 
-			const float Threshold = Program.ReadScalar(ProgramCounter);
+			const float Threshold = Program.ReadScalarAt(ProgramCounter++);
 			Stack.push_back(SDFMath::BlendUnion(LHS, RHS, Threshold));
 			break;
 		}
@@ -1537,7 +1543,7 @@ float SDFInterpreter::Eval(glm::vec3 EvalPoint)
 			const float LHS = Stack.back();
 			Stack.pop_back();
 
-			const float Threshold = Program.ReadScalar(ProgramCounter);
+			const float Threshold = Program.ReadScalarAt(ProgramCounter++);
 #if 0
 			// TODO : This is a throwback to an earlier version of the interpreter that supported materials.
 			Stack.push_back(SDFMath::InterpretedSmoothInterOp(LHS, RHS, Threshold));
@@ -1554,32 +1560,34 @@ float SDFInterpreter::Eval(glm::vec3 EvalPoint)
 			const float LHS = Stack.back();
 			Stack.pop_back();
 
-			const float Threshold = Program.ReadScalar(ProgramCounter);
+			const float Threshold = Program.ReadScalarAt(ProgramCounter++);
 			Stack.push_back(SDFMath::BlendDiff(LHS, RHS, Threshold));
 			break;
 		}
 
 		case OpcodeT::Flate:
 		{
-			Stack.back() -= Program.ReadScalar(ProgramCounter);
+			Stack.back() -= Program.ReadScalarAt(ProgramCounter++);
 			break;
 		}
 
 		case OpcodeT::Offset:
 		{
-			Point = EvalPoint + Program.ReadVector(ProgramCounter);
+			Point = EvalPoint + Program.ReadVectorAt(ProgramCounter);
+			ProgramCounter += 3;
 			break;
 		}
 
 		case OpcodeT::Matrix:
 		{
-			Point = (Program.ReadMatrix(ProgramCounter) * vec4(EvalPoint, 1.0)).xyz();
+			Point = (Program.ReadMatrixAt(ProgramCounter) * vec4(EvalPoint, 1.0)).xyz();
+			ProgramCounter += 16;
 			break;
 		}
 
 		case OpcodeT::ScaleField:
 		{
-			Stack.back() *= Program.ReadScalar(ProgramCounter);
+			Stack.back() *= Program.ReadScalarAt(ProgramCounter++);
 			break;
 		}
 

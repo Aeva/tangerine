@@ -136,7 +136,7 @@ struct ProgramBuffer
 
 	std::vector<Word> Words;
 
-	size_t Size()
+	size_t Size() const
 	{
 		return Words.size();
 	}
@@ -155,11 +155,11 @@ struct ProgramBuffer
 		}
 	}
 
-	OpcodeT ReadOpcode(size_t& ProgramCounter);
+	OpcodeT ReadOpcodeAt(const size_t ProgramCounter) const;
 
-	float ReadScalar(size_t& ProgramCounter);
-	glm::vec3 ReadVector(size_t& ProgramCounter);
-	glm::mat4 ReadMatrix(size_t& ProgramCounter);
+	float ReadScalarAt(const size_t ProgramCounter) const;
+	glm::vec3 ReadVectorAt(const size_t ProgramCounter) const;
+	glm::mat4 ReadMatrixAt(const size_t ProgramCounter) const;
 };
 
 
