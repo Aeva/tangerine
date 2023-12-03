@@ -84,8 +84,9 @@ namespace Scheduler
 	std::atomic_bool& GetState();
 
 	bool Live();
-	void Enqueue(AsyncTask* Task);
-	void Enqueue(ContinuousTask* Task);
+	void EnqueueInbox(AsyncTask* Task);
+	void EnqueueOutbox(AsyncTask* Task);
+	void EnqueueContinuous(ContinuousTask* Task);
 	void EnqueueDelete(DeleteTask* Task);
 	void EnqueueDelete(FinalizerThunk Finalizer);
 	void EnqueueParallel(ParallelTask* TaskPrototype);

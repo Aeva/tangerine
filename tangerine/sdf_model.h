@@ -94,6 +94,13 @@ using DrawableShared = std::shared_ptr<Drawable>;
 using DrawableWeakRef = std::weak_ptr<Drawable>;
 
 
+struct MaterialColorGroup
+{
+	std::vector<glm::vec4> Colors;
+	std::mutex ColorCS;
+};
+
+
 struct SDFModel
 {
 	SDFNodeShared Evaluator = nullptr;
@@ -109,11 +116,13 @@ struct SDFModel
 	std::string Name = "";
 
 	std::atomic_bool Dirty = false;
-	std::atomic_bool Drawing = false;
 	glm::vec3 CameraOrigin = glm::vec3(0.0, 0.0, 0.0);
 	std::vector<glm::vec4> Colors;
-	std::mutex SodapopCS;
 	Buffer ColorBuffer;
+
+	std::vector<MaterialColorGroup*> MaterialSlots;
+
+	void UpdateColors();
 
 	void DrawGL4(glm::vec3 CameraOrigin);
 
@@ -140,6 +149,7 @@ protected:
 std::vector<SDFModelWeakRef>& GetLiveModels();
 std::vector<std::pair<size_t, DrawableWeakRef>>& GetDrawableCache();
 void UnloadAllModels();
+void MeshReady(DrawableShared Painter);
 
 void GetIncompleteModels(std::vector<SDFModelWeakRef>& Incomplete);
 void GetRenderableModels(std::vector<SDFModelWeakRef>& Renderable);

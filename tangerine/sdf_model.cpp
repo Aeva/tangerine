@@ -72,6 +72,31 @@ void UnloadAllModels()
 }
 
 
+static void MeshReadyInner(SDFModelShared Model, DrawableShared Painter)
+{
+	Assert(Model->MaterialSlots.size() == 0);
+	for (MaterialVertexGroup& VertexGroup : Painter->MaterialSlots)
+	{
+		Model->MaterialSlots.emplace_back(new MaterialColorGroup());
+	}
+	Model->Colors = Painter->Colors;
+	Sodapop::Attach(Model);
+}
+
+
+void MeshReady(DrawableShared Painter)
+{
+	for (SDFModelWeakRef WeakRef : LiveModels)
+	{
+		SDFModelShared Model = WeakRef.lock();
+		if (Model && Model->Painter == Painter)
+		{
+			MeshReadyInner(Model, Painter);
+		}
+	}
+}
+
+
 void GetIncompleteModels(std::vector<SDFModelWeakRef>& Incomplete)
 {
 	Incomplete.clear();
@@ -308,8 +333,11 @@ SDFModel::SDFModel(SDFNodeShared& InEvaluator, const std::string& InName, const 
 
 void SDFModel::RegisterNewModel(SDFModelShared& NewModel)
 {
+	if (NewModel->Painter->MeshReady.load())
+	{
+		MeshReadyInner(NewModel, NewModel->Painter);
+	}
 	LiveModels.emplace_back(NewModel);
-	Sodapop::Attach(NewModel);
 }
 
 
@@ -336,4 +364,9 @@ SDFModel::~SDFModel()
 
 	Evaluator.reset();
 	Painter.reset();
+
+	for (MaterialColorGroup* MaterialSlot : MaterialSlots)
+	{
+		delete MaterialSlot;
+	}
 }

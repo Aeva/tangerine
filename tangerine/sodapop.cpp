@@ -119,6 +119,21 @@ struct MeshingJob : AsyncTask
 };
 
 
+struct MeshingComplete : AsyncTask
+{
+	DrawableWeakRef PainterWeakRef;
+
+	MeshingComplete(DrawableShared InPainter)
+		: PainterWeakRef(InPainter)
+	{
+	}
+
+	virtual void Run();
+	virtual void Done();
+	virtual void Abort();
+};
+
+
 struct ParallelTaskChain : ParallelTask
 {
 	ParallelTask* NextTask = nullptr;
@@ -415,7 +430,7 @@ void Sodapop::Populate(DrawableShared Painter, float MeshingDensityPush)
 	Task->PainterWeakRef = Painter;
 	Task->EvaluatorWeakRef = Painter->Evaluator;
 
-	Scheduler::Enqueue(Task);
+	Scheduler::EnqueueInbox(Task);
 }
 
 
@@ -470,6 +485,34 @@ void MeshingJob::Run()
 			return DebugOctree(Painter, Evaluator);
 		}
 	}
+}
+
+
+void MeshingComplete::Run()
+{
+}
+
+
+void MeshingComplete::Done()
+{
+	DrawableShared Painter = PainterWeakRef.lock();
+	if (Painter)
+	{
+		ProfileScope MeshingJobRun("MeshingComplete::Done");
+
+		Painter->MeshingComplete = Clock::now();
+		Painter->ReadyDelay = Painter->MeshingComplete - Painter->MeshingStart;
+
+		MeshReady(Painter);
+
+		// This really needs to be set on the main thread, or bad things will happen with the registration interface.
+		Painter->MeshReady.store(true);
+	}
+}
+
+
+void MeshingComplete::Abort()
+{
 }
 
 
@@ -614,18 +657,13 @@ void MeshingJob::DebugOctree(DrawableShared& Painter, SDFOctreeShared& Evaluator
 
 		TaskT::DoneThunkT DoneThunk = [](DrawableShared& Painter, SDFOctreeShared& Evaluator)
 		{
+			Scheduler::EnqueueOutbox(new MeshingComplete(Painter));
+
 			BeginEvent("Delete Scratch Data");
 			delete Painter->Scratch;
 			EndEvent();
 
 			Painter->Scratch = nullptr;
-
-			Painter->MeshingComplete = Clock::now();
-			Painter->ReadyDelay = Painter->MeshingComplete - Painter->MeshingStart;
-
-			Painter->MeshReady.store(true);
-
-			DrawableWeakRef PainterWeakRef = Painter;
 		};
 
 		MaterialAssignmentTask = new TaskT("Material Assignment", Painter, Evaluator, Painter->Positions, LoopThunk, DoneThunk);
@@ -919,31 +957,13 @@ void MeshingJob::NaiveSurfaceNets(DrawableShared& Painter, SDFOctreeShared& Eval
 
 		TaskT::DoneThunkT DoneThunk = [](DrawableShared& Painter, SDFOctreeShared& Evaluator)
 		{
+			Scheduler::EnqueueOutbox(new MeshingComplete(Painter));
+
 			BeginEvent("Delete Scratch Data");
 			delete Painter->Scratch;
 			EndEvent();
 
 			Painter->Scratch = nullptr;
-
-			Painter->MeshingComplete = Clock::now();
-			Painter->ReadyDelay = Painter->MeshingComplete - Painter->MeshingStart;
-
-			Painter->MeshReady.store(true);
-
-			DrawableWeakRef PainterWeakRef = Painter;
-
-#if 0
-			Scheduler::EnqueueDelete([PainterWeakRef]()
-			{
-				// TODO: rethink how the outbox queue works to avoid hacks like this.
-
-				DrawableShared Painter = PainterWeakRef.lock();
-				if (Painter)
-				{
-					fmt::print("Meshing complete: {}\n", Painter->Name);
-				}
-			});
-#endif
 		};
 
 		MeshingJitterLoopTask = new TaskT("Jitter Loop", Painter, Evaluator, Painter->Positions, LoopThunk, DoneThunk);
@@ -981,6 +1001,7 @@ struct ShaderTask : public ContinuousTask
 
 	// These pointers are only safe to access while the model and painter are both locked.
 	MaterialVertexGroup* VertexGroup = nullptr;
+	MaterialColorGroup* ColorGroup = nullptr;
 	MaterialInterface* Material = nullptr;
 	ChthonicMaterialInterface* ChthonicMaterial = nullptr;
 	PhotonicMaterialInterface* PhotonicMaterial = nullptr;
@@ -990,12 +1011,11 @@ struct ShaderTask : public ContinuousTask
 		, PainterWeakRef(Painter)
 	{
 		VertexGroup = &(Painter->MaterialSlots[MaterialIndex]);
+		ColorGroup = Instance->MaterialSlots[MaterialIndex];
 		Material = VertexGroup->Material.get();
 		ChthonicMaterial = dynamic_cast<ChthonicMaterialInterface*>(Material);
 		PhotonicMaterial = dynamic_cast<PhotonicMaterialInterface*>(Material);
 	}
-
-	int NextUpdate = 0;
 
 	bool Run();
 };
@@ -1003,13 +1023,12 @@ struct ShaderTask : public ContinuousTask
 
 void Sodapop::Attach(SDFModelShared& Instance)
 {
-	if (Instance->Painter)
+	Assert(Instance->Painter != nullptr);
+
+	for (size_t MaterialIndex = 0; MaterialIndex < Instance->Painter->MaterialSlots.size(); ++MaterialIndex)
 	{
-		for (size_t MaterialIndex = 0; MaterialIndex < Instance->Painter->MaterialSlots.size(); ++MaterialIndex)
-		{
-			ShaderTask* Task = new ShaderTask(Instance, Instance->Painter, MaterialIndex);
-			Scheduler::Enqueue(Task);
-		}
+		ShaderTask* Task = new ShaderTask(Instance, Instance->Painter, MaterialIndex);
+		Scheduler::EnqueueContinuous(Task);
 	}
 }
 
@@ -1034,68 +1053,23 @@ bool ShaderTask::Run()
 		{
 			// The model instance requested a repaint and the painter is ready for drawing.
 
-			Instance->SodapopCS.lock();
-			if (Instance->Colors.size() == 0)
-			{
-				Instance->Colors.resize(Painter->Colors.size());
-			}
-			Instance->SodapopCS.unlock();
+			std::vector<glm::vec4> Colors;
+			Colors.reserve(VertexGroup->Vertices.size());
 
 			glm::vec3 LocalEye = Instance->AtomicWorldToLocal.load().Apply(Instance->CameraOrigin);
 
-			bool NeedsRepaint = false;
-
-			if (MaterialOverrideMode == MaterialOverride::Normals)
+			for (const size_t Vertex : VertexGroup->Vertices)
 			{
-				for (int n = 0; n < VertexGroup->Vertices.size(); ++n)
+				Assert(Vertex < Painter->Colors.size());
+
+				if (MaterialOverrideMode == MaterialOverride::Normals)
 				{
-					if (Instance->Drawing.load())
-					{
-						break;
-					}
-					const int UpdateIndex = NextUpdate % VertexGroup->Vertices.size();
-					NextUpdate = UpdateIndex + 1;
-
-					const int Vertex = VertexGroup->Vertices[UpdateIndex];
-
-					if (Vertex < 0 || Vertex >= Instance->Colors.size())
-					{
-						// Mitigation attempt for a tricky null access crash, which can be triggered by
-						// writing or comparing the color value for the current vertex.  In this situation
-						// the instance is not yet visible, the painter's Color array appears to be initialized,
-						// but the instance's Color array has a size of zero.
-						break;
-					}
-
 					glm::vec3 Normal = Painter->Normals[Vertex].xyz();
 					glm::vec4 NewColor = MaterialDebugNormals::StaticEval(Normal);
-
-					NeedsRepaint = NeedsRepaint || !glm::all(glm::equal(Instance->Colors[Vertex], NewColor));
-					Instance->Colors[Vertex] = NewColor;
+					Colors.push_back(NewColor);
 				}
-			}
-			else if (PhotonicMaterial != nullptr)
-			{
-				for (int n = 0; n < VertexGroup->Vertices.size(); ++n)
+				else if (PhotonicMaterial != nullptr)
 				{
-					if (Instance->Drawing.load())
-					{
-						break;
-					}
-					const int UpdateIndex = NextUpdate % VertexGroup->Vertices.size();
-					NextUpdate = UpdateIndex + 1;
-
-					const int Vertex = VertexGroup->Vertices[UpdateIndex];
-
-					if (Vertex < 0 || Vertex >= Instance->Colors.size())
-					{
-						// Mitigation attempt for a tricky null access crash, which can be triggered by
-						// writing or comparing the color value for the current vertex.  In this situation
-						// the instance is not yet visible, the painter's Color array appears to be initialized,
-						// but the instance's Color array has a size of zero.
-						break;
-					}
-
 					glm::vec3 Point = Painter->Positions[Vertex].xyz();
 					glm::vec3 Normal = Painter->Normals[Vertex].xyz();
 					glm::vec3 View;
@@ -1117,32 +1091,10 @@ bool ShaderTask::Run()
 						NewColor = PhotonicMaterial->Eval(Point, Normal, View, Light);
 					}
 
-					NeedsRepaint = NeedsRepaint || !glm::all(glm::equal(Instance->Colors[Vertex], NewColor));
-					Instance->Colors[Vertex] = NewColor;
+					Colors.push_back(NewColor);
 				}
-			}
-			else if (ChthonicMaterial != nullptr)
-			{
-				for (int n = 0; n < VertexGroup->Vertices.size(); ++n)
+				else if (ChthonicMaterial != nullptr)
 				{
-					if (Instance->Drawing.load())
-					{
-						break;
-					}
-					const int UpdateIndex = NextUpdate % VertexGroup->Vertices.size();
-					NextUpdate = UpdateIndex + 1;
-
-					const int Vertex = VertexGroup->Vertices[UpdateIndex];
-
-					if (Vertex < 0 || Vertex >= Instance->Colors.size())
-					{
-						// Mitigation attempt for a tricky null access crash, which can be triggered by
-						// writing or comparing the color value for the current vertex.  In this situation
-						// the instance is not yet visible, the painter's Color array appears to be initialized,
-						// but the instance's Color array has a size of zero.
-						break;
-					}
-
 					glm::vec3 Point = Painter->Positions[Vertex].xyz();
 					glm::vec3 Normal = Painter->Normals[Vertex].xyz();
 					glm::vec3 View;
@@ -1159,21 +1111,17 @@ bool ShaderTask::Run()
 
 					NewColor = ChthonicMaterial->Eval(Point, Normal, View);
 
-					NeedsRepaint = NeedsRepaint || !glm::all(glm::equal(Instance->Colors[Vertex], NewColor));
-					Instance->Colors[Vertex] = NewColor;
+					Colors.push_back(NewColor);
 				}
 			}
 
-			if (NeedsRepaint)
 			{
-				Scheduler::RequestAsyncRedraw();
+				ColorGroup->ColorCS.lock();
+				std::swap(ColorGroup->Colors, Colors);
+				ColorGroup->ColorCS.unlock();
 			}
-			else
-			{
-				// TODO: model instance doesn't get marked as dirty again.  Also NeedsRepaint isn't a good metric for convergence
-				// if this process is ever split up to allow multiple threads working on the same instance, which is planned.
-				//Instance->Dirty.store(false);
-			}
+
+			Scheduler::RequestAsyncRedraw();
 		}
 		return true;
 	}

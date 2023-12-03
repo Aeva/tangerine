@@ -166,76 +166,76 @@ void WorkerThread(const int InThreadIndex)
 
 	Clock::time_point ThreadStart = Clock::now();
 
-	if (DedicatedThread)
-	{
-		++ActiveThreads;
-	}
+if (DedicatedThread)
+{
+	++ActiveThreads;
+}
 
-	while (State.load())
+while (State.load())
+{
+	if (DedicatedThread && PauseThreads.load())
 	{
-		if (DedicatedThread && PauseThreads.load())
+		--ActiveThreads;
+		while (PauseThreads.load())
 		{
-			--ActiveThreads;
-			while (PauseThreads.load())
-			{
-				std::this_thread::yield();
-				continue;
-			}
-			++ActiveThreads;
+			std::this_thread::yield();
 			continue;
 		}
+		++ActiveThreads;
+		continue;
+	}
 
-		if (DedicatedThread && ThreadIndex > 1 && ThrottlingMode.load())
-		{
-			std::this_thread::sleep_for(std::chrono::milliseconds(16));
-		}
+	if (DedicatedThread && ThreadIndex > 1 && ThrottlingMode.load())
+	{
+		std::this_thread::sleep_for(std::chrono::milliseconds(16));
+	}
 
-		if (ParallelTaskProxy* Task = ParallelQueue.TryPop())
+	if (ParallelTaskProxy* Task = ParallelQueue.TryPop())
+	{
+		BeginEvent("Running Parallel Task");
+		Task->Run();
+		EndEvent();
+		delete Task;
+	}
+	else if (AsyncTask* Task = Inbox.TryPop())
+	{
+		BeginEvent("Running Async Task");
+		Task->Run();
+		EndEvent();
+		Outbox.BlockingPush(Task);
+	}
+	else
+	{
+		if (ContinuousTask* Task = ContinuousQueue.TryPop())
 		{
-			BeginEvent("Running Parallel Task");
-			Task->Run();
-			EndEvent();
-			delete Task;
-		}
-		else if (AsyncTask* Task = Inbox.TryPop())
-		{
-			BeginEvent("Running Async Task");
-			Task->Run();
-			EndEvent();
-			Outbox.BlockingPush(Task);
-		}
-		else
-		{
-			if (ContinuousTask* Task = ContinuousQueue.TryPop())
+			if (Task->Run())
 			{
-				if (Task->Run())
-				{
-					ContinuousQueue.BlockingPush(Task);
-				}
-				else
-				{
-					delete Task;
-				}
-			}
-			else if (DedicatedThread)
-			{
-				std::this_thread::sleep_for(std::chrono::milliseconds(4));
+				ContinuousQueue.BlockingPush(Task);
 			}
 			else
 			{
-				std::chrono::duration<double, std::milli> Delta = Clock::now() - ThreadStart;
-				if (Delta.count() > 8.0 )
-				{
-					break;
-				}
+				delete Task;
+			}
+		}
+		else if (DedicatedThread)
+		{
+			std::this_thread::sleep_for(std::chrono::milliseconds(4));
+		}
+		else
+		{
+			std::chrono::duration<double, std::milli> Delta = Clock::now() - ThreadStart;
+			if (Delta.count() > 8.0)
+			{
+				break;
 			}
 		}
 	}
+}
 
-	if (DedicatedThread)
-	{
-		--ActiveThreads;
-	}
+if (DedicatedThread)
+{
+	--ActiveThreads;
+}
 }
 
 
@@ -251,7 +251,7 @@ bool Scheduler::Live()
 }
 
 
-void Scheduler::Enqueue(AsyncTask* Task)
+void Scheduler::EnqueueInbox(AsyncTask* Task)
 {
 	Assert(ThreadIndex == 0);
 	Assert(State.load());
@@ -262,7 +262,16 @@ void Scheduler::Enqueue(AsyncTask* Task)
 }
 
 
-void Scheduler::Enqueue(ContinuousTask* Task)
+void Scheduler::EnqueueOutbox(AsyncTask* Task)
+{
+	Assert(Pool.size() == 0 || ThreadIndex != 0);
+	{
+		Outbox.BlockingPush(Task);
+	}
+}
+
+
+void Scheduler::EnqueueContinuous(ContinuousTask* Task)
 {
 	ContinuousQueue.BlockingPush(Task);
 }

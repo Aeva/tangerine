@@ -41,9 +41,6 @@ void Drawable::DrawGL4(
 		return;
 	}
 
-	Instance->Drawing.store(true);
-	Instance->SodapopCS.lock();
-
 	if (!MeshUploaded)
 	{
 		IndexBuffer.Upload(Indices.data(), Indices.size() * sizeof(uint32_t));
@@ -63,9 +60,6 @@ void Drawable::DrawGL4(
 			glDrawArrays(GL_TRIANGLES, 0, Indices.size());
 		}
 	}
-
-	Instance->Drawing.store(false);
-	Instance->SodapopCS.unlock();
 }
 
 
@@ -85,9 +79,6 @@ void Drawable::DrawES2(
 	{
 		return;
 	}
-
-	Instance->Drawing.store(true);
-	Instance->SodapopCS.lock();
 
 	if (!MeshUploaded)
 	{
@@ -111,9 +102,32 @@ void Drawable::DrawES2(
 			glDrawElements(GL_TRIANGLES, Indices.size(), GL_UNSIGNED_INT, nullptr);
 		}
 	}
+}
 
-	Instance->Drawing.store(false);
-	Instance->SodapopCS.unlock();
+
+void SDFModel::UpdateColors()
+{
+	for (size_t SlotIndex = 0; SlotIndex < MaterialSlots.size(); ++SlotIndex)
+	{
+		std::vector<glm::vec4> NewColors;
+		{
+			MaterialColorGroup* ColorGroup = MaterialSlots[SlotIndex];
+
+			ColorGroup->ColorCS.lock();
+			std::swap(ColorGroup->Colors, NewColors);
+			ColorGroup->ColorCS.unlock();
+		}
+
+		if (NewColors.size() > 0)
+		{
+			MaterialVertexGroup& VertexGroup = Painter->MaterialSlots[SlotIndex];
+			for (size_t RelativeIndex = 0; RelativeIndex < NewColors.size(); ++RelativeIndex)
+			{
+				const size_t VertexIndex = VertexGroup.Vertices[RelativeIndex];
+				Colors[VertexIndex] = NewColors[RelativeIndex];
+			}
+		}
+	}
 }
 
 
@@ -136,6 +150,7 @@ void SDFModel::DrawGL4(
 			TransformBuffer.Bind(GL_UNIFORM_BUFFER, 1);
 		}
 
+		UpdateColors();
 		Painter->DrawGL4(CameraOrigin, this);
 	}
 }
@@ -157,6 +172,7 @@ void SDFModel::DrawES2(
 			glUniformMatrix4fv(LocalToWorldBinding, 1, false, (const GLfloat*)(&LocalToWorldMatrix));
 		}
 
+		UpdateColors();
 		Painter->DrawES2(CameraOrigin, PositionBinding, ColorBinding, this);
 	}
 }
