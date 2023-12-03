@@ -251,13 +251,12 @@ bool Scheduler::Live()
 }
 
 
-void Scheduler::Enqueue(AsyncTask* Task, bool Unstoppable)
+void Scheduler::Enqueue(AsyncTask* Task)
 {
 	Assert(ThreadIndex == 0);
 	Assert(State.load());
 	Assert(!PauseThreads.load());
 	{
-		Task->Unstoppable = Unstoppable;
 		Inbox.BlockingPush(Task);
 	}
 }
@@ -376,6 +375,8 @@ void Scheduler::Setup(const bool ForceSingleThread)
 
 void DiscardQueuesInner()
 {
+	// TODO: what about the parallel task queue?
+
 	while (DeleteTask* PendingDelete = DeleteQueue.TryPop())
 	{
 		PendingDelete->Run();
@@ -387,27 +388,12 @@ void DiscardQueuesInner()
 	}
 	while (AsyncTask* PendingTask = Inbox.TryPop())
 	{
-		if (PendingTask->Unstoppable)
-		{
-			PendingTask->Run();
-			PendingTask->Done();
-		}
-		else
-		{
-			PendingTask->Abort();
-		}
+		PendingTask->Abort();
 		delete PendingTask;
 	}
 	while (AsyncTask* CompletedTask = Outbox.TryPop())
 	{
-		if (CompletedTask->Unstoppable)
-		{
-			CompletedTask->Done();
-		}
-		else
-		{
-			CompletedTask->Abort();
-		}
+		CompletedTask->Abort();
 		delete CompletedTask;
 	}
 }

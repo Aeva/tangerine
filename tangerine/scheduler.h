@@ -28,9 +28,6 @@ struct AsyncTask
 	virtual ~AsyncTask()
 	{
 	}
-
-	// This will be set by Scheduler::Enqueue.
-	bool Unstoppable = false;
 };
 
 
@@ -87,7 +84,7 @@ namespace Scheduler
 	std::atomic_bool& GetState();
 
 	bool Live();
-	void Enqueue(AsyncTask* Task, bool Unstoppable = false);
+	void Enqueue(AsyncTask* Task);
 	void Enqueue(ContinuousTask* Task);
 	void EnqueueDelete(DeleteTask* Task);
 	void EnqueueDelete(FinalizerThunk Finalizer);
