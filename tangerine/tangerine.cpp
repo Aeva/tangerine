@@ -39,6 +39,8 @@ Rml::ElementDocument* RmlUiDocument = nullptr;
 #include <imgui_impl_opengl3.h>
 #include <ImFileDialog.h>
 
+#include "license_page.h"
+
 #include "gl_init.h"
 #include "scheduler.h"
 
@@ -1246,30 +1248,7 @@ void RenderUI(SDL_Window* Window, bool& Live)
 		ImGui::EndMainMenuBar();
 	}
 
-	if (ShowLicenses)
-	{
-		int Margin = 0;
-		const ImGuiViewport* MainViewport = ImGui::GetMainViewport();
-		ImGui::SetNextWindowPos(ImVec2(MainViewport->WorkPos.x + Margin, MainViewport->WorkPos.y + Margin), ImGuiCond_Always);
-		ImGui::SetNextWindowSize(ImVec2(MainViewport->WorkSize.x - Margin * 2, MainViewport->WorkSize.y - Margin * 2), ImGuiCond_Always);
-
-		ImGuiWindowFlags WindowFlags = \
-			ImGuiWindowFlags_HorizontalScrollbar |
-			ImGuiWindowFlags_AlwaysVerticalScrollbar |
-			ImGuiWindowFlags_NoSavedSettings |
-			ImGuiWindowFlags_NoResize |
-			ImGuiWindowFlags_NoMove;
-
-		if (ImGui::Begin("Open Source Licenses", &ShowLicenses, WindowFlags))
-		{
-			ImGuiTabBarFlags TabBarFlags = ImGuiTabBarFlags_None;
-			if (ImGui::BeginTabBar("Open Source Licenses", TabBarFlags))
-			{
-#include "../third_party/licenses.inl"
-			}
-		}
-		ImGui::End();
-	}
+	LicenseDisclosuresWindow(ShowLicenses);
 
 	if (ShowFocusOverlay)
 	{
