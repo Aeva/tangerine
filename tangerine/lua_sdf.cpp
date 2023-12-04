@@ -849,14 +849,23 @@ int LuaHideModel(lua_State* L)
 		Imminent = lua_toboolean(L, 2);
 		lua_pop(L, 1);
 	}
+
+	VisibilityStates NewVisibility;
 	if (Imminent)
 	{
-		Self->Visibility = VisibilityStates::Imminent;
+		NewVisibility = VisibilityStates::Imminent;
 	}
 	else
 	{
-		Self->Visibility = VisibilityStates::Invisible;
+		NewVisibility = VisibilityStates::Invisible;
 	}
+
+	if (NewVisibility != Self->Visibility)
+	{
+		Self->Visibility = NewVisibility;
+		FlagSceneRepaint();
+	}
+
 	return 1;
 };
 
@@ -864,7 +873,11 @@ int LuaHideModel(lua_State* L)
 int LuaShowModel(lua_State* L)
 {
 	LuaModelShared& Self = *GetSDFModel(L, 1);
-	Self->Visibility = VisibilityStates::Visible;
+	if (Self->Visibility != VisibilityStates::Visible)
+	{
+		Self->Visibility = VisibilityStates::Visible;
+		FlagSceneRepaint();
+	}
 	return 1;
 };
 
@@ -875,6 +888,7 @@ int LuaModelMove(lua_State* L)
 	int NextArg = 2;
 	glm::vec3 Offset = GetVec3(L, NextArg);
 	Self->LocalToWorld.Move(Offset);
+	FlagSceneRepaint();
 	lua_pop(L, 3);
 	return 1;
 }
@@ -888,6 +902,7 @@ int LuaModelMoveX(lua_State* L)
 		0.0,
 		0.0);
 	Self->LocalToWorld.Move(Offset);
+	FlagSceneRepaint();
 	lua_pop(L, 1);
 	return 1;
 }
@@ -901,6 +916,7 @@ int LuaModelMoveY(lua_State* L)
 		(float)luaL_checknumber(L, 2),
 		0.0);
 	Self->LocalToWorld.Move(Offset);
+	FlagSceneRepaint();
 	lua_pop(L, 1);
 	return 1;
 }
@@ -914,6 +930,7 @@ int LuaModelMoveZ(lua_State* L)
 		0.0,
 		(float)luaL_checknumber(L, 2));
 	Self->LocalToWorld.Move(Offset);
+	FlagSceneRepaint();
 	lua_pop(L, 1);
 	return 1;
 }
@@ -928,6 +945,7 @@ int LuaModelRotate(lua_State* L)
 		(float)luaL_checknumber(L, 3),
 		(float)luaL_checknumber(L, 4));
 	Self->LocalToWorld.Rotate(Quat);
+	FlagSceneRepaint();
 	lua_pop(L, 4);
 	return 1;
 }
@@ -941,6 +959,7 @@ int LuaModelRotateX(lua_State* L)
 	float S = sin(R);
 	float C = cos(R);
 	Self->LocalToWorld.Rotate(glm::quat(C, S, 0, 0));
+	FlagSceneRepaint();
 	lua_pop(L, 1);
 	return 1;
 }
@@ -954,6 +973,7 @@ int LuaModelRotateY(lua_State* L)
 	float S = sin(R);
 	float C = cos(R);
 	Self->LocalToWorld.Rotate(glm::quat(C, 0, S, 0));
+	FlagSceneRepaint();
 	lua_pop(L, 1);
 	return 1;
 }
@@ -967,6 +987,7 @@ int LuaModelRotateZ(lua_State* L)
 	float S = sin(R);
 	float C = cos(R);
 	Self->LocalToWorld.Rotate(glm::quat(C, 0, 0, S));
+	FlagSceneRepaint();
 	lua_pop(L, 1);
 	return 1;
 }
@@ -977,6 +998,7 @@ int LuaModelScale(lua_State* L)
 	LuaModelShared& Self = *GetSDFModel(L, 1);
 	float Scale = luaL_checknumber(L, 2);
 	Self->LocalToWorld.Scale(Scale);
+	FlagSceneRepaint();
 	lua_pop(L, 1);
 	return 1;
 }
@@ -986,6 +1008,7 @@ int LuaModelResetTransform(lua_State* L)
 {
 	LuaModelShared& Self = *GetSDFModel(L, 1);
 	Self->LocalToWorld.Reset();
+	FlagSceneRepaint();
 	return 1;
 }
 

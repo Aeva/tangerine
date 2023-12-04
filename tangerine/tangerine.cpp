@@ -585,6 +585,13 @@ void RenderFrame(int ScreenWidth, int ScreenHeight, std::vector<SDFModelWeakRef>
 		};
 	}
 
+	static glm::mat4 LastWorldToView = glm::identity<glm::mat4>();
+	if (UploadedView.WorldToView != LastWorldToView)
+	{
+		LastWorldToView = UploadedView.WorldToView;
+		FlagSceneRepaint();
+	}
+
 	if (GraphicsBackend == GraphicsAPI::OpenGL4_2)
 	{
 		RenderFrameGL4(ScreenWidth, ScreenHeight, RenderableModels, UploadedView, FullRedraw);
@@ -593,6 +600,9 @@ void RenderFrame(int ScreenWidth, int ScreenHeight, std::vector<SDFModelWeakRef>
 	{
 		RenderFrameES2(ScreenWidth, ScreenHeight, RenderableModels, UploadedView, FullRedraw);
 	}
+
+	// Needs to occur after rendering to prevent stale coloring groups.
+	PostPendingRepaintRequest();
 
 	{
 		std::chrono::duration<double, std::milli> InnerFrameDelta = Clock::now() - FrameStartTimePoint;

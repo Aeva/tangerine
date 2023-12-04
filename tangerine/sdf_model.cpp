@@ -21,6 +21,26 @@
 #include <fmt/format.h>
 
 
+std::atomic<Clock::time_point> LastSceneRepaintRequest;
+static bool RepaintRequested = false;
+
+
+void FlagSceneRepaint()
+{
+	RepaintRequested = true;
+}
+
+
+void PostPendingRepaintRequest()
+{
+	if (RepaintRequested)
+	{
+		RepaintRequested = false;
+		LastSceneRepaintRequest.store(Clock::now());
+	}
+}
+
+
 std::vector<SDFModelWeakRef> LiveModels;
 
 

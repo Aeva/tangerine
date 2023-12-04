@@ -138,7 +138,7 @@ void SDFModel::DrawGL4(
 	{
 		glm::mat4 LocalToWorldMatrix = LocalToWorld.ToMatrix();
 		glm::mat4 WorldToLocalMatrix = glm::inverse(LocalToWorldMatrix);
-		AtomicWorldToLocal.store(glm::inverse(LocalToWorldMatrix));
+		AtomicWorldToLocal.store(WorldToLocalMatrix);
 
 		if (Visibility == VisibilityStates::Visible)
 		{
@@ -165,7 +165,8 @@ void SDFModel::DrawES2(
 	if (Painter && Visibility != VisibilityStates::Invisible)
 	{
 		glm::mat4 LocalToWorldMatrix = LocalToWorld.ToMatrix();
-		AtomicWorldToLocal.store(glm::inverse(LocalToWorldMatrix));
+		glm::mat4 WorldToLocalMatrix = glm::inverse(LocalToWorldMatrix);
+		AtomicWorldToLocal.store(WorldToLocalMatrix);
 
 		if (Visibility == VisibilityStates::Visible)
 		{

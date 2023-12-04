@@ -45,6 +45,12 @@ enum class VisibilityStates : int
 };
 
 
+extern std::atomic<Clock::time_point> LastSceneRepaintRequest;
+
+void FlagSceneRepaint();
+void PostPendingRepaintRequest();
+
+
 struct Drawable
 {
 	std::string Name = "unknown";
@@ -99,14 +105,27 @@ struct InstanceColoringGroup
 	MaterialVertexGroup* VertexGroup;
 	size_t IndexStart; // Offset within vertex group
 	size_t IndexRange; // Number of indices to process
-	std::vector<glm::vec4> Colors;
+
 	std::mutex ColorCS;
+	std::vector<glm::vec4> Colors;
+
+	Clock::time_point LastRepaint;
 
 	InstanceColoringGroup(MaterialVertexGroup* InVertexGroup, size_t InIndexStart, size_t InIndexRange)
 		: VertexGroup(InVertexGroup)
 		, IndexStart(InIndexStart)
 		, IndexRange(InIndexRange)
 	{
+	}
+
+	inline bool StartRepaint()
+	{
+		const bool ColorIsCurrent = LastRepaint > LastSceneRepaintRequest.load();
+		if (!ColorIsCurrent)
+		{
+			LastRepaint = Clock::now();
+		}
+		return ColorIsCurrent;
 	}
 };
 

@@ -204,30 +204,33 @@ while (State.load())
 		EndEvent();
 		Outbox.BlockingPush(Task);
 	}
-	else
+	else if (ContinuousTask* Task = ContinuousQueue.TryPop())
 	{
-		if (ContinuousTask* Task = ContinuousQueue.TryPop())
+		const ContinuousTask::Status Result = Task->Run();
+		if (Result == ContinuousTask::Status::Remove)
 		{
-			if (Task->Run())
-			{
-				ContinuousQueue.BlockingPush(Task);
-			}
-			else
-			{
-				delete Task;
-			}
-		}
-		else if (DedicatedThread)
-		{
-			std::this_thread::sleep_for(std::chrono::milliseconds(4));
+			delete Task;
 		}
 		else
 		{
-			std::chrono::duration<double, std::milli> Delta = Clock::now() - ThreadStart;
-			if (Delta.count() > 8.0)
+			ContinuousQueue.BlockingPush(Task);
+
+			if (DedicatedThread && Result == ContinuousTask::Status::Converged)
 			{
-				break;
+				std::this_thread::sleep_for(std::chrono::milliseconds(4));
 			}
+		}
+	}
+	else if (DedicatedThread)
+	{
+		std::this_thread::sleep_for(std::chrono::milliseconds(4));
+	}
+	else
+	{
+		std::chrono::duration<double, std::milli> Delta = Clock::now() - ThreadStart;
+		if (Delta.count() > 8.0)
+		{
+			break;
 		}
 	}
 }

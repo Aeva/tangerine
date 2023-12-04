@@ -48,7 +48,15 @@ struct ParallelTask
 
 struct ContinuousTask
 {
-	virtual bool Run() = 0;
+	enum class Status
+	{
+		Remove = 0,
+		Stasis,
+		Converged,
+		Repainted
+	};
+
+	virtual Status Run() = 0;
 
 	virtual ~ContinuousTask()
 	{

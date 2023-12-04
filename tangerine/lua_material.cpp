@@ -18,6 +18,7 @@
 #include "lua_vec.h"
 #include "lua_color.h"
 #include "material.h"
+#include "sdf_model.h"
 #include <string>
 #include <vector>
 
@@ -57,6 +58,8 @@ int SetBaseColor(lua_State* L)
 		int NextArg = 2;
 		Self->BaseColor = GetAnyColorPoint(L, NextArg);
 	}
+
+	FlagSceneRepaint();
 
 	{
 		// Pop everything but the first arg off the stack, so that the material is returned.

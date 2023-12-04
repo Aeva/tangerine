@@ -1015,13 +1015,15 @@ struct ShaderTask : public ContinuousTask
 		PhotonicMaterial = dynamic_cast<PhotonicMaterialInterface*>(Material);
 	}
 
-	bool Run();
+	ContinuousTask::Status Run() override;
 };
 
 
 void Sodapop::Attach(SDFModelShared& Instance)
 {
 	Assert(Instance->Painter != nullptr);
+
+	FlagSceneRepaint();
 
 	for (InstanceColoringGroupUnique& ColoringGroup : Instance->ColoringGroups)
 	{
@@ -1031,16 +1033,20 @@ void Sodapop::Attach(SDFModelShared& Instance)
 }
 
 
-MaterialOverride MaterialOverrideMode = MaterialOverride::Off;
+static MaterialOverride MaterialOverrideMode = MaterialOverride::Off;
 
 
 void Sodapop::SetMaterialOverrideMode(MaterialOverride Mode)
 {
-	MaterialOverrideMode = Mode;
+	if (MaterialOverrideMode != Mode)
+	{
+		MaterialOverrideMode = Mode;
+		FlagSceneRepaint();
+	}
 }
 
 
-bool ShaderTask::Run()
+ContinuousTask::Status ShaderTask::Run()
 {
 	SDFModelShared Instance = ModelWeakRef.lock();
 	DrawableShared Painter = PainterWeakRef.lock();
@@ -1049,7 +1055,10 @@ bool ShaderTask::Run()
 	{
 		if (Instance->Dirty.load() && Painter->MeshReady.load() && Instance->Visibility != VisibilityStates::Invisible)
 		{
-			// The model instance requested a repaint and the painter is ready for drawing.
+			if (ColoringGroup->StartRepaint())
+			{
+				return ContinuousTask::Status::Converged;
+			}
 
 			std::vector<glm::vec4> Colors;
 			Colors.reserve(ColoringGroup->IndexRange);
@@ -1123,12 +1132,17 @@ bool ShaderTask::Run()
 			}
 
 			Scheduler::RequestAsyncRedraw();
+		
+			return ContinuousTask::Status::Repainted;
 		}
-		return true;
+		else
+		{
+			return ContinuousTask::Status::Stasis;
+		}
 	}
 	else
 	{
 		// One or both of the model instance and painter are invalid now, so kill the task.
-		return false;
+		return ContinuousTask::Status::Remove;
 	}
 }
