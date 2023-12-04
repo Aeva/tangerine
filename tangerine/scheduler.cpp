@@ -123,7 +123,6 @@ static AtomicQueue<DeleteTask> DeleteQueue;
 
 static std::atomic_bool State;
 static std::atomic_bool PauseThreads;
-static std::atomic_bool ThrottlingMode;
 static std::atomic_int ActiveThreads;
 
 static std::vector<std::thread> Pool;
@@ -183,11 +182,6 @@ while (State.load())
 		}
 		++ActiveThreads;
 		continue;
-	}
-
-	if (DedicatedThread && ThreadIndex > 1 && ThrottlingMode.load())
-	{
-		std::this_thread::sleep_for(std::chrono::milliseconds(16));
 	}
 
 	if (ParallelTaskProxy* Task = ParallelQueue.TryPop())
@@ -373,7 +367,6 @@ void Scheduler::Setup(const bool ForceSingleThread)
 	ThreadIndex = 0; // Main thread;
 
 	State.store(true);
-	SetThrottlingMode(false);
 
 	if (!ForceSingleThread)
 	{
@@ -454,12 +447,6 @@ void Scheduler::DropEverything()
 	DiscardQueues();
 
 	PauseThreads.store(false);
-}
-
-
-void Scheduler::SetThrottlingMode(bool ThrottlingActive)
-{
-	ThrottlingMode.store(ThrottlingActive);
 }
 
 

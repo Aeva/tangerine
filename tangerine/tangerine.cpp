@@ -2193,26 +2193,6 @@ void MainLoop()
 				{
 					ImGui_ImplSDL2_ProcessEvent(&Event);
 
-					if (Event.type == SDL_WINDOWEVENT)
-					{
-						switch(Event.window.event)
-						{
-						case SDL_WINDOWEVENT_EXPOSED:
-						case SDL_WINDOWEVENT_RESTORED:
-						case SDL_WINDOWEVENT_FOCUS_GAINED:
-							Scheduler::SetThrottlingMode(false);
-							break;
-
-						case SDL_WINDOWEVENT_MINIMIZED:
-						case SDL_WINDOWEVENT_FOCUS_LOST:
-							Scheduler::SetThrottlingMode(true);
-							break;
-
-						default:
-							break;
-						}
-					}
-
 					if (Event.type == SDL_QUIT ||
 						(Event.type == SDL_WINDOWEVENT && Event.window.event == SDL_WINDOWEVENT_CLOSE && Event.window.windowID == SDL_GetWindowID(Window)))
 					{
