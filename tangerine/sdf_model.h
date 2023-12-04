@@ -94,11 +94,23 @@ using DrawableShared = std::shared_ptr<Drawable>;
 using DrawableWeakRef = std::weak_ptr<Drawable>;
 
 
-struct MaterialColorGroup
+struct InstanceColoringGroup
 {
+	MaterialVertexGroup* VertexGroup;
+	size_t IndexStart; // Offset within vertex group
+	size_t IndexRange; // Number of indices to process
 	std::vector<glm::vec4> Colors;
 	std::mutex ColorCS;
+
+	InstanceColoringGroup(MaterialVertexGroup* InVertexGroup, size_t InIndexStart, size_t InIndexRange)
+		: VertexGroup(InVertexGroup)
+		, IndexStart(InIndexStart)
+		, IndexRange(InIndexRange)
+	{
+	}
 };
+
+using InstanceColoringGroupUnique = std::unique_ptr<InstanceColoringGroup>;
 
 
 struct SDFModel
@@ -120,7 +132,7 @@ struct SDFModel
 	std::vector<glm::vec4> Colors;
 	Buffer ColorBuffer;
 
-	std::vector<MaterialColorGroup*> MaterialSlots;
+	std::vector<InstanceColoringGroupUnique> ColoringGroups;
 
 	void UpdateColors();
 

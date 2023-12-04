@@ -1000,19 +1000,17 @@ struct ShaderTask : public ContinuousTask
 	DrawableWeakRef PainterWeakRef;
 
 	// These pointers are only safe to access while the model and painter are both locked.
-	MaterialVertexGroup* VertexGroup = nullptr;
-	MaterialColorGroup* ColorGroup = nullptr;
+	InstanceColoringGroup* ColoringGroup = nullptr;
 	MaterialInterface* Material = nullptr;
 	ChthonicMaterialInterface* ChthonicMaterial = nullptr;
 	PhotonicMaterialInterface* PhotonicMaterial = nullptr;
 
-	ShaderTask(SDFModelShared& Instance, DrawableShared& Painter, size_t MaterialIndex)
+	ShaderTask(SDFModelShared& Instance, DrawableShared& Painter, InstanceColoringGroup* InColoringGroup)
 		: ModelWeakRef(Instance)
 		, PainterWeakRef(Painter)
+		, ColoringGroup(InColoringGroup)
 	{
-		VertexGroup = &(Painter->MaterialSlots[MaterialIndex]);
-		ColorGroup = Instance->MaterialSlots[MaterialIndex];
-		Material = VertexGroup->Material.get();
+		Material = ColoringGroup->VertexGroup->Material.get();
 		ChthonicMaterial = dynamic_cast<ChthonicMaterialInterface*>(Material);
 		PhotonicMaterial = dynamic_cast<PhotonicMaterialInterface*>(Material);
 	}
@@ -1025,9 +1023,9 @@ void Sodapop::Attach(SDFModelShared& Instance)
 {
 	Assert(Instance->Painter != nullptr);
 
-	for (size_t MaterialIndex = 0; MaterialIndex < Instance->Painter->MaterialSlots.size(); ++MaterialIndex)
+	for (InstanceColoringGroupUnique& ColoringGroup : Instance->ColoringGroups)
 	{
-		ShaderTask* Task = new ShaderTask(Instance, Instance->Painter, MaterialIndex);
+		ShaderTask* Task = new ShaderTask(Instance, Instance->Painter, ColoringGroup.get());
 		Scheduler::EnqueueContinuous(Task);
 	}
 }
@@ -1054,24 +1052,25 @@ bool ShaderTask::Run()
 			// The model instance requested a repaint and the painter is ready for drawing.
 
 			std::vector<glm::vec4> Colors;
-			Colors.reserve(VertexGroup->Vertices.size());
+			Colors.reserve(ColoringGroup->IndexRange);
 
 			glm::vec3 LocalEye = Instance->AtomicWorldToLocal.load().Apply(Instance->CameraOrigin);
 
-			for (const size_t Vertex : VertexGroup->Vertices)
+			std::vector<size_t>& Vertices = ColoringGroup->VertexGroup->Vertices;
+			for (size_t RelativeIndex = 0; RelativeIndex < ColoringGroup->IndexRange; ++RelativeIndex)
 			{
-				Assert(Vertex < Painter->Colors.size());
+				const size_t VertexIndex = Vertices[ColoringGroup->IndexStart + RelativeIndex];
 
 				if (MaterialOverrideMode == MaterialOverride::Normals)
 				{
-					glm::vec3 Normal = Painter->Normals[Vertex].xyz();
+					glm::vec3 Normal = Painter->Normals[VertexIndex].xyz();
 					glm::vec4 NewColor = MaterialDebugNormals::StaticEval(Normal);
 					Colors.push_back(NewColor);
 				}
 				else if (PhotonicMaterial != nullptr)
 				{
-					glm::vec3 Point = Painter->Positions[Vertex].xyz();
-					glm::vec3 Normal = Painter->Normals[Vertex].xyz();
+					glm::vec3 Point = Painter->Positions[VertexIndex].xyz();
+					glm::vec3 Normal = Painter->Normals[VertexIndex].xyz();
 					glm::vec3 View;
 					glm::vec4 NewColor;
 
@@ -1095,8 +1094,8 @@ bool ShaderTask::Run()
 				}
 				else if (ChthonicMaterial != nullptr)
 				{
-					glm::vec3 Point = Painter->Positions[Vertex].xyz();
-					glm::vec3 Normal = Painter->Normals[Vertex].xyz();
+					glm::vec3 Point = Painter->Positions[VertexIndex].xyz();
+					glm::vec3 Normal = Painter->Normals[VertexIndex].xyz();
 					glm::vec3 View;
 					glm::vec4 NewColor;
 
@@ -1116,9 +1115,9 @@ bool ShaderTask::Run()
 			}
 
 			{
-				ColorGroup->ColorCS.lock();
-				std::swap(ColorGroup->Colors, Colors);
-				ColorGroup->ColorCS.unlock();
+				ColoringGroup->ColorCS.lock();
+				std::swap(ColoringGroup->Colors, Colors);
+				ColoringGroup->ColorCS.unlock();
 			}
 
 			Scheduler::RequestAsyncRedraw();

@@ -74,10 +74,22 @@ void UnloadAllModels()
 
 static void MeshReadyInner(SDFModelShared Model, DrawableShared Painter)
 {
-	Assert(Model->MaterialSlots.size() == 0);
+	Assert(Model->ColoringGroups.size() == 0);
 	for (MaterialVertexGroup& VertexGroup : Painter->MaterialSlots)
 	{
-		Model->MaterialSlots.emplace_back(new MaterialColorGroup());
+		size_t Offset = 0;
+		size_t RemainingRange = VertexGroup.Vertices.size();
+		const size_t RangeLimit = 512; // Arbitrary
+
+		while (RemainingRange > 0)
+		{
+			const size_t Range = glm::min(RemainingRange, RangeLimit);
+			InstanceColoringGroup* ColoringGroup = new InstanceColoringGroup(&VertexGroup, Offset, Range);
+			Model->ColoringGroups.emplace_back(ColoringGroup);
+
+			Offset += Range;
+			RemainingRange -= Range;
+		}
 	}
 	Model->Colors = Painter->Colors;
 	Sodapop::Attach(Model);
@@ -364,9 +376,4 @@ SDFModel::~SDFModel()
 
 	Evaluator.reset();
 	Painter.reset();
-
-	for (MaterialColorGroup* MaterialSlot : MaterialSlots)
-	{
-		delete MaterialSlot;
-	}
 }

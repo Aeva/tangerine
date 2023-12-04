@@ -107,23 +107,23 @@ void Drawable::DrawES2(
 
 void SDFModel::UpdateColors()
 {
-	for (size_t SlotIndex = 0; SlotIndex < MaterialSlots.size(); ++SlotIndex)
+	for (size_t GroupIndex = 0; GroupIndex < ColoringGroups.size(); ++GroupIndex)
 	{
+		InstanceColoringGroupUnique& Batch = ColoringGroups[GroupIndex];
+
 		std::vector<glm::vec4> NewColors;
 		{
-			MaterialColorGroup* ColorGroup = MaterialSlots[SlotIndex];
-
-			ColorGroup->ColorCS.lock();
-			std::swap(ColorGroup->Colors, NewColors);
-			ColorGroup->ColorCS.unlock();
+			Batch->ColorCS.lock();
+			std::swap(Batch->Colors, NewColors);
+			Batch->ColorCS.unlock();
 		}
 
 		if (NewColors.size() > 0)
 		{
-			MaterialVertexGroup& VertexGroup = Painter->MaterialSlots[SlotIndex];
-			for (size_t RelativeIndex = 0; RelativeIndex < NewColors.size(); ++RelativeIndex)
+			std::vector<size_t>& Vertices = Batch->VertexGroup->Vertices;
+			for (size_t RelativeIndex = 0; RelativeIndex < Batch->IndexRange; ++RelativeIndex)
 			{
-				const size_t VertexIndex = VertexGroup.Vertices[RelativeIndex];
+				const size_t VertexIndex = Vertices[Batch->IndexStart + RelativeIndex];
 				Colors[VertexIndex] = NewColors[RelativeIndex];
 			}
 		}
