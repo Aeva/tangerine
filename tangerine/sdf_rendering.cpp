@@ -26,15 +26,8 @@ struct TransformUpload
 };
 
 
-void Drawable::DrawGL4(
-	glm::vec3 CameraOrigin,
-	SDFModel* Instance)
+void Drawable::DrawGL4(SDFModel* Instance)
 {
-	if (!glm::all(glm::equal(Instance->CameraOrigin, CameraOrigin)))
-	{
-		Instance->CameraOrigin = CameraOrigin;
-		Instance->Dirty.store(true);
-	}
 
 	if (Instance->Visibility == VisibilityStates::Imminent)
 	{
@@ -64,17 +57,10 @@ void Drawable::DrawGL4(
 
 
 void Drawable::DrawES2(
-	glm::vec3 CameraOrigin,
 	const int PositionBinding,
 	const int ColorBinding,
 	SDFModel* Instance)
 {
-	if (!glm::all(glm::equal(Instance->CameraOrigin, CameraOrigin)))
-	{
-		Instance->CameraOrigin = CameraOrigin;
-		Instance->Dirty.store(true);
-	}
-
 	if (Instance->Visibility == VisibilityStates::Imminent)
 	{
 		return;
@@ -105,8 +91,10 @@ void Drawable::DrawES2(
 }
 
 
-void SDFModel::UpdateColors()
+void SDFModel::UpdateColors(glm::vec3 NewCameraOrigin)
 {
+	AtomicCameraOrigin.store(NewCameraOrigin);
+
 	for (size_t GroupIndex = 0; GroupIndex < ColoringGroups.size(); ++GroupIndex)
 	{
 		InstanceColoringGroupUnique& Batch = ColoringGroups[GroupIndex];
@@ -150,8 +138,8 @@ void SDFModel::DrawGL4(
 			TransformBuffer.Bind(GL_UNIFORM_BUFFER, 1);
 		}
 
-		UpdateColors();
-		Painter->DrawGL4(CameraOrigin, this);
+		UpdateColors(CameraOrigin);
+		Painter->DrawGL4(this);
 	}
 }
 
@@ -173,7 +161,7 @@ void SDFModel::DrawES2(
 			glUniformMatrix4fv(LocalToWorldBinding, 1, false, (const GLfloat*)(&LocalToWorldMatrix));
 		}
 
-		UpdateColors();
-		Painter->DrawES2(CameraOrigin, PositionBinding, ColorBinding, this);
+		UpdateColors(CameraOrigin);
+		Painter->DrawES2(PositionBinding, ColorBinding, this);
 	}
 }

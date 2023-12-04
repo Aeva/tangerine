@@ -51,7 +51,7 @@ struct ContinuousTask
 	enum class Status
 	{
 		Remove = 0,
-		Stasis,
+		Skipped,
 		Converged,
 		Repainted
 	};

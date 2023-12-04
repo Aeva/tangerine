@@ -1050,7 +1050,7 @@ ContinuousTask::Status ShaderTask::Run()
 
 	if (Instance && Painter)
 	{
-		if (Instance->Dirty.load() && Instance->Visibility != VisibilityStates::Invisible)
+		if (Instance->Visibility != VisibilityStates::Invisible)
 		{
 			if (ColoringGroup->StartRepaint())
 			{
@@ -1061,7 +1061,7 @@ ContinuousTask::Status ShaderTask::Run()
 			Colors.reserve(ColoringGroup->IndexRange);
 
 			glm::mat4 WorldToLocalMatrix = Instance->AtomicWorldToLocal.load();
-			glm::vec4 LocalEye = WorldToLocalMatrix * glm::vec4(Instance->CameraOrigin, 1.0);
+			glm::vec4 LocalEye = WorldToLocalMatrix * glm::vec4(Instance->AtomicCameraOrigin.load(), 1.0);
 			LocalEye /= LocalEye.w;
 
 			std::vector<size_t>& Vertices = ColoringGroup->VertexGroup->Vertices;
@@ -1134,7 +1134,7 @@ ContinuousTask::Status ShaderTask::Run()
 		}
 		else
 		{
-			return ContinuousTask::Status::Stasis;
+			return ContinuousTask::Status::Skipped;
 		}
 	}
 	else

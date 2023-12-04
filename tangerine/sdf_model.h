@@ -84,12 +84,9 @@ struct Drawable
 
 	Drawable(const std::string& InName, SDFNodeShared& InEvaluator);
 
-	void DrawGL4(
-		glm::vec3 CameraOrigin,
-		SDFModel* Instance);
+	void DrawGL4(SDFModel* Instance);
 
 	void DrawES2(
-		glm::vec3 CameraOrigin,
 		const int PositionBinding,
 		const int ColorBinding,
 		SDFModel* Instance);
@@ -142,19 +139,18 @@ struct SDFModel
 	Transform LocalToWorld;
 	Buffer TransformBuffer;
 	std::atomic<glm::mat4> AtomicWorldToLocal;
+	std::atomic<glm::vec3> AtomicCameraOrigin = glm::vec3(0.0, 0.0, 0.0);
 
 	int MouseListenFlags = 0;
 
 	std::string Name = "";
 
-	std::atomic_bool Dirty = false;
-	glm::vec3 CameraOrigin = glm::vec3(0.0, 0.0, 0.0);
 	std::vector<glm::vec4> Colors;
 	Buffer ColorBuffer;
 
 	std::vector<InstanceColoringGroupUnique> ColoringGroups;
 
-	void UpdateColors();
+	void UpdateColors(glm::vec3 CameraOrigin);
 
 	void DrawGL4(glm::vec3 CameraOrigin);
 
