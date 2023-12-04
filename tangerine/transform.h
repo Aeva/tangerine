@@ -29,8 +29,6 @@ struct Transform
 	void Rotate(glm::quat RotateBy);
 	void Scale(float ScaleBy);
 
-	Transform Inverse() const;
-
 	glm::mat4 ToMatrix() const;
 
 	glm::vec3 Apply(glm::vec3 Point) const;

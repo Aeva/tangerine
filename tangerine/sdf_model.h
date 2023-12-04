@@ -121,7 +121,7 @@ struct SDFModel
 	std::atomic<VisibilityStates> Visibility = VisibilityStates::Visible;
 	Transform LocalToWorld;
 	Buffer TransformBuffer;
-	std::atomic<Transform> AtomicWorldToLocal;
+	std::atomic<glm::mat4> AtomicWorldToLocal;
 
 	int MouseListenFlags = 0;
 

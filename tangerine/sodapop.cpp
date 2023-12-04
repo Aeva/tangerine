@@ -1054,7 +1054,9 @@ bool ShaderTask::Run()
 			std::vector<glm::vec4> Colors;
 			Colors.reserve(ColoringGroup->IndexRange);
 
-			glm::vec3 LocalEye = Instance->AtomicWorldToLocal.load().Apply(Instance->CameraOrigin);
+			glm::mat4 WorldToLocalMatrix = Instance->AtomicWorldToLocal.load();
+			glm::vec4 LocalEye = WorldToLocalMatrix * glm::vec4(Instance->CameraOrigin, 1.0);
+			LocalEye /= LocalEye.w;
 
 			std::vector<size_t>& Vertices = ColoringGroup->VertexGroup->Vertices;
 			for (size_t RelativeIndex = 0; RelativeIndex < ColoringGroup->IndexRange; ++RelativeIndex)
@@ -1080,7 +1082,7 @@ bool ShaderTask::Run()
 					}
 					else
 					{
-						View = glm::normalize(LocalEye - Point);
+						View = glm::normalize(LocalEye.xyz() - Point);
 					}
 
 					{
@@ -1105,7 +1107,7 @@ bool ShaderTask::Run()
 					}
 					else
 					{
-						View = glm::normalize(LocalEye - Point);
+						View = glm::normalize(LocalEye.xyz() - Point);
 					}
 
 					NewColor = ChthonicMaterial->Eval(Point, Normal, View);

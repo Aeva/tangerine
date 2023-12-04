@@ -46,19 +46,6 @@ void Transform::Scale(float ScaleBy)
 }
 
 
-Transform Transform::Inverse() const
-{
-	Transform MyInverse =\
-	{
-		inverse(Rotation),
-		-Translation,
-		1.0 / Scalation
-	};
-
-	return MyInverse;
-}
-
-
 mat4 Transform::ToMatrix() const
 {
 	mat4 RotationMatrix = toMat4(Rotation);
