@@ -66,7 +66,8 @@ struct Drawable
 	std::vector<glm::vec4> Colors;
 
 	struct MeshingScratch* Scratch = nullptr;
-	std::atomic_bool MeshReady = false;
+
+	bool MeshAvailable = false;
 	bool MeshUploaded = false;
 
 	MeshingAlgorithms MeshingAlgorithm = MeshingAlgorithms::NaiveSurfaceNets;

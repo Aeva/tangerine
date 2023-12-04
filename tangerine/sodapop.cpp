@@ -504,9 +504,6 @@ void MeshingComplete::Done()
 		Painter->ReadyDelay = Painter->MeshingComplete - Painter->MeshingStart;
 
 		MeshReady(Painter);
-
-		// This really needs to be set on the main thread, or bad things will happen with the registration interface.
-		Painter->MeshReady.store(true);
 	}
 }
 
@@ -1053,7 +1050,7 @@ ContinuousTask::Status ShaderTask::Run()
 
 	if (Instance && Painter)
 	{
-		if (Instance->Dirty.load() && Painter->MeshReady.load() && Instance->Visibility != VisibilityStates::Invisible)
+		if (Instance->Dirty.load() && Instance->Visibility != VisibilityStates::Invisible)
 		{
 			if (ColoringGroup->StartRepaint())
 			{

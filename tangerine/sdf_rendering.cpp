@@ -36,7 +36,7 @@ void Drawable::DrawGL4(
 		Instance->Dirty.store(true);
 	}
 
-	if (Instance->Visibility == VisibilityStates::Imminent || !MeshReady.load())
+	if (Instance->Visibility == VisibilityStates::Imminent)
 	{
 		return;
 	}
@@ -75,7 +75,7 @@ void Drawable::DrawES2(
 		Instance->Dirty.store(true);
 	}
 
-	if (Instance->Visibility == VisibilityStates::Imminent || !MeshReady.load())
+	if (Instance->Visibility == VisibilityStates::Imminent)
 	{
 		return;
 	}

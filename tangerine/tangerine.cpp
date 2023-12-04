@@ -1393,7 +1393,7 @@ void RenderUI(SDL_Window* Window, bool& Live)
 				DrawableShared Painter = Cached.second.lock();
 				if (Painter)
 				{
-					if (Painter->MeshReady.load())
+					if (Painter->MeshAvailable)
 					{
 						std::string Message = fmt::format("READY: {}", Painter->Name);
 						ImGui::TextUnformatted(Message.c_str(), nullptr);

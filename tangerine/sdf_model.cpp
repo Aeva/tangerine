@@ -118,6 +118,7 @@ static void MeshReadyInner(SDFModelShared Model, DrawableShared Painter)
 
 void MeshReady(DrawableShared Painter)
 {
+	Painter->MeshAvailable = true;
 	for (SDFModelWeakRef WeakRef : LiveModels)
 	{
 		SDFModelShared Model = WeakRef.lock();
@@ -139,7 +140,7 @@ void GetIncompleteModels(std::vector<SDFModelWeakRef>& Incomplete)
 		SDFModelShared Model = WeakRef.lock();
 		if (Model && Model->Painter)
 		{
-			if (!Model->Painter->MeshReady.load())
+			if (!Model->Painter->MeshAvailable)
 			{
 				Incomplete.push_back(Model);
 			}
@@ -158,7 +159,7 @@ void GetRenderableModels(std::vector<SDFModelWeakRef>& Renderable)
 		SDFModelShared Model = WeakRef.lock();
 		if (Model && Model->Painter)
 		{
-			if (Model->Painter->MeshReady.load())
+			if (Model->Painter->MeshAvailable)
 			{
 				Renderable.push_back(Model);
 			}
@@ -272,7 +273,6 @@ Drawable::Drawable(const std::string& InName, SDFNodeShared& InEvaluator)
 	ReadyDelay = std::chrono::duration<double, std::milli>::zero();
 	Name = InName;
 	Evaluator = InEvaluator;
-	MeshReady.store(false);
 
 	{
 		SDFNode::MaterialWalkCallback WalkCallback = [this](MaterialShared Material)
@@ -365,7 +365,7 @@ SDFModel::SDFModel(SDFNodeShared& InEvaluator, const std::string& InName, const 
 
 void SDFModel::RegisterNewModel(SDFModelShared& NewModel)
 {
-	if (NewModel->Painter->MeshReady.load())
+	if (NewModel->Painter->MeshAvailable)
 	{
 		MeshReadyInner(NewModel, NewModel->Painter);
 	}
