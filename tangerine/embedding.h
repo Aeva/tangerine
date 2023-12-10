@@ -1,5 +1,5 @@
 
-// Copyright 2022 Aeva Palecek
+// Copyright 2023 Aeva Palecek
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,6 +15,7 @@
 
 #pragma once
 
+#include "controller.h"
 #include <string>
 
 #ifndef EMBED_LUA
@@ -40,6 +41,11 @@ struct ScriptEnvironment
 {
 	bool CanAdvance = false;
 	virtual void Advance(double DeltaTimeMs, double ElapsedTimeMs) {};
+
+	virtual void JoystickConnect(const JoystickInfo& Joystick) {};
+	virtual void JoystickDisconnect(const JoystickInfo& Joystick) {};
+	virtual void JoystickAxis(SDL_JoystickID JoystickID, int Axis, float Value) {};
+	virtual void JoystickButton(SDL_JoystickID JoystickID, int Button, bool Pressed) {};
 
 	virtual Language GetLanguage() = 0;
 	virtual void LoadFromPath(std::string Path) = 0;

@@ -48,6 +48,7 @@ Rml::ElementDocument* RmlUiDocument = nullptr;
 #include "sdf_evaluator.h"
 #include "sdf_rendering.h"
 #include "sdf_model.h"
+#include "controller.h"
 #include "units.h"
 #include "export.h"
 #include "magica.h"
@@ -96,7 +97,12 @@ using Clock = std::chrono::high_resolution_clock;
 bool HeadlessMode;
 
 
-ScriptEnvironment* MainEnvironment = nullptr;
+static ScriptEnvironment* MainEnvironment = nullptr;
+
+ScriptEnvironment* GetMainEnvironment()
+{
+	return MainEnvironment;
+}
 
 
 SDFNodeShared TreeEvaluator = nullptr;
@@ -853,6 +859,11 @@ void LoadModelCommon(std::function<void()> LoadingCallback)
 	Clock::time_point StartTimePoint = Clock::now();
 
 	LoadingCallback();
+
+	if (MainEnvironment)
+	{
+		EnvInitialControllerConnections(*MainEnvironment);
+	}
 
 	Clock::time_point EndTimePoint = Clock::now();
 	std::chrono::duration<double, std::milli> Delta = EndTimePoint - StartTimePoint;
@@ -1846,7 +1857,7 @@ StatusCode Boot(int argc, char* argv[])
 	{
 		std::cout << "Setting up SDL2... ";
 		SDL_SetMainReady();
-		if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER) == 0)
+		if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_JOYSTICK | SDL_INIT_HAPTIC | SDL_INIT_GAMECONTROLLER | SDL_INIT_TIMER) == 0)
 		{
 			RETURN_ON_FAIL(BootGL(WindowWidth, WindowHeight, HeadlessMode, ForceES2, CreateDebugContext, RequestedVSyncMode));
 		}
@@ -2334,6 +2345,7 @@ void MainLoop()
 							break;
 						}
 					}
+					RouteControllerEvents(Event);
 				}
 				EndEvent();
 

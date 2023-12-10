@@ -20,6 +20,7 @@
 #include <string>
 #include <random>
 #include <map>
+#include "controller.h"
 #include "sdf_model.h"
 #include "lua_material.h"
 
@@ -44,12 +45,21 @@ struct LuaEnvironment : public ScriptEnvironment
 
 	virtual void Advance(double DeltaTimeMs, double ElapsedTimeMs);
 
+	virtual void JoystickConnect(const JoystickInfo& Joystick);
+	virtual void JoystickDisconnect(const JoystickInfo& Joystick);
+	virtual void JoystickAxis(SDL_JoystickID JoystickID, int Axis, float Value);
+	virtual void JoystickButton(SDL_JoystickID JoystickID, int Button, bool Pressed);
+
 	virtual void LoadFromPath(std::string Path);
 	virtual void LoadFromString(std::string Source);
 	virtual ~LuaEnvironment();
 
 	static LuaEnvironment* GetScriptEnvironment(struct lua_State* L);
 	static int LuaSetAdvanceEvent(struct lua_State* L);
+	static int LuaSetJoystickConnectEvent(struct lua_State* L);
+	static int LuaSetJoystickDisconnectEvent(struct lua_State* L);
+	static int LuaSetJoystickAxisEvent(struct lua_State* L);
+	static int LuaSetJoystickButtonEvent(struct lua_State* L);
 	static int LuaPushMeshingDensity(struct lua_State* L);
 
 	bool HandleError(int Error);
@@ -60,6 +70,10 @@ struct LuaEnvironment : public ScriptEnvironment
 
 private:
 	int AdvanceCallbackRef;
+	int JoystickConnectCallbackRef;
+	int JoystickDisconnectCallbackRef;
+	int JoystickAxisCallbackRef;
+	int JoystickButtonCallbackRef;
 	SDFModelShared GlobalModel;
 	std::map<const ColorPoint, MaterialShared, ColorPointCmp> GenericMaterialVault;
 

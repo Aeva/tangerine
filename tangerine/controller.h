@@ -14,12 +14,36 @@
 // limitations under the License.
 
 #pragma once
-#include <functional>
-#include "sdf_evaluator.h"
 
-void PostScriptError(std::string ErrorMessage);
-void LoadModelCommon(std::function<void()> LoadingCallback);
-void SetClearColor(glm::vec3& Color);
-void SetFixedCamera(glm::vec3& Origin, glm::vec3& Focus, glm::vec3& Up);
+#include <SDL.h>
+#include <SDL_events.h>
+#include <SDL_joystick.h>
+#include <string>
 
-struct ScriptEnvironment* GetMainEnvironment();
+
+struct JoystickInfo
+{
+	SDL_JoystickGUID GUID = { 0 };
+	SDL_JoystickID InstanceID = -1;
+	SDL_Joystick* Handle = nullptr;
+	std::string Name = "uninitialized entry";
+};
+
+
+inline bool operator==(SDL_JoystickGUID LHS, SDL_JoystickGUID RHS)
+{
+	for (int i = 0; i < 16; ++i)
+	{
+		if (LHS.data[i] != RHS.data[i])
+		{
+			return false;
+		}
+	}
+	return true;
+}
+
+
+void RouteControllerEvents(SDL_Event Event);
+
+
+void EnvInitialControllerConnections(struct ScriptEnvironment& Env);

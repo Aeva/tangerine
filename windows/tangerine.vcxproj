@@ -182,6 +182,7 @@
   <ItemGroup>
     <ClCompile Include="..\tangerine\aabb.cpp" />
     <ClCompile Include="..\tangerine\colors.cpp" />
+    <ClCompile Include="..\tangerine\controller.cpp" />
     <ClCompile Include="..\tangerine\c_sdf.cpp" />
     <ClCompile Include="..\tangerine\errors.cpp" />
     <ClCompile Include="..\tangerine\events.cpp" />
@@ -266,6 +267,7 @@
   <ItemGroup>
     <ClInclude Include="..\tangerine\aabb.h" />
     <ClInclude Include="..\tangerine\colors.h" />
+    <ClInclude Include="..\tangerine\controller.h" />
     <ClInclude Include="..\tangerine\embedding.h" />
     <ClInclude Include="..\tangerine\errors.h" />
     <ClInclude Include="..\tangerine\events.h" />

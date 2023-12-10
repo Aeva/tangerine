@@ -82,6 +82,86 @@ int LuaEnvironment::LuaSetAdvanceEvent(lua_State* L)
 }
 
 
+int LuaEnvironment::LuaSetJoystickConnectEvent(lua_State* L)
+{
+	LuaEnvironment* Env = GetScriptEnvironment(L);
+
+	luaL_unref(L, LUA_REGISTRYINDEX, Env->JoystickConnectCallbackRef);
+
+	if (lua_isnil(L, 1))
+	{
+		Env->JoystickConnectCallbackRef = LUA_REFNIL;
+	}
+	else
+	{
+		luaL_checktype(L, 1, LUA_TFUNCTION);
+		Env->JoystickConnectCallbackRef = luaL_ref(L, LUA_REGISTRYINDEX);
+	}
+
+	return 0;
+}
+
+
+int LuaEnvironment::LuaSetJoystickDisconnectEvent(lua_State* L)
+{
+	LuaEnvironment* Env = GetScriptEnvironment(L);
+
+	luaL_unref(L, LUA_REGISTRYINDEX, Env->JoystickDisconnectCallbackRef);
+
+	if (lua_isnil(L, 1))
+	{
+		Env->JoystickDisconnectCallbackRef = LUA_REFNIL;
+	}
+	else
+	{
+		luaL_checktype(L, 1, LUA_TFUNCTION);
+		Env->JoystickDisconnectCallbackRef = luaL_ref(L, LUA_REGISTRYINDEX);
+	}
+
+	return 0;
+}
+
+
+int LuaEnvironment::LuaSetJoystickAxisEvent(lua_State* L)
+{
+	LuaEnvironment* Env = GetScriptEnvironment(L);
+
+	luaL_unref(L, LUA_REGISTRYINDEX, Env->JoystickAxisCallbackRef);
+
+	if (lua_isnil(L, 1))
+	{
+		Env->JoystickAxisCallbackRef = LUA_REFNIL;
+	}
+	else
+	{
+		luaL_checktype(L, 1, LUA_TFUNCTION);
+		Env->JoystickAxisCallbackRef = luaL_ref(L, LUA_REGISTRYINDEX);
+	}
+
+	return 0;
+}
+
+
+int LuaEnvironment::LuaSetJoystickButtonEvent(lua_State* L)
+{
+	LuaEnvironment* Env = GetScriptEnvironment(L);
+
+	luaL_unref(L, LUA_REGISTRYINDEX, Env->JoystickButtonCallbackRef);
+
+	if (lua_isnil(L, 1))
+	{
+		Env->JoystickButtonCallbackRef = LUA_REFNIL;
+	}
+	else
+	{
+		luaL_checktype(L, 1, LUA_TFUNCTION);
+		Env->JoystickButtonCallbackRef = luaL_ref(L, LUA_REGISTRYINDEX);
+	}
+
+	return 0;
+}
+
+
 int LuaEnvironment::LuaPushMeshingDensity(lua_State* L)
 {
 	LuaEnvironment* Env = GetScriptEnvironment(L);
@@ -123,6 +203,10 @@ int LuaSetExternalExportGrid(lua_State* L)
 const luaL_Reg LuaEnvReg[] = \
 {
 	{ "set_advance_event", LuaEnvironment::LuaSetAdvanceEvent },
+	{ "set_joystick_connect_event", LuaEnvironment::LuaSetJoystickConnectEvent },
+	{ "set_joystick_disconnect_event", LuaEnvironment::LuaSetJoystickDisconnectEvent },
+	{ "set_joystick_axis_event", LuaEnvironment::LuaSetJoystickAxisEvent },
+	{ "set_joystick_button_event", LuaEnvironment::LuaSetJoystickButtonEvent },
 	{ "push_meshing_density", LuaEnvironment::LuaPushMeshingDensity },
 	{ "set_internal_export_grid", LuaSetInternalExportGrid },
 	{ "set_external_export_grid", LuaSetExternalExportGrid },
@@ -142,6 +226,10 @@ LuaEnvironment::LuaEnvironment()
 	GlobalModel.reset();
 
 	AdvanceCallbackRef = LUA_REFNIL;
+	JoystickConnectCallbackRef = LUA_REFNIL;
+	JoystickDisconnectCallbackRef = LUA_REFNIL;
+	JoystickAxisCallbackRef = LUA_REFNIL;
+	JoystickButtonCallbackRef = LUA_REFNIL;
 	L = luaL_newstate();
 	luaL_openlibs(L);
 
@@ -219,6 +307,104 @@ void LuaEnvironment::Advance(double DeltaTimeMs, double ElapsedTimeMs)
 		{
 			luaL_unref(L, LUA_REGISTRYINDEX, AdvanceCallbackRef);
 			AdvanceCallbackRef = LUA_REFNIL;
+		}
+		else
+		{
+			MaybeRunGarbageCollection();
+		}
+	}
+}
+
+
+void LuaEnvironment::JoystickConnect(const JoystickInfo& Joystick)
+{
+	if (JoystickConnectCallbackRef != LUA_REFNIL)
+	{
+		static_assert(sizeof(lua_Integer) >= sizeof(SDL_JoystickID));
+
+		lua_rawgeti(L, LUA_REGISTRYINDEX, JoystickConnectCallbackRef);
+		lua_pushinteger(L, Joystick.InstanceID);
+		lua_pushstring(L, Joystick.Name.c_str());
+
+		int Error = lua_pcall(L, 2, 0, 0);
+		if (!HandleError(Error))
+		{
+			luaL_unref(L, LUA_REGISTRYINDEX, JoystickConnectCallbackRef);
+			JoystickConnectCallbackRef = LUA_REFNIL;
+		}
+		else
+		{
+			MaybeRunGarbageCollection();
+		}
+	}
+}
+
+
+void LuaEnvironment::JoystickDisconnect(const struct JoystickInfo& Joystick)
+{
+	if (JoystickDisconnectCallbackRef != LUA_REFNIL)
+	{
+		static_assert(sizeof(lua_Integer) >= sizeof(SDL_JoystickID));
+
+		lua_rawgeti(L, LUA_REGISTRYINDEX, JoystickDisconnectCallbackRef);
+		lua_pushinteger(L, Joystick.InstanceID);
+		lua_pushstring(L, Joystick.Name.c_str());
+
+		int Error = lua_pcall(L, 2, 0, 0);
+		if (!HandleError(Error))
+		{
+			luaL_unref(L, LUA_REGISTRYINDEX, JoystickDisconnectCallbackRef);
+			JoystickDisconnectCallbackRef = LUA_REFNIL;
+		}
+		else
+		{
+			MaybeRunGarbageCollection();
+		}
+	}
+}
+
+
+void LuaEnvironment::JoystickAxis(SDL_JoystickID JoystickID, int Axis, float Value)
+{
+	if (JoystickAxisCallbackRef != LUA_REFNIL)
+	{
+		static_assert(sizeof(lua_Integer) >= sizeof(SDL_JoystickID));
+
+		lua_rawgeti(L, LUA_REGISTRYINDEX, JoystickAxisCallbackRef);
+		lua_pushinteger(L, JoystickID);
+		lua_pushinteger(L, Axis);
+		lua_pushnumber(L, Value);
+
+		int Error = lua_pcall(L, 3, 0, 0);
+		if (!HandleError(Error))
+		{
+			luaL_unref(L, LUA_REGISTRYINDEX, JoystickAxisCallbackRef);
+			JoystickAxisCallbackRef = LUA_REFNIL;
+		}
+		else
+		{
+			MaybeRunGarbageCollection();
+		}
+	}
+}
+
+
+void LuaEnvironment::JoystickButton(SDL_JoystickID JoystickID, int Button, bool Pressed)
+{
+	if (JoystickButtonCallbackRef != LUA_REFNIL)
+	{
+		static_assert(sizeof(lua_Integer) >= sizeof(SDL_JoystickID));
+
+		lua_rawgeti(L, LUA_REGISTRYINDEX, JoystickButtonCallbackRef);
+		lua_pushinteger(L, JoystickID);
+		lua_pushinteger(L, Button);
+		lua_pushboolean(L, Pressed);
+
+		int Error = lua_pcall(L, 3, 0, 0);
+		if (!HandleError(Error))
+		{
+			luaL_unref(L, LUA_REGISTRYINDEX, JoystickButtonCallbackRef);
+			JoystickButtonCallbackRef = LUA_REFNIL;
 		}
 		else
 		{

@@ -315,6 +315,9 @@
     <ClCompile Include="..\tangerine\license_page.cpp">
       <Filter>Tangerine</Filter>
     </ClCompile>
+    <ClCompile Include="..\tangerine\controller.cpp">
+      <Filter>Tangerine</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\third_party\imgui\backends\imgui_impl_opengl3.h">
@@ -652,6 +655,9 @@
       <Filter>Tangerine</Filter>
     </ClInclude>
     <ClInclude Include="..\tangerine\license_page.h">
+      <Filter>Tangerine</Filter>
+    </ClInclude>
+    <ClInclude Include="..\tangerine\controller.h">
       <Filter>Tangerine</Filter>
     </ClInclude>
   </ItemGroup>
