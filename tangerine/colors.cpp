@@ -20,6 +20,8 @@
 #include <regex>
 #include <array>
 #include <unordered_map>
+#include <string>
+#include <string_view>
 
 
 const std::array<std::pair<ColorSpace, std::string>, size_t(ColorSpace::Count) > EncodingNames = \
@@ -532,9 +534,9 @@ std::regex MakeOklabExpr()
 	std::string Prefix = "oklab\\(";
 	std::string Suffix = "\\)";
 
-	std::string NumberGroup = "(-?\\d+|-?\\d+\\.\\d*|-?\\d*\\.\\d+)";
+	std::string NumberGroup = "(-?\\d+%?|-?\\d+\\.\\d*%?|-?\\d*\\.\\d+%?)";
 	std::string Padding = "\\s*";
-	std::string Separator = "\\s+";
+	std::string Separator = ",?\\s+";
 
 	std::string Expr = Prefix + Padding + NumberGroup + Separator + NumberGroup + Separator + NumberGroup + Padding + Suffix;
 	return std::regex(Expr, std::regex::ECMAScript | std::regex::icase);
@@ -571,17 +573,40 @@ StatusCode ParseColor(std::string ColorString, ColorPoint& OutColor)
 	}
 	else if (std::regex_match(ColorString, Match, OklabExpr))
 	{
-		// https://developer.mozilla.org/en-US/docs/Web/CSS/color_value/oklab
 		// https://www.w3.org/TR/css-color-4/#specifying-oklab-oklch
 
-		// Should percentages ever be supported, the percent ranges are:
-		// for L: 0% = 0.0, 100% = 1.0
-		// for a & b: 0% = -0.4, 100% = 0.4
+		const std::string ParsedL = Match[1].str();
+		const std::string ParsedA = Match[2].str();
+		const std::string ParsedB = Match[3].str();
 
 		glm::vec3 Channels;
-		Channels[0] = glm::clamp(std::stof(Match[1]), 0.0f, 1.0f);
-		Channels[1] = std::stof(Match[2]);
-		Channels[2] = std::stof(Match[3]);
+
+		if (ParsedL.back() == '%')
+		{
+			Channels[0] = glm::clamp(std::stof(ParsedL) / 100.f, 0.0f, 1.0f);
+		}
+		else
+		{
+			Channels[0] = glm::clamp(std::stof(ParsedL), 0.0f, 1.0f);
+		}
+
+		if (ParsedA.back() == '%')
+		{
+			Channels[1] = glm::mix(0.0f, 0.4f, std::stof(ParsedA) / 100.0f);
+		}
+		else
+		{
+			Channels[1] = std::stof(ParsedA);
+		}
+
+		if (ParsedB.back() == '%')
+		{
+			Channels[2] = glm::mix(0.0f, 0.4f, std::stof(ParsedB) / 100.0f);
+		}
+		else
+		{
+			Channels[2] = std::stof(ParsedB);
+		}
 
 		OutColor = ColorPoint(ColorSpace::OkLAB, Channels);
 		return StatusCode::PASS;
