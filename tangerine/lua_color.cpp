@@ -180,6 +180,11 @@ static int IndexColor(lua_State* L)
 			ColorPoint* NewColor = CreateColorPoint(L, ColorSpace::OkLAB, *Self);
 			return 1;
 		}
+		else if (strcmp(Key, "OkLCH") == 0)
+		{
+			ColorPoint* NewColor = CreateColorPoint(L, ColorSpace::OkLCH, *Self);
+			return 1;
+		}
 		else if (strcmp(Key, "LinearRGB") == 0)
 		{
 			ColorPoint* NewColor = CreateColorPoint(L, ColorSpace::LinearRGB, *Self);

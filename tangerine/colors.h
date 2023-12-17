@@ -25,8 +25,9 @@
 enum class ColorSpace
 {
 	sRGB,
-	OkLAB,
 	LinearRGB,
+	OkLAB,
+	OkLCH,
 
 	Count
 };
@@ -59,14 +60,40 @@ struct ColorPoint
 	{
 		if (Encoding == ColorSpace::OkLAB)
 		{
-			// According to https://www.w3.org/TR/css-color-4/#specifying-oklab-oklch,
-			// if the lightness of an OkLab color is 0% or 100%, then the a and b components
-			// should be powerless, and the respective color is black or white.
-			Channels[0] = glm::clamp(Channels[0], 0.0f, 1.0f);
-			if (Channels[0] == 0.0f || Channels[0] == 1.0f)
+			// https://www.w3.org/TR/css-color-4/#specifying-oklab-oklch
+
+			float& Lightness = Channels[0];
+			float& AxisA = Channels[1];
+			float& AxisB = Channels[2];
+
+			Lightness = glm::clamp(Lightness, 0.0f, 1.0f);
+
+			if (Lightness == 0.0f || Lightness == 1.0f)
 			{
-				Channels[1] = 0.0f;
-				Channels[2] = 0.0f;
+				AxisA = 0.0f;
+				AxisB = 0.0f;
+			}
+		}
+		else if (Encoding == ColorSpace::OkLCH)
+		{
+			// https://www.w3.org/TR/css-color-4/#specifying-oklab-oklch
+
+			float& Lightness = Channels[0];
+			float& Chroma = Channels[1];
+			float& Hue = Channels[2];
+
+			Lightness = glm::clamp(Lightness, 0.0f, 1.0f);
+			Chroma = glm::max(Chroma, 0.0f);
+
+			if (Lightness == 0.0f || Lightness == 1.0f)
+			{
+				Chroma = 0.0f;
+				Hue = 0.0f;
+			}
+
+			if (Chroma == 0.0f)
+			{
+				Hue = 0.0f;
 			}
 		}
 	}

@@ -16,6 +16,7 @@
 #include "colors.h"
 #include "glm_common.h"
 
+#include <fmt/format.h>
 #include <cmath>
 #include <regex>
 #include <array>
@@ -27,8 +28,9 @@
 const std::array<std::pair<ColorSpace, std::string>, size_t(ColorSpace::Count) > EncodingNames = \
 {
 	std::pair<ColorSpace, std::string> { ColorSpace::sRGB, "sRGB" },
-	std::pair<ColorSpace, std::string> { ColorSpace::OkLAB, "OkLAB" },
 	std::pair<ColorSpace, std::string> { ColorSpace::LinearRGB, "LinearRGB"},
+	std::pair<ColorSpace, std::string> { ColorSpace::OkLAB, "OkLAB" },
+	std::pair<ColorSpace, std::string> { ColorSpace::OkLCH, "OkLCH" },
 };
 
 
@@ -190,11 +192,79 @@ static glm::vec3 OkLab2XYZ(glm::vec3 OkLab)
 }
 
 
+static glm::vec3 OkLab2OkLch(glm::vec3 OkLab)
+{
+	// Convert from OkLab to OkLch.
+	// Adapted from https://www.w3.org/TR/css-color-4/#lab-to-lch
+
+	const float Lightness = OkLab[0];
+	const float AxisA = OkLab[1];
+	const float AxisB = OkLab[2];
+
+	glm::vec3 OkLch;
+	OkLch[0] = Lightness;
+	float& Chroma = OkLch[1];
+	float& Hue = OkLch[2];
+
+	Chroma = glm::length(glm::vec2(AxisA, AxisB));
+
+	Hue = glm::degrees(glm::atan(AxisB, AxisA));
+	if (glm::isnan(Hue))
+	{
+		Hue = 0.0f;
+	}
+	else
+	{
+		const float π = glm::pi<float>();
+		Hue = glm::clamp(Hue, -π, π);
+	}
+
+	return OkLch;
+}
+
+
+static glm::vec3 OkLch2OkLab(glm::vec3 OkLch)
+{
+	// Convert from OkLch to OkLab.
+	// Adapted from https://www.w3.org/TR/css-color-4/#lch-to-lab
+
+	const float Lightness = OkLch[0];
+	const float Chroma = OkLch[1];
+	const float Hue = glm::radians(OkLch[2]);
+
+	glm::vec3 OkLab;
+	OkLab[0] = Lightness;
+	float& AxisA = OkLab[1];
+	float& AxisB = OkLab[2];
+
+	if (Lightness == 0.0f || Lightness == 1.0f)
+	{
+		AxisA = 0.0f;
+		AxisB = 0.0f;
+	}
+	else
+	{
+		AxisA = Chroma * glm::cos(Hue);
+		AxisB = Chroma * glm::sin(Hue);
+	}
+
+	return OkLab;
+}
+
+
 ColorPoint ColorPoint::Encode(ColorSpace OutEncoding)
 {
 	if (OutEncoding == Encoding)
 	{
 		return *this;
+	}
+	else if (Encoding == ColorSpace::OkLAB && OutEncoding == ColorSpace::OkLCH)
+	{
+		return ColorPoint(ColorSpace::OkLCH, OkLab2OkLch(Channels));
+	}
+	else if (Encoding == ColorSpace::OkLCH && OutEncoding == ColorSpace::OkLAB)
+	{
+		return ColorPoint(ColorSpace::OkLAB, OkLch2OkLab(Channels));
 	}
 	else
 	{
@@ -205,11 +275,14 @@ ColorPoint ColorPoint::Encode(ColorSpace OutEncoding)
 			// Convert the stored color to an sRGB intermediary.
 			switch (Encoding)
 			{
-			case(ColorSpace::OkLAB):
+			case ColorSpace::LinearRGB:
+				Intermediary = Linear2sRGB(Intermediary);
+				break;
+			case ColorSpace::OkLAB:
 				Intermediary = Linear2sRGB(XYZ2Linear(OkLab2XYZ(Intermediary)));
 				break;
-			case(ColorSpace::LinearRGB):
-				Intermediary = Linear2sRGB(Intermediary);
+			case ColorSpace::OkLCH:
+				Intermediary = Linear2sRGB(XYZ2Linear(OkLab2XYZ(OkLch2OkLab(Intermediary))));
 				break;
 			default:
 				break;
@@ -218,11 +291,14 @@ ColorPoint ColorPoint::Encode(ColorSpace OutEncoding)
 			// Convert the sRGB intermediary to the output encoding.
 			switch (OutEncoding)
 			{
-			case(ColorSpace::OkLAB):
+			case ColorSpace::LinearRGB:
+				Intermediary = sRGB2Linear(Intermediary);
+				break;
+			case ColorSpace::OkLAB:
 				Intermediary = XYZ2OkLab(Linear2XYZ(sRGB2Linear(Intermediary)));
 				break;
-			case(ColorSpace::LinearRGB):
-				Intermediary = sRGB2Linear(Intermediary);
+			case ColorSpace::OkLCH:
+				Intermediary = OkLab2OkLch(XYZ2OkLab(Linear2XYZ(sRGB2Linear(Intermediary))));
 				break;
 			default:
 				break;
@@ -316,7 +392,7 @@ glm::vec3 ColorRamp::Eval(ColorSpace OutEncoding, float Alpha)
 	else if (Stops.size() > 1)
 	{
 		float WedgeCount = float(Stops.size() - 1);
-		float WedgeSpan = 1.0 / WedgeCount;
+		float WedgeSpan = 1.0f / WedgeCount;
 		float LowStop = glm::floor(WedgeCount * Alpha);
 		float WedgeAlpha = (Alpha - (LowStop * WedgeSpan)) / WedgeSpan;
 		size_t LowIndex = size_t(LowStop);
@@ -529,17 +605,257 @@ const std::unordered_map<std::string, std::string> ColorNames = \
 };
 
 
-std::regex MakeOklabExpr()
+static bool MatchPercent(std::string& Remainder, float& Number, const float LerpLow, const float LerpHigh)
 {
-	std::string Prefix = "oklab\\(";
-	std::string Suffix = "\\)";
+	// https://www.w3.org/TR/css-values-4/#percentages
 
-	std::string NumberGroup = "(-?\\d+%?|-?\\d+\\.\\d*%?|-?\\d*\\.\\d+%?)";
-	std::string Padding = "\\s*";
-	std::string Separator = ",?\\s+";
+	static const std::regex PercentExpr("^([-+]?(?:(?:\\d+\\.\\d*)|(?:\\d*\\.\\d+)|(?:\\d+)))%(.*?)", std::regex::ECMAScript | std::regex::icase);
+	const std::string Sequence(Remainder);
+	std::smatch Match;
+	if (std::regex_match(Sequence, Match, PercentExpr))
+	{
+		Remainder = Match[2].str();
+		const float Percent = std::stof(Match[1].str());
+		const float Alpha = Percent / 100.f;
+		Number = glm::mix(LerpLow, LerpHigh, Alpha);
+		return true;
+	}
+	else
+	{
+		return false;
+	}
+}
 
-	std::string Expr = Prefix + Padding + NumberGroup + Separator + NumberGroup + Separator + NumberGroup + Padding + Suffix;
-	return std::regex(Expr, std::regex::ECMAScript | std::regex::icase);
+
+static bool MatchNumber(std::string& Remainder, float& Number)
+{
+	// https://www.w3.org/TR/css-values-4/#number-value
+
+	static const std::regex NumberExpr("^([-+]?(?:(?:\\d+\\.\\d*)|(?:\\d*\\.\\d+)|(?:\\d+)))(.*?)", std::regex::ECMAScript | std::regex::icase);
+	const std::string Sequence(Remainder);
+	std::smatch Match;
+	if (std::regex_match(Sequence, Match, NumberExpr))
+	{
+		Remainder = Match[2].str();
+		Number = std::stof(Match[1].str());
+		return true;
+	}
+	else
+	{
+		return false;
+	}
+}
+
+
+static bool MatchDegrees(std::string& Remainder, float& Degrees)
+{
+	// https://www.w3.org/TR/css-values-4/#angles
+
+	static const std::regex PercentExpr("^([-+]?(?:(?:\\d+\\.\\d*)|(?:\\d*\\.\\d+)|(?:\\d+)))deg(.*?)", std::regex::ECMAScript | std::regex::icase);
+	const std::string Sequence(Remainder);
+	std::smatch Match;
+	if (std::regex_match(Sequence, Match, PercentExpr))
+	{
+		Remainder = Match[2].str();
+		Degrees = std::stof(Match[1].str());
+		return true;
+	}
+	else
+	{
+		return false;
+	}
+}
+
+
+static bool MatchGradians(std::string& Remainder, float& Gradians)
+{
+	// https://www.w3.org/TR/css-values-4/#angles
+
+	static const std::regex PercentExpr("^([-+]?(?:(?:\\d+\\.\\d*)|(?:\\d*\\.\\d+)|(?:\\d+)))grad(.*?)", std::regex::ECMAScript | std::regex::icase);
+	const std::string Sequence(Remainder);
+	std::smatch Match;
+	if (std::regex_match(Sequence, Match, PercentExpr))
+	{
+		Remainder = Match[2].str();
+		Gradians = std::stof(Match[1].str());
+		return true;
+	}
+	else
+	{
+		return false;
+	}
+}
+
+
+static bool MatchRadians(std::string& Remainder, float& Radians)
+{
+	// https://www.w3.org/TR/css-values-4/#angles
+
+	static const std::regex PercentExpr("^([-+]?(?:(?:\\d+\\.\\d*)|(?:\\d*\\.\\d+)|(?:\\d+)))rad(.*?)", std::regex::ECMAScript | std::regex::icase);
+	const std::string Sequence(Remainder);
+	std::smatch Match;
+	if (std::regex_match(Sequence, Match, PercentExpr))
+	{
+		Remainder = Match[2].str();
+		Radians = std::stof(Match[1].str());
+		return true;
+	}
+	else
+	{
+		return false;
+	}
+}
+
+
+static bool MatchTurns(std::string& Remainder, float& Turns)
+{
+	// https://www.w3.org/TR/css-values-4/#angles
+
+	static const std::regex PercentExpr("^([-+]?(?:(?:\\d+\\.\\d*)|(?:\\d*\\.\\d+)|(?:\\d+)))turn(.*?)", std::regex::ECMAScript | std::regex::icase);
+	const std::string Sequence(Remainder);
+	std::smatch Match;
+	if (std::regex_match(Sequence, Match, PercentExpr))
+	{
+		Remainder = Match[2].str();
+		Turns = std::stof(Match[1].str());
+		return true;
+	}
+	else
+	{
+		return false;
+	}
+}
+
+
+static bool MatchHue(std::string& Remainder, float& Hue)
+{
+	// https://www.w3.org/TR/css-color-4/#hue-syntax
+
+	if (MatchNumber(Remainder, Hue) || MatchDegrees(Remainder, Hue))
+	{
+		return true;
+	}
+	else if (MatchGradians(Remainder, Hue))
+	{
+		Hue = (Hue / 400.f) * 360.f;
+		return true;
+	}
+	else if (MatchRadians(Remainder, Hue))
+	{
+		Hue = glm::degrees(Hue);
+		return true;
+	}
+	else if (MatchTurns(Remainder, Hue))
+	{
+		Hue = Hue * 360.0f;
+		return true;
+	}
+	else
+	{
+		return false;
+	}
+}
+
+
+static bool MatchPercentOrNumber(std::string& Remainder, float& Number, const float LerpLow, const float LerpHigh)
+{
+	if (MatchPercent(Remainder, Number, LerpLow, LerpHigh))
+	{
+		return true;
+	}
+	else if (MatchNumber(Remainder, Number))
+	{
+		return true;
+	}
+	else
+	{
+		return false;
+	}
+}
+
+
+static bool MatchSeparator(std::string& Remainder)
+{
+	static const std::regex SeparatorExpr("^(?:\\s*,?\\s*|\\s+)(.*?)", std::regex::ECMAScript | std::regex::icase);
+	const std::string Sequence(Remainder);
+	std::smatch Match;
+	if (std::regex_match(Sequence, Match, SeparatorExpr))
+	{
+		Remainder = Match[1].str();
+		return true;
+	}
+	else
+	{
+		return false;
+	}
+}
+
+
+static bool ParseOkLAB(std::string ColorString, ColorPoint& OutColor)
+{
+	// https://www.w3.org/TR/css-color-4/#specifying-oklab-oklch
+
+	static const std::regex FnExpr = std::regex("^oklab\\(\\s*(.*?)\\s*\\);?$", std::regex::ECMAScript | std::regex::icase);
+	std::smatch Match;
+	if (std::regex_match(ColorString, Match, FnExpr))
+	{
+		std::string Remainder = Match[1].str();
+
+		glm::vec3 Channels;
+		float& Lightness = Channels[0];
+		float& AxisA = Channels[1];
+		float& AxisB = Channels[2];
+
+		const bool Success = \
+			MatchPercentOrNumber(Remainder, Lightness, 0.0f, 1.0f) &&
+			MatchSeparator(Remainder) &&
+			MatchPercentOrNumber(Remainder, AxisA, 0.0f, 0.4f) &&
+			MatchSeparator(Remainder) &&
+			MatchPercentOrNumber(Remainder, AxisB, 0.0f, 0.4f);
+
+		if (Success)
+		{
+			// The standard constraints will be applied in the ColorSpace constructor.
+			OutColor = ColorPoint(ColorSpace::OkLAB, Channels);
+			return true;
+		}
+	}
+
+	return false;
+}
+
+
+static bool ParseOkLCH(std::string ColorString, ColorPoint& OutColor)
+{
+	// https://www.w3.org/TR/css-color-4/#specifying-oklab-oklch
+
+	static const std::regex FnExpr = std::regex("^oklch\\(\\s*(.*?)\\s*\\);?$", std::regex::ECMAScript | std::regex::icase);
+	std::smatch Match;
+	if (std::regex_match(ColorString, Match, FnExpr))
+	{
+		std::string Remainder = Match[1].str();
+
+		glm::vec3 Channels;
+		float& Lightness = Channels[0];
+		float& Chroma = Channels[1];
+		float& Hue = Channels[2];
+
+		const bool Success = \
+			MatchPercentOrNumber(Remainder, Lightness, 0.0f, 1.0f) &&
+			MatchSeparator(Remainder) &&
+			MatchPercentOrNumber(Remainder, Chroma, 0.0f, 0.4f) &&
+			MatchSeparator(Remainder) &&
+			MatchHue(Remainder, Hue);
+
+		if (Success)
+		{
+			// The standard constraints will be applied in the ColorSpace constructor.
+			OutColor = ColorPoint(ColorSpace::OkLCH, Channels);
+			return true;
+		}
+	}
+
+	return false;
 }
 
 
@@ -547,9 +863,6 @@ StatusCode ParseColor(std::string ColorString, ColorPoint& OutColor)
 {
 	static const std::regex HexTripple("#[0-9A-F]{3}", std::regex::icase);
 	static const std::regex HexSextuple("#[0-9A-F]{6}", std::regex::icase);
-	static const std::regex OklabExpr = MakeOklabExpr();
-
-	std::smatch Match;
 
 	if (std::regex_match(ColorString.c_str(), HexTripple))
 	{
@@ -571,44 +884,12 @@ StatusCode ParseColor(std::string ColorString, ColorPoint& OutColor)
 		OutColor = ColorPoint(ColorSpace::sRGB, Channels);
 		return StatusCode::PASS;
 	}
-	else if (std::regex_match(ColorString, Match, OklabExpr))
+	else if (ParseOkLAB(ColorString, OutColor))
 	{
-		// https://www.w3.org/TR/css-color-4/#specifying-oklab-oklch
-
-		const std::string ParsedL = Match[1].str();
-		const std::string ParsedA = Match[2].str();
-		const std::string ParsedB = Match[3].str();
-
-		glm::vec3 Channels;
-
-		if (ParsedL.back() == '%')
-		{
-			Channels[0] = glm::clamp(std::stof(ParsedL) / 100.f, 0.0f, 1.0f);
-		}
-		else
-		{
-			Channels[0] = glm::clamp(std::stof(ParsedL), 0.0f, 1.0f);
-		}
-
-		if (ParsedA.back() == '%')
-		{
-			Channels[1] = glm::mix(0.0f, 0.4f, std::stof(ParsedA) / 100.0f);
-		}
-		else
-		{
-			Channels[1] = std::stof(ParsedA);
-		}
-
-		if (ParsedB.back() == '%')
-		{
-			Channels[2] = glm::mix(0.0f, 0.4f, std::stof(ParsedB) / 100.0f);
-		}
-		else
-		{
-			Channels[2] = std::stof(ParsedB);
-		}
-
-		OutColor = ColorPoint(ColorSpace::OkLAB, Channels);
+		return StatusCode::PASS;
+	}
+	else if (ParseOkLCH(ColorString, OutColor))
+	{
 		return StatusCode::PASS;
 	}
 	else
