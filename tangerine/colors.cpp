@@ -216,8 +216,7 @@ static glm::vec3 OkLab2OkLch(glm::vec3 OkLab)
 	}
 	else
 	{
-		const float π = glm::pi<float>();
-		Hue = glm::clamp(Hue, -π, π);
+		Hue = glm::clamp(Hue, -180.f, 180.f);
 	}
 
 	return OkLch;
