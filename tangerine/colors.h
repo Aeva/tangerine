@@ -28,6 +28,7 @@ enum class ColorSpace
 	LinearRGB,
 	OkLAB,
 	OkLCH,
+	HSL,
 
 	Count
 };
@@ -94,6 +95,28 @@ struct ColorPoint
 			if (Chroma == 0.0f)
 			{
 				Hue = 0.0f;
+			}
+		}
+		else if (Encoding == ColorSpace::HSL)
+		{
+			// https://www.w3.org/TR/css-color-4/#the-hsl-notation
+
+			float& Hue = Channels[0];
+			float& Saturation = Channels[1];
+			float& Lightness = Channels[2];
+
+			Saturation = glm::clamp(Saturation, 0.0f, 1.0f);
+			Lightness = glm::clamp(Lightness, 0.0f, 1.0f);
+
+			if (Saturation == 0.0f)
+			{
+				Hue = 0.0f;
+			}
+
+			if (Lightness == 0.0f || Lightness == 1.0f)
+			{
+				Hue = 0.0f;
+				Saturation = 0.0f;
 			}
 		}
 	}

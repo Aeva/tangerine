@@ -31,6 +31,7 @@ const std::array<std::pair<ColorSpace, std::string>, size_t(ColorSpace::Count) >
 	std::pair<ColorSpace, std::string> { ColorSpace::LinearRGB, "LinearRGB"},
 	std::pair<ColorSpace, std::string> { ColorSpace::OkLAB, "OkLAB" },
 	std::pair<ColorSpace, std::string> { ColorSpace::OkLCH, "OkLCH" },
+	std::pair<ColorSpace, std::string> { ColorSpace::HSL, "HSL" },
 };
 
 
@@ -252,6 +253,74 @@ static glm::vec3 OkLch2OkLab(glm::vec3 OkLch)
 }
 
 
+static glm::vec3 HSL2sRGB(glm::vec3 HSL)
+{
+	// https://www.w3.org/TR/css-color-4/#hsl-to-rgb
+
+	float Hue = glm::mod(HSL[0], 360.0f);
+	float Saturation = HSL[1];
+	float Lightness = HSL[2];
+
+	if (Hue < 0.0f)
+	{
+		Hue += 360.0;
+	}
+
+	const auto Thunk = [&](float Offset) -> float
+	{
+		float K = glm::mod(Offset + Hue / 30.f, 12.f);
+		float Alpha = Saturation * glm::min(Lightness, 1.0f - Lightness);
+		return Lightness - Alpha * glm::max(-1.f, glm::min(glm::min(K - 3.f, 9.f - K), 1.f));
+	};
+
+	return glm::vec3(Thunk(0), Thunk(8), Thunk(4));
+}
+
+
+static glm::vec3 sRGB2HSL(glm::vec3 sRGB)
+{
+	// https://www.w3.org/TR/css-color-4/#rgb-to-hsl
+
+	float MaxChannel = glm::max(glm::max(sRGB.r, sRGB.g), sRGB.b);
+	float MinChannel = glm::min(glm::min(sRGB.r, sRGB.g), sRGB.b);
+
+	glm::vec3 HSL;
+	float& Hue = HSL[0];
+	float& Saturation = HSL[1];
+	float& Lightness = HSL[2];
+
+	Hue = 0.0f;
+	Saturation = 0.0f;
+	Lightness = (MinChannel + MaxChannel) / 2.0f;
+
+	float D = MaxChannel - MinChannel;
+	if (D != 0.0f)
+	{
+		if (Lightness > 0.0f || Lightness < 1.0f)
+		{
+			Saturation = (MaxChannel - Lightness) / glm::min(Lightness, 1.0f - Lightness);
+
+			if (MaxChannel == sRGB.r)
+			{
+				Hue = (sRGB.g - sRGB.b) / D + (sRGB.g < sRGB.b ? 6.0f : 0.0f);
+			}
+			else if (MaxChannel == sRGB.g)
+			{
+				Hue = (sRGB.b - sRGB.r) / D + 2.0f;
+			}
+			else if (MaxChannel == sRGB.b)
+			{
+				Hue = (sRGB.r - sRGB.g) / D + 4.0f;
+			}
+
+			Hue = Hue * 60.0;
+		}
+	}
+
+	return HSL;
+}
+
+
 ColorPoint ColorPoint::Encode(ColorSpace OutEncoding)
 {
 	if (OutEncoding == Encoding)
@@ -284,6 +353,9 @@ ColorPoint ColorPoint::Encode(ColorSpace OutEncoding)
 			case ColorSpace::OkLCH:
 				Intermediary = Linear2sRGB(XYZ2Linear(OkLab2XYZ(OkLch2OkLab(Intermediary))));
 				break;
+			case ColorSpace::HSL:
+				Intermediary = HSL2sRGB(Intermediary);
+				break;
 			default:
 				break;
 			}
@@ -299,6 +371,9 @@ ColorPoint ColorPoint::Encode(ColorSpace OutEncoding)
 				break;
 			case ColorSpace::OkLCH:
 				Intermediary = OkLab2OkLch(XYZ2OkLab(Linear2XYZ(sRGB2Linear(Intermediary))));
+				break;
+			case ColorSpace::HSL:
+				Intermediary = sRGB2HSL(Intermediary);
 				break;
 			default:
 				break;
@@ -859,6 +934,40 @@ static bool ParseOkLCH(std::string ColorString, ColorPoint& OutColor)
 }
 
 
+static bool ParseHSL(std::string ColorString, ColorPoint& OutColor)
+{
+	// https://www.w3.org/TR/css-color-4/#the-hsl-notation
+
+	static const std::regex FnExpr = std::regex("^hsl\\(\\s*(.*?)\\s*\\);?$", std::regex::ECMAScript | std::regex::icase);
+	std::smatch Match;
+	if (std::regex_match(ColorString, Match, FnExpr))
+	{
+		std::string Remainder = Match[1].str();
+
+		glm::vec3 Channels;
+		float& Hue = Channels[0];
+		float& Saturation = Channels[1];
+		float& Lightness = Channels[2];
+
+		const bool Success = \
+			MatchHue(Remainder, Hue) &&
+			MatchSeparator(Remainder) &&
+			MatchPercentOrNumber(Remainder, Saturation, 0.0f, 1.0f) &&
+			MatchSeparator(Remainder) &&
+			MatchPercentOrNumber(Remainder, Lightness, 0.0f, 1.0f);
+
+		if (Success)
+		{
+			// The standard constraints will be applied in the ColorSpace constructor.
+			OutColor = ColorPoint(ColorSpace::HSL, Channels);
+			return true;
+		}
+	}
+
+	return false;
+}
+
+
 StatusCode ParseColor(std::string ColorString, ColorPoint& OutColor)
 {
 	static const std::regex HexTripple("#[0-9A-F]{3}", std::regex::icase);
@@ -889,6 +998,10 @@ StatusCode ParseColor(std::string ColorString, ColorPoint& OutColor)
 		return StatusCode::PASS;
 	}
 	else if (ParseOkLCH(ColorString, OutColor))
+	{
+		return StatusCode::PASS;
+	}
+	else if (ParseHSL(ColorString, OutColor))
 	{
 		return StatusCode::PASS;
 	}
