@@ -52,9 +52,6 @@
     <Filter Include="Third Party\atomic_queue">
       <UniqueIdentifier>{a97260d8-781b-41a7-9fc3-ae138133e95e}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Third Party\OkLab">
-      <UniqueIdentifier>{8fbb3d32-e80f-43af-bc6e-d985efae0dbd}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Third Party\RmlUi">
       <UniqueIdentifier>{c37cb2f1-2620-47df-988c-ee517c6c4dcb}</UniqueIdentifier>
     </Filter>
@@ -620,9 +617,6 @@
     </ClInclude>
     <ClInclude Include="..\tangerine\units.h">
       <Filter>Tangerine</Filter>
-    </ClInclude>
-    <ClInclude Include="..\third_party\oklab\oklab.h">
-      <Filter>Third Party\OkLab</Filter>
     </ClInclude>
     <ClInclude Include="..\tangerine\lua_color.h">
       <Filter>Tangerine\Runtimes</Filter>

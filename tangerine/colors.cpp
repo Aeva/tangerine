@@ -1,5 +1,5 @@
 
-// Copyright 2022 Aeva Palecek
+// Copyright 2023 Aeva Palecek
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,7 +16,7 @@
 #include "colors.h"
 #include "glm_common.h"
 
-#include <oklab.h>
+#include <cmath>
 #include <regex>
 #include <array>
 #include <unordered_map>
@@ -57,29 +57,134 @@ bool FindColorSpace(std::string Name, ColorSpace& OutEncoding)
 }
 
 
-static glm::vec3 sRGB2OkLab(glm::vec3 sRGB)
-{
-	Oklab::Lab OkLAB = Oklab::srgb_to_oklab({ sRGB.r, sRGB.g, sRGB.b });
-	return { OkLAB.L, OkLAB.a, OkLAB.b };
-}
-
-
-static glm::vec3 OkLab2sRGB(glm::vec3 OkLAB)
-{
-	Oklab::RGB sRGB = Oklab::oklab_to_srgb({ OkLAB[0], OkLAB[1], OkLAB[2] });
-	return glm::clamp(glm::vec3({ sRGB.r, sRGB.g, sRGB.b }), glm::vec3(0.0f), glm::vec3(1.0f));
-}
-
-
 static glm::vec3 sRGB2Linear(glm::vec3 sRGB)
 {
-	return sRGB; // TODO !!!
+	// Convert from sRGB to Linear RGB.
+	// Adapted from https://www.w3.org/TR/css-color-4/#color-conversion-code
+
+	glm::vec3 Linear(0.0f);
+
+	for (int Channel = 0; Channel < 3; ++Channel)
+	{
+		const float Color = sRGB[Channel];
+		const float AbsColor = glm::abs(Color);
+
+		if (AbsColor < 0.04045f)
+		{
+			Linear[Channel] = Color / 12.92f;
+		}
+		else
+		{
+			Linear[Channel] = glm::sign(Color) * (glm::pow((AbsColor + 0.055f) / 1.055f, 2.4f));
+		}
+	}
+
+	return Linear;
 }
 
 
 static glm::vec3 Linear2sRGB(glm::vec3 Linear)
 {
-	return Linear; // TODO !!!
+	// Convert from Linear RGB to sRGB.
+	// Adapted from https://www.w3.org/TR/css-color-4/#color-conversion-code
+
+	glm::vec3 sRGB(0.0f);
+
+	for (int Channel = 0; Channel < 3; ++Channel)
+	{
+		const float Color = Linear[Channel];
+		const float AbsColor = glm::abs(Color);
+
+		if (AbsColor > 0.0031308f)
+		{
+			sRGB[Channel] = glm::sign(Color) * (1.055f * glm::pow(AbsColor, 1.f/2.4f) - 0.055f);
+		}
+		else
+		{
+			sRGB[Channel] = 12.92f * Color;
+		}
+	}
+
+	return sRGB;
+}
+
+
+static glm::vec3 Linear2XYZ(glm::vec3 Linear)
+{
+	// Convert from Linear RGB to CIE XYZ.
+	// Adapted from https://www.w3.org/TR/css-color-4/#color-conversion-code
+	const glm::mat3 ToXYZ(
+		glm::vec3(506752.f / 1228815.f, 87881.f / 245763.f, 12673.f / 70218.f),
+		glm::vec3(87098.f / 409605.f, 175762.f / 245763.f, 12673.f / 175545.f),
+		glm::vec3(7918.f / 409605.f, 87881.f / 737289.f, 1001167.f / 1053270.f));
+	return Linear * ToXYZ;
+}
+
+
+static glm::vec3 XYZ2Linear(glm::vec3 XYZ)
+{
+	// Convert from CIE XYZ to Linear RGB.
+	// Adapted from https://www.w3.org/TR/css-color-4/#color-conversion-code
+	glm::mat3 ToLinear(
+		glm::vec3(12831.f / 3959.f, -329.f / 214.f, -1974.f / 3959.f),
+		glm::vec3(-851781.f / 878810.f, 1648619.f / 878810.f, 36519.f / 878810.f),
+		glm::vec3(705.f / 12673.f, -2585.f / 12673.f, 705.f / 667.f));
+	return XYZ * ToLinear;
+}
+
+
+static glm::vec3 XYZ2OkLab(glm::vec3 XYZ)
+{
+	// Convert from D65-relative CIE XYZ to OKLab.
+	// Adapted from https://www.w3.org/TR/css-color-4/#color-conversion-code
+
+	glm::mat3 ToLMS(
+		glm::vec3(0.8190224432164319f, 0.3619062562801221f, -0.12887378261216414f),
+		glm::vec3(0.0329836671980271f, 0.9292868468965546f, 0.03614466816999844f),
+		glm::vec3(0.048177199566046255f, 0.26423952494422764f, 0.6335478258136937f));
+
+	glm::mat3 ToOkLab(
+		glm::vec3(0.2104542553f, 0.7936177850f, -0.0040720468f),
+		glm::vec3(1.9779984951f, -2.4285922050f, 0.4505937099f),
+		glm::vec3(0.0259040371f, 0.7827717662f, -0.8086757660f));
+
+	glm::vec3 LMS = XYZ * ToLMS;
+
+	for (int Channel = 0; Channel < 3; ++Channel)
+	{
+		LMS[Channel] = std::cbrt(LMS[Channel]);
+	}
+
+	glm::vec3 OkLab = LMS * ToOkLab;
+
+	return OkLab;
+}
+
+
+static glm::vec3 OkLab2XYZ(glm::vec3 OkLab)
+{
+	// Convert from OKLab to D65-relative CIE XYZ.
+	// Adapted from https://www.w3.org/TR/css-color-4/#color-conversion-code
+
+	glm::mat3 ToLMS(
+		glm::vec3(0.99999999845051981432f, 0.39633779217376785678f, 0.21580375806075880339f),
+		glm::vec3(1.0000000088817607767f, -0.1055613423236563494f, -0.063854174771705903402f),
+		glm::vec3(1.0000000546724109177f, -0.089484182094965759684f, -1.2914855378640917399f));
+
+	glm::mat3 ToXYZ(
+		glm::vec3(1.2268798733741557f, -0.5578149965554813f, 0.28139105017721583f),
+		glm::vec3(-0.04057576262431372f, 1.1122868293970594f, -0.07171106666151701f),
+		glm::vec3(-0.07637294974672142f, -0.4214933239627914f, 1.5869240244272418f));
+
+	glm::vec3 LMS = OkLab * ToLMS;
+
+	for (int Channel = 0; Channel < 3; ++Channel)
+	{
+		LMS[Channel] = LMS[Channel] * LMS[Channel] * LMS[Channel];
+	}
+
+	glm::vec3 XYZ = LMS * ToXYZ;
+	return XYZ;
 }
 
 
@@ -99,7 +204,7 @@ ColorPoint ColorPoint::Encode(ColorSpace OutEncoding)
 			switch (Encoding)
 			{
 			case(ColorSpace::OkLAB):
-				Intermediary = OkLab2sRGB(Intermediary);
+				Intermediary = Linear2sRGB(XYZ2Linear(OkLab2XYZ(Intermediary)));
 				break;
 			case(ColorSpace::LinearRGB):
 				Intermediary = Linear2sRGB(Intermediary);
@@ -112,7 +217,7 @@ ColorPoint ColorPoint::Encode(ColorSpace OutEncoding)
 			switch (OutEncoding)
 			{
 			case(ColorSpace::OkLAB):
-				Intermediary = sRGB2OkLab(Intermediary);
+				Intermediary = XYZ2OkLab(Linear2XYZ(sRGB2Linear(Intermediary)));
 				break;
 			case(ColorSpace::LinearRGB):
 				Intermediary = sRGB2Linear(Intermediary);
@@ -467,12 +572,16 @@ StatusCode ParseColor(std::string ColorString, ColorPoint& OutColor)
 	else if (std::regex_match(ColorString, Match, OklabExpr))
 	{
 		// https://developer.mozilla.org/en-US/docs/Web/CSS/color_value/oklab
+		// https://www.w3.org/TR/css-color-4/#specifying-oklab-oklch
+
+		// Should percentages ever be supported, the percent ranges are:
+		// for L: 0% = 0.0, 100% = 1.0
+		// for a & b: 0% = -0.4, 100% = 0.4
+
 		glm::vec3 Channels;
 		Channels[0] = glm::clamp(std::stof(Match[1]), 0.0f, 1.0f);
-
-		// MDN claims the legal range of these terms is is -0.4 to 0.4, but their own examples contradict this.
-		Channels[1] = glm::clamp(std::stof(Match[2]), -1.0f, 1.0f);
-		Channels[2] = glm::clamp(std::stof(Match[3]), -1.0f, 1.0f);
+		Channels[1] = std::stof(Match[2]);
+		Channels[2] = std::stof(Match[3]);
 
 		OutColor = ColorPoint(ColorSpace::OkLAB, Channels);
 		return StatusCode::PASS;

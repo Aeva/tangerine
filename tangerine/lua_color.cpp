@@ -103,6 +103,23 @@ static int CreateLuaColorPoint(lua_State* L)
 		NewColor = CreateColorPoint(L, ParsedColor.Encoding, ParsedColor.Channels);
 		return 1;
 	}
+	else if (Args > 1 && lua_type(L, 1) == LUA_TSTRING)
+	{
+		ColorSpace Encoding = ColorSpace::sRGB;
+		const char* EncodingString = luaL_checklstring(L, 1, nullptr);
+		if (!FindColorSpace(std::string(EncodingString), Encoding))
+		{
+			std::string Error = fmt::format("Invalid encoding name: {}\n", EncodingString);
+			lua_pushstring(L, Error.c_str());
+			lua_error(L);
+			lua_pushnil(L);
+			return 1;
+		}
+		int NextArg = 2;
+		glm::vec3 Channels = GetVec3(L, NextArg);
+		NewColor = CreateColorPoint(L, Encoding, glm::vec3(Channels));
+		return 1;
+	}
 	else if (Args == 1 && lua_isnumber(L, 1))
 	{
 		float Fill = lua_tonumber(L, 1);

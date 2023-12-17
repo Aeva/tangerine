@@ -352,7 +352,6 @@
     <ClInclude Include="..\third_party\naive-surface-nets\include\shared_vertex_mesh.h" />
     <ClInclude Include="..\third_party\naive-surface-nets\include\surface_nets.h" />
     <ClInclude Include="..\third_party\naive-surface-nets\include\triangle.h" />
-    <ClInclude Include="..\third_party\oklab\oklab.h" />
     <ClInclude Include="..\third_party\RmlUi\Backends\RmlUi_Backend.h" />
     <ClInclude Include="..\third_party\RmlUi\Backends\RmlUi_Platform_SDL.h" />
     <ClInclude Include="..\third_party\RmlUi\Backends\RmlUi_Renderer_GL3.h" />

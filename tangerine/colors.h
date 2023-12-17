@@ -1,5 +1,5 @@
 
-// Copyright 2022 Aeva Palecek
+// Copyright 2023 Aeva Palecek
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,7 +15,7 @@
 
 #pragma once
 
-#include <glm/vec3.hpp>
+#include "glm_common.h"
 #include <string>
 #include <vector>
 #include <variant>
@@ -57,6 +57,18 @@ struct ColorPoint
 		: Encoding(InEncoding)
 		, Channels(InChannels)
 	{
+		if (Encoding == ColorSpace::OkLAB)
+		{
+			// According to https://www.w3.org/TR/css-color-4/#specifying-oklab-oklch,
+			// if the lightness of an OkLab color is 0% or 100%, then the a and b components
+			// should be powerless, and the respective color is black or white.
+			Channels[0] = glm::clamp(Channels[0], 0.0f, 1.0f);
+			if (Channels[0] == 0.0f || Channels[0] == 1.0f)
+			{
+				Channels[1] = 0.0f;
+				Channels[2] = 0.0f;
+			}
+		}
 	}
 
 	ColorPoint(ColorSpace InEncoding, ColorPoint Other)
