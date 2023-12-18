@@ -1,5 +1,5 @@
 
-// Copyright 2022 Aeva Palecek
+// Copyright 2023 Aeva Palecek
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -397,7 +397,41 @@ const luaL_Reg LuaVecType[] = \
 };
 
 
-bool ReadSwizzle(const char* Key, int& Lanes, std::array<int, 4>& Swizzle)
+template<char AliasX, char AliasY, char AliasZ>
+static bool ReadSwizzle3(const char* Key, int& Lanes, std::array<int, 3>& Swizzle)
+{
+	Lanes = strlen(Key);
+	Swizzle = { 0, 0, 0 };
+	if (Lanes >= 1 && Lanes <= 3)
+	{
+		for (int Lane = 0; Lane < Lanes; ++Lane)
+		{
+			switch (Key[Lane])
+			{
+			case AliasX:
+			case 'x':
+				Swizzle[Lane] = 0;
+				break;
+			case AliasY:
+			case 'y':
+				Swizzle[Lane] = 1;
+				break;
+			case AliasZ:
+			case 'z':
+				Swizzle[Lane] = 2;
+				break;
+			default:
+				return false;
+			}
+		}
+		return true;
+	}
+	return false;
+};
+
+
+template<char AliasX, char AliasY, char AliasZ, char AliasW>
+static bool ReadSwizzle4(const char* Key, int& Lanes, std::array<int, 4>& Swizzle)
 {
 	Lanes = strlen(Key);
 	Swizzle = { 0, 0, 0, 0 };
@@ -407,19 +441,19 @@ bool ReadSwizzle(const char* Key, int& Lanes, std::array<int, 4>& Swizzle)
 		{
 			switch (Key[Lane])
 			{
-			case 'r':
+			case AliasX:
 			case 'x':
 				Swizzle[Lane] = 0;
 				break;
-			case 'g':
+			case AliasY:
 			case 'y':
 				Swizzle[Lane] = 1;
 				break;
-			case 'b':
+			case AliasZ:
 			case 'z':
 				Swizzle[Lane] = 2;
 				break;
-			case 'a':
+			case AliasW:
 			case 'w':
 				Swizzle[Lane] = 3;
 				break;
@@ -431,6 +465,36 @@ bool ReadSwizzle(const char* Key, int& Lanes, std::array<int, 4>& Swizzle)
 	}
 	return false;
 };
+
+
+bool ReadSwizzle(ColorSpace Encoding, const char* Key, int& Lanes, std::array<int, 3>& Swizzle)
+{
+	switch (Encoding)
+	{
+	case ColorSpace::sRGB:
+		return ReadSwizzle3<'r', 'g', 'b'>(Key, Lanes, Swizzle);
+		break;
+	case ColorSpace::HSL:
+		return ReadSwizzle3<'h', 's', 'l'>(Key, Lanes, Swizzle);
+		break;
+	case ColorSpace::OkLAB:
+		return ReadSwizzle3<'l', 'a', 'b'>(Key, Lanes, Swizzle);
+		break;
+	case ColorSpace::OkLCH:
+		return ReadSwizzle3<'l', 'c', 'h'>(Key, Lanes, Swizzle);
+		break;
+	default:
+		break;
+	}
+
+	return false;
+}
+
+
+bool ReadSwizzle(const char* Key, int& Lanes, std::array<int, 4>& Swizzle)
+{
+	return ReadSwizzle4<'r', 'g', 'b', 'a'>(Key, Lanes, Swizzle);
+}
 
 
 int IndexVec(lua_State* L)

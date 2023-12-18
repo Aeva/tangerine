@@ -1,5 +1,5 @@
 
-// Copyright 2022 Aeva Palecek
+// Copyright 2023 Aeva Palecek
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@
 #if EMBED_LUA
 #include <lua/lua.hpp>
 #include "glm_common.h"
+#include "colors.h"
 #include <array>
 
 
@@ -29,6 +30,7 @@ struct LuaVec
 };
 
 
+bool ReadSwizzle(ColorSpace Encoding, const char* Key, int& Lanes, std::array<int, 3>& Swizzle);
 bool ReadSwizzle(const char* Key, int& Lanes, std::array<int, 4>& Swizzle);
 LuaVec* GetLuaVec(lua_State* L, int Arg);
 glm::vec3 GetVec3(lua_State* L, int& NextArg);

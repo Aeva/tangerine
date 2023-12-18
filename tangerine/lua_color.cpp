@@ -85,52 +85,51 @@ ColorPoint GetAnyColorPoint(lua_State* L, int& NextArg)
 }
 
 
-static int CreateLuaColorPoint(lua_State* L)
+static int CreateLuaColorPointCSS(lua_State* L)
 {
 	ColorPoint* NewColor;
-	ColorPoint* OldColor = TestLuaColorPoint(L, 1);
+	ColorPoint ParsedColor;
+	const char* ColorString = luaL_checklstring(L, 1, nullptr);
 
-	int Args = lua_gettop(L);
-	if (Args == 1 && OldColor)
+	if (ParseColor(ColorString, ParsedColor) == StatusCode::PASS)
 	{
-		NewColor = CreateColorPoint(L, OldColor->Encoding, OldColor->Channels);
-		return 1;
-	}
-	else if (Args == 1 && lua_type(L, 1) == LUA_TSTRING)
-	{
-		const char* ColorString = luaL_checklstring(L, 1, nullptr);
-		ColorPoint ParsedColor = ParseColor(ColorString);
 		NewColor = CreateColorPoint(L, ParsedColor.Encoding, ParsedColor.Channels);
 		return 1;
 	}
-	else if (Args > 1 && lua_type(L, 1) == LUA_TSTRING)
+	else
 	{
-		ColorSpace Encoding = ColorSpace::sRGB;
-		const char* EncodingString = luaL_checklstring(L, 1, nullptr);
-		if (!FindColorSpace(std::string(EncodingString), Encoding))
-		{
-			std::string Error = fmt::format("Invalid encoding name: {}\n", EncodingString);
-			lua_pushstring(L, Error.c_str());
-			lua_error(L);
-			lua_pushnil(L);
-			return 1;
-		}
-		int NextArg = 2;
-		glm::vec3 Channels = GetVec3(L, NextArg);
-		NewColor = CreateColorPoint(L, Encoding, glm::vec3(Channels));
+		std::string Error = fmt::format("Invalid or unsupported CSS color: {}\n", ColorString);
+		lua_pushstring(L, Error.c_str());
+		lua_error(L);
+		lua_pushnil(L);
+		return 1;
+	}
+}
+
+
+template<ColorSpace Encoding>
+static int CreateLuaEncodedColorPoint(lua_State* L)
+{
+	ColorPoint* NewColor;
+	ColorPoint* OldColor = TestLuaColorPoint(L, 1);
+	int Args = lua_gettop(L);
+	
+	if (Args >= 1 && OldColor)
+	{
+		NewColor = CreateColorPoint(L, Encoding, *OldColor);
 		return 1;
 	}
 	else if (Args == 1 && lua_isnumber(L, 1))
 	{
 		float Fill = lua_tonumber(L, 1);
-		NewColor = CreateColorPoint(L, glm::vec3(Fill));
+		NewColor = CreateColorPoint(L, Encoding, glm::vec3(Fill));
 		return 1;
 	}
 	else
 	{
 		int NextArg = 1;
 		glm::vec3 Channels = GetVec3(L, NextArg);
-		NewColor = CreateColorPoint(L, glm::vec3(Channels));
+		NewColor = CreateColorPoint(L, Encoding, glm::vec3(Channels));
 		return 1;
 	}
 }
@@ -170,43 +169,16 @@ static int IndexColor(lua_State* L)
 			LuaVec* NewVec = CreateVec(L, Self->Channels);
 			return 1;
 		}
-		else if (strcmp(Key, "sRGB") == 0)
-		{
-			ColorPoint* NewColor = CreateColorPoint(L, ColorSpace::sRGB, *Self);
-			return 1;
-		}
-		else if (strcmp(Key, "OkLAB") == 0)
-		{
-			ColorPoint* NewColor = CreateColorPoint(L, ColorSpace::OkLAB, *Self);
-			return 1;
-		}
-		else if (strcmp(Key, "OkLCH") == 0)
-		{
-			ColorPoint* NewColor = CreateColorPoint(L, ColorSpace::OkLCH, *Self);
-			return 1;
-		}
-		else if (strcmp(Key, "HSL") == 0)
-		{
-			ColorPoint* NewColor = CreateColorPoint(L, ColorSpace::HSL, *Self);
-			return 1;
-		}
-		else if (strcmp(Key, "LinearRGB") == 0)
-		{
-			ColorPoint* NewColor = CreateColorPoint(L, ColorSpace::LinearRGB, *Self);
-			return 1;
-		}
 		else
 		{
-			std::array<int, 4> Swizzle;
+			std::array<int, 3> Swizzle;
 			int Lanes;
 
-			if (ReadSwizzle(Key, Lanes, Swizzle))
+			if (ReadSwizzle(Self->Encoding, Key, Lanes, Swizzle))
 			{
-				glm::vec4 Channels = glm::vec4(Self->Eval(ColorSpace::sRGB), 1.0f);
-
 				if (Lanes == 1)
 				{
-					lua_pushnumber(L, Channels[Swizzle[0]]);
+					lua_pushnumber(L, Self->Channels[Swizzle[0]]);
 				}
 				else
 				{
@@ -217,7 +189,7 @@ static int IndexColor(lua_State* L)
 					int Cursor = 0;
 					for (; Cursor < Lanes; ++Cursor)
 					{
-						NewVec->Vector[Cursor] = Channels[Swizzle[Cursor]];
+						NewVec->Vector[Cursor] = Self->Channels[Swizzle[Cursor]];
 					}
 					for (; Cursor < 4; ++Cursor)
 					{
@@ -289,19 +261,15 @@ static int NewIndexColor(lua_State* L)
 		else
 		{
 			const char* Key = luaL_checklstring(L, 2, nullptr);
-			std::array<int, 4> Swizzle;
+			std::array<int, 3> Swizzle;
 			int Lanes;
 
-			if (ReadSwizzle(Key, Lanes, Swizzle))
+			if (ReadSwizzle(Self->Encoding, Key, Lanes, Swizzle))
 			{
-				Self->MutateEncoding(ColorSpace::sRGB);
-				glm::vec4 Channels = glm::vec4(Self->Eval(ColorSpace::sRGB), 1.0f);
-
 				if (Lanes == 1)
 				{
 					float Value = luaL_checknumber(L, 3);
-					Channels[Swizzle[0]] = Value;
-					Self->Channels = Channels.xyz();
+					Self->Channels[Swizzle[0]] = Value;
 					lua_pushnumber(L, Value);
 					return 1;
 				}
@@ -310,10 +278,9 @@ static int NewIndexColor(lua_State* L)
 					for (int Cursor = 0; Cursor < Lanes; ++Cursor)
 					{
 						lua_geti(L, 3, Cursor + 1);
-						Channels[Swizzle[Cursor]] = lua_tonumber(L, 4);
+						Self->Channels[Swizzle[Cursor]] = lua_tonumber(L, 4);
 						lua_pop(L, 1);
 					}
-					Self->Channels = Channels.xyz();
 					lua_getfield(L, 1, Key);
 					return 1;
 				}
@@ -453,8 +420,11 @@ const luaL_Reg LuaColorRampMeta[] = \
 
 const luaL_Reg LuaColorLibrary[] = \
 {
-	{ "color", CreateLuaColorPoint },
-	{ "color_point", CreateLuaColorPoint },
+	{ "css_color", CreateLuaColorPointCSS },
+	{ "rgb_color", CreateLuaEncodedColorPoint<ColorSpace::sRGB> },
+	{ "hsl_color", CreateLuaEncodedColorPoint<ColorSpace::HSL> },
+	{ "oklab_color", CreateLuaEncodedColorPoint<ColorSpace::OkLAB> },
+	{ "oklch_color", CreateLuaEncodedColorPoint<ColorSpace::OkLCH> },
 
 	{ "ramp", CreateLuaColorRamp },
 	{ "color_ramp", CreateLuaColorRamp },
