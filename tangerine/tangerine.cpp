@@ -95,6 +95,9 @@ using Clock = std::chrono::high_resolution_clock;
 
 
 bool HeadlessMode;
+bool ShowDebugInterface = true;
+bool OverrideShowDebugInterface = false;
+bool ShowLicenses = false;
 
 
 static ScriptEnvironment* MainEnvironment = nullptr;
@@ -805,6 +808,27 @@ void RenderFrameES2(int ScreenWidth, int ScreenHeight, std::vector<SDFModelWeakR
 }
 
 
+void SetWindowTitle(std::string Title)
+{
+	if (Window != nullptr)
+	{
+		SDL_SetWindowTitle(Window, Title.c_str());
+	}
+}
+
+
+void ShowDebugMenu()
+{
+	ShowDebugInterface = true;
+}
+
+
+void HideDebugMenu()
+{
+	ShowDebugInterface = false;
+}
+
+
 void SetClearColor(glm::vec3& Color)
 {
 	ProgramRequestedBackground = 0;
@@ -915,6 +939,11 @@ void LoadModel(std::string Path, Language Runtime)
 	}
 	if (Path.size() > 0)
 	{
+		ShowDebugInterface = true;
+		{
+			std::string FileName = std::filesystem::path(Path).filename().string();
+			SetWindowTitle(fmt::format("{} - Tangerine", FileName));
+		}
 		UnloadAllModels();
 		ExportGrid::ResetScale();
 		CreateScriptEnvironment(Runtime);
@@ -1079,8 +1108,6 @@ void RenderUI(SDL_Window* Window, bool& Live)
 	ImGui::ShowDemoWindow(&ShowDemoWindow);
 #endif
 
-	static bool ShowLicenses = false;
-
 	static bool ShowFocusOverlay = false;
 	static bool ShowReadyDelays = false;
 
@@ -1102,7 +1129,7 @@ void RenderUI(SDL_Window* Window, bool& Live)
 	const int DefaultExportRefinementSteps = 5;
 	const float DefaultMagicaGridSize = 0.05;
 
-	if (!HeadlessMode && ImGui::BeginMainMenuBar())
+	if (!HeadlessMode && (ShowDebugInterface || OverrideShowDebugInterface) && ImGui::BeginMainMenuBar())
 	{
 		if (ImGui::BeginMenu("File"))
 		{
@@ -2199,6 +2226,12 @@ void MainLoop()
 				bool RmlUiActive = RmlUiContext && RmlUiContext->GetNumDocuments() > 0;
 #endif
 
+				if (!ShowDebugInterface)
+				{
+					SDL_Keymod ModState = SDL_GetModState();
+					OverrideShowDebugInterface = (ModState & KMOD_ALT) != 0;
+				}
+
 				BeginEvent("Process Input");
 				while (SDL_PollEvent(&Event))
 				{
@@ -2284,6 +2317,7 @@ void MainLoop()
 						const int OPEN_MODEL = CTRL_FLAG | SDLK_o;
 						const int RELOAD_MODEL = CTRL_FLAG | SDLK_r;
 						const int TOGGLE_FULLSCREEN = CTRL_FLAG | SDLK_f;
+						const int TOGGLE_LICENSE_INFO = SDLK_F1;
 						int Key = Event.key.keysym.sym;
 						int Mod = Event.key.keysym.mod;
 						if ((Mod & KMOD_SHIFT) != 0)
@@ -2308,6 +2342,9 @@ void MainLoop()
 							break;
 						case TOGGLE_FULLSCREEN:
 							ToggleFullScreen(Window);
+							break;
+						case TOGGLE_LICENSE_INFO:
+							ShowLicenses = not ShowLicenses;
 							break;
 						case SDLK_KP_MULTIPLY:
 							MouseMotionZ += 5;

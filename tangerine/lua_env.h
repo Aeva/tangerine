@@ -55,6 +55,9 @@ struct LuaEnvironment : public ScriptEnvironment
 	virtual ~LuaEnvironment();
 
 	static LuaEnvironment* GetScriptEnvironment(struct lua_State* L);
+	static int LuaSetTitle(struct lua_State* L);
+	static int LuaShowDebugMenu(struct lua_State* L);
+	static int LuaHideDebugMenu(struct lua_State* L);
 	static int LuaSetAdvanceEvent(struct lua_State* L);
 	static int LuaSetJoystickConnectEvent(struct lua_State* L);
 	static int LuaSetJoystickDisconnectEvent(struct lua_State* L);

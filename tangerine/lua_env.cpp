@@ -60,6 +60,28 @@ MaterialShared LuaEnvironment::GetGenericMaterial(lua_State* L, const ColorPoint
 }
 
 
+int LuaEnvironment::LuaSetTitle(lua_State* L)
+{
+	const char* Title = luaL_checklstring(L, 1, nullptr);
+	SetWindowTitle(Title);
+	return 0;
+}
+
+
+int LuaEnvironment::LuaShowDebugMenu(lua_State* L)
+{
+	ShowDebugMenu();
+	return 0;
+}
+
+
+int LuaEnvironment::LuaHideDebugMenu(lua_State* L)
+{
+	HideDebugMenu();
+	return 0;
+}
+
+
 int LuaEnvironment::LuaSetAdvanceEvent(lua_State* L)
 {
 	LuaEnvironment* Env = GetScriptEnvironment(L);
@@ -202,6 +224,9 @@ int LuaSetExternalExportGrid(lua_State* L)
 
 const luaL_Reg LuaEnvReg[] = \
 {
+	{ "set_title", LuaEnvironment::LuaSetTitle },
+	{ "show_debug_menu", LuaEnvironment::LuaShowDebugMenu },
+	{ "hide_debug_menu", LuaEnvironment::LuaHideDebugMenu },
 	{ "set_advance_event", LuaEnvironment::LuaSetAdvanceEvent },
 	{ "set_joystick_connect_event", LuaEnvironment::LuaSetJoystickConnectEvent },
 	{ "set_joystick_disconnect_event", LuaEnvironment::LuaSetJoystickDisconnectEvent },
