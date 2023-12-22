@@ -4,9 +4,10 @@
 // the license text for Tangerine, and Tangerine's third party dependencies.
 
 #if 1
-if (ImGui::BeginTabItem("Tangerine"))
 {
-	const char* LicenseText = \
+	if (ImGui::BeginTabItem("Tangerine"))
+	{
+		const char* LicenseText = \
 		"Copyright © 2021-2022 Aeva Palecek\n"
 		"\n"
 		"                                 Apache License\n"
@@ -211,78 +212,17 @@ if (ImGui::BeginTabItem("Tangerine"))
 		"   See the License for the specific language governing permissions and\n"
 		"   limitations under the License.\n"
 		"\n";
-	ImGui::TextUnformatted(LicenseText, nullptr);
-	ImGui::EndTabItem();
+		ImGui::TextUnformatted(LicenseText, nullptr);
+		ImGui::EndTabItem();
+	}
 }
 #endif
 
 #if 1
-if (ImGui::BeginTabItem("ImFileDialog"))
 {
-	const char* LicenseText = \
-		"MIT License\n"
-		"\n"
-		"Copyright (c) 2021 dfranx\n"
-		"\n"
-		"Permission is hereby granted, free of charge, to any person obtaining a copy\n"
-		"of this software and associated documentation files (the \"Software\"), to deal\n"
-		"in the Software without restriction, including without limitation the rights\n"
-		"to use, copy, modify, merge, publish, distribute, sublicense, and/or sell\n"
-		"copies of the Software, and to permit persons to whom the Software is\n"
-		"furnished to do so, subject to the following conditions:\n"
-		"\n"
-		"The above copyright notice and this permission notice shall be included in all\n"
-		"copies or substantial portions of the Software.\n"
-		"\n"
-		"THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\n"
-		"IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\n"
-		"FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\n"
-		"AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\n"
-		"LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\n"
-		"OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE\n"
-		"SOFTWARE.\n"
-		"\n";
-	ImGui::TextUnformatted(LicenseText, nullptr);
-	ImGui::EndTabItem();
-}
-#endif
-
-#if 1
-if (ImGui::BeginTabItem("RmlUi"))
-{
-	const char* LicenseText = \
-		"MIT License\n"
-		"\n"
-		"Copyright (c) 2008-2014 CodePoint Ltd, Shift Technology Ltd, and contributors\n"
-		"Copyright (c) 2019-2023 The RmlUi Team, and contributors\n"
-		"\n"
-		"Permission is hereby granted, free of charge, to any person obtaining a copy\n"
-		"of this software and associated documentation files (the \"Software\"), to deal\n"
-		"in the Software without restriction, including without limitation the rights\n"
-		"to use, copy, modify, merge, publish, distribute, sublicense, and/or sell\n"
-		"copies of the Software, and to permit persons to whom the Software is\n"
-		"furnished to do so, subject to the following conditions:\n"
-		"\n"
-		"The above copyright notice and this permission notice shall be included in all\n"
-		"copies or substantial portions of the Software.\n"
-		"\n"
-		"THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\n"
-		"IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\n"
-		"FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\n"
-		"AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\n"
-		"LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\n"
-		"OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE\n"
-		"SOFTWARE.\n"
-		"\n";
-	ImGui::TextUnformatted(LicenseText, nullptr);
-	ImGui::EndTabItem();
-}
-#endif
-
-#if 1
-if (ImGui::BeginTabItem("atomic_queue"))
-{
-	const char* LicenseText = \
+	if (ImGui::BeginTabItem("atomic_queue"))
+	{
+		const char* LicenseText = \
 		"MIT License\n"
 		"\n"
 		"Copyright (c) 2019 Maxim Egorushkin\n"
@@ -305,15 +245,17 @@ if (ImGui::BeginTabItem("atomic_queue"))
 		"OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE\n"
 		"SOFTWARE.\n"
 		"\n";
-	ImGui::TextUnformatted(LicenseText, nullptr);
-	ImGui::EndTabItem();
+		ImGui::TextUnformatted(LicenseText, nullptr);
+		ImGui::EndTabItem();
+	}
 }
 #endif
 
 #if 1
-if (ImGui::BeginTabItem("fmt"))
 {
-	const char* LicenseText = \
+	if (ImGui::BeginTabItem("fmt"))
+	{
+		const char* LicenseText = \
 		"Copyright (c) 2012 - present, Victor Zverovich and {fmt} contributors\n"
 		"\n"
 		"Permission is hereby granted, free of charge, to any person obtaining\n"
@@ -342,15 +284,71 @@ if (ImGui::BeginTabItem("fmt"))
 		"source code, you may redistribute such embedded portions in such object form\n"
 		"without including the above copyright and permission notices.\n"
 		"\n";
-	ImGui::TextUnformatted(LicenseText, nullptr);
-	ImGui::EndTabItem();
+		ImGui::TextUnformatted(LicenseText, nullptr);
+		ImGui::EndTabItem();
+	}
 }
 #endif
 
-#if 1
-if (ImGui::BeginTabItem("freetype"))
+#if defined(ENABLE_RMLUI)
 {
-	const char* LicenseText = \
+	if (ImGui::BeginTabItem("freetype"))
+	{
+		const char* LicenseText = \
+		"FREETYPE LICENSES\n"
+		"-----------------\n"
+		"\n"
+		"The FreeType  2 font  engine is  copyrighted work  and cannot  be used\n"
+		"legally without  a software  license.  In order  to make  this project\n"
+		"usable to  a vast majority of  developers, we distribute it  under two\n"
+		"mutually exclusive open-source licenses.\n"
+		"\n"
+		"This means that *you* must choose  *one* of the two licenses described\n"
+		"below, then obey all its terms and conditions when using FreeType 2 in\n"
+		"any of your projects or products.\n"
+		"\n"
+		"  - The FreeType License,  found in the file  `docs/FTL.TXT`, which is\n"
+		"    similar to the  original BSD license *with*  an advertising clause\n"
+		"    that forces  you to explicitly  cite the FreeType project  in your\n"
+		"    product's  documentation.  All  details are  in the  license file.\n"
+		"    This license is suited to products which don't use the GNU General\n"
+		"    Public License.\n"
+		"\n"
+		"    Note that  this license  is compatible to  the GNU  General Public\n"
+		"    License version 3, but not version 2.\n"
+		"\n"
+		"  - The   GNU   General   Public   License   version   2,   found   in\n"
+		"    `docs/GPLv2.TXT`  (any  later  version  can  be  used  also),  for\n"
+		"    programs  which  already  use  the  GPL.  Note  that  the  FTL  is\n"
+		"    incompatible with GPLv2 due to its advertisement clause.\n"
+		"\n"
+		"The contributed  BDF and PCF  drivers come  with a license  similar to\n"
+		"that  of the  X Window  System.   It is  compatible to  the above  two\n"
+		"licenses (see files `src/bdf/README`  and `src/pcf/README`).  The same\n"
+		"holds   for   the   source    code   files   `src/base/fthash.c`   and\n"
+		"`include/freetype/internal/fthash.h`; they wer part  of the BDF driver\n"
+		"in earlier FreeType versions.\n"
+		"\n"
+		"The gzip  module uses the  zlib license (see  `src/gzip/zlib.h`) which\n"
+		"too is compatible to the above two licenses.\n"
+		"\n"
+		"The  MD5 checksum  support  (only used  for  debugging in  development\n"
+		"builds) is in the public domain.\n"
+		"\n"
+		"\n"
+		"--- end of LICENSE.TXT ---\n"
+		"\n";
+		ImGui::TextUnformatted(LicenseText, nullptr);
+		ImGui::EndTabItem();
+	}
+}
+#endif
+
+#if defined(ENABLE_RMLUI)
+{
+	if (ImGui::BeginTabItem("freetype"))
+	{
+		const char* LicenseText = \
 		"                    The FreeType Project LICENSE\n"
 		"                    ----------------------------\n"
 		"\n"
@@ -521,67 +519,17 @@ if (ImGui::BeginTabItem("freetype"))
 		"\n"
 		"--- end of FTL.TXT ---\n"
 		"\n";
-	ImGui::TextUnformatted(LicenseText, nullptr);
-	ImGui::EndTabItem();
+		ImGui::TextUnformatted(LicenseText, nullptr);
+		ImGui::EndTabItem();
+	}
 }
 #endif
 
 #if 1
-if (ImGui::BeginTabItem("freetype"))
 {
-	const char* LicenseText = \
-		"FREETYPE LICENSES\n"
-		"-----------------\n"
-		"\n"
-		"The FreeType  2 font  engine is  copyrighted work  and cannot  be used\n"
-		"legally without  a software  license.  In order  to make  this project\n"
-		"usable to  a vast majority of  developers, we distribute it  under two\n"
-		"mutually exclusive open-source licenses.\n"
-		"\n"
-		"This means that *you* must choose  *one* of the two licenses described\n"
-		"below, then obey all its terms and conditions when using FreeType 2 in\n"
-		"any of your projects or products.\n"
-		"\n"
-		"  - The FreeType License,  found in the file  `docs/FTL.TXT`, which is\n"
-		"    similar to the  original BSD license *with*  an advertising clause\n"
-		"    that forces  you to explicitly  cite the FreeType project  in your\n"
-		"    product's  documentation.  All  details are  in the  license file.\n"
-		"    This license is suited to products which don't use the GNU General\n"
-		"    Public License.\n"
-		"\n"
-		"    Note that  this license  is compatible to  the GNU  General Public\n"
-		"    License version 3, but not version 2.\n"
-		"\n"
-		"  - The   GNU   General   Public   License   version   2,   found   in\n"
-		"    `docs/GPLv2.TXT`  (any  later  version  can  be  used  also),  for\n"
-		"    programs  which  already  use  the  GPL.  Note  that  the  FTL  is\n"
-		"    incompatible with GPLv2 due to its advertisement clause.\n"
-		"\n"
-		"The contributed  BDF and PCF  drivers come  with a license  similar to\n"
-		"that  of the  X Window  System.   It is  compatible to  the above  two\n"
-		"licenses (see files `src/bdf/README`  and `src/pcf/README`).  The same\n"
-		"holds   for   the   source    code   files   `src/base/fthash.c`   and\n"
-		"`include/freetype/internal/fthash.h`; they wer part  of the BDF driver\n"
-		"in earlier FreeType versions.\n"
-		"\n"
-		"The gzip  module uses the  zlib license (see  `src/gzip/zlib.h`) which\n"
-		"too is compatible to the above two licenses.\n"
-		"\n"
-		"The  MD5 checksum  support  (only used  for  debugging in  development\n"
-		"builds) is in the public domain.\n"
-		"\n"
-		"\n"
-		"--- end of LICENSE.TXT ---\n"
-		"\n";
-	ImGui::TextUnformatted(LicenseText, nullptr);
-	ImGui::EndTabItem();
-}
-#endif
-
-#if 1
-if (ImGui::BeginTabItem("glm-0.9.9.8"))
-{
-	const char* LicenseText = \
+	if (ImGui::BeginTabItem("glm-0.9.9.8"))
+	{
+		const char* LicenseText = \
 		"================================================================================\n"
 		"OpenGL Mathematics (GLM)\n"
 		"--------------------------------------------------------------------------------\n"
@@ -637,15 +585,50 @@ if (ImGui::BeginTabItem("glm-0.9.9.8"))
 		"OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN\n"
 		"THE SOFTWARE.\n"
 		"\n";
-	ImGui::TextUnformatted(LicenseText, nullptr);
-	ImGui::EndTabItem();
+		ImGui::TextUnformatted(LicenseText, nullptr);
+		ImGui::EndTabItem();
+	}
 }
 #endif
 
 #if 1
-if (ImGui::BeginTabItem("imgui"))
 {
-	const char* LicenseText = \
+	if (ImGui::BeginTabItem("ImFileDialog"))
+	{
+		const char* LicenseText = \
+		"MIT License\n"
+		"\n"
+		"Copyright (c) 2021 dfranx\n"
+		"\n"
+		"Permission is hereby granted, free of charge, to any person obtaining a copy\n"
+		"of this software and associated documentation files (the \"Software\"), to deal\n"
+		"in the Software without restriction, including without limitation the rights\n"
+		"to use, copy, modify, merge, publish, distribute, sublicense, and/or sell\n"
+		"copies of the Software, and to permit persons to whom the Software is\n"
+		"furnished to do so, subject to the following conditions:\n"
+		"\n"
+		"The above copyright notice and this permission notice shall be included in all\n"
+		"copies or substantial portions of the Software.\n"
+		"\n"
+		"THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\n"
+		"IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\n"
+		"FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\n"
+		"AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\n"
+		"LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\n"
+		"OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE\n"
+		"SOFTWARE.\n"
+		"\n";
+		ImGui::TextUnformatted(LicenseText, nullptr);
+		ImGui::EndTabItem();
+	}
+}
+#endif
+
+#if 1
+{
+	if (ImGui::BeginTabItem("imgui"))
+	{
+		const char* LicenseText = \
 		"The MIT License (MIT)\n"
 		"\n"
 		"Copyright (c) 2014-2021 Omar Cornut\n"
@@ -668,15 +651,17 @@ if (ImGui::BeginTabItem("imgui"))
 		"OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE\n"
 		"SOFTWARE.\n"
 		"\n";
-	ImGui::TextUnformatted(LicenseText, nullptr);
-	ImGui::EndTabItem();
+		ImGui::TextUnformatted(LicenseText, nullptr);
+		ImGui::EndTabItem();
+	}
 }
 #endif
 
 #if EMBED_LUA
-if (ImGui::BeginTabItem("lua-5.4.4"))
 {
-	const char* LicenseText = \
+	if (ImGui::BeginTabItem("lua-5.4.4"))
+	{
+		const char* LicenseText = \
 		"Copyright © 1994–2021 Lua.org, PUC-Rio.\n"
 		"\n"
 		"Permission is hereby granted, free of charge, to any person obtaining\n"
@@ -697,15 +682,17 @@ if (ImGui::BeginTabItem("lua-5.4.4"))
 		"LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION\n"
 		"OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION\n"
 		"WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.\n";
-	ImGui::TextUnformatted(LicenseText, nullptr);
-	ImGui::EndTabItem();
+		ImGui::TextUnformatted(LicenseText, nullptr);
+		ImGui::EndTabItem();
+	}
 }
 #endif
 
 #if 1
-if (ImGui::BeginTabItem("naive-surface-nets"))
 {
-	const char* LicenseText = \
+	if (ImGui::BeginTabItem("naive-surface-nets"))
+	{
+		const char* LicenseText = \
 		"MIT License\n"
 		"\n"
 		"Copyright (c) 2020 Quoc-Minh Ton-That\n"
@@ -728,15 +715,18 @@ if (ImGui::BeginTabItem("naive-surface-nets"))
 		"OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE\n"
 		"SOFTWARE.\n"
 		"\n";
-	ImGui::TextUnformatted(LicenseText, nullptr);
-	ImGui::EndTabItem();
+		ImGui::TextUnformatted(LicenseText, nullptr);
+		ImGui::EndTabItem();
+	}
 }
 #endif
 
 #if ENABLE_PSMOVE_BINDINGS
-if (PSMoveAvailable() && ImGui::BeginTabItem("psmove"))
+if (PSMoveAvailable())
 {
-	const char* LicenseText = \
+	if (ImGui::BeginTabItem("psmove"))
+	{
+		const char* LicenseText = \
 		"\n"
 		"The PS Move API library is licensed under the terms of the license below.\n"
 		"However, some optional third party libraries might have a different license.\n"
@@ -770,25 +760,63 @@ if (PSMoveAvailable() && ImGui::BeginTabItem("psmove"))
 		"POSSIBILITY OF SUCH DAMAGE.\n"
 		"\n"
 		"\n";
-	ImGui::TextUnformatted(LicenseText, nullptr);
-	ImGui::EndTabItem();
+		ImGui::TextUnformatted(LicenseText, nullptr);
+		ImGui::EndTabItem();
+	}
 }
 #endif
 
 #if EMBED_RACKET
-if (ImGui::BeginTabItem("racket"))
 {
-	const char* LicenseText = \
+	if (ImGui::BeginTabItem("racket"))
+	{
+		const char* LicenseText = \
 		"\n";
-	ImGui::TextUnformatted(LicenseText, nullptr);
-	ImGui::EndTabItem();
+		ImGui::TextUnformatted(LicenseText, nullptr);
+		ImGui::EndTabItem();
+	}
+}
+#endif
+
+#if defined(ENABLE_RMLUI)
+{
+	if (ImGui::BeginTabItem("RmlUi"))
+	{
+		const char* LicenseText = \
+		"MIT License\n"
+		"\n"
+		"Copyright (c) 2008-2014 CodePoint Ltd, Shift Technology Ltd, and contributors\n"
+		"Copyright (c) 2019-2023 The RmlUi Team, and contributors\n"
+		"\n"
+		"Permission is hereby granted, free of charge, to any person obtaining a copy\n"
+		"of this software and associated documentation files (the \"Software\"), to deal\n"
+		"in the Software without restriction, including without limitation the rights\n"
+		"to use, copy, modify, merge, publish, distribute, sublicense, and/or sell\n"
+		"copies of the Software, and to permit persons to whom the Software is\n"
+		"furnished to do so, subject to the following conditions:\n"
+		"\n"
+		"The above copyright notice and this permission notice shall be included in all\n"
+		"copies or substantial portions of the Software.\n"
+		"\n"
+		"THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\n"
+		"IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\n"
+		"FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\n"
+		"AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\n"
+		"LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\n"
+		"OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE\n"
+		"SOFTWARE.\n"
+		"\n";
+		ImGui::TextUnformatted(LicenseText, nullptr);
+		ImGui::EndTabItem();
+	}
 }
 #endif
 
 #if 1
-if (ImGui::BeginTabItem("sdl2"))
 {
-	const char* LicenseText = \
+	if (ImGui::BeginTabItem("sdl2"))
+	{
+		const char* LicenseText = \
 		"\n"
 		"Simple DirectMedia Layer\n"
 		"Copyright (C) 1997-2020 Sam Lantinga <slouken@libsdl.org>\n"
@@ -810,15 +838,17 @@ if (ImGui::BeginTabItem("sdl2"))
 		"3. This notice may not be removed or altered from any source distribution.\n"
 		"\n"
 		"\n";
-	ImGui::TextUnformatted(LicenseText, nullptr);
-	ImGui::EndTabItem();
+		ImGui::TextUnformatted(LicenseText, nullptr);
+		ImGui::EndTabItem();
+	}
 }
 #endif
 
 #if 1
-if (ImGui::BeginTabItem("stb"))
 {
-	const char* LicenseText = \
+	if (ImGui::BeginTabItem("stb"))
+	{
+		const char* LicenseText = \
 		"This software is available under 2 licenses -- choose whichever you prefer.\n"
 		"------------------------------------------------------------------------------\n"
 		"ALTERNATIVE A - MIT License\n"
@@ -857,15 +887,17 @@ if (ImGui::BeginTabItem("stb"))
 		"ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION\n"
 		"WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.\n"
 		"\n";
-	ImGui::TextUnformatted(LicenseText, nullptr);
-	ImGui::EndTabItem();
+		ImGui::TextUnformatted(LicenseText, nullptr);
+		ImGui::EndTabItem();
+	}
 }
 #endif
 
 #if 1
-if (ImGui::BeginTabItem("voxwriter"))
 {
-	const char* LicenseText = \
+	if (ImGui::BeginTabItem("voxwriter"))
+	{
+		const char* LicenseText = \
 		"MIT License\n"
 		"\n"
 		"Copyright (c) 2018 Aiekick\n"
@@ -888,15 +920,17 @@ if (ImGui::BeginTabItem("voxwriter"))
 		"OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE\n"
 		"SOFTWARE.\n"
 		"\n";
-	ImGui::TextUnformatted(LicenseText, nullptr);
-	ImGui::EndTabItem();
+		ImGui::TextUnformatted(LicenseText, nullptr);
+		ImGui::EndTabItem();
+	}
 }
 #endif
 
 #if 1
-if (ImGui::BeginTabItem("whereami"))
 {
-	const char* LicenseText = \
+	if (ImGui::BeginTabItem("whereami"))
+	{
+		const char* LicenseText = \
 		"MIT License\n"
 		"\n"
 		"Copyright Gregory Pakosz\n"
@@ -918,15 +952,17 @@ if (ImGui::BeginTabItem("whereami"))
 		"IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN\n"
 		"CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.\n"
 		"\n";
-	ImGui::TextUnformatted(LicenseText, nullptr);
-	ImGui::EndTabItem();
+		ImGui::TextUnformatted(LicenseText, nullptr);
+		ImGui::EndTabItem();
+	}
 }
 #endif
 
 #if 1
-if (ImGui::BeginTabItem("whereami"))
 {
-	const char* LicenseText = \
+	if (ImGui::BeginTabItem("whereami"))
+	{
+		const char* LicenseText = \
 		"--------------------------------------------------------------------------------\n"
 		"        DO WHAT THE FUCK YOU WANT TO PUBLIC LICENSE\n"
 		"                    Version 2, December 2004\n"
@@ -953,7 +989,8 @@ if (ImGui::BeginTabItem("whereami"))
 		"\n"
 		"--------------------------------------------------------------------------------\n"
 		"\n";
-	ImGui::TextUnformatted(LicenseText, nullptr);
-	ImGui::EndTabItem();
+		ImGui::TextUnformatted(LicenseText, nullptr);
+		ImGui::EndTabItem();
+	}
 }
 #endif

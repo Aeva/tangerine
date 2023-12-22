@@ -15,6 +15,8 @@
 
 #include <imgui.h>
 #include "license_page.h"
+#include "embedding.h"
+#include "psmove_loader.h"
 
 
 void LicenseDisclosuresWindow(bool& ShowLicenses)
@@ -39,6 +41,7 @@ void LicenseDisclosuresWindow(bool& ShowLicenses)
 			if (ImGui::BeginTabBar("Open Source Licenses", TabBarFlags))
 			{
 #include "../third_party/licenses.inl"
+				ImGui::EndTabBar();
 			}
 		}
 		ImGui::End();

@@ -2,6 +2,7 @@
 // FORKED FROM third_party/RmlUi-5.1-win64/Backends/RmlUi_Renderer_GL3.cpp
 //  - Remove RmlUI's bundled Glad implementation
 //  - Remove explicit clearing and ability to change clear color
+//  - Added a preprocessor define to make building with RmlUi optional
 // -----------------------------------------------------------------------
 
 /*
@@ -31,6 +32,8 @@
  * THE SOFTWARE.
  *
  */
+
+#ifdef ENABLE_RMLUI
 
 #include "RmlUi_Renderer_GL3.h"
 #include <RmlUi/Core/Core.h>
@@ -802,3 +805,5 @@ void RmlGL3::Shutdown()
 	//gladLoaderUnloadGL();
 #endif
 }
+
+#endif // ENABLE_RMLUI
