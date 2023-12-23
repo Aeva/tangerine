@@ -45,8 +45,6 @@ enum class VisibilityStates : int
 };
 
 
-extern std::atomic<Clock::time_point> LastSceneRepaintRequest;
-
 void FlagSceneRepaint();
 void PostPendingRepaintRequest();
 
@@ -108,7 +106,7 @@ struct InstanceColoringGroup
 	std::mutex ColorCS;
 	std::vector<glm::vec4> Colors;
 
-	Clock::time_point LastRepaint;
+	uint64_t LastRepaint;
 
 	InstanceColoringGroup(MaterialVertexGroup* InVertexGroup, size_t InIndexStart, size_t InIndexRange)
 		: VertexGroup(InVertexGroup)
@@ -117,15 +115,7 @@ struct InstanceColoringGroup
 	{
 	}
 
-	inline bool StartRepaint()
-	{
-		const bool ColorIsCurrent = LastRepaint > LastSceneRepaintRequest.load();
-		if (!ColorIsCurrent)
-		{
-			LastRepaint = Clock::now();
-		}
-		return ColorIsCurrent;
-	}
+	bool StartRepaint();
 };
 
 using InstanceColoringGroupUnique = std::unique_ptr<InstanceColoringGroup>;

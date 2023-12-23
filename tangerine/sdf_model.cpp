@@ -21,8 +21,11 @@
 #include <fmt/format.h>
 
 
-std::atomic<Clock::time_point> LastSceneRepaintRequest;
-static bool RepaintRequested = false;
+namespace
+{
+	std::atomic<uint64_t> RepaintFence = 1;
+	bool RepaintRequested = false;
+}
 
 
 void FlagSceneRepaint()
@@ -35,9 +38,21 @@ void PostPendingRepaintRequest()
 {
 	if (RepaintRequested)
 	{
+		RepaintFence.fetch_add(1);
 		RepaintRequested = false;
-		LastSceneRepaintRequest.store(Clock::now());
 	}
+}
+
+
+bool InstanceColoringGroup::StartRepaint()
+{
+	const uint64_t CurrentFence = ::RepaintFence.load();
+	const bool ColorIsCurrent = LastRepaint == CurrentFence;
+	if (!ColorIsCurrent)
+	{
+		LastRepaint = CurrentFence;
+	}
+	return ColorIsCurrent;
 }
 
 
