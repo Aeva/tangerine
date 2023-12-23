@@ -192,6 +192,24 @@ int LuaEnvironment::LuaPushMeshingDensity(lua_State* L)
 }
 
 
+int LuaEnvironment::LuaSetConvergenceHint(struct lua_State* L)
+{
+	LuaEnvironment* Env = GetScriptEnvironment(L);
+	const char* Hint = luaL_checklstring(L, 1, nullptr);
+
+	if (strcmp(Hint, "serendipity") == 0 || strcmp(Hint, "fastest") == 0)
+	{
+		Env->VertexOrderHint = VertexSequence::Serendipity;
+	}
+	else if (strcmp(Hint, "shuffle") == 0 || strcmp(Hint, "diffuse") == 0)
+	{
+		Env->VertexOrderHint = VertexSequence::Shuffle;
+	}
+
+	return 0;
+}
+
+
 int LuaSetInternalExportGrid(lua_State* L)
 {
 	double Multiplier = (double)luaL_checknumber(L, 1);
@@ -233,6 +251,7 @@ const luaL_Reg LuaEnvReg[] = \
 	{ "set_joystick_axis_event", LuaEnvironment::LuaSetJoystickAxisEvent },
 	{ "set_joystick_button_event", LuaEnvironment::LuaSetJoystickButtonEvent },
 	{ "push_meshing_density", LuaEnvironment::LuaPushMeshingDensity },
+	{ "set_convergence_hint", LuaEnvironment::LuaSetConvergenceHint },
 	{ "set_internal_export_grid", LuaSetInternalExportGrid },
 	{ "set_external_export_grid", LuaSetExternalExportGrid },
 	{ NULL, NULL }

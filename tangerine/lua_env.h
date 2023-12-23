@@ -31,6 +31,7 @@ struct LuaEnvironment : public ScriptEnvironment
 	struct lua_State* L = nullptr;
 	std::string Name = "";
 	float MeshingDensityPush = 0.0;
+	VertexSequence VertexOrderHint = VertexSequence::Shuffle;
 	bool GarbageCollectionRequested = false;
 	LuaRandomGeneratorT RandomNumberGenerator = LuaRandomGeneratorT();
 
@@ -64,6 +65,7 @@ struct LuaEnvironment : public ScriptEnvironment
 	static int LuaSetJoystickAxisEvent(struct lua_State* L);
 	static int LuaSetJoystickButtonEvent(struct lua_State* L);
 	static int LuaPushMeshingDensity(struct lua_State* L);
+	static int LuaSetConvergenceHint(struct lua_State* L);
 
 	bool HandleError(int Error);
 

@@ -802,7 +802,7 @@ const luaL_Reg LuaSDFMeta[] = \
 
 
 LuaModel::LuaModel(lua_State* L, LuaEnvironment* InEnv, SDFNodeShared& InEvaluator, const std::string& InName, const float VoxelSize)
-	: SDFModel(InEvaluator, InName, VoxelSize, InEnv->MeshingDensityPush)
+	: SDFModel(InEvaluator, InName, VoxelSize, InEnv->MeshingDensityPush, InEnv->VertexOrderHint)
 	, Env(InEnv)
 {
 	for (int i = 0; i < MOUSE_EVENTS; ++i)

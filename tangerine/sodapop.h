@@ -32,6 +32,16 @@ enum class MeshingAlgorithms
 };
 
 
+enum class VertexSequence : int
+{
+	// The vertex sequence is non-deterministic.
+	Serendipity = 0,
+
+	// Vertices are shuffled in memory after meshing.
+	Shuffle,
+};
+
+
 enum class MaterialOverride
 {
 	Off,

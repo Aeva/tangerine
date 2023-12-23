@@ -311,7 +311,7 @@ RayHit SDFModel::RayMarch(glm::vec3 RayStart, glm::vec3 RayDir, int MaxIteration
 }
 
 
-SDFModel::SDFModel(SDFNodeShared& InEvaluator, const std::string& InName, const float VoxelSize, const float MeshingDensityPush)
+SDFModel::SDFModel(SDFNodeShared& InEvaluator, const std::string& InName, const float VoxelSize, const float MeshingDensityPush, const VertexSequence VertexOrderHint)
 {
 	Evaluator = nullptr;
 
@@ -373,9 +373,9 @@ void SDFModel::RegisterNewModel(SDFModelShared& NewModel)
 }
 
 
-SDFModelShared SDFModel::Create(SDFNodeShared& InEvaluator, const std::string& InName, const float VoxelSize, const float MeshingDensityOffsetRequest)
+SDFModelShared SDFModel::Create(SDFNodeShared& InEvaluator, const std::string& InName, const float VoxelSize, const float MeshingDensityOffsetRequest, const VertexSequence VertexOrderHint)
 {
-	SDFModelShared NewModel(new SDFModel(InEvaluator, InName, VoxelSize, MeshingDensityOffsetRequest));
+	SDFModelShared NewModel(new SDFModel(InEvaluator, InName, VoxelSize, MeshingDensityOffsetRequest, VertexOrderHint));
 	SDFModel::RegisterNewModel(NewModel);
 	return NewModel;
 }

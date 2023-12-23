@@ -70,6 +70,7 @@ struct Drawable
 	bool MeshAvailable = false;
 	bool MeshUploaded = false;
 
+	VertexSequence VertexOrderHint = VertexSequence::Shuffle;
 	MeshingAlgorithms MeshingAlgorithm = MeshingAlgorithms::NaiveSurfaceNets;
 
 	// These are populated during the meshing process, but may be safely used after the mesh is ready.
@@ -162,7 +163,9 @@ struct SDFModel
 
 	RayHit RayMarch(glm::vec3 RayStart, glm::vec3 RayDir, int MaxIterations = 1000, float Epsilon = 0.001);
 
-	static SDFModelShared Create(SDFNodeShared& InEvaluator, const std::string& InName, const float VoxelSize = 0.25, const float MeshingDensityPush = 0.0);
+	static SDFModelShared Create(SDFNodeShared& InEvaluator, const std::string& InName,
+		const float VoxelSize = 0.25, const float MeshingDensityPush = 0.0, const VertexSequence VertexOrderHint = VertexSequence::Shuffle);
+
 	SDFModel(SDFModel&& Other) = delete;
 	virtual ~SDFModel();
 
@@ -170,7 +173,7 @@ struct SDFModel
 
 protected:
 	static void RegisterNewModel(SDFModelShared& NewModel);
-	SDFModel(SDFNodeShared& InEvaluator, const std::string& InName, const float VoxelSize, const float MeshingDensityPush);
+	SDFModel(SDFNodeShared& InEvaluator, const std::string& InName, const float VoxelSize, const float MeshingDensityPush, const VertexSequence VertexOrderHint);
 };
 
 

@@ -27,6 +27,8 @@
 #include <atomic>
 #include <mutex>
 #include <set>
+#include <random>
+#include <algorithm>
 
 
 #define USE_GRADIENT_NORMALS 1
@@ -550,6 +552,73 @@ namespace
 }
 
 
+template<bool NormalsPopulated, bool ColorsPopluated>
+void ApplyVertexSequence(DrawableShared& Painter)
+{
+	if (Painter->VertexOrderHint == VertexSequence::Shuffle)
+	{
+		std::vector<size_t> Sequence;
+
+		size_t HalfPoint = Painter->Positions.size() / 2;
+		size_t MirrorPoint;
+		if ((Painter->Positions.size() % 2) == 0)
+		{
+			MirrorPoint = HalfPoint;
+		}
+		else
+		{
+			MirrorPoint = HalfPoint + 1;
+		}
+
+		Sequence.reserve(MirrorPoint);
+
+		for (size_t SwapIndex = 0; SwapIndex < HalfPoint; ++SwapIndex)
+		{
+			Sequence.push_back(MirrorPoint + SwapIndex);
+		}
+
+		std::random_device RandomDevice;
+		std::mt19937 RandomGenerator(RandomDevice());
+		RandomGenerator.seed(0);
+		std::shuffle(Sequence.begin(), Sequence.end(), RandomGenerator);
+
+		if (MirrorPoint != HalfPoint)
+		{
+			Sequence.push_back(HalfPoint);
+		}
+
+		std::vector<size_t> Exchange;
+		Exchange.resize(Painter->Positions.size(), -1);
+
+		for (size_t TargetIndex = 0; TargetIndex < Sequence.size(); ++TargetIndex)
+		{
+			size_t SwapIndex = Sequence[TargetIndex];
+			Assert(TargetIndex != SwapIndex || TargetIndex == HalfPoint);
+
+			Exchange[TargetIndex] = SwapIndex;
+			Exchange[SwapIndex] = TargetIndex;
+
+			std::swap(Painter->Positions[TargetIndex], Painter->Positions[SwapIndex]);
+
+			if (NormalsPopulated)
+			{
+				std::swap(Painter->Normals[TargetIndex], Painter->Normals[SwapIndex]);
+			}
+
+			if (ColorsPopluated)
+			{
+				std::swap(Painter->Colors[TargetIndex], Painter->Colors[SwapIndex]);
+			}
+		}
+
+		for (size_t IndexIndex = 0; IndexIndex < Painter->Indices.size(); ++IndexIndex)
+		{
+			Painter->Indices[IndexIndex] = Exchange[Painter->Indices[IndexIndex]];
+		}
+	}
+}
+
+
 void MeshingJob::DebugOctree(DrawableShared& Painter, SDFOctreeShared& Evaluator)
 {
 	ParallelTaskChain* MeshingOctreeTask;
@@ -615,6 +684,7 @@ void MeshingJob::DebugOctree(DrawableShared& Painter, SDFOctreeShared& Evaluator
 
 		TaskT::DoneThunkT DoneThunk = [](DrawableShared& Painter, SDFOctreeShared& Evaluator)
 		{
+			ApplyVertexSequence<true, false>(Painter);
 		};
 
 		OctreeMeshDataTask = new TaskT("Populate Octree Mesh Data", Painter, Evaluator, BootThunk, LoopThunk, DoneThunk);
@@ -884,6 +954,11 @@ void MeshingJob::NaiveSurfaceNets(DrawableShared& Painter, SDFOctreeShared& Eval
 
 		TaskT::DoneThunkT DoneThunk = [](DrawableShared& Painter, SDFOctreeShared& Evaluator)
 		{
+#if USE_GRADIENT_NORMALS
+			ApplyVertexSequence<true, false>(Painter);
+#else
+			ApplyVertexSequence<false, false>(Painter);
+#endif
 		};
 
 		MeshingNormalLoopTask = new TaskT("Normal Loop", Painter, Evaluator, Painter->Scratch->OutputMesh.faces_, LoopThunk, DoneThunk);
