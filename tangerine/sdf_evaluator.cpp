@@ -29,7 +29,6 @@
 
 using namespace glm;
 using namespace std::placeholders;
-using Clock = std::chrono::high_resolution_clock;
 
 
 MaterialShared GetDefaultMaterial()
@@ -1923,7 +1922,6 @@ void SDFOctree::Walk(SDFOctree::CallbackType& Callback)
 
 float SDFOctree::Eval(glm::vec3 Point, const bool Exact)
 {
-	Clock::time_point EvalStart = Clock::now();
 	float Distance;
 	{
 #if 0

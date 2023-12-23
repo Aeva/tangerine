@@ -91,7 +91,7 @@ Rml::ElementDocument* RmlUiDocument = nullptr;
 #define max(a, b) (a > b ? a : b)
 
 
-static std::atomic<uint64_t> AtomicFrameNumber;
+static std::atomic<uint64_t> AtomicFrameNumber = 0;
 uint64_t GetFrameNumber()
 {
 	return AtomicFrameNumber.load();
@@ -1113,7 +1113,7 @@ void RenderUI(SDL_Window* Window, bool& Live)
 #endif
 
 	static bool ShowFocusOverlay = false;
-	static bool ShowReadyDelays = false;
+	static bool ShowMeshingStats = false;
 
 	static bool ShowExportOptions = false;
 	static float ExportStepSize;
@@ -1221,7 +1221,7 @@ void RenderUI(SDL_Window* Window, bool& Live)
 			if (ImGui::MenuItem("Performance Stats", nullptr, &ShowStatsOverlay))
 			{
 			}
-			if (ImGui::MenuItem("Meshing Stats", nullptr, &ShowReadyDelays))
+			if (ImGui::MenuItem("Meshing Stats", nullptr, &ShowMeshingStats))
 			{
 			}
 			ImGui::EndMenu();
@@ -1418,7 +1418,7 @@ void RenderUI(SDL_Window* Window, bool& Live)
 	std::vector<SDFModelWeakRef>& LiveModels = GetLiveModels();
 
 	std::vector<std::pair<size_t, DrawableWeakRef>>& DrawableCache = GetDrawableCache();
-	if (ShowReadyDelays && DrawableCache.size() > 0)
+	if (ShowMeshingStats && DrawableCache.size() > 0)
 	{
 		ImGuiWindowFlags WindowFlags = \
 			ImGuiWindowFlags_HorizontalScrollbar |
@@ -1428,7 +1428,7 @@ void RenderUI(SDL_Window* Window, bool& Live)
 		ImGui::SetNextWindowPos(ImVec2(10.0, 32.0), ImGuiCond_Appearing, ImVec2(0.0, 0.0));
 		ImGui::SetNextWindowSize(ImVec2(256, 512), ImGuiCond_Appearing);
 
-		if (ImGui::Begin("Meshing Stats", &ShowReadyDelays, WindowFlags))
+		if (ImGui::Begin("Meshing Stats", &ShowMeshingStats, WindowFlags))
 		{
 			for (std::pair<size_t, DrawableWeakRef> Cached : DrawableCache)
 			{
@@ -1440,7 +1440,7 @@ void RenderUI(SDL_Window* Window, bool& Live)
 						std::string Message = fmt::format("READY: {}", Painter->Name);
 						ImGui::TextUnformatted(Message.c_str(), nullptr);
 
-						Message = fmt::format(" - Elapsed time: {} ms", Painter->ReadyDelay.count());
+						Message = fmt::format(" - Latency: {} frame(s)", Painter->MeshingFrameLatency);
 						ImGui::TextUnformatted(Message.c_str(), nullptr);
 					}
 					else

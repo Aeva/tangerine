@@ -18,6 +18,7 @@
 #include "errors.h"
 #include "scheduler.h"
 #include "profiling.h"
+#include "tangerine.h"
 #include "sdf_model.h"
 #include "material.h"
 #include <fmt/format.h>
@@ -475,7 +476,7 @@ void MeshingJob::Run()
 	{
 		Assert(!Evaluator->Bounds.Degenerate());
 		Assert(Evaluator->Bounds.Volume() > 0);
-		Painter->MeshingStart = Clock::now();
+		Painter->MeshingFrameStart = GetFrameNumber();
 
 		switch (Painter->MeshingAlgorithm)
 		{
@@ -502,8 +503,8 @@ void MeshingComplete::Done()
 	{
 		ProfileScope MeshingJobRun("MeshingComplete::Done");
 
-		Painter->MeshingComplete = Clock::now();
-		Painter->ReadyDelay = Painter->MeshingComplete - Painter->MeshingStart;
+		Painter->MeshingFrameComplete = GetFrameNumber();
+		Painter->MeshingFrameLatency = Painter->MeshingFrameComplete - Painter->MeshingFrameStart;
 
 		MeshReady(Painter);
 	}

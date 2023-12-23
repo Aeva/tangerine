@@ -285,7 +285,7 @@ bool DeliverMouseScroll(glm::vec3 Origin, glm::vec3 RayDir, int ScrollX, int Scr
 
 Drawable::Drawable(const std::string& InName, SDFNodeShared& InEvaluator)
 {
-	ReadyDelay = std::chrono::duration<double, std::milli>::zero();
+	MeshingFrameLatency = 0;
 	Name = InName;
 	Evaluator = InEvaluator;
 

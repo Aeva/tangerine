@@ -27,10 +27,8 @@
 #include <mutex>
 
 #include <string>
-#include <chrono>
 #include <map>
 
-using Clock = std::chrono::high_resolution_clock;
 
 struct SDFModel;
 using SDFModelShared = std::shared_ptr<SDFModel>;
@@ -77,9 +75,9 @@ struct Drawable
 	std::mutex MaterialSlotsCS;
 	std::map<MaterialShared, size_t> SlotLookup;
 
-	Clock::time_point MeshingStart;
-	Clock::time_point MeshingComplete;
-	std::chrono::duration<double, std::milli> ReadyDelay;
+	uint64_t MeshingFrameStart = 0;
+	uint64_t MeshingFrameComplete = 0;
+	uint64_t MeshingFrameLatency = 0;
 
 	Drawable(const std::string& InName, SDFNodeShared& InEvaluator);
 
