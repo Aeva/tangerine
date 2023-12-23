@@ -17,6 +17,7 @@
 #include <functional>
 #include "sdf_evaluator.h"
 
+uint64_t GetFrameNumber();
 void PostScriptError(std::string ErrorMessage);
 void LoadModelCommon(std::function<void()> LoadingCallback);
 void SetWindowTitle(std::string Title);

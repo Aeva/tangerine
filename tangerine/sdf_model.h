@@ -106,7 +106,7 @@ struct InstanceColoringGroup
 	std::mutex ColorCS;
 	std::vector<glm::vec4> Colors;
 
-	uint64_t LastRepaint;
+	uint64_t LastRepaint = 0;
 
 	InstanceColoringGroup(MaterialVertexGroup* InVertexGroup, size_t InIndexStart, size_t InIndexRange)
 		: VertexGroup(InVertexGroup)

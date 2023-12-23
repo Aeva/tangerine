@@ -91,7 +91,11 @@ Rml::ElementDocument* RmlUiDocument = nullptr;
 #define max(a, b) (a > b ? a : b)
 
 
-using Clock = std::chrono::high_resolution_clock;
+static std::atomic<uint64_t> AtomicFrameNumber;
+uint64_t GetFrameNumber()
+{
+	return AtomicFrameNumber.load();
+}
 
 
 bool HeadlessMode;
@@ -480,12 +484,12 @@ void RenderFrameES2(int ScreenWidth, int ScreenHeight, std::vector<SDFModelWeakR
 void RenderFrame(int ScreenWidth, int ScreenHeight, std::vector<SDFModelWeakRef>& RenderableModels, ViewInfoUpload& UploadedView, bool FullRedraw = true)
 {
 	BeginEvent("RenderFrame");
-	Clock::time_point FrameStartTimePoint = Clock::now();
+	ProfilingTimePoint FrameStartTimePoint = ProfilingClock::now();
 
 	double CurrentTime;
 	{
-		static Clock::time_point StartTimePoint = FrameStartTimePoint;
-		static Clock::time_point LastTimePoint = StartTimePoint;
+		static ProfilingTimePoint StartTimePoint = FrameStartTimePoint;
+		static ProfilingTimePoint LastTimePoint = StartTimePoint;
 		{
 			std::chrono::duration<double, std::milli> FrameDelta = FrameStartTimePoint - LastTimePoint;
 			PresentDeltaMs = float(FrameDelta.count());
@@ -614,7 +618,7 @@ void RenderFrame(int ScreenWidth, int ScreenHeight, std::vector<SDFModelWeakRef>
 	PostPendingRepaintRequest();
 
 	{
-		std::chrono::duration<double, std::milli> InnerFrameDelta = Clock::now() - FrameStartTimePoint;
+		std::chrono::duration<double, std::milli> InnerFrameDelta = ProfilingClock::now() - FrameStartTimePoint;
 		LastInnerFrameDeltaMs = float(InnerFrameDelta.count());
 	}
 
@@ -653,7 +657,7 @@ void RenderFrameGL4(int ScreenWidth, int ScreenHeight, std::vector<SDFModelWeakR
 			glPopDebugGroup();
 		}
 		{
-			Clock::time_point SodapopStartTime = Clock::now();
+			ProfilingTimePoint SodapopStartTime = ProfilingClock::now();
 
 			glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Sodapop");
 			glBindFramebuffer(GL_FRAMEBUFFER, ForwardPass);
@@ -681,7 +685,7 @@ void RenderFrameGL4(int ScreenWidth, int ScreenHeight, std::vector<SDFModelWeakR
 			DepthTimeQuery.Stop();
 			glPopDebugGroup();
 
-			std::chrono::duration<double, std::milli> DrawDelta = Clock::now() - SodapopStartTime;
+			std::chrono::duration<double, std::milli> DrawDelta = ProfilingClock::now() - SodapopStartTime;
 			TotalDrawTimeMS = DrawDelta.count();
 		}
 		{
@@ -738,7 +742,7 @@ void RenderFrameES2(int ScreenWidth, int ScreenHeight, std::vector<SDFModelWeakR
 			glPopDebugGroup();
 		}
 		{
-			Clock::time_point SodapopStartTime = Clock::now();
+			ProfilingTimePoint SodapopStartTime = ProfilingClock::now();
 
 			glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Sodapop");
 			glDepthMask(GL_TRUE);
@@ -780,7 +784,7 @@ void RenderFrameES2(int ScreenWidth, int ScreenHeight, std::vector<SDFModelWeakR
 
 			glPopDebugGroup();
 
-			std::chrono::duration<double, std::milli> DrawDelta = Clock::now() - SodapopStartTime;
+			std::chrono::duration<double, std::milli> DrawDelta = ProfilingClock::now() - SodapopStartTime;
 			TotalDrawTimeMS = DrawDelta.count();
 		}
 	}
@@ -880,7 +884,7 @@ void LoadModelCommon(std::function<void()> LoadingCallback)
 	ProgramRequestedBackground = -1;
 	BackgroundColor = DefaultBackgroundColor;
 
-	Clock::time_point StartTimePoint = Clock::now();
+	ProfilingTimePoint StartTimePoint = ProfilingClock::now();
 
 	LoadingCallback();
 
@@ -889,7 +893,7 @@ void LoadModelCommon(std::function<void()> LoadingCallback)
 		EnvInitialControllerConnections(*MainEnvironment);
 	}
 
-	Clock::time_point EndTimePoint = Clock::now();
+	ProfilingTimePoint EndTimePoint = ProfilingClock::now();
 	std::chrono::duration<double, std::milli> Delta = EndTimePoint - StartTimePoint;
 	ModelProcessingStallMs = Delta.count();
 	EndEvent();
@@ -2392,9 +2396,9 @@ void MainLoop()
 					double DeltaTime;
 					double ElapsedTime;
 					{
-						Clock::time_point CurrentTimePoint = Clock::now();
-						static Clock::time_point OriginTimePoint = CurrentTimePoint;
-						static Clock::time_point LastTimePoint = CurrentTimePoint;
+						ProfilingTimePoint CurrentTimePoint = ProfilingClock::now();
+						static ProfilingTimePoint OriginTimePoint = CurrentTimePoint;
+						static ProfilingTimePoint LastTimePoint = CurrentTimePoint;
 						{
 							std::chrono::duration<double, std::milli> FrameDelta = CurrentTimePoint - LastTimePoint;
 							DeltaTime = double(FrameDelta.count());
@@ -2453,11 +2457,11 @@ void MainLoop()
 						EndEvent();
 					}
 					{
-						Clock::time_point StartTime = Clock::now();
+						ProfilingTimePoint StartTime = ProfilingClock::now();
 						BeginEvent("Present");
 						SDL_GL_SwapWindow(Window);
 						EndEvent();
-						std::chrono::duration<double, std::milli> PresentDelta = Clock::now() - StartTime;
+						std::chrono::duration<double, std::milli> PresentDelta = ProfilingClock::now() - StartTime;
 						PresentTimeMs = PresentDelta.count();
 					}
 					{
