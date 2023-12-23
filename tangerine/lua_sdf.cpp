@@ -28,8 +28,6 @@
 #include "sdf_evaluator.h"
 #include "tangerine.h"
 
-using Clock = std::chrono::high_resolution_clock;
-
 
 SDFNodeShared* GetSDFNode(lua_State* L, int Arg)
 {
@@ -601,7 +599,7 @@ int LuaRandomSeed(lua_State* L)
 	{
 		std::random_device MaybeNonDeterministic;
 		std::uniform_int_distribution<lua_Integer> Dist(1000000000, std::numeric_limits<lua_Integer>::max());
-		std::chrono::duration<lua_Integer, std::nano> Now = Clock::now().time_since_epoch();
+		std::chrono::duration<lua_Integer, std::nano> Now = std::chrono::system_clock::now().time_since_epoch();
 		Seed = glm::abs(Now.count() + Dist(MaybeNonDeterministic));
 	}
 	else

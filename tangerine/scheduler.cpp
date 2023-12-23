@@ -25,7 +25,6 @@
 #include <atomic>
 #include <thread>
 #include <vector>
-#include <chrono>
 #include <memory>
 
 
@@ -38,9 +37,6 @@
 // recurring tasks be insufficient some day, raise this to a higher power of 2.
 #define SCHEDULER_QUEUE_SIZE 1048576
 #endif
-
-
-using Clock = std::chrono::high_resolution_clock;
 
 
 std::atomic_bool RedrawRequested = false;
@@ -163,76 +159,76 @@ void WorkerThread(const int InThreadIndex)
 		Assert(ThreadIndex == InThreadIndex);
 	}
 
-	Clock::time_point ThreadStart = Clock::now();
+	ProfilingTimePoint ThreadStart = ProfilingClock::now();
 
-if (DedicatedThread)
-{
-	++ActiveThreads;
-}
-
-while (State.load())
-{
-	if (DedicatedThread && PauseThreads.load())
+	if (DedicatedThread)
 	{
-		--ActiveThreads;
-		while (PauseThreads.load())
+		++ActiveThreads;
+	}
+
+	while (State.load())
+	{
+		if (DedicatedThread && PauseThreads.load())
 		{
-			std::this_thread::yield();
+			--ActiveThreads;
+			while (PauseThreads.load())
+			{
+				std::this_thread::yield();
+				continue;
+			}
+			++ActiveThreads;
 			continue;
 		}
-		++ActiveThreads;
-		continue;
-	}
 
-	if (ParallelTaskProxy* Task = ParallelQueue.TryPop())
-	{
-		BeginEvent("Running Parallel Task");
-		Task->Run();
-		EndEvent();
-		delete Task;
-	}
-	else if (AsyncTask* Task = Inbox.TryPop())
-	{
-		BeginEvent("Running Async Task");
-		Task->Run();
-		EndEvent();
-		Outbox.BlockingPush(Task);
-	}
-	else if (ContinuousTask* Task = ContinuousQueue.TryPop())
-	{
-		const ContinuousTask::Status Result = Task->Run();
-		if (Result == ContinuousTask::Status::Remove)
+		if (ParallelTaskProxy* Task = ParallelQueue.TryPop())
 		{
+			BeginEvent("Running Parallel Task");
+			Task->Run();
+			EndEvent();
 			delete Task;
+		}
+		else if (AsyncTask* Task = Inbox.TryPop())
+		{
+			BeginEvent("Running Async Task");
+			Task->Run();
+			EndEvent();
+			Outbox.BlockingPush(Task);
+		}
+		else if (ContinuousTask* Task = ContinuousQueue.TryPop())
+		{
+			const ContinuousTask::Status Result = Task->Run();
+			if (Result == ContinuousTask::Status::Remove)
+			{
+				delete Task;
+			}
+			else
+			{
+				ContinuousQueue.BlockingPush(Task);
+
+				if (DedicatedThread && Result == ContinuousTask::Status::Converged)
+				{
+					std::this_thread::sleep_for(std::chrono::milliseconds(4));
+				}
+			}
+		}
+		else if (DedicatedThread)
+		{
+			std::this_thread::sleep_for(std::chrono::milliseconds(4));
 		}
 		else
 		{
-			ContinuousQueue.BlockingPush(Task);
-
-			if (DedicatedThread && Result == ContinuousTask::Status::Converged)
+			std::chrono::duration<double, std::milli> Delta = ProfilingClock::now() - ThreadStart;
+			if (Delta.count() > 8.0)
 			{
-				std::this_thread::sleep_for(std::chrono::milliseconds(4));
+				break;
 			}
 		}
 	}
-	else if (DedicatedThread)
-	{
-		std::this_thread::sleep_for(std::chrono::milliseconds(4));
-	}
-	else
-	{
-		std::chrono::duration<double, std::milli> Delta = Clock::now() - ThreadStart;
-		if (Delta.count() > 8.0)
-		{
-			break;
-		}
-	}
-}
 
-if (DedicatedThread)
-{
-	--ActiveThreads;
-}
+	if (DedicatedThread)
+	{
+		--ActiveThreads;
+	}
 }
 
 

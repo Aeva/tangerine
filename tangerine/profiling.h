@@ -23,8 +23,27 @@
 #define ENABLE_PROFILING 0
 #endif
 
-
+#include <chrono>
 #include <string>
+
+
+using ProfilingClock = std::chrono::steady_clock;
+using ProfilingTimePoint = ProfilingClock::time_point;
+
+#pragma region
+// If any of these assertions fail, consider adding a preprocessor condition
+// to use a different clock for ProfilingClock.
+
+static_assert(ProfilingClock::is_steady,
+	"The global clock must be monotonic.");
+
+static_assert(ProfilingClock::period::num == 1,
+	"The global clock must be able to provide submillisecond timepoints.");
+
+static_assert(ProfilingClock::period::den > std::milli::den,
+	"The global clock must be able to provide submillisecond timepoints.");
+
+#pragma endregion
 
 void BeginEvent(const char* EventName);
 void BeginEvent(std::string EventName);
