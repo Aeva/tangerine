@@ -68,6 +68,9 @@ StatusCode CreateWindowGL(int& WindowWidth, int& WindowHeight, bool HeadlessMode
 		SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_DEBUG_FLAG);
 	}
 	Uint32 WindowFlags = SDL_WINDOW_OPENGL;
+#if _WIN64
+	//WindowFlags |= SDL_WINDOW_ALLOW_HIGHDPI;
+#endif
 	if (HeadlessMode)
 	{
 		WindowFlags |= SDL_WINDOW_HIDDEN;

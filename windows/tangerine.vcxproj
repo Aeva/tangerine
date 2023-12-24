@@ -148,6 +148,7 @@
       <Outputs>
       </Outputs>
     </CustomBuildStep>
+    <Manifest />
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
@@ -178,6 +179,7 @@
       <Outputs>
       </Outputs>
     </CustomBuildStep>
+    <Manifest />
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="..\tangerine\aabb.cpp" />

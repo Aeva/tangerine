@@ -19,6 +19,7 @@
 #define SDL_MAIN_HANDLED
 #endif
 #include <SDL.h>
+#include <SDL_video.h>
 #include <SDL_opengl.h>
 #include <SDL_clipboard.h>
 
@@ -1752,6 +1753,8 @@ StatusCode Boot(int argc, char* argv[])
 	{
 		std::cout << "Setting up SDL2... ";
 		SDL_SetMainReady();
+		SDL_SetHint(SDL_HINT_WINDOWS_DPI_AWARENESS, "permonitorv2");
+		SDL_SetHint(SDL_HINT_WINDOWS_DPI_SCALING, "1");
 		if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_JOYSTICK | SDL_INIT_HAPTIC | SDL_INIT_GAMECONTROLLER | SDL_INIT_TIMER) == 0)
 		{
 			RETURN_ON_FAIL(BootGL(WindowWidth, WindowHeight, HeadlessMode, ForceES2, CreateDebugContext, RequestedVSyncMode));
@@ -2052,9 +2055,15 @@ void MainLoop()
 				MouseMotionY = 0;
 				MouseMotionZ = 0;
 
-				int ScreenWidth;
-				int ScreenHeight;
-				SDL_GetWindowSize(Window, &ScreenWidth, &ScreenHeight);
+				// On high DPI screens, the virtual sizes are the scaled size of the window.
+				int VirtualWidth;
+				int VirtualHeight;
+				SDL_GetWindowSize(Window, &VirtualWidth, &VirtualHeight);
+
+				// On high DPI screens, the pixel sizes represent the real size of the window.
+				int PixelWidth;
+				int PixelHeight;
+				SDL_GetWindowSizeInPixels(Window, &PixelWidth, &PixelHeight);
 
 				const bool HasMouseFocus = Window == SDL_GetMouseFocus();
 				static int MouseX = 0;
@@ -2073,7 +2082,7 @@ void MainLoop()
 				static glm::vec3 RayOrigin(0.0, 0.0, 0.0);
 				if (HasMouseFocus)
 				{
-					WorldSpaceRay(LastView, MouseX, MouseY, ScreenWidth, ScreenHeight, RayOrigin, MouseRay);
+					WorldSpaceRay(LastView, MouseX, MouseY, VirtualWidth, VirtualHeight, RayOrigin, MouseRay);
 				}
 
 				static bool LastExportState = false;
@@ -2282,7 +2291,7 @@ void MainLoop()
 						PaintingSet::GatherModelStats(LastIncompleteCount, LastRenderableCount);
 					}
 					{
-						RenderFrame(ScreenWidth, ScreenHeight, LastView);
+						RenderFrame(PixelWidth, PixelHeight, LastView);
 					}
 #ifdef ENABLE_RMLUI
 					if (RmlUiActive)
