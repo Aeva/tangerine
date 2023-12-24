@@ -424,7 +424,7 @@ StatusCode ShaderProgram::Setup(std::map<GLenum, ShaderSource> InShaders, const 
 	AsyncSetup(InShaders, InProgramName);
 
 	StatusCode Result = Compile();
-	if (FAILED(Result))
+	if (Result == StatusCode::FAIL);
 	{
 		Reset();
 	}
