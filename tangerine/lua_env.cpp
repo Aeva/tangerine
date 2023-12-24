@@ -19,6 +19,7 @@
 #include "errors.h"
 #include "tangerine.h"
 #include "sodapop.h"
+#include "painting_set.h"
 #include "units.h"
 #include "lua_material.h"
 #include "lua_sdf.h"
@@ -267,6 +268,9 @@ int LuaOpenEnv(lua_State* L)
 
 LuaEnvironment::LuaEnvironment()
 {
+	GlobalPaintingSet = PaintingSet::Create();
+	PaintingSets.push_back(GlobalPaintingSet);
+
 	GlobalModel.reset();
 
 	AdvanceCallbackRef = LUA_REFNIL;
@@ -325,6 +329,8 @@ LuaEnvironment::LuaEnvironment()
 
 LuaEnvironment::~LuaEnvironment()
 {
+	PaintingSets.clear();
+	lua_gc(L, LUA_GCCOLLECT);
 	lua_close(L);
 }
 
@@ -482,7 +488,7 @@ void LuaEnvironment::LoadLuaModelCommon()
 	if (LuaData)
 	{
 		SDFNodeShared& Evaluator = *static_cast<SDFNodeShared*>(LuaData);
-		GlobalModel = SDFModel::Create(Evaluator, Name, .25, MeshingDensityPush);
+		GlobalModel = SDFModel::Create(GlobalPaintingSet, Evaluator, Name, .25, MeshingDensityPush);
 	}
 	lua_pop(L, 1);
 
@@ -492,16 +498,12 @@ void LuaEnvironment::LoadLuaModelCommon()
 	}
 	else
 	{
-		std::vector<SDFModelWeakRef> LiveModels = GetLiveModels();
-		for (SDFModelWeakRef& WeakRef : LiveModels)
+		std::function<bool(SDFModelShared)> QueryThunk = [&](SDFModelShared Model)
 		{
-			SDFModelShared LiveModel = WeakRef.lock();
-			if (LiveModel)
-			{
-				SetTreeEvaluator(LiveModel->Evaluator);
-				break;
-			}
-		}
+			SetTreeEvaluator(Model->Evaluator);
+			return true;
+		};
+		SDFModelShared Found = PaintingSet::GlobalSelect(QueryThunk);
 	}
 }
 

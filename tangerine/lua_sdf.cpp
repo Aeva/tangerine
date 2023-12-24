@@ -815,7 +815,7 @@ LuaModelShared LuaModel::Create(lua_State* L, SDFNodeShared& InEvaluator, const 
 	LuaEnvironment* Env = LuaEnvironment::GetScriptEnvironment(L);
 	LuaModelShared NewModel(new LuaModel(L, Env, InEvaluator, InName, VoxelSize));
 	SDFModelShared Up = std::static_pointer_cast<SDFModel>(NewModel);
-	SDFModel::RegisterNewModel(Up);
+	SDFModel::RegisterNewModel(Env->GlobalPaintingSet, Up);
 	Env->GarbageCollectionRequested = true;
 	return NewModel;
 }

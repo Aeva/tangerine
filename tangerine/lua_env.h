@@ -35,6 +35,8 @@ struct LuaEnvironment : public ScriptEnvironment
 	bool GarbageCollectionRequested = false;
 	LuaRandomGeneratorT RandomNumberGenerator = LuaRandomGeneratorT();
 
+	std::shared_ptr<class PaintingSet> GlobalPaintingSet = nullptr;
+
 	LuaEnvironment();
 
 	virtual Language GetLanguage()

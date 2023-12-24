@@ -15,6 +15,7 @@
 
 #include "sdf_model.h"
 #include "sdf_rendering.h"
+#include "painting_set.h"
 #include "profiling.h"
 #include "sodapop.h"
 #include "scheduler.h"
@@ -56,9 +57,6 @@ bool InstanceColoringGroup::StartRepaint()
 }
 
 
-std::vector<SDFModelWeakRef> LiveModels;
-
-
 // FIXME
 // Originally this was meant to have a wrapped evaluator for the key type, with
 // the idea being that equivalent evaluators would be matched as equal.  This
@@ -74,12 +72,6 @@ std::vector<SDFModelWeakRef> LiveModels;
 // kinds of issues.
 std::vector<std::pair<size_t, DrawableWeakRef>> DrawableCache;
 std::mutex DrawableCacheCS;
-
-
-std::vector<SDFModelWeakRef>& GetLiveModels()
-{
-	return LiveModels;
-}
 
 
 std::vector<std::pair<size_t, DrawableWeakRef>>& GetDrawableCache()
@@ -98,12 +90,6 @@ void PruneStaleDrawableFromCache()
 			break;
 		}
 	}
-}
-
-
-void UnloadAllModels()
-{
-	LiveModels.clear();
 }
 
 
@@ -134,52 +120,14 @@ static void MeshReadyInner(SDFModelShared Model, DrawableShared Painter)
 void MeshReady(DrawableShared Painter)
 {
 	Painter->MeshAvailable = true;
-	for (SDFModelWeakRef WeakRef : LiveModels)
+	std::function<void(SDFModelShared)> ReadyThunk = [Painter](SDFModelShared Model)
 	{
-		SDFModelShared Model = WeakRef.lock();
-		if (Model && Model->Painter == Painter)
+		if (Model->Painter == Painter)
 		{
 			MeshReadyInner(Model, Painter);
 		}
-	}
-}
-
-
-void GetIncompleteModels(std::vector<SDFModelWeakRef>& Incomplete)
-{
-	Incomplete.clear();
-	Incomplete.reserve(LiveModels.size());
-
-	for (SDFModelWeakRef WeakRef : LiveModels)
-	{
-		SDFModelShared Model = WeakRef.lock();
-		if (Model && Model->Painter)
-		{
-			if (!Model->Painter->MeshAvailable)
-			{
-				Incomplete.push_back(Model);
-			}
-		}
-	}
-}
-
-
-void GetRenderableModels(std::vector<SDFModelWeakRef>& Renderable)
-{
-	Renderable.clear();
-	Renderable.reserve(LiveModels.size());
-
-	for (SDFModelWeakRef WeakRef : LiveModels)
-	{
-		SDFModelShared Model = WeakRef.lock();
-		if (Model && Model->Painter)
-		{
-			if (Model->Painter->MeshAvailable)
-			{
-				Renderable.push_back(Model);
-			}
-		}
-	}
+	};
+	PaintingSet::GlobalApply(ReadyThunk);
 }
 
 
@@ -210,7 +158,7 @@ bool DeliverMouseButton(MouseEvent Event)
 	const bool Press = Event.Type == MOUSE_DOWN;
 	const bool Release = Event.Type == MOUSE_UP;
 
-	for (SDFModelWeakRef& WeakRef : LiveModels)
+	std::function<void(SDFModelShared)> GatherThunk = [&](SDFModelShared Model)
 	{
 		// TODO:
 		// I'm unsure if this is how I want to handle mouse button event routing.
@@ -230,29 +178,26 @@ bool DeliverMouseButton(MouseEvent Event)
 		// This is probably fine at least until the events can be forwarded back to
 		// the script envs.
 
-		SDFModelShared Model = WeakRef.lock();
-		if (Model)
+		if (MatchEvent(*Model, Event))
 		{
-			if (MatchEvent(*Model, Event))
+			if (Release)
 			{
-				if (Release)
+				MouseUpRecipients.push_back(Model);
+			}
+			if (Model->Visibility == VisibilityStates::Visible)
+			{
+				RayHit Query = Model->RayMarch(Event.RayOrigin, Event.RayDir);
+				if (Query.Hit && Query.Travel < Nearest)
 				{
-					MouseUpRecipients.push_back(Model);
-				}
-				if (Model->Visibility == VisibilityStates::Visible)
-				{
-					RayHit Query = Model->RayMarch(Event.RayOrigin, Event.RayDir);
-					if (Query.Hit && Query.Travel < Nearest)
-					{
-						Nearest = Query.Travel;
-						NearestMatch = Model;
-						Event.AnyHit = true;
-						Event.Cursor = Query.Position;
-					}
+					Nearest = Query.Travel;
+					NearestMatch = Model;
+					Event.AnyHit = true;
+					Event.Cursor = Query.Position;
 				}
 			}
 		}
-	}
+	};
+	PaintingSet::GlobalApply(GatherThunk);
 
 	if (Press && NearestMatch)
 	{
@@ -378,20 +323,20 @@ SDFModel::SDFModel(SDFNodeShared& InEvaluator, const std::string& InName, const 
 }
 
 
-void SDFModel::RegisterNewModel(SDFModelShared& NewModel)
+void SDFModel::RegisterNewModel(PaintingSetShared& Locus, SDFModelShared& NewModel)
 {
 	if (NewModel->Painter->MeshAvailable)
 	{
 		MeshReadyInner(NewModel, NewModel->Painter);
 	}
-	LiveModels.emplace_back(NewModel);
+	Locus->RegisterModel(NewModel);
 }
 
 
-SDFModelShared SDFModel::Create(SDFNodeShared& InEvaluator, const std::string& InName, const float VoxelSize, const float MeshingDensityOffsetRequest, const VertexSequence VertexOrderHint)
+SDFModelShared SDFModel::Create(PaintingSetShared& Locus, SDFNodeShared& InEvaluator, const std::string& InName, const float VoxelSize, const float MeshingDensityOffsetRequest, const VertexSequence VertexOrderHint)
 {
 	SDFModelShared NewModel(new SDFModel(InEvaluator, InName, VoxelSize, MeshingDensityOffsetRequest, VertexOrderHint));
-	SDFModel::RegisterNewModel(NewModel);
+	SDFModel::RegisterNewModel(Locus, NewModel);
 	return NewModel;
 }
 
@@ -399,16 +344,6 @@ SDFModelShared SDFModel::Create(SDFNodeShared& InEvaluator, const std::string& I
 SDFModel::~SDFModel()
 {
 	TransformBuffer.Release();
-
-	for (int i = 0; i < LiveModels.size(); ++i)
-	{
-		if (LiveModels[i].expired())
-		{
-			LiveModels.erase(LiveModels.begin() + i);
-			break;
-		}
-	}
-
 	Evaluator.reset();
 	Painter.reset();
 }

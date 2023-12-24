@@ -151,7 +151,7 @@ struct SDFModel
 
 	RayHit RayMarch(glm::vec3 RayStart, glm::vec3 RayDir, int MaxIterations = 1000, float Epsilon = 0.001);
 
-	static SDFModelShared Create(SDFNodeShared& InEvaluator, const std::string& InName,
+	static SDFModelShared Create(std::shared_ptr<class PaintingSet>& Locus, SDFNodeShared& InEvaluator, const std::string& InName,
 		const float VoxelSize = 0.25, const float MeshingDensityPush = 0.0, const VertexSequence VertexOrderHint = VertexSequence::Shuffle);
 
 	SDFModel(SDFModel&& Other) = delete;
@@ -160,18 +160,13 @@ struct SDFModel
 	virtual void OnMouseEvent(MouseEvent& Event, bool Picked) {};
 
 protected:
-	static void RegisterNewModel(SDFModelShared& NewModel);
+	static void RegisterNewModel(std::shared_ptr<class PaintingSet>& Locus, SDFModelShared& NewModel);
 	SDFModel(SDFNodeShared& InEvaluator, const std::string& InName, const float VoxelSize, const float MeshingDensityPush, const VertexSequence VertexOrderHint);
 };
 
 
-std::vector<SDFModelWeakRef>& GetLiveModels();
 std::vector<std::pair<size_t, DrawableWeakRef>>& GetDrawableCache();
-void UnloadAllModels();
 void MeshReady(DrawableShared Painter);
-
-void GetIncompleteModels(std::vector<SDFModelWeakRef>& Incomplete);
-void GetRenderableModels(std::vector<SDFModelWeakRef>& Renderable);
 
 bool DeliverMouseMove(glm::vec3 Origin, glm::vec3 RayDir, int MouseX, int MouseY);
 bool DeliverMouseButton(MouseEvent Event);

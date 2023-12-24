@@ -201,6 +201,7 @@
     <ClCompile Include="..\tangerine\lua_vec.cpp" />
     <ClCompile Include="..\tangerine\magica.cpp" />
     <ClCompile Include="..\tangerine\material.cpp" />
+    <ClCompile Include="..\tangerine\painting_set.cpp" />
     <ClCompile Include="..\tangerine\profiling.cpp" />
     <ClCompile Include="..\tangerine\psmove_loader.cpp" />
     <ClCompile Include="..\tangerine\racket_env.cpp" />
@@ -291,6 +292,7 @@
     <ClInclude Include="..\tangerine\lua_vec.h" />
     <ClInclude Include="..\tangerine\magica.h" />
     <ClInclude Include="..\tangerine\material.h" />
+    <ClInclude Include="..\tangerine\painting_set.h" />
     <ClInclude Include="..\tangerine\profiling.h" />
     <ClInclude Include="..\tangerine\psmove\psmove.h" />
     <ClInclude Include="..\tangerine\psmove_loader.h" />

@@ -17,6 +17,8 @@
 
 #include "controller.h"
 #include <string>
+#include <vector>
+#include <memory>
 
 #ifndef EMBED_LUA
 #define EMBED_LUA 1
@@ -40,6 +42,8 @@ enum class Language
 struct ScriptEnvironment
 {
 	bool CanAdvance = false;
+	std::vector<std::shared_ptr<class PaintingSet>> PaintingSets;
+
 	virtual void Advance(double DeltaTimeMs, double ElapsedTimeMs) {};
 
 	virtual void JoystickConnect(const JoystickInfo& Joystick) {};

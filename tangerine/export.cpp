@@ -25,6 +25,7 @@
 #include <string>
 #include <fmt/format.h>
 #include <surface_nets.h>
+#include "painting_set.h"
 #include "threadpool.h"
 #include "extern.h"
 #include "export.h"
@@ -502,17 +503,16 @@ void MeshExport(std::string Path, bool UseBaseColor, ExportFormat Format, float 
 	size_t TriangleCount = 0;
 	std::vector<SDFModelShared> ExportModels;
 
-	std::vector<SDFModelWeakRef>& LiveModels = GetLiveModels();
-	for (SDFModelWeakRef& WeakRef : LiveModels)
+	std::function<void(SDFModelShared)> GatherThunk = [&](SDFModelShared Model)
 	{
-		SDFModelShared LiveModel = WeakRef.lock();
-		if (LiveModel && LiveModel->Painter)
+		if (Model->Painter)
 		{
-			ExportModels.push_back(LiveModel);
-			VertexCount += LiveModel->Painter->Positions.size();
-			TriangleCount += LiveModel->Painter->Indices.size();
+			ExportModels.push_back(Model);
+			VertexCount += Model->Painter->Positions.size();
+			TriangleCount += Model->Painter->Indices.size();
 		}
-	}
+	};
+	PaintingSet::GlobalApply(GatherThunk);
 
 	Vertices.reserve(VertexCount);
 	Normals.reserve(VertexCount);

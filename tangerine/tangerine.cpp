@@ -48,6 +48,7 @@ Rml::ElementDocument* RmlUiDocument = nullptr;
 #include "sdf_evaluator.h"
 #include "sdf_rendering.h"
 #include "sdf_model.h"
+#include "painting_set.h"
 #include "controller.h"
 #include "units.h"
 #include "export.h"
@@ -287,22 +288,6 @@ void EncodeBase64(std::vector<unsigned char>& Bytes, std::vector<char>& Encoded)
 }
 
 
-struct ViewInfoUpload
-{
-	glm::mat4 WorldToView = glm::identity<glm::mat4>();
-	glm::mat4 ViewToWorld = glm::identity<glm::mat4>();
-	glm::mat4 ViewToClip = glm::identity<glm::mat4>();
-	glm::mat4 ClipToView = glm::identity<glm::mat4>();
-	glm::vec4 CameraOrigin = glm::vec4(0.0, 0.0, 0.0, 0.0);
-	glm::vec4 ScreenSize = glm::vec4(0.0, 0.0, 0.0, 0.0);
-	glm::vec4 ModelMin = glm::vec4(0.0, 0.0, 0.0, 0.0);
-	glm::vec4 ModelMax = glm::vec4(0.0, 0.0, 0.0, 0.0);
-	float CurrentTime = -1.0;
-	bool Perspective = true;
-	float Padding[2] = { 0 };
-};
-
-
 void SetPipelineDefaults()
 {
 	if (GraphicsBackend == GraphicsAPI::OpenGL4_2)
@@ -475,13 +460,13 @@ double TotalDrawTimeMS = 0.0;
 double PresentTimeMs = 0.0;
 
 
-void RenderFrameGL4(int ScreenWidth, int ScreenHeight, std::vector<SDFModelWeakRef>& RenderableModels, ViewInfoUpload& UploadedView, bool FullRedraw);
+void RenderEmptyFrameGL4(int ScreenWidth, int ScreenHeight, ViewInfoUpload& UploadedView);
 
 
-void RenderFrameES2(int ScreenWidth, int ScreenHeight, std::vector<SDFModelWeakRef>& RenderableModels, ViewInfoUpload& UploadedView, bool FullRedraw);
+void RenderEmptyFrameES2(int ScreenWidth, int ScreenHeight, ViewInfoUpload& UploadedView);
 
 
-void RenderFrame(int ScreenWidth, int ScreenHeight, std::vector<SDFModelWeakRef>& RenderableModels, ViewInfoUpload& UploadedView, bool FullRedraw = true)
+void RenderFrame(int ScreenWidth, int ScreenHeight, ViewInfoUpload& UploadedView)
 {
 	BeginEvent("RenderFrame");
 	ProfilingTimePoint FrameStartTimePoint = ProfilingClock::now();
@@ -605,13 +590,34 @@ void RenderFrame(int ScreenWidth, int ScreenHeight, std::vector<SDFModelWeakRef>
 		FlagSceneRepaint();
 	}
 
-	if (GraphicsBackend == GraphicsAPI::OpenGL4_2)
+	bool AnyReady = false;
+	ScriptEnvironment* Env = GetMainEnvironment();
+	for (PaintingSetShared Group : Env->PaintingSets)
 	{
-		RenderFrameGL4(ScreenWidth, ScreenHeight, RenderableModels, UploadedView, FullRedraw);
+		if (Group->CanRender())
+		{
+			AnyReady = true;
+			break;
+		}
 	}
-	else if (GraphicsBackend == GraphicsAPI::OpenGLES2)
+
+	if (AnyReady)
 	{
-		RenderFrameES2(ScreenWidth, ScreenHeight, RenderableModels, UploadedView, FullRedraw);
+		for (PaintingSetShared Group : Env->PaintingSets)
+		{
+			Group->RenderFrame(ScreenWidth, ScreenHeight, UploadedView);
+		}
+	}
+	else
+	{
+		if (GraphicsBackend == GraphicsAPI::OpenGL4_2)
+		{
+			RenderEmptyFrameGL4(ScreenWidth, ScreenHeight, UploadedView);
+		}
+		else if (GraphicsBackend == GraphicsAPI::OpenGLES2)
+		{
+			RenderEmptyFrameES2(ScreenWidth, ScreenHeight, UploadedView);
+		}
 	}
 
 	// Needs to occur after rendering to prevent stale coloring groups.
@@ -626,79 +632,13 @@ void RenderFrame(int ScreenWidth, int ScreenHeight, std::vector<SDFModelWeakRef>
 }
 
 
-void RenderFrameGL4(int ScreenWidth, int ScreenHeight, std::vector<SDFModelWeakRef>& RenderableModels, ViewInfoUpload& UploadedView, bool FullRedraw)
+void RenderEmptyFrameGL4(int ScreenWidth, int ScreenHeight, ViewInfoUpload& UploadedView)
 {
 	glDisable(GL_FRAMEBUFFER_SRGB);
 
 	ViewInfo.Upload((void*)&UploadedView, sizeof(UploadedView));
 	ViewInfo.Bind(GL_UNIFORM_BUFFER, 0);
 
-	if (RenderableModels.size() > 0)
-	{
-		{
-			glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Background");
-			glBindFramebuffer(GL_FRAMEBUFFER, ColorPass);
-			GridBgTimeQuery.Start();
-			glEnable(GL_DEPTH_TEST);
-			glDepthMask(GL_FALSE);
-			glDepthFunc(GL_EQUAL);
-			switch (GetBackgroundMode())
-			{
-			case 1:
-				BgShader.Activate();
-				glDrawArrays(GL_TRIANGLES, 0, 3);
-				break;
-			case 0:
-			default:
-				glClearColor(BackgroundColor.r, BackgroundColor.g, BackgroundColor.b, 1.0f);
-				glClear(GL_COLOR_BUFFER_BIT);
-			}
-			GridBgTimeQuery.Stop();
-			glPopDebugGroup();
-		}
-		{
-			ProfilingTimePoint SodapopStartTime = ProfilingClock::now();
-
-			glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Sodapop");
-			glBindFramebuffer(GL_FRAMEBUFFER, ForwardPass);
-			DepthTimeQuery.Start();
-			glDepthMask(GL_TRUE);
-			glEnable(GL_DEPTH_TEST);
-			glDepthFunc(GL_GREATER);
-#ifdef ENABLE_RMLUI
-			glClear(GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
-#else
-			glClear(GL_DEPTH_BUFFER_BIT);
-#endif
-
-			SodapopShader.Activate();
-
-			for (SDFModelWeakRef ModelWeakRef : RenderableModels)
-			{
-				SDFModelShared Model = ModelWeakRef.lock();
-				if (Model && Model->Painter)
-				{
-					Model->DrawGL4(UploadedView.CameraOrigin.xyz());
-				}
-			}
-
-			DepthTimeQuery.Stop();
-			glPopDebugGroup();
-
-			std::chrono::duration<double, std::milli> DrawDelta = ProfilingClock::now() - SodapopStartTime;
-			TotalDrawTimeMS = DrawDelta.count();
-		}
-		{
-			glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Resolve Output");
-			glDisable(GL_DEPTH_TEST);
-			glBindFramebuffer(GL_FRAMEBUFFER, FinalPass);
-			glBindTextureUnit(1, ColorBuffer);
-			ResolveOutputShader.Activate();
-			glDrawArrays(GL_TRIANGLES, 0, 3);
-			glPopDebugGroup();
-		}
-	}
-	else
 	{
 		glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Dead Channel");
 		glDepthMask(GL_FALSE);
@@ -712,83 +652,11 @@ void RenderFrameGL4(int ScreenWidth, int ScreenHeight, std::vector<SDFModelWeakR
 }
 
 
-void RenderFrameES2(int ScreenWidth, int ScreenHeight, std::vector<SDFModelWeakRef>& RenderableModels, ViewInfoUpload& UploadedView, bool FullRedraw)
+void RenderEmptyFrameES2(int ScreenWidth, int ScreenHeight, ViewInfoUpload& UploadedView)
 {
 	glDisable(GL_FRAMEBUFFER_SRGB);
 	glBindFramebuffer(GL_FRAMEBUFFER, FinalPass);
 
-	if (RenderableModels.size() > 0)
-	{
-		{
-			glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Background");
-			glEnable(GL_DEPTH_TEST);
-			glDepthMask(GL_FALSE);
-			glDepthFunc(GL_EQUAL);
-			switch (GetBackgroundMode())
-			{
-			case 1:
-				// TODO port the bg shader to ES2
-				Assert(false); // GetBackgroundMode() is meant to enforce this being unreachable.
-#if 0
-				BgShader.Activate();
-				glDrawArrays(GL_TRIANGLES, 0, 3);
-#endif
-				break;
-			case 0:
-			default:
-				glClearColor(BackgroundColor.r, BackgroundColor.g, BackgroundColor.b, 1.0f);
-				glClear(GL_COLOR_BUFFER_BIT);
-			}
-			glPopDebugGroup();
-		}
-		{
-			ProfilingTimePoint SodapopStartTime = ProfilingClock::now();
-
-			glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Sodapop");
-			glDepthMask(GL_TRUE);
-			glEnable(GL_DEPTH_TEST);
-			glDepthFunc(GL_GREATER);
-#ifdef ENABLE_RMLUI
-			glClear(GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
-#else
-			glClear(GL_DEPTH_BUFFER_BIT);
-#endif
-
-			SodapopShader.Activate();
-
-			auto UploadMatrix = [&](const char* Name, const glm::mat4* Value)
-			{
-				const GLint Location = glGetUniformLocation(SodapopShader.ProgramID, Name);
-				glUniformMatrix4fv(Location, 1, false, (const GLfloat*)Value);
-			};
-
-			UploadMatrix("WorldToView", &UploadedView.WorldToView);
-			UploadMatrix("ViewToClip", &UploadedView.ViewToClip);
-
-			const GLint LocalToWorldBinding = glGetUniformLocation(SodapopShader.ProgramID, "LocalToWorld");
-
-			const GLint PositionBinding = glGetAttribLocation(SodapopShader.ProgramID, "LocalPosition");
-			glEnableVertexAttribArray(PositionBinding);
-
-			const GLint ColorBinding = glGetAttribLocation(SodapopShader.ProgramID, "VertexColor");
-			glEnableVertexAttribArray(ColorBinding);
-
-			for (SDFModelWeakRef ModelWeakRef : RenderableModels)
-			{
-				SDFModelShared Model = ModelWeakRef.lock();
-				if (Model && Model->Painter)
-				{
-					Model->DrawES2(UploadedView.CameraOrigin.xyz(), LocalToWorldBinding, PositionBinding, ColorBinding);
-				}
-			}
-
-			glPopDebugGroup();
-
-			std::chrono::duration<double, std::milli> DrawDelta = ProfilingClock::now() - SodapopStartTime;
-			TotalDrawTimeMS = DrawDelta.count();
-		}
-	}
-	else
 	{
 		glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Dead Channel");
 		glDepthMask(GL_FALSE);
@@ -869,7 +737,6 @@ double ModelProcessingStallMs = 0.0;
 void LoadModelCommon(std::function<void()> LoadingCallback)
 {
 	BeginEvent("Load Model");
-	UnloadAllModels();
 
 	ClearTreeEvaluator();
 	Scheduler::DropEverything();
@@ -948,7 +815,6 @@ void LoadModel(std::string Path, Language Runtime)
 			std::string FileName = std::filesystem::path(Path).filename().string();
 			SetWindowTitle(fmt::format("{} - Tangerine", FileName));
 		}
-		UnloadAllModels();
 		ExportGrid::ResetScale();
 		CreateScriptEnvironment(Runtime);
 		LastPath = Path;
@@ -1414,8 +1280,6 @@ void RenderUI(SDL_Window* Window, bool& Live)
 		}
 		ImGui::End();
 	}
-
-	std::vector<SDFModelWeakRef>& LiveModels = GetLiveModels();
 
 	std::vector<std::pair<size_t, DrawableWeakRef>>& DrawableCache = GetDrawableCache();
 	if (ShowMeshingStats && DrawableCache.size() > 0)
@@ -2094,11 +1958,8 @@ StatusCode Boot(int argc, char* argv[])
 			MouseMotionX = 45;
 			MouseMotionY = 45;
 
-			std::vector<SDFModelWeakRef> RenderableModels;
-			GetRenderableModels(RenderableModels);
-
 			ViewInfoUpload UploadedView;
-			RenderFrame(WindowWidth, WindowHeight, RenderableModels, UploadedView);
+			RenderFrame(WindowWidth, WindowHeight, UploadedView);
 			ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 			glFinish();
 		}
@@ -2133,8 +1994,6 @@ void Teardown()
 		delete MainEnvironment;
 	}
 	{
-		UnloadAllModels();
-
 #if ENABLE_PSMOVE_BINDINGS
 		TeardownPSMove();
 #endif
@@ -2208,10 +2067,7 @@ void MainLoop()
 				static ViewInfoUpload LastView;
 
 				static int LastIncompleteCount = 0;
-				std::vector<SDFModelWeakRef> IncompleteModels;
-
 				static int LastRenderableCount = 0;
-				std::vector<SDFModelWeakRef> RenderableModels;
 
 				static glm::vec3 MouseRay(0.0, 1.0, 0.0);
 				static glm::vec3 RayOrigin(0.0, 0.0, 0.0);
@@ -2423,14 +2279,10 @@ void MainLoop()
 						EndEvent();
 					}
 					{
-						GetIncompleteModels(IncompleteModels);
-						LastIncompleteCount = IncompleteModels.size();
-
-						GetRenderableModels(RenderableModels);
-						LastRenderableCount = RenderableModels.size();
+						PaintingSet::GatherModelStats(LastIncompleteCount, LastRenderableCount);
 					}
 					{
-						RenderFrame(ScreenWidth, ScreenHeight, RenderableModels, LastView, RequestDraw);
+						RenderFrame(ScreenWidth, ScreenHeight, LastView);
 					}
 #ifdef ENABLE_RMLUI
 					if (RmlUiActive)
