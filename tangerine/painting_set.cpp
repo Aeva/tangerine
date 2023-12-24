@@ -68,18 +68,23 @@ PaintingSet::~PaintingSet()
 
 void PaintingSet::Apply(std::function<void(SDFModelShared)>& Thunk)
 {
-	for (SDFModelShared& Model : Models)
+	for (SDFModelWeakRef& WeakRef : Models)
 	{
-		Thunk(Model);
+		SDFModelShared Model = WeakRef.lock();
+		if (Model)
+		{
+			Thunk(Model);
+		}
 	}
 }
 
 
 SDFModelShared PaintingSet::Select(std::function<bool(SDFModelShared)>& Thunk)
 {
-	for (SDFModelShared& Model : Models)
+	for (SDFModelWeakRef& WeakRef : Models)
 	{
-		if (Thunk(Model))
+		SDFModelShared Model = WeakRef.lock();
+		if (Model && Thunk(Model))
 		{
 			return Model;
 		}
@@ -90,9 +95,10 @@ SDFModelShared PaintingSet::Select(std::function<bool(SDFModelShared)>& Thunk)
 
 void PaintingSet::Filter(std::vector<SDFModelShared>& Results, std::function<bool(SDFModelShared)>& Thunk)
 {
-	for (SDFModelShared& Model : Models)
+	for (SDFModelWeakRef& WeakRef : Models)
 	{
-		if (Thunk(Model))
+		SDFModelShared Model = WeakRef.lock();
+		if (Model && Thunk(Model))
 		{
 			Results.push_back(Model);
 		}
@@ -158,9 +164,10 @@ void PaintingSet::GatherModelStats(int& IncompleteCount, int& RenderableCount)
 		PaintingSetShared Zone = Registration.second.lock();
 		if (Zone)
 		{
-			for (SDFModelShared Model : Zone->Models)
+			for (SDFModelWeakRef WeakRef : Zone->Models)
 			{
-				if (Model->Painter)
+				SDFModelShared Model = WeakRef.lock();
+				if (Model && Model->Painter)
 				{
 					if (Model->Painter->MeshAvailable)
 					{
@@ -222,13 +229,14 @@ void PaintingSet::RenderFrameGL4(const int ScreenWidth, const int ScreenHeight, 
 
 		SodapopShader.Activate();
 
-		for (SDFModelShared Model : Models)
+		std::function<void(SDFModelShared)> DrawThunk = [&](SDFModelShared Model)
 		{
 			if (Model->Painter && Model->Painter->MeshAvailable)
 			{
 				Model->DrawGL4(UploadedView.CameraOrigin.xyz());
 			}
-		}
+		};
+		Apply(DrawThunk);
 
 		DepthTimeQuery.Stop();
 		glPopDebugGroup();
@@ -291,10 +299,10 @@ void PaintingSet::RenderFrameES2(const int ScreenWidth, const int ScreenHeight, 
 		SodapopShader.Activate();
 
 		auto UploadMatrix = [&](const char* Name, const glm::mat4* Value)
-			{
-				const GLint Location = glGetUniformLocation(SodapopShader.ProgramID, Name);
-				glUniformMatrix4fv(Location, 1, false, (const GLfloat*)Value);
-			};
+		{
+			const GLint Location = glGetUniformLocation(SodapopShader.ProgramID, Name);
+			glUniformMatrix4fv(Location, 1, false, (const GLfloat*)Value);
+		};
 
 		UploadMatrix("WorldToView", &UploadedView.WorldToView);
 		UploadMatrix("ViewToClip", &UploadedView.ViewToClip);
@@ -307,13 +315,14 @@ void PaintingSet::RenderFrameES2(const int ScreenWidth, const int ScreenHeight, 
 		const GLint ColorBinding = glGetAttribLocation(SodapopShader.ProgramID, "VertexColor");
 		glEnableVertexAttribArray(ColorBinding);
 
-		for (SDFModelShared Model : Models)
+		std::function<void(SDFModelShared)> DrawThunk = [&](SDFModelShared Model)
 		{
-			if (Model->Painter)
+			if (Model->Painter && Model->Painter->MeshAvailable)
 			{
 				Model->DrawES2(UploadedView.CameraOrigin.xyz(), LocalToWorldBinding, PositionBinding, ColorBinding);
 			}
-		}
+		};
+		Apply(DrawThunk);
 
 		glPopDebugGroup();
 
@@ -325,14 +334,11 @@ void PaintingSet::RenderFrameES2(const int ScreenWidth, const int ScreenHeight, 
 
 bool PaintingSet::CanRender()
 {
-	for (SDFModelShared& Model : Models)
+	std::function<bool(SDFModelShared)> QueryThunk = [&](SDFModelShared Model)
 	{
-		if (Model->Painter && Model->Painter->MeshAvailable)
-		{
-			return true;
-		}
-	}
-	return false;
+		return Model->Painter && Model->Painter->MeshAvailable;
+	};
+	return Select(QueryThunk) != nullptr;
 }
 
 

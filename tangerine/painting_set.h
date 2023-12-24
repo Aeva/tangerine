@@ -44,7 +44,7 @@ class PaintingSet
 {
 	uint64_t UniqueToken;
 
-	std::vector<SDFModelShared> Models;
+	std::vector<SDFModelWeakRef> Models;
 
 	PaintingSet();
 
