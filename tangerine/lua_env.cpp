@@ -21,6 +21,7 @@
 #include "sodapop.h"
 #include "painting_set.h"
 #include "units.h"
+#include "lua_painting_set.h"
 #include "lua_material.h"
 #include "lua_sdf.h"
 #include "lua_vec.h"
@@ -290,6 +291,7 @@ LuaEnvironment::LuaEnvironment()
 	luaL_requiref(L, "more_math", LuaOpenVec, 1);
 	luaL_requiref(L, "tangerine_color", LuaOpenColor, 1);
 	luaL_requiref(L, "tangerine_light", LuaOpenLight, 1);
+	luaL_requiref(L, "tangerine_painting_set", LuaOpenPaintingSet, 1);
 
 	const char* Source = \
 		"tangerine = {}\n"
@@ -316,11 +318,16 @@ LuaEnvironment::LuaEnvironment()
 		"	_ENV[key] = tangerine_light[key]\n"
 		"	tangerine[key] = tangerine_light[key]\n"
 		"end\n"
+		"for key, value in next, tangerine_painting_set do\n"
+		"	_ENV[key] = tangerine_painting_set[key]\n"
+		"	tangerine[key] = tangerine_painting_set[key]\n"
+		"end\n"
 		"tangerine_sdf = nil\n"
 		"tangerine_env = nil\n"
 		"tangerine_mat = nil\n"
 		"tangerine_color = nil\n"
-		"tangerine_light = nil\n";
+		"tangerine_light = nil\n"
+		"tangerine_painting_set = nil\n";
 
 	int Error = luaL_dostring(L, Source);
 	Assert(Error == 0);

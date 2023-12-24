@@ -197,6 +197,7 @@
     <ClCompile Include="..\tangerine\lua_env.cpp" />
     <ClCompile Include="..\tangerine\lua_light.cpp" />
     <ClCompile Include="..\tangerine\lua_material.cpp" />
+    <ClCompile Include="..\tangerine\lua_painting_set.cpp" />
     <ClCompile Include="..\tangerine\lua_sdf.cpp" />
     <ClCompile Include="..\tangerine\lua_vec.cpp" />
     <ClCompile Include="..\tangerine\magica.cpp" />
@@ -288,6 +289,7 @@
     <ClInclude Include="..\tangerine\lua_env.h" />
     <ClInclude Include="..\tangerine\lua_light.h" />
     <ClInclude Include="..\tangerine\lua_material.h" />
+    <ClInclude Include="..\tangerine\lua_painting_set.h" />
     <ClInclude Include="..\tangerine\lua_sdf.h" />
     <ClInclude Include="..\tangerine\lua_vec.h" />
     <ClInclude Include="..\tangerine\magica.h" />

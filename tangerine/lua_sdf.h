@@ -32,7 +32,7 @@ struct LuaModel : public SDFModel
 	LuaEnvironment* Env = nullptr;
 	int MouseCallbackRefs[MOUSE_EVENTS];
 
-	static LuaModelShared Create(lua_State* L, SDFNodeShared& InEvaluator, const std::string& InName, const float VoxelSize = 0.25);
+	static LuaModelShared Create(lua_State* L, std::shared_ptr<class PaintingSet> InLayer, SDFNodeShared& InEvaluator, const std::string& InName, const float VoxelSize = 0.25);
 	void OnGarbageCollected();
 	virtual ~LuaModel();
 	virtual void OnMouseEvent(MouseEvent& Event, bool Picked);
@@ -42,6 +42,9 @@ struct LuaModel : public SDFModel
 protected:
 	LuaModel(lua_State* L, LuaEnvironment* InEnv, SDFNodeShared& InEvaluator, const std::string& InName, const float VoxelSize);
 };
+
+
+SDFNodeShared* GetSDFNode(lua_State* L, int Arg);
 
 
 int LuaOpenSDF(struct lua_State* L);

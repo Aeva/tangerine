@@ -673,6 +673,7 @@ int LuaShuffleSequence(lua_State* L)
 
 int LuaInstanceModel(lua_State* L)
 {
+	LuaEnvironment* Env = LuaEnvironment::GetScriptEnvironment(L);
 	SDFNodeShared& Evaluator = *GetSDFNode(L, 1);
 
 	std::string Name = "";
@@ -684,14 +685,13 @@ int LuaInstanceModel(lua_State* L)
 	}
 	else
 	{
-		LuaEnvironment* Env = LuaEnvironment::GetScriptEnvironment(L);
 		if (Env->Name.size() > 0)
 		{
 			Name = Env->Name;
 		}
 	}
 
-	LuaModelShared NewModel = LuaModel::Create(L, Evaluator, Name, 0.25);
+	LuaModelShared NewModel = LuaModel::Create(L, Env->GlobalPaintingSet, Evaluator, Name, 0.25);
 
 	LuaModelShared* Wrapper = (LuaModelShared*)lua_newuserdata(L, sizeof(LuaModelShared));
 	luaL_getmetatable(L, "tangerine.model");
@@ -810,12 +810,12 @@ LuaModel::LuaModel(lua_State* L, LuaEnvironment* InEnv, SDFNodeShared& InEvaluat
 }
 
 
-LuaModelShared LuaModel::Create(lua_State* L, SDFNodeShared& InEvaluator, const std::string& InName, const float VoxelSize)
+LuaModelShared LuaModel::Create(lua_State* L, std::shared_ptr<class PaintingSet> InLayer, SDFNodeShared& InEvaluator, const std::string& InName, const float VoxelSize)
 {
 	LuaEnvironment* Env = LuaEnvironment::GetScriptEnvironment(L);
 	LuaModelShared NewModel(new LuaModel(L, Env, InEvaluator, InName, VoxelSize));
 	SDFModelShared Up = std::static_pointer_cast<SDFModel>(NewModel);
-	SDFModel::RegisterNewModel(Env->GlobalPaintingSet, Up);
+	SDFModel::RegisterNewModel(InLayer, Up);
 	Env->GarbageCollectionRequested = true;
 	return NewModel;
 }
