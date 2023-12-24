@@ -422,14 +422,7 @@ void ShaderProgram::AsyncSetup(std::map<GLenum, ShaderSource> InShaders, const c
 StatusCode ShaderProgram::Setup(std::map<GLenum, ShaderSource> InShaders, const char* InProgramName)
 {
 	AsyncSetup(InShaders, InProgramName);
-
-	StatusCode Result = Compile();
-	if (Result == StatusCode::FAIL);
-	{
-		Reset();
-	}
-
-	return Result;
+	return Compile();
 }
 
 
