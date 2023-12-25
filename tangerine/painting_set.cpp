@@ -29,8 +29,6 @@ extern GLuint ColorPass;
 extern GLuint ForwardPass;
 extern GLuint FinalPass;
 
-extern GLuint ColorBuffer;
-
 extern TimingQuery DepthTimeQuery;
 extern TimingQuery GridBgTimeQuery;
 

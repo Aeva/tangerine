@@ -1003,6 +1003,8 @@ void RenderUI(SDL_Window* Window, bool& Live)
 
 	static bool ShowFocusOverlay = false;
 	static bool ShowMeshingStats = false;
+	static bool ShowPerformanceStats = false;
+	static bool ShowSchedulerStats = false;
 
 	static bool ShowExportOptions = false;
 	static float ExportStepSize;
@@ -1107,12 +1109,16 @@ void RenderUI(SDL_Window* Window, bool& Live)
 			if (ImGui::MenuItem("Camera Parameters", nullptr, &ShowFocusOverlay))
 			{
 			}
-			if (ImGui::MenuItem("Performance Stats", nullptr, &ShowStatsOverlay))
+			if (ImGui::MenuItem("Performance Stats", nullptr, &ShowPerformanceStats))
+			{
+			}
+			if (ImGui::MenuItem("Scheduler Stats", nullptr, &ShowSchedulerStats))
 			{
 			}
 			if (ImGui::MenuItem("Meshing Stats", nullptr, &ShowMeshingStats))
 			{
 			}
+			ShowStatsOverlay = ShowPerformanceStats || ShowSchedulerStats;
 			ImGui::EndMenu();
 		}
 		if (ImGui::BeginMenu("Help"))
@@ -1264,26 +1270,46 @@ void RenderUI(SDL_Window* Window, bool& Live)
 
 		if (ImGui::Begin("Performance Stats", &ShowStatsOverlay, WindowFlags))
 		{
+			if (ShowPerformanceStats)
 			{
-				ImGui::Text("Cadence\n");
-				ImGui::Text(" %.0f hz\n", round(PresentFrequency));
-				ImGui::Text(" %.1f ms\n", PresentDeltaMs);
+				{
+					ImGui::Text("Cadence\n");
+					ImGui::Text(" %.0f hz\n", round(PresentFrequency));
+					ImGui::Text(" %.1f ms\n", PresentDeltaMs);
+				}
+				if (GraphicsBackend == GraphicsAPI::OpenGL4_2)
+				{
+					ImGui::Separator();
+					ImGui::Text("GPU Timeline\n");
+					double TotalTimeMs = \
+						DepthElapsedTimeMs +
+						GridBgElapsedTimeMs +
+						UiElapsedTimeMs;
+					ImGui::Text("      BG: %.2f ms\n", GridBgElapsedTimeMs);
+					ImGui::Text("      FG: %.2f ms\n", DepthElapsedTimeMs);
+					ImGui::Text("      UI: %.2f ms\n", UiElapsedTimeMs);
+					ImGui::Text("   Total: %.2f ms\n", TotalTimeMs);
+				}
+				{
+					ImGui::Separator();
+					ImGui::Text("CPU Timeline\n");
+					double TotalTimeMs = \
+						TotalDrawTimeMS +
+						PresentTimeMs;
+					ImGui::Text(" Drawing: %.2f ms\n", TotalDrawTimeMS);
+					ImGui::Text(" Present: %.2f ms\n", PresentTimeMs);
+					ImGui::Text("   Total: %.2f ms\n", TotalTimeMs);
+				}
+#if 0
+				// TODO : this isn't accurate anymore
+				{
+					ImGui::Separator();
+					ImGui::Text("Model Loading\n");
+					ImGui::Text("  Processing: %.3f s\n", ModelProcessingStallMs / 1000.0);
+				}
+#endif
 			}
-			{
-				ImGui::Separator();
-				ImGui::Text("CPU Frame Times\n");
-				double TotalTimeMs = \
-					TotalDrawTimeMS +
-					PresentTimeMs;
-				ImGui::Text(" Drawing: %.2f ms\n", TotalDrawTimeMS);
-				ImGui::Text(" Present: %.2f ms\n", PresentTimeMs);
-				ImGui::Text("   Total: %.2f ms\n", TotalTimeMs);
-			}
-			{
-				ImGui::Separator();
-				ImGui::Text("Model Loading\n");
-				ImGui::Text("  Processing: %.3f s\n", ModelProcessingStallMs / 1000.0);
-			}
+			if (ShowSchedulerStats)
 			{
 				Scheduler::Stats(
 					SchedulerStats::Inbox,
@@ -1292,7 +1318,10 @@ void RenderUI(SDL_Window* Window, bool& Live)
 					SchedulerStats::ContinuousQueue,
 					SchedulerStats::DeleteQueue);
 
-				ImGui::Separator();
+				if (ShowPerformanceStats)
+				{
+					ImGui::Separator();
+				}
 				ImGui::Text("Scheduler Pressure\n");
 				ImGui::Text("      Inbox: %i\n", int(SchedulerStats::Inbox));
 				ImGui::Text("     Outbox: %i\n", int(SchedulerStats::Outbox));
