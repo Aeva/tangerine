@@ -653,7 +653,7 @@ void RenderEmptyFrameGL4(int ScreenWidth, int ScreenHeight, ViewInfoUpload& Uplo
 		glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Dead Channel");
 		glDepthMask(GL_FALSE);
 		glDisable(GL_DEPTH_TEST);
-		glBindFramebuffer(GL_FRAMEBUFFER, FinalPass);
+		glBindFramebuffer(GL_FRAMEBUFFER, ForwardPass);
 		glBindTextureUnit(1, ColorBuffer);
 		NoiseShader.Activate();
 		glDrawArrays(GL_TRIANGLES, 0, 3);
