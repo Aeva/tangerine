@@ -34,9 +34,11 @@ SDL_Window* Window = nullptr;
 SDL_GLContext Context = nullptr;
 GraphicsAPI GraphicsBackend = GraphicsAPI::Invalid;
 
+extern GLsizei MultiSampleCount;
+
 
 template<GraphicsAPI Backend>
-StatusCode CreateWindowGL(int& WindowWidth, int& WindowHeight, bool HeadlessMode, bool CreateDebugContext)
+StatusCode CreateWindowGL(int& WindowWidth, int& WindowHeight, GLsizei MultiSampleCountHint, bool HeadlessMode, bool CreateDebugContext)
 {
 	SDL_GL_SetAttribute(SDL_GL_FRAMEBUFFER_SRGB_CAPABLE, 1);
 	if (Backend == GraphicsAPI::OpenGL4_2)
@@ -52,25 +54,27 @@ StatusCode CreateWindowGL(int& WindowWidth, int& WindowHeight, bool HeadlessMode
 		SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
 	}
 	SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
-#if ENABLE_RMLUI
-	SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8);
-#endif
+	SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "linear");
+
+	if (Backend == GraphicsAPI::OpenGLES2)
 	{
-		// RmlUi's reference backend does this to setup AA, with a try again fallback
-		// w/ both attributes set to 0 for if the first case fails.  It might be worthwhile
-		// to have a similar try-again mechanism here before regressing to GLES.
-		SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "linear");
-		SDL_GL_SetAttribute(SDL_GL_MULTISAMPLEBUFFERS, 1);
-		SDL_GL_SetAttribute(SDL_GL_MULTISAMPLESAMPLES, 16); // At least 2
+		// Note: the GL4 backend only resolves to the back buffer at the very end,
+		// and thus the backbuffer does not need stencil bits or MSAA to be enabled.
+
+#if ENABLE_RMLUI
+		SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8);
+#endif
+		if (MultiSampleCountHint > 1)
+		{
+			SDL_GL_SetAttribute(SDL_GL_MULTISAMPLEBUFFERS, 1);
+			SDL_GL_SetAttribute(SDL_GL_MULTISAMPLESAMPLES, MultiSampleCountHint);
+		}
 	}
 	if (CreateDebugContext)
 	{
 		SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_DEBUG_FLAG);
 	}
 	Uint32 WindowFlags = SDL_WINDOW_OPENGL;
-#if _WIN64
-	//WindowFlags |= SDL_WINDOW_ALLOW_HIGHDPI;
-#endif
 	if (HeadlessMode)
 	{
 		WindowFlags |= SDL_WINDOW_HIDDEN;
@@ -96,22 +100,37 @@ StatusCode CreateWindowGL(int& WindowWidth, int& WindowHeight, bool HeadlessMode
 
 	if (Window == nullptr)
 	{
-		if (Backend == GraphicsAPI::OpenGL4_2)
+		if (MultiSampleCountHint > 1)
 		{
-			std::cout << "Failed to create a SDL2 window for OpenGL 4.2!\n";
-		}
-		else if (Backend == GraphicsAPI::OpenGLES2)
-		{
-			std::cout << "Failed to create a SDL2 window for OpenGL ES2!\n";
+			return CreateWindowGL<Backend>(WindowWidth, WindowHeight, MultiSampleCountHint >> 1, HeadlessMode, CreateDebugContext);
 		}
 		else
 		{
-			std::cout << "Failed to create a SDL2 window!\n";
+			if (Backend == GraphicsAPI::OpenGL4_2)
+			{
+				std::cout << "Failed to create a SDL2 window for OpenGL 4.2!\n";
+			}
+			else if (Backend == GraphicsAPI::OpenGLES2)
+			{
+				std::cout << "Failed to create a SDL2 window for OpenGL ES2!\n";
+			}
+			else
+			{
+				std::cout << "Failed to create a SDL2 window!\n";
+			}
+			return StatusCode::FAIL;
 		}
-		return StatusCode::FAIL;
 	}
 	else
 	{
+		if (MultiSampleCountHint > 1)
+		{
+			MultiSampleCount = MultiSampleCountHint;
+		}
+		else
+		{
+			MultiSampleCount = 0;
+		}
 		return StatusCode::PASS;
 	}
 }
@@ -169,12 +188,13 @@ void SetSwapInterval(VSyncMode RequestedVSyncMode)
 
 StatusCode BootGL(int& WindowWidth, int& WindowHeight, bool HeadlessMode, bool ForceES2, bool CreateDebugContext, VSyncMode RequestedVSyncMode)
 {
+	const bool MultiSamplingWasRequested = MultiSampleCount > 1;
 	GraphicsBackend = GraphicsAPI::Invalid;
 
 	if (!ForceES2)
 	{
 		StatusCode Result = CreateWindowGL<GraphicsAPI::OpenGL4_2>(
-			WindowWidth, WindowHeight, HeadlessMode, CreateDebugContext);
+			WindowWidth, WindowHeight, MultiSampleCount, HeadlessMode, CreateDebugContext);
 		if (Result == StatusCode::PASS)
 		{
 			Context = SDL_GL_CreateContext(Window);
@@ -216,7 +236,7 @@ StatusCode BootGL(int& WindowWidth, int& WindowHeight, bool HeadlessMode, bool F
 		}
 
 		StatusCode Result = CreateWindowGL<GraphicsAPI::OpenGLES2>(
-			WindowWidth, WindowHeight, HeadlessMode, CreateDebugContext);
+			WindowWidth, WindowHeight, MultiSampleCount, HeadlessMode, CreateDebugContext);
 		if (Result == StatusCode::PASS)
 		{
 			Context = SDL_GL_CreateContext(Window);
@@ -263,6 +283,31 @@ StatusCode BootGL(int& WindowWidth, int& WindowHeight, bool HeadlessMode, bool F
 		}
 
 		std::cout << "Using device: " << glGetString(GL_RENDERER) << " " << glGetString(GL_VERSION) << "\n";
+
+		if (GraphicsBackend == GraphicsAPI::OpenGL4_2)
+		{
+			// This is OpenGL 4 only, because ES2 doesn't create any of it's own MSAA targets.
+			// With ES2, the sampling rate the windowing system is the one we run with.
+			GLint MaxSamples = 0;
+			glGetIntegerv(GL_MAX_SAMPLES, &MaxSamples);
+			if (MultiSampleCount > MaxSamples)
+			{
+				MultiSampleCount = GLsizei(MaxSamples);
+			}
+		}
+
+		if (MultiSampleCount > 1)
+		{
+			std::cout << "MSAA is enabled with " << MultiSampleCount << " samples per pixel.\n";
+		}
+		else if (MultiSamplingWasRequested)
+		{
+			std::cout << "MSAA render targets are not available on this system.\n";
+		}
+		else
+		{
+			std::cout << "MSAA has been disabled by user.\n";
+		}
 
 		return StatusCode::PASS;
 	}

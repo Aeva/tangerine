@@ -21,7 +21,6 @@
 #include <map>
 
 extern ShaderProgram BgShader;
-extern ShaderProgram ResolveOutputShader;
 extern ShaderProgram SodapopShader;
 
 extern Buffer ViewInfo;
@@ -243,15 +242,6 @@ void PaintingSet::RenderFrameGL4(const int ScreenWidth, const int ScreenHeight, 
 
 		std::chrono::duration<double, std::milli> DrawDelta = ProfilingClock::now() - SodapopStartTime;
 		TotalDrawTimeMS = DrawDelta.count();
-	}
-	{
-		glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Resolve Output");
-		glDisable(GL_DEPTH_TEST);
-		glBindFramebuffer(GL_FRAMEBUFFER, FinalPass);
-		glBindTextureUnit(1, ColorBuffer);
-		ResolveOutputShader.Activate();
-		glDrawArrays(GL_TRIANGLES, 0, 3);
-		glPopDebugGroup();
 	}
 }
 

@@ -75,6 +75,7 @@ Rml::ElementDocument* RmlUiDocument = nullptr;
 #include <regex>
 #include <filesystem>
 #include <fstream>
+#include <bit>
 
 #include <fmt/format.h>
 
@@ -138,15 +139,13 @@ void ClearTreeEvaluator()
 	TreeEvaluator.reset();
 }
 
+GLsizei MultiSampleCount = 8;
 
 ShaderProgram NoiseShader;
 ShaderProgram BgShader;
-ShaderProgram ResolveOutputShader;
 ShaderProgram SodapopShader;
 
-
 Buffer ViewInfo("ViewInfo Buffer");
-
 Buffer DepthTimeBuffer("Subtree Heatmap Buffer");
 
 GLuint ColorPass;
@@ -185,39 +184,54 @@ void AllocateRenderTargets(int ScreenWidth, int ScreenHeight)
 		Initialized = true;
 	}
 
-	// Color passes.
+	if (GraphicsBackend == GraphicsAPI::OpenGL4_2)
 	{
-		glCreateTextures(GL_TEXTURE_2D, 1, &ColorBuffer);
-		glTextureStorage2D(ColorBuffer, 1, GL_RGB8, ScreenWidth, ScreenHeight);
-		glTextureParameteri(ColorBuffer, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-		glTextureParameteri(ColorBuffer, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-		glTextureParameteri(ColorBuffer, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-		glTextureParameteri(ColorBuffer, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-		glObjectLabel(GL_TEXTURE, ColorBuffer, -1, "Color Buffer");
+		// Color buffer
+		if (MultiSampleCount > 1)
+		{
+			glCreateTextures(GL_TEXTURE_2D_MULTISAMPLE, 1, &ColorBuffer);
+			glTextureStorage2DMultisample(ColorBuffer, MultiSampleCount, GL_RGB8, ScreenWidth, ScreenHeight, GL_FALSE);
+			glObjectLabel(GL_TEXTURE, ColorBuffer, -1, "MSAA Color Buffer");
+		}
+		else
+		{
+			glCreateTextures(GL_TEXTURE_2D, 1, &ColorBuffer);
+			glTextureStorage2D(ColorBuffer, 1, GL_RGB8, ScreenWidth, ScreenHeight);
+			glObjectLabel(GL_TEXTURE, ColorBuffer, -1, "Color Buffer");
+		}
 
-		glCreateFramebuffers(1, &ColorPass);
-		glObjectLabel(GL_FRAMEBUFFER, ColorPass, -1, "Color Pass");
-		glNamedFramebufferTexture(ColorPass, GL_COLOR_ATTACHMENT0, ColorBuffer, 0);
-		GLenum ColorAttachments[1] = { GL_COLOR_ATTACHMENT0 };
-		glNamedFramebufferDrawBuffers(ColorPass, 1, ColorAttachments);
-	}
+		// Depth buffer
+		if (MultiSampleCount > 1)
+		{
+			glCreateTextures(GL_TEXTURE_2D_MULTISAMPLE, 1, &DepthBuffer);
+			glTextureStorage2DMultisample(DepthBuffer, MultiSampleCount, GL_DEPTH_COMPONENT32F, ScreenWidth, ScreenHeight, GL_FALSE);
+			glObjectLabel(GL_TEXTURE, DepthBuffer, -1, "MSAA Depth Buffer");
+		}
+		else
+		{
+			glCreateTextures(GL_TEXTURE_2D, 1, &DepthBuffer);
+			glTextureStorage2D(DepthBuffer, 1, GL_DEPTH_COMPONENT32F, ScreenWidth, ScreenHeight);
+			glObjectLabel(GL_TEXTURE, DepthBuffer, -1, "Depth Buffer");
+		}
 
-	// Forward rendering pass
-	{
-		glCreateTextures(GL_TEXTURE_2D, 1, &DepthBuffer);
-		glTextureStorage2D(DepthBuffer, 1, GL_DEPTH_COMPONENT32F, ScreenWidth, ScreenHeight);
-		glTextureParameteri(DepthBuffer, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-		glTextureParameteri(DepthBuffer, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-		glTextureParameteri(DepthBuffer, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-		glTextureParameteri(DepthBuffer, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-		glObjectLabel(GL_TEXTURE, DepthBuffer, -1, "DepthBuffer");
+		// Depthless color pass for background drawing
+		{
+			glCreateFramebuffers(1, &ColorPass);
+			glObjectLabel(GL_FRAMEBUFFER, ColorPass, -1, "Color Pass");
+			glNamedFramebufferTexture(ColorPass, GL_COLOR_ATTACHMENT0, ColorBuffer, 0);
+			GLenum ColorAttachments[1] = { GL_COLOR_ATTACHMENT0 };
+			glNamedFramebufferDrawBuffers(ColorPass, 1, ColorAttachments);
+		}
 
-		glCreateFramebuffers(1, &ForwardPass);
-		glObjectLabel(GL_FRAMEBUFFER, ForwardPass, -1, "Forward Rendering Pass");
-		glNamedFramebufferTexture(ForwardPass, GL_DEPTH_ATTACHMENT, DepthBuffer, 0);
-		glNamedFramebufferTexture(ForwardPass, GL_COLOR_ATTACHMENT0, ColorBuffer, 0);
-		GLenum ColorAttachments[1] = { GL_COLOR_ATTACHMENT0 };
-		glNamedFramebufferDrawBuffers(ForwardPass, 1, ColorAttachments);
+		// Forward pass for rendering objects
+		{
+			glCreateFramebuffers(1, &ForwardPass);
+			glObjectLabel(GL_FRAMEBUFFER, ForwardPass, -1, "Forward Rendering Pass");
+			glNamedFramebufferTexture(ForwardPass, GL_DEPTH_ATTACHMENT, DepthBuffer, 0);
+			glNamedFramebufferTexture(ForwardPass, GL_COLOR_ATTACHMENT0, ColorBuffer, 0);
+			GLenum ColorAttachments[1] = { GL_COLOR_ATTACHMENT0 };
+			glNamedFramebufferDrawBuffers(ForwardPass, 1, ColorAttachments);
+		}
 	}
 
 	// Final pass
@@ -329,11 +343,6 @@ StatusCode SetupRenderer()
 			{ {GL_VERTEX_SHADER, ShaderSource("splat.vs.glsl", true)},
 			{GL_FRAGMENT_SHADER, ShaderSource("bg.fs.glsl", true)} },
 			"Background Shader"));
-
-		RETURN_ON_FAIL(ResolveOutputShader.Setup(
-			{ {GL_VERTEX_SHADER, ShaderSource("splat.vs.glsl", true)},
-			{GL_FRAGMENT_SHADER, ShaderSource("resolve.fs.glsl", true)} },
-			"Resolve BackBuffer Shader"));
 
 		RETURN_ON_FAIL(NoiseShader.Setup(
 			{ {GL_VERTEX_SHADER, ShaderSource("splat.vs.glsl", true)},
@@ -676,6 +685,19 @@ void RenderEmptyFrameES2(int ScreenWidth, int ScreenHeight, ViewInfoUpload& Uplo
 		glEnableVertexAttribArray(ClipAttrib);
 
 		glDrawArrays(GL_TRIANGLES, 0, 3);
+		glPopDebugGroup();
+	}
+}
+
+
+void ResolveFrame(int PixelWidth, int PixelHeight)
+{
+	if (GraphicsBackend == GraphicsAPI::OpenGL4_2)
+	{
+		glPushDebugGroup(GL_DEBUG_SOURCE_APPLICATION, 0, -1, "Resolve Output");
+		glBindFramebuffer(GL_READ_FRAMEBUFFER, ColorPass);
+		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, FinalPass);
+		glBlitFramebuffer(0, 0, PixelWidth, PixelHeight, 0, 0, PixelWidth, PixelHeight, GL_COLOR_BUFFER_BIT, GL_NEAREST);
 		glPopDebugGroup();
 	}
 }
@@ -1628,6 +1650,10 @@ StatusCode Boot(int argc, char* argv[])
 	int WindowHeight = 900;
 	HeadlessMode = false;
 
+	// Only knowable after the SDL window has been created.
+	int PixelWidth = -1;
+	int PixelHeight = -1;
+
 	DefaultModelLoadingMethod InitModelFrom = DefaultModelLoadingMethod::ImplicitFileLoad;
 	std::filesystem::path InitModelFilePath = Installed.ModelsDir / "init.lua";
 	Language InitModelRuntime = Language::Unknown;
@@ -1700,6 +1726,13 @@ StatusCode Boot(int argc, char* argv[])
 				Cursor += 1;
 				continue;
 			}
+			else if (Args[Cursor] == "--msaa" && (Cursor + 1) < Args.size())
+			{
+				int Hint = glm::clamp(atoi(Args[Cursor + 1].c_str()), 0, 16);
+				MultiSampleCount = GLsizei(std::bit_floor(size_t(Hint)));
+				Cursor += 2;
+				continue;
+			}
 			else if (Args[Cursor] == "--single-thread")
 			{
 				ForceSingleThread = true;
@@ -1764,6 +1797,8 @@ StatusCode Boot(int argc, char* argv[])
 			std::cout << "Failed to initialize SDL2.\n";
 			return StatusCode::FAIL;
 		}
+
+		SDL_GetWindowSizeInPixels(Window, &PixelWidth, &PixelHeight);
 	}
 	{
 		MainEnvironment = new NullEnvironment();
@@ -1964,6 +1999,7 @@ StatusCode Boot(int argc, char* argv[])
 			ViewInfoUpload UploadedView;
 			RenderFrame(WindowWidth, WindowHeight, UploadedView);
 			ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+			ResolveFrame(PixelWidth, PixelHeight);
 			glFinish();
 		}
 
@@ -2320,6 +2356,7 @@ void MainLoop()
 					{
 						ProfilingTimePoint StartTime = ProfilingClock::now();
 						BeginEvent("Present");
+						ResolveFrame(PixelWidth, PixelWidth);
 						SDL_GL_SwapWindow(Window);
 						EndEvent();
 						std::chrono::duration<double, std::milli> PresentDelta = ProfilingClock::now() - StartTime;
