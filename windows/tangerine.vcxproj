@@ -297,6 +297,7 @@
     <ClInclude Include="..\tangerine\magica.h" />
     <ClInclude Include="..\tangerine\material.h" />
     <ClInclude Include="..\tangerine\painting_set.h" />
+    <ClInclude Include="..\tangerine\parallel_task.h" />
     <ClInclude Include="..\tangerine\profiling.h" />
     <ClInclude Include="..\tangerine\psmove\psmove.h" />
     <ClInclude Include="..\tangerine\psmove_loader.h" />

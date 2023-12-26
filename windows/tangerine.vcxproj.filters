@@ -666,6 +666,9 @@
     <ClInclude Include="..\tangerine\lua_painting_set.h">
       <Filter>Tangerine\Runtimes</Filter>
     </ClInclude>
+    <ClInclude Include="..\tangerine\parallel_task.h">
+      <Filter>Tangerine</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="..\shaders\splat.vs.glsl">
