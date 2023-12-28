@@ -29,6 +29,7 @@ enum class MeshingAlgorithms
 {
 	Debug = 0,
 	NaiveSurfaceNets = 1,
+	SphereLatticeSearch = 2,
 };
 
 
