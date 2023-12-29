@@ -844,8 +844,22 @@ struct LatticeParameters
 struct LatticeSample
 {
 	const glm::vec3 Center;
-	float Dist = 0.f;
-	LatticeSymbol Symbol = LatticeSymbol::I;
+	float Dist;
+	LatticeSymbol Symbol;
+
+	LatticeSample()
+		: Center(0.f)
+		, Dist(0.f)
+		, Symbol(LatticeSymbol::I)
+	{
+	}
+
+	LatticeSample(glm::vec3 InCenter, float InDist, LatticeSymbol InSymbol)
+		: Center(InCenter)
+		, Dist(InDist)
+		, Symbol(InSymbol)
+	{
+	}
 
 	LatticeSample(const glm::vec3 Point, const LatticeParameters& Lattice, SDFOctreeShared& Evaluator)
 		: Center(Point)
@@ -886,6 +900,15 @@ struct LatticeCell : public LatticeSample
 	std::vector<LatticeSample> Neighbors;
 	std::vector<Plane> SurfacePlanes;
 	std::vector<size_t> SurfaceNeighbors;
+
+	LatticeCell(const LatticeCell& Other)
+		: LatticeSample(Other.Center, Other.Dist, Other.Symbol)
+		, Lattice(Other.Lattice)
+		, Neighbors(Other.Neighbors)
+		, SurfacePlanes(Other.SurfacePlanes)
+		, SurfaceNeighbors(Other.SurfaceNeighbors)
+	{
+	}
 
 	LatticeCell(const glm::vec3 Point, const LatticeParameters InLattice, SDFOctreeShared& Evaluator)
 		: LatticeSample(Point, InLattice, Evaluator)
@@ -947,7 +970,7 @@ struct LatticeCell : public LatticeSample
 					}
 				}
 			}
-		
+
 			if (SurfacePlanes.size() > 0)
 			{
 				Assert(SurfacePlanes.size() == SurfaceNeighbors.size());
@@ -967,33 +990,32 @@ struct LatticeCell : public LatticeSample
 };
 
 
-struct LessVec3
+struct MeshBuilder
 {
-	bool operator()(const glm::vec3& L, const glm::vec3& R) const
+	struct LessVec3
 	{
-		if (L.z < R.z)
+		bool operator()(const glm::vec3& L, const glm::vec3& R) const
 		{
-			return true;
-		}
-		else if (L.z == R.z)
-		{
-			if (L.y < R.y)
+			if (L.z < R.z)
 			{
 				return true;
 			}
-			else if (L.y == R.y)
+			else if (L.z == R.z)
 			{
-				return L.x < R.x;
+				if (L.y < R.y)
+				{
+					return true;
+				}
+				else if (L.y == R.y)
+				{
+					return L.x < R.x;
+				}
 			}
+
+			return false;
 		}
+	};
 
-		return false;
-	}
-};
-
-
-struct MeshBuilder
-{
 	std::vector<glm::vec4> Vertices;
 	std::vector<uint32_t> Indices;
 	std::map<glm::vec3, uint32_t, LessVec3> Memo;
@@ -1010,9 +1032,9 @@ struct MeshBuilder
 };
 
 
-struct UnitRhombicDodecahedronBuilder : public MeshBuilder
+struct UnitRhombicDodecahedron : public MeshBuilder
 {
-	UnitRhombicDodecahedronBuilder()
+	UnitRhombicDodecahedron()
 	{
 		// These are relative to a *radius* of 1
 		const float A = 1.f;
@@ -1105,7 +1127,6 @@ struct UnitRhombicDodecahedronBuilder : public MeshBuilder
 			glm::vec3( Z, +A, -B));
 	}
 
-
 	void Rhombus(glm::vec3 AcuteLeft, glm::vec3 AcuteRight, glm::vec3 ObtuseBottom, glm::vec3 ObtuseTop)
 	{
 		Accumulate(AcuteLeft);
@@ -1115,55 +1136,105 @@ struct UnitRhombicDodecahedronBuilder : public MeshBuilder
 		Accumulate(ObtuseBottom);
 		Accumulate(AcuteRight);
 	}
+
+	static const UnitRhombicDodecahedron& Get()
+	{
+		static UnitRhombicDodecahedron UnitHull;
+		return UnitHull;
+	}
 };
 
 
-static void SphereLatticeSearchInner(DrawableShared& Painter, SDFOctreeShared& Evaluator)
+struct LatticeMeshingTask : ParallelMeshingTask<std::vector<LatticeCell>>
 {
-	const float Density = 16.f;
-	const LatticeParameters Lattice(Density);
+	using ContainerT = std::vector<LatticeCell>;
+	using SharedT = std::shared_ptr<ParallelMeshingTask<ContainerT>>;
+	using ElementT = typename ContainerT::value_type;
+	using IteratorT = typename ContainerT::iterator;
 
-	// Unscientific search bounds.
-	const AABB Bounds = Evaluator->Bounds + Lattice.ExtendedRadius;
+	const float Density;
+	const LatticeParameters Lattice;
+	const AABB Bounds;
+	const glm::ivec3 CellCount;
+	const glm::ivec2 CellStride;
+	const int LinearCellCount;
 
-	// This records cells that may generate mesh data.
-	std::vector<LatticeCell> CellsOfInterest;
+	std::atomic_int IterationCounter;
+	std::vector<ContainerT> CollectedCellsOfInterest;
 
-	const glm::vec3 Origin = Bounds.Min;
-	glm::vec3 Cursor = Origin;
-	bool Even = true;
-	for (Cursor.z = Origin.z; Cursor.z <= Bounds.Max.z; Cursor.z += Lattice.LayerOffset.z)
+	LatticeMeshingTask(DrawableShared& Painter, SDFOctreeShared& Evaluator, float InDensity = 16.f)
+		: ParallelMeshingTask<ContainerT>("Lattice Search", Painter, Evaluator)
+		, Density(InDensity)
+		, Lattice(Density)
+		, Bounds(Evaluator->Bounds + Lattice.ExtendedRadius)
+		, CellCount(glm::ceil(Bounds.Extent() / glm::vec3(Lattice.Diameter, Lattice.Diameter, Lattice.LayerOffset.z)))
+		, CellStride(CellCount.x, CellCount.x * CellCount.y)
+		, LinearCellCount(CellCount.x * CellCount.y * CellCount.z)
 	{
-		Even = !Even;
-		const glm::vec2 LayerJitter = Even ? Lattice.LayerOffset.xy() : glm::vec2(0.f);
-		const glm::vec3 LayerOrigin = glm::vec3(Origin.xy(), Cursor.z) + glm::vec3(LayerJitter, 0.f);
+		CollectedCellsOfInterest.reserve(Scheduler::GetThreadPoolSize());
+		IterationCounter.store(0);
+	}
 
-		for (Cursor.y = LayerOrigin.y; Cursor.y <= Bounds.Max.y; Cursor.y += Lattice.Diameter)
+	virtual void Run()
+	{
+		ProfileScope Fnord(fmt::format("{} (Run)", TaskName));
+		DrawableShared Painter = PainterWeakRef.lock();
+		SDFOctreeShared Evaluator = EvaluatorWeakRef.lock();
+		if (Painter && Evaluator)
 		{
-			for (Cursor.x = LayerOrigin.x; Cursor.x <= Bounds.Max.x; Cursor.x += Lattice.Diameter)
+			ContainerT CellsOfInterest;
+			CellsOfInterest.reserve(LinearCellCount);
+
+			while (true)
 			{
-				const LatticeCell& Cell = CellsOfInterest.emplace_back(Cursor, Lattice, Evaluator);
-				if (!Cell.IsValid() || !Cell.IsAmbiguous())
+				int SearchIndex = IterationCounter.fetch_add(1);
+				if (SearchIndex < LinearCellCount)
 				{
-					// TODO : parallelize this
-					CellsOfInterest.pop_back();
+					const glm::ivec3 CellIndex(
+						int(SearchIndex % size_t(CellCount.x)),
+						int((SearchIndex / size_t(CellStride.x)) % size_t(CellCount.y)),
+						int((SearchIndex / size_t(CellStride.y)) % size_t(CellCount.z)));
+
+					const bool Even = (CellIndex.z % 2 == 0);
+					const glm::vec3 LayerJitter = Even ? glm::vec3(0.f) : glm::vec3(Lattice.LayerOffset.xy(), 0.0f);
+					const glm::vec3 LayerOrigin = Bounds.Min + LayerJitter;
+					const glm::vec3 Cursor = glm::vec3(Lattice.Diameter, Lattice.Diameter, Lattice.LayerOffset.z) * glm::vec3(CellIndex) + LayerOrigin;
+
+					LatticeCell Cell(Cursor, Lattice, Evaluator);
+					if (Cell.IsValid() && Cell.IsAmbiguous())
+					{
+						CellsOfInterest.push_back(Cell);
+					}
 				}
+				else
+				{
+					break;
+				}
+			}
+
+			if (CellsOfInterest.size() > 0)
+			{
+				std::scoped_lock AppendResults(IterationCS);
+				CollectedCellsOfInterest.emplace_back(std::move(CellsOfInterest));
 			}
 		}
 	}
 
-	if (CellsOfInterest.size() > 0)
+	virtual void Done(DrawableShared& Painter, SDFOctreeShared& Evaluator)
 	{
-		static UnitRhombicDodecahedronBuilder UnitHull;
+		const UnitRhombicDodecahedron& UnitHull = UnitRhombicDodecahedron::Get();
 
 		MeshBuilder Model;
 
-		for (const LatticeCell& Cell : CellsOfInterest)
+		for (const ContainerT& CellsOfInterest : CollectedCellsOfInterest)
 		{
-			for (size_t LocalIndex : UnitHull.Indices)
+			for (const LatticeCell& Cell : CellsOfInterest)
 			{
-				const glm::vec4 LocalVertex = UnitHull.Vertices[LocalIndex];
-				Model.Accumulate(LocalVertex.xyz() * Cell.Lattice.Radius + Cell.Center);
+				for (size_t LocalIndex : UnitHull.Indices)
+				{
+					const glm::vec4 LocalVertex = UnitHull.Vertices[LocalIndex];
+					Model.Accumulate(LocalVertex.xyz() * Cell.Lattice.Radius + Cell.Center);
+				}
 			}
 		}
 
@@ -1171,19 +1242,19 @@ static void SphereLatticeSearchInner(DrawableShared& Painter, SDFOctreeShared& E
 		{
 			Painter->Positions = std::move(Model.Vertices);
 			Painter->Indices = std::move(Model.Indices);
-
-			for (const glm::vec4& Position : Painter->Positions)
-			{
-				Painter->Normals.emplace_back(Evaluator->Gradient(Position.xyz()), 1.0f);
-			}
 		}
+
+		Painter->Normals.resize(Painter->Positions.size());
+		Painter->Colors.resize(Painter->Positions.size(), glm::vec4(0.0, 0.0, 0.0, 1.0));
 	}
-}
+
+	virtual ~LatticeMeshingTask() = default;
+};
 
 
 void MeshingJob::SphereLatticeSearch(DrawableShared& Painter, SDFOctreeShared& Evaluator)
 {
-	ParallelTaskChain* PopulateLatticeTask;
+	ParallelTaskChain* PopulateOctreeTask;
 	{
 		using TaskT = MeshingLambdaContainerTask<std::vector<SDFOctree*>>;
 		TaskT::LoopThunkT LoopThunk = [](DrawableShared& Painter, SDFOctreeShared& Evaluator, SDFOctree* Incomplete, const int Index)
@@ -1196,13 +1267,15 @@ void MeshingJob::SphereLatticeSearch(DrawableShared& Painter, SDFOctreeShared& E
 			BeginEvent("Evaluator::LinkLeaves");
 			Evaluator->LinkLeaves();
 			EndEvent();
-
-			SphereLatticeSearchInner(Painter, Evaluator);
-
-			Painter->Normals.resize(Painter->Positions.size());
 		};
 
-		PopulateLatticeTask = new TaskT("Populate Octree", Painter, Evaluator, Painter->Scratch->Incompletes, LoopThunk, DoneThunk);
+		PopulateOctreeTask = new TaskT("Populate Octree", Painter, Evaluator, Painter->Scratch->Incompletes, LoopThunk, DoneThunk);
+	}
+
+	ParallelTaskChain* PopulateLatticeTask;
+	{
+		PopulateLatticeTask = new LatticeMeshingTask(Painter, Evaluator);
+		PopulateOctreeTask->NextTask = PopulateLatticeTask;
 	}
 
 	ParallelTaskChain* PopulateNormalsTask;
@@ -1215,7 +1288,6 @@ void MeshingJob::SphereLatticeSearch(DrawableShared& Painter, SDFOctreeShared& E
 
 		TaskT::DoneThunkT DoneThunk = [](DrawableShared& Painter, SDFOctreeShared& Evaluator)
 		{
-			Painter->Colors.resize(Painter->Positions.size(), glm::vec4(0.0, 0.0, 0.0, 1.0));
 		};
 
 		PopulateNormalsTask = new TaskT("Populate Normals", Painter, Evaluator, Painter->Normals, LoopThunk, DoneThunk);
@@ -1268,7 +1340,7 @@ void MeshingJob::SphereLatticeSearch(DrawableShared& Painter, SDFOctreeShared& E
 		PopulateNormalsTask->NextTask = MaterialAssignmentTask;
 	}
 
-	Scheduler::EnqueueParallel(PopulateLatticeTask);
+	Scheduler::EnqueueParallel(PopulateOctreeTask);
 }
 
 
