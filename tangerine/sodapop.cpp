@@ -22,6 +22,7 @@
 #include "tangerine.h"
 #include "sdf_model.h"
 #include "material.h"
+#include "mesh_generators.h"
 #include <fmt/format.h>
 #include <surface_nets.h>
 #include <concepts>
@@ -897,16 +898,13 @@ struct Plane
 struct LatticeCell : public LatticeSample
 {
 	const LatticeParameters Lattice;
-	std::vector<LatticeSample> Neighbors;
-	std::vector<Plane> SurfacePlanes;
-	std::vector<size_t> SurfaceNeighbors;
+	std::vector<MeshGenerator> Patches;
 
 	LatticeCell(const LatticeCell& Other)
 		: LatticeSample(Other.Center, Other.Dist, Other.Symbol)
 		, Lattice(Other.Lattice)
-		, Neighbors(Other.Neighbors)
-		, SurfacePlanes(Other.SurfacePlanes)
-		, SurfaceNeighbors(Other.SurfaceNeighbors)
+		, Patches(Other.Patches)
+
 	{
 	}
 
@@ -916,14 +914,26 @@ struct LatticeCell : public LatticeSample
 	{
 		if (IsAmbiguous())
 		{
-			Neighbors.reserve(Lattice.Neighbors.size());
+			std::vector<LatticeSample> Neighbors;
+			std::vector<Plane> Surfaces;
+
+			const size_t NeighborCount = Lattice.Neighbors.size();
+			Neighbors.reserve(NeighborCount);
+			Surfaces.reserve(NeighborCount);
+
 			for (const glm::vec3 Offset : Lattice.Neighbors)
 			{
 				glm::vec3 Other = Point + Offset;
 				Neighbors.emplace_back(Other, Lattice, Evaluator);
 			}
-			SurfacePlanes.reserve(Neighbors.size());
-			SurfaceNeighbors.reserve(Neighbors.size());
+
+			const float InvRadius = 1.f / Lattice.Radius;
+			auto RecordSurface = [&](glm::vec3 Pivot, glm::vec3 Normal)
+			{
+				// Clipping is done in the cell hull-local space.
+				Pivot = (Pivot - Center) * InvRadius;
+				Surfaces.emplace_back(Pivot, Normal);
+			};
 
 			for (size_t NeighborIndex = 0; NeighborIndex < Neighbors.size(); ++NeighborIndex)
 			{
@@ -942,16 +952,13 @@ struct LatticeCell : public LatticeSample
 						RayHit Hit = Evaluator->Evaluator->RayMarch(RayStart, RayDir);
 						if (Hit.Hit && Hit.Travel >= MinTravel && Hit.Travel <= MaxTravel)
 						{
-							Plane& Surfel = SurfacePlanes.emplace_back();
-							Surfel.Pivot = Hit.Position;
-							Surfel.Normal = Evaluator->Gradient(Hit.Position);
-							SurfaceNeighbors.push_back(NeighborIndex);
+							RecordSurface(Hit.Position, Evaluator->Gradient(Hit.Position));
 						}
 					}
 				}
 				else if (Symbol == LatticeSymbol::A)
 				{
-					if (Other.Symbol == LatticeSymbol::X)
+					if (Other.Symbol == LatticeSymbol::X || Other.Symbol == LatticeSymbol::A)
 					{
 						const glm::vec3 RayStart = Center;
 						const glm::vec3 RayDir = glm::normalize(Other.Center - Center);
@@ -962,185 +969,41 @@ struct LatticeCell : public LatticeSample
 						RayHit Hit = Evaluator->Evaluator->RayMarch(RayStart, RayDir);
 						if (Hit.Hit && Hit.Travel >= MinTravel && Hit.Travel <= MaxTravel)
 						{
-							Plane& Surfel = SurfacePlanes.emplace_back();
-							Surfel.Pivot = Hit.Position;
-							Surfel.Normal = Evaluator->Gradient(Hit.Position);
-							SurfaceNeighbors.push_back(NeighborIndex);
+							RecordSurface(Hit.Position, Evaluator->Gradient(Hit.Position));
 						}
 					}
 				}
 			}
 
-			if (SurfacePlanes.size() > 0)
+			const RhombicDodecahedronGenerator& UnitHull = RhombicDodecahedronGenerator::GetUnitHull();
+
+			for (const Plane& Surfel : Surfaces)
 			{
-				Assert(SurfacePlanes.size() == SurfaceNeighbors.size());
+#if 1
+				MeshGenerator Patch = UnitHull.ConvexBisect(Surfel.Pivot, Surfel.Normal);
+#else
+				MeshGenerator Patch = UnitHull;
+#endif
+				if (Patch.Indices.size() > 0)
+				{
+					for (glm::vec4& Vertex : Patch.Vertices)
+					{
+						Vertex = glm::vec4((Vertex.xyz() * Lattice.Radius + Center), 1.0f);
+					}
+					Patches.emplace_back(std::move(Patch));
+				}
 			}
 		}
 	}
 
 	bool IsValid() const
 	{
-		return Symbol != LatticeSymbol::I && Neighbors.size() > 0;
+		return Symbol != LatticeSymbol::I && Patches.size() > 0;
 	}
 
 	bool IsAmbiguous() const
 	{
 		return Symbol == LatticeSymbol::A || Symbol == LatticeSymbol::X;
-	}
-};
-
-
-struct MeshBuilder
-{
-	struct LessVec3
-	{
-		bool operator()(const glm::vec3& L, const glm::vec3& R) const
-		{
-			if (L.z < R.z)
-			{
-				return true;
-			}
-			else if (L.z == R.z)
-			{
-				if (L.y < R.y)
-				{
-					return true;
-				}
-				else if (L.y == R.y)
-				{
-					return L.x < R.x;
-				}
-			}
-
-			return false;
-		}
-	};
-
-	std::vector<glm::vec4> Vertices;
-	std::vector<uint32_t> Indices;
-	std::map<glm::vec3, uint32_t, LessVec3> Memo;
-
-	void Accumulate(glm::vec3 Vertex)
-	{
-		auto [Index, Outcome] = Memo.insert({ Vertex, uint32_t(Vertices.size()) });
-		if (Outcome)
-		{
-			Vertices.push_back(glm::vec4(Vertex, 1.0));
-		}
-		Indices.push_back(Index->second);
-	}
-};
-
-
-struct UnitRhombicDodecahedron : public MeshBuilder
-{
-	UnitRhombicDodecahedron()
-	{
-		// These are relative to a *radius* of 1
-		const float A = 1.f;
-		const float B = glm::sqrt(2.f) / 2.f;
-		const float C = glm::sqrt(2.f);
-		const float Z = 0.f;
-
-		// -Y
-		Rhombus(
-			glm::vec3(-A, -A,  Z),
-			glm::vec3(+A, -A,  Z),
-			glm::vec3(+Z, -A, -B),
-			glm::vec3(+Z, -A, +B));
-
-		// +X
-		Rhombus(
-			glm::vec3(+A, -A,  Z),
-			glm::vec3(+A, +A,  Z),
-			glm::vec3(+A, +Z, -B),
-			glm::vec3(+A, +Z, +B));
-
-		// +Y
-		Rhombus(
-			glm::vec3(+A, +A,  Z),
-			glm::vec3(-A, +A,  Z),
-			glm::vec3( Z, +A, -B),
-			glm::vec3( Z, +A, +B));
-
-		// -X
-		Rhombus(
-			glm::vec3(-A, +A,  Z),
-			glm::vec3(-A, -A,  Z),
-			glm::vec3(-A,  Z, -B),
-			glm::vec3(-A,  Z, +B));
-
-		// -X -Y +Z
-		Rhombus(
-			glm::vec3( Z,  Z, +C),
-			glm::vec3(-A, -A,  Z),
-			glm::vec3(-A,  Z, +B),
-			glm::vec3( Z, -A, +B));
-
-		// +X -Y +Z
-		Rhombus(
-			glm::vec3( Z,  Z, +C),
-			glm::vec3(+A, -A,  Z),
-			glm::vec3( Z, -A, +B),
-			glm::vec3(+A,  Z, +B));
-
-		// +X +Y +Z
-		Rhombus(
-			glm::vec3( Z,  Z, +C),
-			glm::vec3(+A, +A,  Z),
-			glm::vec3(+A,  Z, +B),
-			glm::vec3( Z, +A, +B));
-
-		// -X +Y +Z
-		Rhombus(
-			glm::vec3( Z,  Z, +C),
-			glm::vec3(-A, +A,  Z),
-			glm::vec3( Z, +A, +B),
-			glm::vec3(-A,  Z, +B));
-
-		// -X -Y -Z
-		Rhombus(
-			glm::vec3( Z,  Z, -C),
-			glm::vec3(-A, -A, -Z),
-			glm::vec3( Z, -A, -B),
-			glm::vec3(-A,  Z, -B));
-
-		// +X -Y -Z
-		Rhombus(
-			glm::vec3( Z,  Z, -C),
-			glm::vec3(+A, -A, -Z),
-			glm::vec3(+A,  Z, -B),
-			glm::vec3( Z, -A, -B));
-
-		// +X +Y -Z
-		Rhombus(
-			glm::vec3( Z,  Z, -C),
-			glm::vec3(+A, +A, -Z),
-			glm::vec3( Z, +A, -B),
-			glm::vec3(+A,  Z, -B));
-
-		// -X +Y -Z
-		Rhombus(
-			glm::vec3( Z,  Z, -C),
-			glm::vec3(-A, +A,  Z),
-			glm::vec3(-A,  Z, -B),
-			glm::vec3( Z, +A, -B));
-	}
-
-	void Rhombus(glm::vec3 AcuteLeft, glm::vec3 AcuteRight, glm::vec3 ObtuseBottom, glm::vec3 ObtuseTop)
-	{
-		Accumulate(AcuteLeft);
-		Accumulate(ObtuseBottom);
-		Accumulate(ObtuseTop);
-		Accumulate(ObtuseTop);
-		Accumulate(ObtuseBottom);
-		Accumulate(AcuteRight);
-	}
-
-	static const UnitRhombicDodecahedron& Get()
-	{
-		static UnitRhombicDodecahedron UnitHull;
-		return UnitHull;
 	}
 };
 
@@ -1162,7 +1025,7 @@ struct LatticeMeshingTask : ParallelMeshingTask<std::vector<LatticeCell>>
 	std::atomic_int IterationCounter;
 	std::vector<ContainerT> CollectedCellsOfInterest;
 
-	LatticeMeshingTask(DrawableShared& Painter, SDFOctreeShared& Evaluator, float InDensity = 16.f)
+	LatticeMeshingTask(DrawableShared& Painter, SDFOctreeShared& Evaluator, float InDensity = 8.f)
 		: ParallelMeshingTask<ContainerT>("Lattice Search", Painter, Evaluator)
 		, Density(InDensity)
 		, Lattice(Density)
@@ -1222,21 +1085,22 @@ struct LatticeMeshingTask : ParallelMeshingTask<std::vector<LatticeCell>>
 
 	virtual void Done(DrawableShared& Painter, SDFOctreeShared& Evaluator)
 	{
-		const UnitRhombicDodecahedron& UnitHull = UnitRhombicDodecahedron::Get();
-
-		MeshBuilder Model;
-
+		MeshGenerator Model;
+#if 1
 		for (const ContainerT& CellsOfInterest : CollectedCellsOfInterest)
 		{
 			for (const LatticeCell& Cell : CellsOfInterest)
 			{
-				for (size_t LocalIndex : UnitHull.Indices)
+				for (const MeshGenerator& Patch : Cell.Patches)
 				{
-					const glm::vec4 LocalVertex = UnitHull.Vertices[LocalIndex];
-					Model.Accumulate(LocalVertex.xyz() * Cell.Lattice.Radius + Cell.Center);
+					Model.Accumulate(Patch);
 				}
 			}
 		}
+#else
+		const RhombicDodecahedronGenerator& UnitHull = RhombicDodecahedronGenerator::GetUnitHull();
+		Model = UnitHull.ConvexBisect(glm::vec3(0.f, -1.f, 0.f), glm::normalize(glm::vec3(0.f, -1.f, 0.f)));
+#endif
 
 		if (Model.Indices.size() > 0)
 		{
