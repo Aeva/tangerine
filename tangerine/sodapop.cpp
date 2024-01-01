@@ -345,7 +345,7 @@ void MeshingJob::DebugOctree(DrawableShared& Painter, SDFOctreeShared& Evaluator
 {
 	ParallelTaskChain* MeshingOctreeTask;
 	{
-		using TaskT = MeshingLambdaContainerTask<std::vector<SDFOctree*>>;
+		using TaskT = ParallelLambdaDomainTaskChain<std::vector<SDFOctree*>>;
 		TaskT::LoopThunkT LoopThunk = [](DrawableShared& Painter, SDFOctreeShared& Evaluator, SDFOctree* Incomplete, const int Index)
 		{
 			Incomplete->Populate(false, 3, -1);
@@ -373,7 +373,7 @@ void MeshingJob::DebugOctree(DrawableShared& Painter, SDFOctreeShared& Evaluator
 
 	ParallelTaskChain* OctreeMeshDataTask;
 	{
-		using TaskT = MeshingLambdaOctreeTask;
+		using TaskT = ParallelLambdaOctreeTaskChain;
 
 		TaskT::BootThunkT BootThunk = [](DrawableShared& Painter, SDFOctreeShared& Evaluator)
 		{
@@ -415,7 +415,7 @@ void MeshingJob::DebugOctree(DrawableShared& Painter, SDFOctreeShared& Evaluator
 
 	ParallelTaskChain* MaterialAssignmentTask;
 	{
-		using TaskT = MeshingLambdaContainerTask<std::vector<glm::vec4>>;
+		using TaskT = ParallelLambdaDomainTaskChain<std::vector<glm::vec4>>;
 		TaskT::LoopThunkT LoopThunk = [](DrawableShared& Painter, SDFOctreeShared& Evaluator, const glm::vec4& Position, const int Index)
 		{
 			glm::vec3 Sample = glm::vec3(0.0);
@@ -491,7 +491,7 @@ void MeshingJob::NaiveSurfaceNets(DrawableShared& Painter, SDFOctreeShared& Eval
 
 	ParallelTaskChain* MeshingOctreeTask;
 	{
-		using TaskT = MeshingLambdaContainerTask<std::vector<SDFOctree*>>;
+		using TaskT = ParallelLambdaDomainTaskChain<std::vector<SDFOctree*>>;
 		TaskT::LoopThunkT LoopThunk = [](DrawableShared& Painter, SDFOctreeShared& Evaluator, SDFOctree* Incomplete, const int Index)
 		{
 			Incomplete->Populate(false, 3, -1);
@@ -524,7 +524,7 @@ void MeshingJob::NaiveSurfaceNets(DrawableShared& Painter, SDFOctreeShared& Eval
 
 	ParallelTaskChain* MeshingPointCacheTask;
 	{
-		using TaskT = MeshingLambdaOctreeTask;
+		using TaskT = ParallelLambdaOctreeTaskChain;
 
 		TaskT::BootThunkT BootThunk = [](DrawableShared& Painter, SDFOctreeShared& Evaluator)
 		{
@@ -594,7 +594,7 @@ void MeshingJob::NaiveSurfaceNets(DrawableShared& Painter, SDFOctreeShared& Eval
 
 	ParallelTaskChain* MeshingVertexLoopTask;
 	{
-		using TaskT = MeshingLambdaContainerTask<std::vector<PointCacheBucket>>;
+		using TaskT = ParallelLambdaDomainTaskChain<std::vector<PointCacheBucket>>;
 
 		TaskT::LoopThunkT LoopThunk = [](DrawableShared& Painter, SDFOctreeShared& Evaluator, const PointCacheBucket& Bucket, const int Ignore)
 		{
@@ -615,7 +615,7 @@ void MeshingJob::NaiveSurfaceNets(DrawableShared& Painter, SDFOctreeShared& Eval
 
 	ParallelTaskChain* MeshingFaceLoopTask;
 	{
-		using TaskT = MeshingLambdaContainerTask<std::unordered_map<std::size_t, std::uint64_t>>;
+		using TaskT = ParallelLambdaDomainTaskChain<std::unordered_map<std::size_t, std::uint64_t>>;
 
 		TaskT::LoopThunkT LoopThunk = [](DrawableShared& Painter, SDFOctreeShared& Evaluator, const std::pair<std::size_t const, std::uint64_t>& Element, const int Ignore)
 		{
@@ -646,7 +646,7 @@ void MeshingJob::NaiveSurfaceNets(DrawableShared& Painter, SDFOctreeShared& Eval
 	ParallelTaskChain* MeshingNormalLoopTask;
 	{
 		using FaceT = isosurface::mesh::triangle_t;
-		using TaskT = MeshingLambdaContainerTask<isosurface::mesh::faces_container_type>;
+		using TaskT = ParallelLambdaDomainTaskChain<isosurface::mesh::faces_container_type>;
 		TaskT::LoopThunkT LoopThunk = [](DrawableShared& Painter, SDFOctreeShared& Evaluator, const FaceT& Face, const int Index)
 		{
 			isosurface::mesh& Mesh = Painter->Scratch->OutputMesh;
@@ -689,7 +689,7 @@ void MeshingJob::NaiveSurfaceNets(DrawableShared& Painter, SDFOctreeShared& Eval
 
 	ParallelTaskChain* MeshingAverageNormalLoopTask;
 	{
-		using TaskT = MeshingLambdaContainerTask<std::vector<glm::vec4>>;
+		using TaskT = ParallelLambdaDomainTaskChain<std::vector<glm::vec4>>;
 		TaskT::LoopThunkT LoopThunk = [](DrawableShared& Painter, SDFOctreeShared& Evaluator, glm::vec4& Normal, const int Index)
 		{
 #if !USE_GRADIENT_NORMALS
@@ -715,7 +715,7 @@ void MeshingJob::NaiveSurfaceNets(DrawableShared& Painter, SDFOctreeShared& Eval
 
 	ParallelTaskChain* MeshingJitterLoopTask;
 	{
-		using TaskT = MeshingLambdaContainerTask<std::vector<glm::vec4>>;
+		using TaskT = ParallelLambdaDomainTaskChain<std::vector<glm::vec4>>;
 
 		glm::vec3 JitterSpan = glm::vec3(Grid.dx, Grid.dy, Grid.dz) * glm::vec3(0.5);
 
@@ -1008,10 +1008,10 @@ struct LatticeCell : public LatticeSample
 };
 
 
-struct LatticeMeshingTask : ParallelMeshingTask<std::vector<LatticeCell>>
+struct LatticeMeshingTask : ParallelDomainTaskChain<std::vector<LatticeCell>>
 {
 	using ContainerT = std::vector<LatticeCell>;
-	using SharedT = std::shared_ptr<ParallelMeshingTask<ContainerT>>;
+	using SharedT = std::shared_ptr<ParallelDomainTaskChain<ContainerT>>;
 	using ElementT = typename ContainerT::value_type;
 	using IteratorT = typename ContainerT::iterator;
 
@@ -1026,7 +1026,7 @@ struct LatticeMeshingTask : ParallelMeshingTask<std::vector<LatticeCell>>
 	std::vector<ContainerT> CollectedCellsOfInterest;
 
 	LatticeMeshingTask(DrawableShared& Painter, SDFOctreeShared& Evaluator, float InDensity = 8.f)
-		: ParallelMeshingTask<ContainerT>("Lattice Search", Painter, Evaluator)
+		: ParallelDomainTaskChain<ContainerT>("Lattice Search", Painter, Evaluator)
 		, Density(InDensity)
 		, Lattice(Density)
 		, Bounds(Evaluator->Bounds + Lattice.ExtendedRadius)
@@ -1120,7 +1120,7 @@ void MeshingJob::SphereLatticeSearch(DrawableShared& Painter, SDFOctreeShared& E
 {
 	ParallelTaskChain* PopulateOctreeTask;
 	{
-		using TaskT = MeshingLambdaContainerTask<std::vector<SDFOctree*>>;
+		using TaskT = ParallelLambdaDomainTaskChain<std::vector<SDFOctree*>>;
 		TaskT::LoopThunkT LoopThunk = [](DrawableShared& Painter, SDFOctreeShared& Evaluator, SDFOctree* Incomplete, const int Index)
 		{
 			Incomplete->Populate(false, 3, -1);
@@ -1144,7 +1144,7 @@ void MeshingJob::SphereLatticeSearch(DrawableShared& Painter, SDFOctreeShared& E
 
 	ParallelTaskChain* PopulateNormalsTask;
 	{
-		using TaskT = MeshingLambdaContainerTask<std::vector<glm::vec4>>;
+		using TaskT = ParallelLambdaDomainTaskChain<std::vector<glm::vec4>>;
 		TaskT::LoopThunkT LoopThunk = [](DrawableShared& Painter, SDFOctreeShared& Evaluator, glm::vec4& Normal, const int Index)
 		{
 			Normal = glm::vec4(Evaluator->Gradient(Painter->Positions[Index].xyz()), 1.0);
@@ -1160,7 +1160,7 @@ void MeshingJob::SphereLatticeSearch(DrawableShared& Painter, SDFOctreeShared& E
 
 	ParallelTaskChain* MaterialAssignmentTask;
 	{
-		using TaskT = MeshingLambdaContainerTask<std::vector<glm::vec4>>;
+		using TaskT = ParallelLambdaDomainTaskChain<std::vector<glm::vec4>>;
 		TaskT::LoopThunkT LoopThunk = [](DrawableShared& Painter, SDFOctreeShared& Evaluator, const glm::vec4& Position, const int Index)
 		{
 			glm::vec3 Sample = glm::vec3(0.0);

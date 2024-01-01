@@ -25,7 +25,7 @@ struct ParallelTaskChain : ParallelTask
 {
 	ParallelTask* NextTask = nullptr;
 
-	~ParallelTaskChain()
+	virtual ~ParallelTaskChain()
 	{
 		if (NextTask)
 		{
@@ -36,9 +36,8 @@ struct ParallelTaskChain : ParallelTask
 
 
 template<typename ContainerT>
-struct ParallelMeshingTask : ParallelTaskChain
+struct ParallelDomainTaskChain : ParallelTaskChain
 {
-	using SharedT = std::shared_ptr<ParallelMeshingTask<ContainerT>>;
 	using ElementT = typename ContainerT::value_type;
 	using IteratorT = typename ContainerT::iterator;
 
@@ -56,7 +55,7 @@ struct ParallelMeshingTask : ParallelTaskChain
 	IteratorT StopIter;
 	SDFOctree* NextLeaf = nullptr;
 
-	ParallelMeshingTask(const char* InTaskName, DrawableShared& InPainter, SDFOctreeShared& InEvaluator, ContainerT& InDomain)
+	ParallelDomainTaskChain(const char* InTaskName, DrawableShared& InPainter, SDFOctreeShared& InEvaluator, ContainerT& InDomain)
 		: PainterWeakRef(InPainter)
 		, EvaluatorWeakRef(InEvaluator)
 		, Domain(&InDomain)
@@ -64,7 +63,7 @@ struct ParallelMeshingTask : ParallelTaskChain
 	{
 	}
 
-	ParallelMeshingTask(const char* InTaskName, DrawableShared& InPainter, SDFOctreeShared& InEvaluator)
+	ParallelDomainTaskChain(const char* InTaskName, DrawableShared& InPainter, SDFOctreeShared& InEvaluator)
 		: PainterWeakRef(InPainter)
 		, EvaluatorWeakRef(InEvaluator)
 		, Domain(nullptr)
@@ -217,9 +216,8 @@ struct ParallelMeshingTask : ParallelTaskChain
 
 
 template<typename ContainerT>
-struct MeshingLambdaContainerTask : ParallelMeshingTask<ContainerT>
+struct ParallelLambdaDomainTaskChain : ParallelDomainTaskChain<ContainerT>
 {
-	using SharedT = std::shared_ptr<ParallelMeshingTask<ContainerT>>;
 	using ElementT = typename ContainerT::value_type;
 
 	using BootThunkT = std::function<void(DrawableShared&, SDFOctreeShared&)>;
@@ -232,16 +230,16 @@ struct MeshingLambdaContainerTask : ParallelMeshingTask<ContainerT>
 
 	bool HasBootThunk;
 
-	MeshingLambdaContainerTask(const char* TaskName, DrawableShared& InPainter, SDFOctreeShared& InEvaluator, ContainerT& InDomain, LoopThunkT& InLoopThunk, DoneThunkT& InDoneThunk)
-		: ParallelMeshingTask<ContainerT>(TaskName, InPainter, InEvaluator, InDomain)
+	ParallelLambdaDomainTaskChain(const char* TaskName, DrawableShared& InPainter, SDFOctreeShared& InEvaluator, ContainerT& InDomain, LoopThunkT& InLoopThunk, DoneThunkT& InDoneThunk)
+		: ParallelDomainTaskChain<ContainerT>(TaskName, InPainter, InEvaluator, InDomain)
 		, LoopThunk(InLoopThunk)
 		, DoneThunk(InDoneThunk)
 		, HasBootThunk(false)
 	{
 	}
 
-	MeshingLambdaContainerTask(const char* TaskName, DrawableShared& InPainter, SDFOctreeShared& InEvaluator, ContainerT& InDomain, BootThunkT& InBootThunk, LoopThunkT& InLoopThunk, DoneThunkT& InDoneThunk)
-		: ParallelMeshingTask<ContainerT>(TaskName, InPainter, InEvaluator, InDomain)
+	ParallelLambdaDomainTaskChain(const char* TaskName, DrawableShared& InPainter, SDFOctreeShared& InEvaluator, ContainerT& InDomain, BootThunkT& InBootThunk, LoopThunkT& InLoopThunk, DoneThunkT& InDoneThunk)
+		: ParallelDomainTaskChain<ContainerT>(TaskName, InPainter, InEvaluator, InDomain)
 		, BootThunk(InBootThunk)
 		, LoopThunk(InLoopThunk)
 		, DoneThunk(InDoneThunk)
@@ -269,9 +267,8 @@ struct MeshingLambdaContainerTask : ParallelMeshingTask<ContainerT>
 };
 
 
-struct MeshingLambdaOctreeTask : ParallelMeshingTask<SDFOctree>
+struct ParallelLambdaOctreeTaskChain : ParallelDomainTaskChain<SDFOctree>
 {
-	using SharedT = std::shared_ptr<ParallelMeshingTask<SDFOctree>>;
 	using ElementT = typename SDFOctree::value_type;
 
 	using BootThunkT = std::function<void(DrawableShared&, SDFOctreeShared&)>;
@@ -282,8 +279,8 @@ struct MeshingLambdaOctreeTask : ParallelMeshingTask<SDFOctree>
 	LoopThunkT LoopThunk;
 	DoneThunkT DoneThunk;
 
-	MeshingLambdaOctreeTask(const char* TaskName, DrawableShared& InPainter, SDFOctreeShared& InEvaluator, BootThunkT& InBootThunk, LoopThunkT& InLoopThunk, DoneThunkT& InDoneThunk)
-		: ParallelMeshingTask<SDFOctree>(TaskName, InPainter, InEvaluator)
+	ParallelLambdaOctreeTaskChain(const char* TaskName, DrawableShared& InPainter, SDFOctreeShared& InEvaluator, BootThunkT& InBootThunk, LoopThunkT& InLoopThunk, DoneThunkT& InDoneThunk)
+		: ParallelDomainTaskChain<SDFOctree>(TaskName, InPainter, InEvaluator)
 		, BootThunk(InBootThunk)
 		, LoopThunk(InLoopThunk)
 		, DoneThunk(InDoneThunk)
