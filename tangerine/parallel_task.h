@@ -21,9 +21,21 @@
 #include <fmt/format.h>
 
 
+template<typename IntermediaryT>
 struct ParallelTaskChain : ParallelTask
 {
-	ParallelTask* NextTask = nullptr;
+	ParallelTaskChain* NextTask = nullptr;
+	std::unique_ptr<IntermediaryT> IntermediaryData = nullptr;
+
+	virtual void BatonPass()
+	{
+		if (NextTask)
+		{
+			std::swap(NextTask->IntermediaryData, IntermediaryData);
+			Scheduler::EnqueueParallel(NextTask);
+			NextTask = nullptr;
+		}
+	}
 
 	virtual ~ParallelTaskChain()
 	{
@@ -35,17 +47,18 @@ struct ParallelTaskChain : ParallelTask
 };
 
 
-template<typename ContainerT>
-struct ParallelDomainTaskChain : ParallelTaskChain
+template<typename IntermediaryT, typename ContainerT>
+struct ParallelDomainTaskChain : ParallelTaskChain<IntermediaryT>
 {
 	using ElementT = typename ContainerT::value_type;
 	using IteratorT = typename ContainerT::iterator;
+	using AccessorT = std::function<ContainerT*(IntermediaryT&)>;
 
 	DrawableWeakRef PainterWeakRef;
 	SDFOctreeWeakRef EvaluatorWeakRef;
 
-	ContainerT* Domain;
 	std::string TaskName;
+	AccessorT DomainAccessor;
 	bool SetupPending = true;
 	int SetupCalled = 0;
 
@@ -55,44 +68,42 @@ struct ParallelDomainTaskChain : ParallelTaskChain
 	IteratorT StopIter;
 	SDFOctree* NextLeaf = nullptr;
 
-	ParallelDomainTaskChain(const char* InTaskName, DrawableShared& InPainter, SDFOctreeShared& InEvaluator, ContainerT& InDomain)
-		: PainterWeakRef(InPainter)
-		, EvaluatorWeakRef(InEvaluator)
-		, Domain(&InDomain)
-		, TaskName(InTaskName)
+	ParallelDomainTaskChain(const char* InTaskName, std::unique_ptr<IntermediaryT>& InitialIntermediaryData, AccessorT InDomainAccessor)
+		: TaskName(InTaskName)
+		, DomainAccessor(InDomainAccessor)
+	{
+		std::swap(ParallelTaskChain<IntermediaryT>::IntermediaryData, InitialIntermediaryData);
+	}
+
+	ParallelDomainTaskChain(const char* InTaskName, AccessorT InDomainAccessor)
+		: TaskName(InTaskName)
+		, DomainAccessor(InDomainAccessor)
 	{
 	}
 
-	ParallelDomainTaskChain(const char* InTaskName, DrawableShared& InPainter, SDFOctreeShared& InEvaluator)
-		: PainterWeakRef(InPainter)
-		, EvaluatorWeakRef(InEvaluator)
-		, Domain(nullptr)
-		, TaskName(InTaskName)
+	virtual void Setup(IntermediaryT& Intermediary)
 	{
 	}
 
-	virtual void Setup(DrawableShared& Painter, SDFOctreeShared& Evaluator)
+	virtual void Loop(IntermediaryT& Intermediary, ElementT& Element, const int ElementIndex)
 	{
 	}
 
-	virtual void Loop(DrawableShared& Painter, SDFOctreeShared& Evaluator, ElementT& Element, const int ElementIndex)
-	{
-	}
-
-	virtual void Done(DrawableShared& Painter, SDFOctreeShared& Evaluator)
+	virtual void Done(IntermediaryT& Intermediary)
 	{
 	}
 
 	template<typename ForContainerT>
 		requires std::contiguous_iterator<IteratorT>
-	void RunInner(DrawableShared& Painter, SDFOctreeShared& Evaluator)
+	void RunInner()
 	{
+		ContainerT* Domain = DomainAccessor(*ParallelTaskChain<IntermediaryT>::IntermediaryData);
 		{
 			IterationCS.lock();
 			if (SetupPending)
 			{
 				SetupPending = false;
-				Setup(Painter, Evaluator);
+				Setup(*ParallelTaskChain<IntermediaryT>::IntermediaryData);
 			}
 			IterationCS.unlock();
 		}
@@ -103,7 +114,7 @@ struct ParallelDomainTaskChain : ParallelTaskChain
 			if (ClaimedIndex < Range)
 			{
 				ElementT& Element = (*Domain)[ClaimedIndex];
-				Loop(Painter, Evaluator, Element, ClaimedIndex);
+				Loop(*ParallelTaskChain<IntermediaryT>::IntermediaryData, Element, ClaimedIndex);
 			}
 			else
 			{
@@ -114,8 +125,9 @@ struct ParallelDomainTaskChain : ParallelTaskChain
 
 	template<typename ForContainerT>
 		requires std::forward_iterator<IteratorT>
-	void RunInner(DrawableShared& Painter, SDFOctreeShared& Evaluator)
+	void RunInner()
 	{
+		ContainerT* Domain = DomainAccessor(*ParallelTaskChain<IntermediaryT>::IntermediaryData);
 		{
 			IterationCS.lock();
 			if (SetupPending)
@@ -123,7 +135,7 @@ struct ParallelDomainTaskChain : ParallelTaskChain
 				SetupPending = false;
 				NextIter = Domain->begin();
 				StopIter = Domain->end();
-				Setup(Painter, Evaluator);
+				Setup(*ParallelTaskChain<IntermediaryT>::IntermediaryData);
 			}
 			IterationCS.unlock();
 		}
@@ -143,7 +155,7 @@ struct ParallelDomainTaskChain : ParallelTaskChain
 			}
 			if (ValidIteration)
 			{
-				Loop(Painter, Evaluator, *Cursor, -1);
+				Loop(*ParallelTaskChain<IntermediaryT>::IntermediaryData, *Cursor, -1);
 			}
 			else
 			{
@@ -154,15 +166,16 @@ struct ParallelDomainTaskChain : ParallelTaskChain
 
 	template<typename ForContainerT>
 		requires std::same_as<SDFOctree, ForContainerT>
-	void RunInner(DrawableShared& Painter, SDFOctreeShared& Evaluator)
+	void RunInner()
 	{
+		ContainerT* Domain = DomainAccessor(*ParallelTaskChain<IntermediaryT>::IntermediaryData);
 		{
 			IterationCS.lock();
 			if (SetupPending)
 			{
 				SetupPending = false;
-				NextLeaf = Evaluator->Next;
-				Setup(Painter, Evaluator);
+				NextLeaf = Domain->Next;
+				Setup(*ParallelTaskChain<IntermediaryT>::IntermediaryData);
 			}
 			IterationCS.unlock();
 		}
@@ -177,7 +190,7 @@ struct ParallelDomainTaskChain : ParallelTaskChain
 			}
 			if (Leaf)
 			{
-				Loop(Painter, Evaluator, *Leaf, -1);
+				Loop(*ParallelTaskChain<IntermediaryT>::IntermediaryData, *Leaf, -1);
 			}
 			else
 			{
@@ -189,40 +202,27 @@ struct ParallelDomainTaskChain : ParallelTaskChain
 	virtual void Run()
 	{
 		ProfileScope Fnord(fmt::format("{} (Run)", TaskName));
-		DrawableShared Painter = PainterWeakRef.lock();
-		SDFOctreeShared Evaluator = EvaluatorWeakRef.lock();
-		if (Painter && Evaluator)
-		{
-			RunInner<ContainerT>(Painter, Evaluator);
-		}
+		RunInner<ContainerT>();
 	}
 
 	virtual void Exhausted()
 	{
 		ProfileScope Fnord(fmt::format("{} (Exhausted)", TaskName));
-		DrawableShared Painter = PainterWeakRef.lock();
-		SDFOctreeShared Evaluator = EvaluatorWeakRef.lock();
-		if (Painter && Evaluator)
-		{
-			Done(Painter, Evaluator);
-			if (NextTask)
-			{
-				Scheduler::EnqueueParallel(NextTask);
-				NextTask = nullptr;
-			}
-		}
+		Done(*ParallelTaskChain<IntermediaryT>::IntermediaryData);
+		ParallelTaskChain<IntermediaryT>::BatonPass();
 	}
 };
 
 
-template<typename ContainerT>
-struct ParallelLambdaDomainTaskChain : ParallelDomainTaskChain<ContainerT>
+template<typename IntermediaryT, typename ContainerT>
+struct ParallelLambdaDomainTaskChain : ParallelDomainTaskChain<IntermediaryT, ContainerT>
 {
 	using ElementT = typename ContainerT::value_type;
+	using AccessorT = std::function<ContainerT*(IntermediaryT&)>;
 
-	using BootThunkT = std::function<void(DrawableShared&, SDFOctreeShared&)>;
-	using LoopThunkT = std::function<void(DrawableShared&, SDFOctreeShared&, ElementT&, const int)>;
-	using DoneThunkT = std::function<void(DrawableShared&, SDFOctreeShared&)>;
+	using BootThunkT = std::function<void(IntermediaryT&)>;
+	using LoopThunkT = std::function<void(IntermediaryT&, ElementT&, const int)>;
+	using DoneThunkT = std::function<void(IntermediaryT&)>;
 
 	BootThunkT BootThunk;
 	LoopThunkT LoopThunk;
@@ -230,16 +230,16 @@ struct ParallelLambdaDomainTaskChain : ParallelDomainTaskChain<ContainerT>
 
 	bool HasBootThunk;
 
-	ParallelLambdaDomainTaskChain(const char* TaskName, DrawableShared& InPainter, SDFOctreeShared& InEvaluator, ContainerT& InDomain, LoopThunkT& InLoopThunk, DoneThunkT& InDoneThunk)
-		: ParallelDomainTaskChain<ContainerT>(TaskName, InPainter, InEvaluator, InDomain)
+	ParallelLambdaDomainTaskChain(const char* TaskName, std::unique_ptr<IntermediaryT>& InitialIntermediaryData, AccessorT& InDomainAccessor, LoopThunkT& InLoopThunk, DoneThunkT& InDoneThunk)
+		: ParallelDomainTaskChain<IntermediaryT, ContainerT>(TaskName, InitialIntermediaryData, InDomainAccessor)
 		, LoopThunk(InLoopThunk)
 		, DoneThunk(InDoneThunk)
 		, HasBootThunk(false)
 	{
 	}
 
-	ParallelLambdaDomainTaskChain(const char* TaskName, DrawableShared& InPainter, SDFOctreeShared& InEvaluator, ContainerT& InDomain, BootThunkT& InBootThunk, LoopThunkT& InLoopThunk, DoneThunkT& InDoneThunk)
-		: ParallelDomainTaskChain<ContainerT>(TaskName, InPainter, InEvaluator, InDomain)
+	ParallelLambdaDomainTaskChain(const char* TaskName, std::unique_ptr<IntermediaryT>& InitialIntermediaryData, AccessorT& InDomainAccessor, BootThunkT& InBootThunk, LoopThunkT& InLoopThunk, DoneThunkT& InDoneThunk)
+		: ParallelDomainTaskChain<IntermediaryT, ContainerT>(TaskName, InitialIntermediaryData, InDomainAccessor)
 		, BootThunk(InBootThunk)
 		, LoopThunk(InLoopThunk)
 		, DoneThunk(InDoneThunk)
@@ -247,58 +247,86 @@ struct ParallelLambdaDomainTaskChain : ParallelDomainTaskChain<ContainerT>
 	{
 	}
 
-	virtual void Setup(DrawableShared& Painter, SDFOctreeShared& Evaluator)
+	ParallelLambdaDomainTaskChain(const char* TaskName, AccessorT& InDomainAccessor, LoopThunkT& InLoopThunk, DoneThunkT& InDoneThunk)
+		: ParallelDomainTaskChain<IntermediaryT, ContainerT>(TaskName, InDomainAccessor)
+		, LoopThunk(InLoopThunk)
+		, DoneThunk(InDoneThunk)
+		, HasBootThunk(false)
+	{
+	}
+
+	ParallelLambdaDomainTaskChain(const char* TaskName, AccessorT& InDomainAccessor, BootThunkT& InBootThunk, LoopThunkT& InLoopThunk, DoneThunkT& InDoneThunk)
+		: ParallelDomainTaskChain<IntermediaryT, ContainerT>(TaskName, InDomainAccessor)
+		, BootThunk(InBootThunk)
+		, LoopThunk(InLoopThunk)
+		, DoneThunk(InDoneThunk)
+		, HasBootThunk(true)
+	{
+	}
+
+	virtual void Setup(IntermediaryT& Intermediary)
 	{
 		if (HasBootThunk)
 		{
-			BootThunk(Painter, Evaluator);
+			BootThunk(Intermediary);
 		}
 	}
 
-	virtual void Loop(DrawableShared& Painter, SDFOctreeShared& Evaluator, ElementT& Element, const int ElementIndex)
+	virtual void Loop(IntermediaryT& Intermediary, ElementT& Element, const int ElementIndex)
 	{
-		LoopThunk(Painter, Evaluator, Element, ElementIndex);
+		LoopThunk(Intermediary, Element, ElementIndex);
 	}
 
-	virtual void Done(DrawableShared& Painter, SDFOctreeShared& Evaluator)
+	virtual void Done(IntermediaryT& Intermediary)
 	{
-		DoneThunk(Painter, Evaluator);
+		DoneThunk(Intermediary);
 	}
 };
 
 
-struct ParallelLambdaOctreeTaskChain : ParallelDomainTaskChain<SDFOctree>
+template<typename IntermediaryT>
+struct ParallelLambdaOctreeTaskChain : ParallelDomainTaskChain<IntermediaryT, SDFOctree>
 {
+	using ContainerT = SDFOctree;
 	using ElementT = typename SDFOctree::value_type;
+	using AccessorT = std::function<ContainerT* (IntermediaryT&)>;
 
-	using BootThunkT = std::function<void(DrawableShared&, SDFOctreeShared&)>;
-	using LoopThunkT = std::function<void(DrawableShared&, SDFOctreeShared&, ElementT&)>;
-	using DoneThunkT = std::function<void(DrawableShared&, SDFOctreeShared&)>;
+	using BootThunkT = std::function<void(IntermediaryT&)>;
+	using LoopThunkT = std::function<void(IntermediaryT&, ElementT&)>;
+	using DoneThunkT = std::function<void(IntermediaryT&)>;
 
 	BootThunkT BootThunk;
 	LoopThunkT LoopThunk;
 	DoneThunkT DoneThunk;
 
-	ParallelLambdaOctreeTaskChain(const char* TaskName, DrawableShared& InPainter, SDFOctreeShared& InEvaluator, BootThunkT& InBootThunk, LoopThunkT& InLoopThunk, DoneThunkT& InDoneThunk)
-		: ParallelDomainTaskChain<SDFOctree>(TaskName, InPainter, InEvaluator)
+	ParallelLambdaOctreeTaskChain(const char* TaskName, std::unique_ptr<IntermediaryT>& InitialIntermediaryData, AccessorT& InDomainAccessor, BootThunkT& InBootThunk, LoopThunkT& InLoopThunk, DoneThunkT& InDoneThunk)
+		: ParallelDomainTaskChain<IntermediaryT, SDFOctree>(TaskName, InitialIntermediaryData, InDomainAccessor)
 		, BootThunk(InBootThunk)
 		, LoopThunk(InLoopThunk)
 		, DoneThunk(InDoneThunk)
 	{
 	}
 
-	virtual void Setup(DrawableShared& Painter, SDFOctreeShared& Evaluator)
+	ParallelLambdaOctreeTaskChain(const char* TaskName, AccessorT& InDomainAccessor, BootThunkT& InBootThunk, LoopThunkT& InLoopThunk, DoneThunkT& InDoneThunk)
+		: ParallelDomainTaskChain<IntermediaryT, SDFOctree>(TaskName, InDomainAccessor)
+		, BootThunk(InBootThunk)
+		, LoopThunk(InLoopThunk)
+		, DoneThunk(InDoneThunk)
 	{
-		BootThunk(Painter, Evaluator);
 	}
 
-	virtual void Loop(DrawableShared& Painter, SDFOctreeShared& Evaluator, ElementT& Element, const int Unused)
+	virtual void Setup(IntermediaryT& Intermediary)
 	{
-		LoopThunk(Painter, Evaluator, Element);
+		BootThunk(Intermediary);
 	}
 
-	virtual void Done(DrawableShared& Painter, SDFOctreeShared& Evaluator)
+	virtual void Loop(IntermediaryT& Intermediary, ElementT& Element, const int Unused)
 	{
-		DoneThunk(Painter, Evaluator);
+		LoopThunk(Intermediary, Element);
+	}
+
+	virtual void Done(IntermediaryT& Intermediary)
+	{
+		DoneThunk(Intermediary);
 	}
 };

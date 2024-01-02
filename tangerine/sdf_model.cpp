@@ -251,11 +251,6 @@ Drawable::Drawable(const std::string& InName, SDFNodeShared& InEvaluator)
 
 Drawable::~Drawable()
 {
-	if (Scratch != nullptr)
-	{
-		Sodapop::DeleteMeshingScratch(Scratch);
-		Scratch = nullptr;
-	}
 	Evaluator.reset();
 	MaterialSlots.clear();
 	SlotLookup.clear();

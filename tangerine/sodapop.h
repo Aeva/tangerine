@@ -56,5 +56,4 @@ namespace Sodapop
 	void Populate(DrawableShared MeshPainter, float MeshingDensityPush);
 	void Attach(SDFModelShared& Instance);
 	void SetMaterialOverrideMode(MaterialOverride Mode);
-	void DeleteMeshingScratch(MeshingScratch* Scratch);
 }

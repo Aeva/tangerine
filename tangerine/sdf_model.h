@@ -61,8 +61,6 @@ struct Drawable
 	std::vector<glm::vec4> Normals;
 	std::vector<glm::vec4> Colors;
 
-	struct MeshingScratch* Scratch = nullptr;
-
 	bool MeshAvailable = false;
 	bool MeshUploaded = false;
 

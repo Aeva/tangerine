@@ -34,6 +34,7 @@
 #include <random>
 #include <numbers>
 #include <algorithm>
+#include <tuple>
 
 
 #define USE_GRADIENT_NORMALS 1
@@ -87,9 +88,42 @@ struct PointCacheBucket
 };
 
 
-struct MeshingScratch : isosurface::AsyncParallelSurfaceNets
+struct MeshingScratch
 {
-	int MeshingDensity;
+	DrawableShared Painter;
+	SDFOctreeShared Evaluator;
+
+	// Intermediary domain for MeshingOctreeTask
+	std::vector<SDFOctree*> Incompletes;
+
+	static std::unique_ptr<MeshingScratch> Create(DrawableShared& Painter, SDFOctreeShared& Evaluator)
+	{
+		std::unique_ptr<MeshingScratch> Intermediary(new MeshingScratch());
+		Intermediary->Painter = Painter;
+		Intermediary->Evaluator = Evaluator;
+
+		SDFOctree::CallbackType IncompleteSearch = [&](SDFOctree& Leaf)
+		{
+			if (Leaf.Incomplete)
+			{
+				Intermediary->Incompletes.push_back(&Leaf);
+			}
+		};
+
+		BeginEvent("Evaluator::Walk IncompleteSearch");
+		Evaluator->Walk(IncompleteSearch);
+		EndEvent();
+
+		return Intermediary;
+	}
+};
+
+
+struct NaiveSurfaceNetsScratch : MeshingScratch
+{
+	isosurface::AsyncParallelSurfaceNets Ext;
+
+	glm::vec3 JitterSpan;
 
 	// Intermediary domain for MeshingOctreeTask
 	std::vector<SDFOctree*> Incompletes;
@@ -100,23 +134,61 @@ struct MeshingScratch : isosurface::AsyncParallelSurfaceNets
 
 	// Crit used by MeshingNormalLoopTask
 	std::mutex NormalsCS;
+
+	static std::unique_ptr<NaiveSurfaceNetsScratch> Create(DrawableShared& Painter, SDFOctreeShared& Evaluator, float MeshingDensity)
+	{
+		std::unique_ptr<NaiveSurfaceNetsScratch> Intermediary(new NaiveSurfaceNetsScratch());
+		Intermediary->Painter = Painter;
+		Intermediary->Evaluator = Evaluator;
+
+		SDFOctree::CallbackType IncompleteSearch = [&](SDFOctree& Leaf)
+		{
+			if (Leaf.Incomplete)
+			{
+				Intermediary->Incompletes.push_back(&Leaf);
+			}
+		};
+
+		BeginEvent("Evaluator::Walk IncompleteSearch");
+		Evaluator->Walk(IncompleteSearch);
+		EndEvent();
+
+		isosurface::regular_grid_t Grid;
+		{
+			const float Density = glm::floor(MeshingDensity);
+			const glm::vec3 SamplesPerUnit = glm::max(Evaluator->Bounds.Extent() * glm::vec3(Density), glm::vec3(8.0));
+
+			Grid.x = Evaluator->Bounds.Min.x;
+			Grid.y = Evaluator->Bounds.Min.y;
+			Grid.z = Evaluator->Bounds.Min.z;
+			Grid.sx = size_t(glm::ceil(SamplesPerUnit.x));
+			Grid.sy = size_t(glm::ceil(SamplesPerUnit.y));
+			Grid.sz = size_t(glm::ceil(SamplesPerUnit.z));
+			Grid.dx = Evaluator->Bounds.Extent().x / static_cast<float>(Grid.sx);
+			Grid.dy = Evaluator->Bounds.Extent().y / static_cast<float>(Grid.sy);
+			Grid.dz = Evaluator->Bounds.Extent().z / static_cast<float>(Grid.sz);
+
+			Grid.x -= Grid.dx * 2;
+			Grid.y -= Grid.dy * 2;
+			Grid.z -= Grid.dz * 2;
+			Grid.sx += 3;
+			Grid.sy += 3;
+			Grid.sz += 3;
+		}
+		Intermediary->Ext.Grid = Grid;
+		Intermediary->JitterSpan = glm::vec3(Grid.dx, Grid.dy, Grid.dz) * glm::vec3(0.5);
+
+		return Intermediary;
+	}
 };
-
-
-void Sodapop::DeleteMeshingScratch(MeshingScratch* Scratch)
-{
-	// Ideally Drawable::~Drawable would just delete this directly, but
-	// that is logistically difficult since the struct is only defined in this file.
-	// So instead we have this hack for now.  Ideally MeshingScratch might eventually be
-	// replaced with a better thought out scratch space for parallel tasks etc.
-	delete Scratch;
-}
 
 
 struct MeshingJob : AsyncTask
 {
 	DrawableWeakRef PainterWeakRef;
 	SDFNodeWeakRef EvaluatorWeakRef;
+	float NaiveSurfaceNetsDensity;
+
 	virtual void Run();
 	virtual void Done();
 	virtual void Abort();
@@ -145,12 +217,11 @@ struct MeshingComplete : AsyncTask
 void Sodapop::Populate(DrawableShared Painter, float MeshingDensityPush)
 {
 	ProfileScope Fnord("Sodapop::Populate");
-	Painter->Scratch = new MeshingScratch();
-	Painter->Scratch->MeshingDensity = DefaultMeshingDensity + MeshingDensityPush;
 
 	MeshingJob* Task = new MeshingJob();
 	Task->PainterWeakRef = Painter;
 	Task->EvaluatorWeakRef = Painter->Evaluator;
+	Task->NaiveSurfaceNetsDensity = DefaultMeshingDensity + MeshingDensityPush;
 
 	Scheduler::EnqueueInbox(Task);
 }
@@ -175,18 +246,6 @@ void MeshingJob::Run()
 				{
 					return;
 				}
-
-				SDFOctree::CallbackType IncompleteSearch = [&](SDFOctree& Leaf)
-				{
-					if (Leaf.Incomplete)
-					{
-						Painter->Scratch->Incompletes.push_back(&Leaf);
-					}
-				};
-
-				BeginEvent("Evaluator::Walk IncompleteSearch");
-				Evaluator->Walk(IncompleteSearch);
-				EndEvent();
 			}
 		}
 	}
@@ -343,119 +402,155 @@ void ApplyVertexSequence(DrawableShared& Painter)
 
 void MeshingJob::DebugOctree(DrawableShared& Painter, SDFOctreeShared& Evaluator)
 {
-	ParallelTaskChain* MeshingOctreeTask;
+	ParallelTaskChain<MeshingScratch>* MeshingOctreeTask;
 	{
-		using TaskT = ParallelLambdaDomainTaskChain<std::vector<SDFOctree*>>;
-		TaskT::LoopThunkT LoopThunk = [](DrawableShared& Painter, SDFOctreeShared& Evaluator, SDFOctree* Incomplete, const int Index)
+		using DomainT = std::vector<SDFOctree*>;
+		using TaskT = ParallelLambdaDomainTaskChain<MeshingScratch, DomainT>;
+		TaskT::LoopThunkT LoopThunk = [](MeshingScratch& Intermediary, SDFOctree* Incomplete, const int Index)
 		{
 			Incomplete->Populate(false, 3, -1);
 		};
 
-		TaskT::DoneThunkT DoneThunk = [](DrawableShared& Painter, SDFOctreeShared& Evaluator)
+		TaskT::DoneThunkT DoneThunk = [](MeshingScratch& Intermediary)
 		{
-			BeginEvent("Evaluator::LinkLeaves");
-			Evaluator->LinkLeaves();
-			EndEvent();
+			DrawableShared& Painter = Intermediary.Painter;
+			SDFOctreeShared& Evaluator = Intermediary.Evaluator;
+			if (Painter && Evaluator)
 			{
-				const int IndexCount = Evaluator->OctreeLeafCount * CubeIndices.size();
-				Painter->Indices.resize(IndexCount);
-			}
-			{
-				const int VertexCount = Evaluator->OctreeLeafCount * CubeVertices.size();
-				Painter->Positions.resize(VertexCount);
-				Painter->Normals.resize(VertexCount);
-				Painter->Colors.resize(VertexCount);
+				BeginEvent("Evaluator::LinkLeaves");
+				Evaluator->LinkLeaves();
+				EndEvent();
+				{
+					const int IndexCount = Evaluator->OctreeLeafCount * CubeIndices.size();
+					Painter->Indices.resize(IndexCount);
+				}
+				{
+					const int VertexCount = Evaluator->OctreeLeafCount * CubeVertices.size();
+					Painter->Positions.resize(VertexCount);
+					Painter->Normals.resize(VertexCount);
+					Painter->Colors.resize(VertexCount);
+				}
 			}
 		};
 
-		MeshingOctreeTask = new TaskT("Populate Octree", Painter, Evaluator, Painter->Scratch->Incompletes, LoopThunk, DoneThunk);
+		TaskT::AccessorT Accessor = [](MeshingScratch& Intermediary)
+		{
+			return &Intermediary.Incompletes;
+		};
+
+		{
+			std::unique_ptr<MeshingScratch> InitialIntermediary = MeshingScratch::Create(Painter, Evaluator);
+			MeshingOctreeTask = new TaskT("Populate Octree", InitialIntermediary, Accessor, LoopThunk, DoneThunk);
+		}
 	}
 
-	ParallelTaskChain* OctreeMeshDataTask;
+	ParallelTaskChain<MeshingScratch>* OctreeMeshDataTask;
 	{
-		using TaskT = ParallelLambdaOctreeTaskChain;
+		using TaskT = ParallelLambdaOctreeTaskChain<MeshingScratch>;
 
-		TaskT::BootThunkT BootThunk = [](DrawableShared& Painter, SDFOctreeShared& Evaluator)
+		TaskT::BootThunkT BootThunk = [](MeshingScratch& Intermediary)
 		{
 		};
 
-		TaskT::LoopThunkT LoopThunk = [](DrawableShared& Painter, SDFOctreeShared& RootNode, SDFOctree& LeafNode)
+		TaskT::LoopThunkT LoopThunk = [](MeshingScratch& Intermediary, SDFOctree& LeafNode)
 		{
-			const int LeafIndex = LeafNode.DebugLeafIndex;
-			const int IndexStart = LeafIndex * CubeIndices.size();
-			const int VertexStart = LeafIndex * CubeVertices.size();
-
-			for (int i = 0; i < CubeIndices.size(); ++i)
+			DrawableShared& Painter = Intermediary.Painter;
+			SDFOctreeShared& RootNode = Intermediary.Evaluator;
+			if (Painter && RootNode)
 			{
-				Painter->Indices[IndexStart + i] = VertexStart + CubeIndices[i];
-			}
+				const int LeafIndex = LeafNode.DebugLeafIndex;
+				const int IndexStart = LeafIndex * CubeIndices.size();
+				const int VertexStart = LeafIndex * CubeVertices.size();
 
-			const glm::vec3 Center = LeafNode.Bounds.Center();
-			const glm::vec3 HalfExtent = LeafNode.Bounds.Extent() * glm::vec3(.5);
+				for (int i = 0; i < CubeIndices.size(); ++i)
+				{
+					Painter->Indices[IndexStart + i] = VertexStart + CubeIndices[i];
+				}
 
-			for (int v = 0; v < CubeVertices.size(); ++v)
-			{
-				const glm::vec3 LocalOffset = CubeVertices[v] * HalfExtent;
-				const glm::vec3 Position = Center + LocalOffset;
-				const glm::vec3 Normal = LeafNode.Gradient(Position);
+				const glm::vec3 Center = LeafNode.Bounds.Center();
+				const glm::vec3 HalfExtent = LeafNode.Bounds.Extent() * glm::vec3(.5);
 
-				Painter->Positions[VertexStart + v] = glm::vec4(Position, 1.0);
-				Painter->Normals[VertexStart + v] = glm::vec4(Normal, 1.0);
+				for (int v = 0; v < CubeVertices.size(); ++v)
+				{
+					const glm::vec3 LocalOffset = CubeVertices[v] * HalfExtent;
+					const glm::vec3 Position = Center + LocalOffset;
+					const glm::vec3 Normal = LeafNode.Gradient(Position);
+
+					Painter->Positions[VertexStart + v] = glm::vec4(Position, 1.0);
+					Painter->Normals[VertexStart + v] = glm::vec4(Normal, 1.0);
+				}
 			}
 		};
 
-		TaskT::DoneThunkT DoneThunk = [](DrawableShared& Painter, SDFOctreeShared& Evaluator)
+		TaskT::DoneThunkT DoneThunk = [](MeshingScratch& Intermediary)
 		{
-			ApplyVertexSequence<true, false>(Painter);
+			DrawableShared& Painter = Intermediary.Painter;
+			if (Painter)
+			{
+				ApplyVertexSequence<true, false>(Painter);
+			}
 		};
 
-		OctreeMeshDataTask = new TaskT("Populate Octree Mesh Data", Painter, Evaluator, BootThunk, LoopThunk, DoneThunk);
+		TaskT::AccessorT Accessor = [](MeshingScratch& Intermediary)
+		{
+			return Intermediary.Evaluator.get();
+		};
+
+		OctreeMeshDataTask = new TaskT("Populate Octree Mesh Data", Accessor, BootThunk, LoopThunk, DoneThunk);
 		MeshingOctreeTask->NextTask = OctreeMeshDataTask;
 	}
 
-	ParallelTaskChain* MaterialAssignmentTask;
+	ParallelTaskChain<MeshingScratch>* MaterialAssignmentTask;
 	{
-		using TaskT = ParallelLambdaDomainTaskChain<std::vector<glm::vec4>>;
-		TaskT::LoopThunkT LoopThunk = [](DrawableShared& Painter, SDFOctreeShared& Evaluator, const glm::vec4& Position, const int Index)
+		using TaskT = ParallelLambdaDomainTaskChain<MeshingScratch, std::vector<glm::vec4>>;
+		TaskT::LoopThunkT LoopThunk = [](MeshingScratch& Intermediary, const glm::vec4& Position, const int Index)
 		{
-			glm::vec3 Sample = glm::vec3(0.0);
-			MaterialShared Material = Painter->EvaluatorOctree->GetMaterial(Position.xyz());
-			if (Material)
+			DrawableShared& Painter = Intermediary.Painter;
+			SDFOctreeShared& Evaluator = Intermediary.Evaluator;
+			if (Painter && Evaluator)
 			{
-				auto FoundSlot = Painter->SlotLookup.find(Material);
-				if (FoundSlot != Painter->SlotLookup.end())
+				glm::vec3 Sample = glm::vec3(0.0);
+				MaterialShared Material = Painter->EvaluatorOctree->GetMaterial(Position.xyz());
+				if (Material)
 				{
-					size_t SlotIndex = FoundSlot->second;
-					MaterialVertexGroup& Slot = Painter->MaterialSlots[SlotIndex];
+					auto FoundSlot = Painter->SlotLookup.find(Material);
+					if (FoundSlot != Painter->SlotLookup.end())
+					{
+						size_t SlotIndex = FoundSlot->second;
+						MaterialVertexGroup& Slot = Painter->MaterialSlots[SlotIndex];
 
-					Painter->MaterialSlotsCS.lock();
-					Slot.Vertices.push_back(Index);
-					Painter->MaterialSlotsCS.unlock();
+						Painter->MaterialSlotsCS.lock();
+						Slot.Vertices.push_back(Index);
+						Painter->MaterialSlotsCS.unlock();
+					}
+
+					ChthonicMaterialInterface* ChthonicMaterial = dynamic_cast<ChthonicMaterialInterface*>(Material.get());
+					if (ChthonicMaterial != nullptr)
+					{
+						glm::vec3 Normal = Painter->Normals[Index].xyz();
+						Sample = ChthonicMaterial->Eval(Position.xyz(), Normal, Normal).xyz();
+					}
 				}
 
-				ChthonicMaterialInterface* ChthonicMaterial = dynamic_cast<ChthonicMaterialInterface*>(Material.get());
-				if (ChthonicMaterial != nullptr)
-				{
-					glm::vec3 Normal = Painter->Normals[Index].xyz();
-					Sample = ChthonicMaterial->Eval(Position.xyz(), Normal, Normal).xyz();
-				}
+				Painter->Colors[Index] = glm::vec4(Sample, 1.0);
 			}
-
-			Painter->Colors[Index] = glm::vec4(Sample, 1.0);
 		};
 
-		TaskT::DoneThunkT DoneThunk = [](DrawableShared& Painter, SDFOctreeShared& Evaluator)
+		TaskT::DoneThunkT DoneThunk = [](MeshingScratch& Intermediary)
 		{
-			Scheduler::EnqueueOutbox(new MeshingComplete(Painter));
-
-			BeginEvent("Delete Scratch Data");
-			delete Painter->Scratch;
-			EndEvent();
-
-			Painter->Scratch = nullptr;
+			DrawableShared& Painter = Intermediary.Painter;
+			if (Painter)
+			{
+				Scheduler::EnqueueOutbox(new MeshingComplete(Painter));
+			}
 		};
 
-		MaterialAssignmentTask = new TaskT("Material Assignment", Painter, Evaluator, Painter->Positions, LoopThunk, DoneThunk);
+		TaskT::AccessorT Accessor = [](MeshingScratch& Intermediary)
+		{
+			return &Intermediary.Painter->Positions;
+		};
+
+		MaterialAssignmentTask = new TaskT("Material Assignment", Accessor, LoopThunk, DoneThunk);
 		OctreeMeshDataTask->NextTask = MaterialAssignmentTask;
 	}
 
@@ -465,86 +560,71 @@ void MeshingJob::DebugOctree(DrawableShared& Painter, SDFOctreeShared& Evaluator
 
 void MeshingJob::NaiveSurfaceNets(DrawableShared& Painter, SDFOctreeShared& Evaluator)
 {
-	isosurface::regular_grid_t Grid;
+	ParallelTaskChain<NaiveSurfaceNetsScratch>* MeshingOctreeTask;
 	{
-		const float Density = Painter->Scratch->MeshingDensity;
-		const glm::vec3 SamplesPerUnit = glm::max(Evaluator->Bounds.Extent() * glm::vec3(Density), glm::vec3(8.0));
-
-		Grid.x = Evaluator->Bounds.Min.x;
-		Grid.y = Evaluator->Bounds.Min.y;
-		Grid.z = Evaluator->Bounds.Min.z;
-		Grid.sx = size_t(glm::ceil(SamplesPerUnit.x));
-		Grid.sy = size_t(glm::ceil(SamplesPerUnit.y));
-		Grid.sz = size_t(glm::ceil(SamplesPerUnit.z));
-		Grid.dx = Evaluator->Bounds.Extent().x / static_cast<float>(Grid.sx);
-		Grid.dy = Evaluator->Bounds.Extent().y / static_cast<float>(Grid.sy);
-		Grid.dz = Evaluator->Bounds.Extent().z / static_cast<float>(Grid.sz);
-
-		Grid.x -= Grid.dx * 2;
-		Grid.y -= Grid.dy * 2;
-		Grid.z -= Grid.dz * 2;
-		Grid.sx += 3;
-		Grid.sy += 3;
-		Grid.sz += 3;
-	}
-	Painter->Scratch->Grid = Grid;
-
-	ParallelTaskChain* MeshingOctreeTask;
-	{
-		using TaskT = ParallelLambdaDomainTaskChain<std::vector<SDFOctree*>>;
-		TaskT::LoopThunkT LoopThunk = [](DrawableShared& Painter, SDFOctreeShared& Evaluator, SDFOctree* Incomplete, const int Index)
+		using TaskT = ParallelLambdaDomainTaskChain<NaiveSurfaceNetsScratch, std::vector<SDFOctree*>>;
+		TaskT::LoopThunkT LoopThunk = [](auto& Intermediary, SDFOctree* Incomplete, const int Index)
 		{
 			Incomplete->Populate(false, 3, -1);
 		};
 
-		TaskT::DoneThunkT DoneThunk = [](DrawableShared& Painter, SDFOctreeShared& Evaluator)
+		TaskT::DoneThunkT DoneThunk = [](auto& Intermediary)
 		{
-			BeginEvent("Evaluator::LinkLeaves");
-			Evaluator->LinkLeaves();
-			EndEvent();
-
+			SDFOctreeShared& Evaluator = Intermediary.Evaluator;
+			if (Evaluator)
 			{
-				SDFOctree* EvaluatorRaw = Evaluator.get();
-				Painter->Scratch->ImplicitFunction = [EvaluatorRaw](float X, float Y, float Z) -> float
+				BeginEvent("Evaluator::LinkLeaves");
+				Evaluator->LinkLeaves();
+				EndEvent();
+
 				{
-					// Clamp to prevent INFs from turning into NaNs elsewhere.
-					return glm::clamp(EvaluatorRaw->Eval(glm::vec3(X, Y, Z), false), -100.0f, 100.0f);
-				};
-			}
-			Painter->Scratch->Setup();
+					SDFOctree* EvaluatorRaw = Evaluator.get();
+					Intermediary.Ext.ImplicitFunction = [EvaluatorRaw](float X, float Y, float Z) -> float
+					{
+						// Clamp to prevent INFs from turning into NaNs elsewhere.
+						return glm::clamp(EvaluatorRaw->Eval(glm::vec3(X, Y, Z), false), -100.0f, 100.0f);
+					};
+				}
+				Intermediary.Ext.Setup();
 
-			if (Painter->Scratch->FirstLoopDomain.size() == 0)
-			{
-				return;
+				if (Intermediary.Ext.FirstLoopDomain.size() == 0)
+				{
+					return;
+				}
 			}
 		};
 
-		MeshingOctreeTask = new TaskT("Populate Octree", Painter, Evaluator, Painter->Scratch->Incompletes, LoopThunk, DoneThunk);
+		TaskT::AccessorT Accessor = [](auto& Intermediary)
+		{
+			return &Intermediary.Incompletes;
+		};
+
+		{
+			std::unique_ptr<NaiveSurfaceNetsScratch> InitialIntermediary = NaiveSurfaceNetsScratch::Create(Painter, Evaluator, NaiveSurfaceNetsDensity);
+			MeshingOctreeTask = new TaskT("Populate Octree", InitialIntermediary, Accessor, LoopThunk, DoneThunk);
+		}
 	}
 
-	ParallelTaskChain* MeshingPointCacheTask;
+	ParallelTaskChain<NaiveSurfaceNetsScratch>* MeshingPointCacheTask;
 	{
-		using TaskT = ParallelLambdaOctreeTaskChain;
+		using TaskT = ParallelLambdaOctreeTaskChain<NaiveSurfaceNetsScratch>;
 
-		TaskT::BootThunkT BootThunk = [](DrawableShared& Painter, SDFOctreeShared& Evaluator)
+		TaskT::BootThunkT BootThunk = [](auto& Intermediary)
 		{
-			MeshingScratch* Scratch = Painter->Scratch;
-
-			isosurface::regular_grid_t& Grid = Scratch->Grid;
+			isosurface::regular_grid_t& Grid = Intermediary.Ext.Grid;
 			size_t IndexRange = Grid.sx * Grid.sy * Grid.sz;
 			const size_t BucketSize = glm::min(size_t(64), IndexRange);
 			const size_t BucketCount = ((IndexRange + BucketSize - 1) / BucketSize);
 
-			Scratch->PointCacheBucketSize = BucketSize;
-			Scratch->PointCache.resize(BucketCount);
+			Intermediary.PointCacheBucketSize = BucketSize;
+			Intermediary.PointCache.resize(BucketCount);
 		};
 
-		TaskT::LoopThunkT LoopThunk = [](DrawableShared& Painter, SDFOctreeShared& RootNode, SDFOctree& LeafNode)
+		TaskT::LoopThunkT LoopThunk = [](auto& Intermediary, SDFOctree& LeafNode)
 		{
-			MeshingScratch* Scratch = Painter->Scratch;
-			isosurface::regular_grid_t& Grid = Scratch->Grid;
-			const size_t Range = Scratch->PointCacheBucketSize;
-			std::vector<PointCacheBucket>& PointCache = Scratch->PointCache;
+			isosurface::regular_grid_t& Grid = Intermediary.Ext.Grid;
+			const size_t Range = Intermediary.PointCacheBucketSize;
+			std::vector<PointCacheBucket>& PointCache = Intermediary.PointCache;
 
 			glm::vec3 Origin(Grid.x, Grid.y, Grid.z);
 			glm::vec3 Step(Grid.dx, Grid.dy, Grid.dz);
@@ -570,13 +650,13 @@ void MeshingJob::NaiveSurfaceNets(DrawableShared& Painter, SDFOctreeShared& Eval
 			}
 		};
 
-		TaskT::DoneThunkT DoneThunk = [](DrawableShared& Painter, SDFOctreeShared& Evaluator)
+		TaskT::DoneThunkT DoneThunk = [](auto& Intermediary)
 		{
 			BeginEvent("Pruning");
 			std::vector<PointCacheBucket> Pruned;
-			Pruned.reserve(Painter->Scratch->PointCache.size());
+			Pruned.reserve(Intermediary.PointCache.size());
 
-			for (PointCacheBucket& Bucket : Painter->Scratch->PointCache)
+			for (PointCacheBucket& Bucket : Intermediary.PointCache)
 			{
 				if (Bucket.Points.size() > 0)
 				{
@@ -584,183 +664,231 @@ void MeshingJob::NaiveSurfaceNets(DrawableShared& Painter, SDFOctreeShared& Eval
 				}
 			}
 
-			Painter->Scratch->PointCache.swap(Pruned);
+			Intermediary.PointCache.swap(Pruned);
 			EndEvent();
 		};
 
-		MeshingPointCacheTask = new TaskT("Populate Point Cache", Painter, Evaluator, BootThunk, LoopThunk, DoneThunk);
+		TaskT::AccessorT Accessor = [](auto& Intermediary)
+		{
+			return Intermediary.Evaluator.get();
+		};
+
+		MeshingPointCacheTask = new TaskT("Populate Point Cache", Accessor, BootThunk, LoopThunk, DoneThunk);
 		MeshingOctreeTask->NextTask = MeshingPointCacheTask;
 	}
 
-	ParallelTaskChain* MeshingVertexLoopTask;
+	ParallelTaskChain<NaiveSurfaceNetsScratch>* MeshingVertexLoopTask;
 	{
-		using TaskT = ParallelLambdaDomainTaskChain<std::vector<PointCacheBucket>>;
+		using TaskT = ParallelLambdaDomainTaskChain<NaiveSurfaceNetsScratch, std::vector<PointCacheBucket>>;
 
-		TaskT::LoopThunkT LoopThunk = [](DrawableShared& Painter, SDFOctreeShared& Evaluator, const PointCacheBucket& Bucket, const int Ignore)
+		TaskT::LoopThunkT LoopThunk = [](auto& Intermediary, const PointCacheBucket& Bucket, const int Ignore)
 		{
-			MeshingScratch* Scratch = Painter->Scratch;
 			for (size_t GridIndex : Bucket.Points)
 			{
-				Scratch->FirstLoopInnerThunk(*Scratch, IndexToGridPoint(Scratch->Grid, GridIndex));
+				Intermediary.Ext.FirstLoopInnerThunk(Intermediary.Ext, IndexToGridPoint(Intermediary.Ext.Grid, GridIndex));
 			}
 		};
 
-		TaskT::DoneThunkT DoneThunk = [](DrawableShared& Painter, SDFOctreeShared& Evaluator)
+		TaskT::DoneThunkT DoneThunk = [](auto& Intermediary)
 		{
 		};
 
-		MeshingVertexLoopTask = new TaskT("Vertex Loop", Painter, Evaluator, Painter->Scratch->PointCache, LoopThunk, DoneThunk);
+		TaskT::AccessorT Accessor = [](auto& Intermediary)
+		{
+			return &Intermediary.PointCache;
+		};
+
+		MeshingVertexLoopTask = new TaskT("Vertex Loop", Accessor, LoopThunk, DoneThunk);
 		MeshingPointCacheTask->NextTask = MeshingVertexLoopTask;
 	}
 
-	ParallelTaskChain* MeshingFaceLoopTask;
+	ParallelTaskChain<NaiveSurfaceNetsScratch>* MeshingFaceLoopTask;
 	{
-		using TaskT = ParallelLambdaDomainTaskChain<std::unordered_map<std::size_t, std::uint64_t>>;
+		using TaskT = ParallelLambdaDomainTaskChain<NaiveSurfaceNetsScratch, std::unordered_map<std::size_t, std::uint64_t>>;
 
-		TaskT::LoopThunkT LoopThunk = [](DrawableShared& Painter, SDFOctreeShared& Evaluator, const std::pair<std::size_t const, std::uint64_t>& Element, const int Ignore)
+		TaskT::LoopThunkT LoopThunk = [](auto& Intermediary, const std::pair<std::size_t const, std::uint64_t>& Element, const int Ignore)
 		{
-			MeshingScratch* Scratch = Painter->Scratch;
-			Scratch->SecondLoopThunk(*Scratch, Element);
+			Intermediary.Ext.SecondLoopThunk(Intermediary.Ext, Element);
 		};
 
-		TaskT::DoneThunkT DoneThunk = [](DrawableShared& Painter, SDFOctreeShared& Evaluator)
+		TaskT::DoneThunkT DoneThunk = [](auto& Intermediary)
 		{
-			MeshingScratch* Scratch = Painter->Scratch;
-			isosurface::mesh& Mesh = Scratch->OutputMesh;
-
-			Painter->Positions.reserve(Mesh.vertices_.size());
-			Painter->Normals.resize(Mesh.vertices_.size(), glm::vec4(0.0, 0.0, 0.0, 0.0));
-			Painter->Indices.resize(Mesh.faces_.size() * 3, 0);
-
-			for (const isosurface::point_t& ExtractedVertex : Mesh.vertices_)
+			DrawableShared& Painter = Intermediary.Painter;
+			if (Painter)
 			{
-				glm::vec4 Vertex(ExtractedVertex.x, ExtractedVertex.y, ExtractedVertex.z, 1.0);
-				Painter->Positions.push_back(Vertex);
+				isosurface::mesh& Mesh = Intermediary.Ext.OutputMesh;
+
+				Painter->Positions.reserve(Mesh.vertices_.size());
+				Painter->Normals.resize(Mesh.vertices_.size(), glm::vec4(0.0, 0.0, 0.0, 0.0));
+				Painter->Indices.resize(Mesh.faces_.size() * 3, 0);
+
+				for (const isosurface::point_t& ExtractedVertex : Mesh.vertices_)
+				{
+					glm::vec4 Vertex(ExtractedVertex.x, ExtractedVertex.y, ExtractedVertex.z, 1.0);
+					Painter->Positions.push_back(Vertex);
+				}
 			}
 		};
 
-		MeshingFaceLoopTask = new TaskT("Face Loop", Painter, Evaluator, Painter->Scratch->SecondLoopDomain, LoopThunk, DoneThunk);
+		TaskT::AccessorT Accessor = [](auto& Intermediary)
+		{
+			return &Intermediary.Ext.SecondLoopDomain;
+		};
+
+		MeshingFaceLoopTask = new TaskT("Face Loop", Accessor, LoopThunk, DoneThunk);
 		MeshingVertexLoopTask->NextTask = MeshingFaceLoopTask;
 	}
 
-	ParallelTaskChain* MeshingNormalLoopTask;
+	ParallelTaskChain<NaiveSurfaceNetsScratch>* MeshingNormalLoopTask;
 	{
 		using FaceT = isosurface::mesh::triangle_t;
-		using TaskT = ParallelLambdaDomainTaskChain<isosurface::mesh::faces_container_type>;
-		TaskT::LoopThunkT LoopThunk = [](DrawableShared& Painter, SDFOctreeShared& Evaluator, const FaceT& Face, const int Index)
+		using TaskT = ParallelLambdaDomainTaskChain<NaiveSurfaceNetsScratch, isosurface::mesh::faces_container_type>;
+		TaskT::LoopThunkT LoopThunk = [](auto& Intermediary, const FaceT& Face, const int Index)
 		{
-			isosurface::mesh& Mesh = Painter->Scratch->OutputMesh;
+			DrawableShared& Painter = Intermediary.Painter;
+			if (Painter)
+			{
+				isosurface::mesh& Mesh = Intermediary.Ext.OutputMesh;
 
-			Painter->Indices[Index * 3 + 0] = uint32_t(Face.v0);
-			Painter->Indices[Index * 3 + 1] = uint32_t(Face.v1);
-			Painter->Indices[Index * 3 + 2] = uint32_t(Face.v2);
+				Painter->Indices[Index * 3 + 0] = uint32_t(Face.v0);
+				Painter->Indices[Index * 3 + 1] = uint32_t(Face.v1);
+				Painter->Indices[Index * 3 + 2] = uint32_t(Face.v2);
 
 #if !USE_GRADIENT_NORMALS
-			glm::vec3 A = Painter->Positions[Face.v0].xyz();
-			glm::vec3 B = Painter->Positions[Face.v1].xyz();
-			glm::vec3 C = Painter->Positions[Face.v2].xyz();
-			glm::vec3 AB = glm::normalize(A - B);
-			glm::vec3 AC = glm::normalize(A - C);
-			glm::vec4 N = glm::vec4(glm::normalize(glm::cross(AB, AC)), 1);
+				glm::vec3 A = Painter->Positions[Face.v0].xyz();
+				glm::vec3 B = Painter->Positions[Face.v1].xyz();
+				glm::vec3 C = Painter->Positions[Face.v2].xyz();
+				glm::vec3 AB = glm::normalize(A - B);
+				glm::vec3 AC = glm::normalize(A - C);
+				glm::vec4 N = glm::vec4(glm::normalize(glm::cross(AB, AC)), 1);
 
-			if (!glm::any(glm::isnan(N)))
-			{
-				Painter->Scratch->NormalsCS.lock();
-				Painter->Normals[Face.v0] += N;
-				Painter->Normals[Face.v1] += N;
-				Painter->Normals[Face.v2] += N;
-				Painter->Scratch->NormalsCS.unlock();
+				if (!glm::any(glm::isnan(N)))
+				{
+					Painter->Scratch->NormalsCS.lock();
+					Painter->Normals[Face.v0] += N;
+					Painter->Normals[Face.v1] += N;
+					Painter->Normals[Face.v2] += N;
+					Painter->Scratch->NormalsCS.unlock();
+				}
+#endif
 			}
-#endif
 		};
 
-		TaskT::DoneThunkT DoneThunk = [](DrawableShared& Painter, SDFOctreeShared& Evaluator)
+		TaskT::DoneThunkT DoneThunk = [](auto& Intermediary)
 		{
+			DrawableShared& Painter = Intermediary.Painter;
+			if (Painter)
+			{
 #if USE_GRADIENT_NORMALS
-			ApplyVertexSequence<true, false>(Painter);
+				ApplyVertexSequence<true, false>(Painter);
 #else
-			ApplyVertexSequence<false, false>(Painter);
+				ApplyVertexSequence<false, false>(Painter);
 #endif
+			}
 		};
 
-		MeshingNormalLoopTask = new TaskT("Normal Loop", Painter, Evaluator, Painter->Scratch->OutputMesh.faces_, LoopThunk, DoneThunk);
+		TaskT::AccessorT Accessor = [](auto& Intermediary)
+		{
+			return &Intermediary.Ext.OutputMesh.faces_;
+		};
+
+		MeshingNormalLoopTask = new TaskT("Normal Loop", Accessor, LoopThunk, DoneThunk);
 		MeshingFaceLoopTask->NextTask = MeshingNormalLoopTask;
 	}
 
-	ParallelTaskChain* MeshingAverageNormalLoopTask;
+	ParallelTaskChain<NaiveSurfaceNetsScratch>* MeshingAverageNormalLoopTask;
 	{
-		using TaskT = ParallelLambdaDomainTaskChain<std::vector<glm::vec4>>;
-		TaskT::LoopThunkT LoopThunk = [](DrawableShared& Painter, SDFOctreeShared& Evaluator, glm::vec4& Normal, const int Index)
+		using TaskT = ParallelLambdaDomainTaskChain<NaiveSurfaceNetsScratch, std::vector<glm::vec4>>;
+		TaskT::LoopThunkT LoopThunk = [](auto& Intermediary, glm::vec4& Normal, const int Index)
 		{
+			DrawableShared& Painter = Intermediary.Painter;
+			SDFOctreeShared& Evaluator = Intermediary.Evaluator;
+			if (Painter && Evaluator)
+			{
 #if !USE_GRADIENT_NORMALS
-			if (Normal.w > 0.0)
-			{
-				Normal = glm::vec4(glm::normalize(Normal.xyz() / Normal.w), 1.0);
-			}
-			else
+				if (Normal.w > 0.0)
+				{
+					Normal = glm::vec4(glm::normalize(Normal.xyz() / Normal.w), 1.0);
+				}
+				else
 #endif
-			{
-				Normal = glm::vec4(Evaluator->Gradient(Painter->Positions[Index].xyz()), 1.0);
+				{
+					Normal = glm::vec4(Evaluator->Gradient(Painter->Positions[Index].xyz()), 1.0);
+				}
 			}
 		};
 
-		TaskT::DoneThunkT DoneThunk = [](DrawableShared& Painter, SDFOctreeShared& Evaluator)
+		TaskT::DoneThunkT DoneThunk = [](auto& Intermediary)
 		{
-			Painter->Colors.resize(Painter->Positions.size(), glm::vec4(0.0, 0.0, 0.0, 1.0));
+			DrawableShared& Painter = Intermediary.Painter;
+			if (Painter)
+			{
+				Painter->Colors.resize(Painter->Positions.size(), glm::vec4(0.0, 0.0, 0.0, 1.0));
+			}
 		};
 
-		MeshingAverageNormalLoopTask = new TaskT("Average Normals", Painter, Evaluator, Painter->Normals, LoopThunk, DoneThunk);
+		TaskT::AccessorT Accessor = [](auto& Intermediary)
+		{
+			return &Intermediary.Painter->Normals;
+		};
+
+		MeshingAverageNormalLoopTask = new TaskT("Average Normals", Accessor, LoopThunk, DoneThunk);
 		MeshingNormalLoopTask->NextTask = MeshingAverageNormalLoopTask;
 	}
 
-	ParallelTaskChain* MeshingJitterLoopTask;
+	ParallelTaskChain<NaiveSurfaceNetsScratch>* MeshingJitterLoopTask;
 	{
-		using TaskT = ParallelLambdaDomainTaskChain<std::vector<glm::vec4>>;
+		using TaskT = ParallelLambdaDomainTaskChain<NaiveSurfaceNetsScratch, std::vector<glm::vec4>>;
 
-		glm::vec3 JitterSpan = glm::vec3(Grid.dx, Grid.dy, Grid.dz) * glm::vec3(0.5);
-
-		TaskT::LoopThunkT LoopThunk = [JitterSpan](DrawableShared& Painter, SDFOctreeShared& Evaluator, const glm::vec4& Position, const int Index)
+		TaskT::LoopThunkT LoopThunk = [](auto& Intermediary, const glm::vec4& Position, const int Index)
 		{
-			glm::vec3 Sample = glm::vec3(0.0);
+			DrawableShared& Painter = Intermediary.Painter;
+			if (Painter)
 			{
-				MaterialShared Material = Painter->EvaluatorOctree->GetMaterial(Position.xyz());
-				if (Material)
+				glm::vec3 Sample = glm::vec3(0.0);
 				{
-					auto FoundSlot = Painter->SlotLookup.find(Material);
-					if (FoundSlot != Painter->SlotLookup.end())
+					MaterialShared Material = Painter->EvaluatorOctree->GetMaterial(Position.xyz());
+					if (Material)
 					{
-						size_t SlotIndex = FoundSlot->second;
-						MaterialVertexGroup& Slot = Painter->MaterialSlots[SlotIndex];
+						auto FoundSlot = Painter->SlotLookup.find(Material);
+						if (FoundSlot != Painter->SlotLookup.end())
+						{
+							size_t SlotIndex = FoundSlot->second;
+							MaterialVertexGroup& Slot = Painter->MaterialSlots[SlotIndex];
 
-						Painter->MaterialSlotsCS.lock();
-						Slot.Vertices.push_back(Index);
-						Painter->MaterialSlotsCS.unlock();
-					}
+							Painter->MaterialSlotsCS.lock();
+							Slot.Vertices.push_back(Index);
+							Painter->MaterialSlotsCS.unlock();
+						}
 
-					ChthonicMaterialInterface* ChthonicMaterial = dynamic_cast<ChthonicMaterialInterface*>(Material.get());
-					if (ChthonicMaterial != nullptr)
-					{
-						glm::vec3 Normal = Painter->Normals[Index].xyz();
-						Sample = ChthonicMaterial->Eval(Position.xyz(), Normal, Normal).xyz();
+						ChthonicMaterialInterface* ChthonicMaterial = dynamic_cast<ChthonicMaterialInterface*>(Material.get());
+						if (ChthonicMaterial != nullptr)
+						{
+							glm::vec3 Normal = Painter->Normals[Index].xyz();
+							Sample = ChthonicMaterial->Eval(Position.xyz(), Normal, Normal).xyz();
+						}
 					}
 				}
+
+				Painter->Colors[Index] = glm::vec4(Sample, 1.0);
 			}
-
-			Painter->Colors[Index] = glm::vec4(Sample, 1.0);
 		};
 
-		TaskT::DoneThunkT DoneThunk = [](DrawableShared& Painter, SDFOctreeShared& Evaluator)
+		TaskT::DoneThunkT DoneThunk = [](auto& Intermediary)
 		{
-			Scheduler::EnqueueOutbox(new MeshingComplete(Painter));
-
-			BeginEvent("Delete Scratch Data");
-			delete Painter->Scratch;
-			EndEvent();
-
-			Painter->Scratch = nullptr;
+			DrawableShared& Painter = Intermediary.Painter;
+			if (Painter)
+			{
+				Scheduler::EnqueueOutbox(new MeshingComplete(Painter));
+			}
 		};
 
-		MeshingJitterLoopTask = new TaskT("Jitter Loop", Painter, Evaluator, Painter->Positions, LoopThunk, DoneThunk);
+		TaskT::AccessorT Accessor = [](auto& Intermediary)
+		{
+			return &Intermediary.Painter->Positions;
+		};
+
+		MeshingJitterLoopTask = new TaskT("Jitter Loop", Accessor, LoopThunk, DoneThunk);
 		MeshingAverageNormalLoopTask->NextTask = MeshingJitterLoopTask;
 	}
 
@@ -1008,12 +1136,13 @@ struct LatticeCell : public LatticeSample
 };
 
 
-struct LatticeMeshingTask : ParallelDomainTaskChain<std::vector<LatticeCell>>
+struct LatticeMeshingTask : ParallelDomainTaskChain<MeshingScratch, std::vector<LatticeCell>>
 {
+	using IntermediaryT = MeshingScratch;
 	using ContainerT = std::vector<LatticeCell>;
-	using SharedT = std::shared_ptr<ParallelDomainTaskChain<ContainerT>>;
 	using ElementT = typename ContainerT::value_type;
 	using IteratorT = typename ContainerT::iterator;
+	using AccessorT = std::function<ContainerT* (IntermediaryT&)>;
 
 	const float Density;
 	const LatticeParameters Lattice;
@@ -1025,11 +1154,16 @@ struct LatticeMeshingTask : ParallelDomainTaskChain<std::vector<LatticeCell>>
 	std::atomic_int IterationCounter;
 	std::vector<ContainerT> CollectedCellsOfInterest;
 
-	LatticeMeshingTask(DrawableShared& Painter, SDFOctreeShared& Evaluator, float InDensity = 8.f)
-		: ParallelDomainTaskChain<ContainerT>("Lattice Search", Painter, Evaluator)
+	static ContainerT* NullAccessor(IntermediaryT& Intermediary)
+	{
+		return nullptr;
+	}
+
+	LatticeMeshingTask(const char* TaskName, AABB EvaluatorBounds, float InDensity = 8.f)
+		: ParallelDomainTaskChain<IntermediaryT, ContainerT>(TaskName, NullAccessor)
 		, Density(InDensity)
 		, Lattice(Density)
-		, Bounds(Evaluator->Bounds + Lattice.ExtendedRadius)
+		, Bounds(EvaluatorBounds + Lattice.ExtendedRadius)
 		, CellCount(glm::ceil(Bounds.Extent() / glm::vec3(Lattice.Diameter, Lattice.Diameter, Lattice.LayerOffset.z)))
 		, CellStride(CellCount.x, CellCount.x * CellCount.y)
 		, LinearCellCount(CellCount.x * CellCount.y * CellCount.z)
@@ -1041,9 +1175,8 @@ struct LatticeMeshingTask : ParallelDomainTaskChain<std::vector<LatticeCell>>
 	virtual void Run()
 	{
 		ProfileScope Fnord(fmt::format("{} (Run)", TaskName));
-		DrawableShared Painter = PainterWeakRef.lock();
-		SDFOctreeShared Evaluator = EvaluatorWeakRef.lock();
-		if (Painter && Evaluator)
+		SDFOctreeShared& Evaluator = ParallelTaskChain<IntermediaryT>::IntermediaryData->Evaluator;
+		if (Evaluator)
 		{
 			ContainerT CellsOfInterest;
 			CellsOfInterest.reserve(LinearCellCount);
@@ -1083,33 +1216,37 @@ struct LatticeMeshingTask : ParallelDomainTaskChain<std::vector<LatticeCell>>
 		}
 	}
 
-	virtual void Done(DrawableShared& Painter, SDFOctreeShared& Evaluator)
+	virtual void Done(IntermediaryT& Intermediary)
 	{
-		MeshGenerator Model;
-#if 1
-		for (const ContainerT& CellsOfInterest : CollectedCellsOfInterest)
+		DrawableShared Painter = ParallelTaskChain<IntermediaryT>::IntermediaryData->Painter;
+		if (Painter)
 		{
-			for (const LatticeCell& Cell : CellsOfInterest)
+			MeshGenerator Model;
+#if 1
+			for (const ContainerT& CellsOfInterest : CollectedCellsOfInterest)
 			{
-				for (const MeshGenerator& Patch : Cell.Patches)
+				for (const LatticeCell& Cell : CellsOfInterest)
 				{
-					Model.Accumulate(Patch);
+					for (const MeshGenerator& Patch : Cell.Patches)
+					{
+						Model.Accumulate(Patch);
+					}
 				}
 			}
-		}
 #else
-		const RhombicDodecahedronGenerator& UnitHull = RhombicDodecahedronGenerator::GetUnitHull();
-		Model = UnitHull.ConvexBisect(glm::vec3(0.f, -1.f, 0.f), glm::normalize(glm::vec3(0.f, -1.f, 0.f)));
+			const RhombicDodecahedronGenerator& UnitHull = RhombicDodecahedronGenerator::GetUnitHull();
+			Model = UnitHull.ConvexBisect(glm::vec3(0.f, -1.f, 0.f), glm::normalize(glm::vec3(0.f, -1.f, 0.f)));
 #endif
 
-		if (Model.Indices.size() > 0)
-		{
-			Painter->Positions = std::move(Model.Vertices);
-			Painter->Indices = std::move(Model.Indices);
-		}
+			if (Model.Indices.size() > 0)
+			{
+				Painter->Positions = std::move(Model.Vertices);
+				Painter->Indices = std::move(Model.Indices);
+			}
 
-		Painter->Normals.resize(Painter->Positions.size());
-		Painter->Colors.resize(Painter->Positions.size(), glm::vec4(0.0, 0.0, 0.0, 1.0));
+			Painter->Normals.resize(Painter->Positions.size());
+			Painter->Colors.resize(Painter->Positions.size(), glm::vec4(0.0, 0.0, 0.0, 1.0));
+		}
 	}
 
 	virtual ~LatticeMeshingTask() = default;
@@ -1118,89 +1255,119 @@ struct LatticeMeshingTask : ParallelDomainTaskChain<std::vector<LatticeCell>>
 
 void MeshingJob::SphereLatticeSearch(DrawableShared& Painter, SDFOctreeShared& Evaluator)
 {
-	ParallelTaskChain* PopulateOctreeTask;
+	ParallelTaskChain<MeshingScratch>* PopulateOctreeTask;
 	{
-		using TaskT = ParallelLambdaDomainTaskChain<std::vector<SDFOctree*>>;
-		TaskT::LoopThunkT LoopThunk = [](DrawableShared& Painter, SDFOctreeShared& Evaluator, SDFOctree* Incomplete, const int Index)
+		using TaskT = ParallelLambdaDomainTaskChain<MeshingScratch, std::vector<SDFOctree*>>;
+		TaskT::LoopThunkT LoopThunk = [](MeshingScratch& Intermediary, SDFOctree* Incomplete, const int Index)
 		{
 			Incomplete->Populate(false, 3, -1);
 		};
 
-		TaskT::DoneThunkT DoneThunk = [](DrawableShared& Painter, SDFOctreeShared& Evaluator)
+		TaskT::DoneThunkT DoneThunk = [](MeshingScratch& Intermediary)
 		{
-			BeginEvent("Evaluator::LinkLeaves");
-			Evaluator->LinkLeaves();
-			EndEvent();
+			SDFOctreeShared& Evaluator = Intermediary.Evaluator;
+			if (Evaluator)
+			{
+				BeginEvent("Evaluator::LinkLeaves");
+				Evaluator->LinkLeaves();
+				EndEvent();
+			}
 		};
 
-		PopulateOctreeTask = new TaskT("Populate Octree", Painter, Evaluator, Painter->Scratch->Incompletes, LoopThunk, DoneThunk);
+		TaskT::AccessorT Accessor = [](MeshingScratch& Intermediary)
+		{
+			return &Intermediary.Incompletes;
+		};
+
+		{
+			std::unique_ptr<MeshingScratch> InitialIntermediary = MeshingScratch::Create(Painter, Evaluator);
+			PopulateOctreeTask = new TaskT("Populate Octree", InitialIntermediary, Accessor, LoopThunk, DoneThunk);
+		}
 	}
 
-	ParallelTaskChain* PopulateLatticeTask;
+	ParallelTaskChain<MeshingScratch>* PopulateLatticeTask;
 	{
-		PopulateLatticeTask = new LatticeMeshingTask(Painter, Evaluator);
+		PopulateLatticeTask = new LatticeMeshingTask("Lattice Search", Evaluator->Bounds);
 		PopulateOctreeTask->NextTask = PopulateLatticeTask;
 	}
 
-	ParallelTaskChain* PopulateNormalsTask;
+	ParallelTaskChain<MeshingScratch>* PopulateNormalsTask;
 	{
-		using TaskT = ParallelLambdaDomainTaskChain<std::vector<glm::vec4>>;
-		TaskT::LoopThunkT LoopThunk = [](DrawableShared& Painter, SDFOctreeShared& Evaluator, glm::vec4& Normal, const int Index)
+		using TaskT = ParallelLambdaDomainTaskChain<MeshingScratch, std::vector<glm::vec4>>;
+		TaskT::LoopThunkT LoopThunk = [](MeshingScratch& Intermediary, glm::vec4& Normal, const int Index)
 		{
-			Normal = glm::vec4(Evaluator->Gradient(Painter->Positions[Index].xyz()), 1.0);
+			DrawableShared& Painter = Intermediary.Painter;
+			SDFOctreeShared& Evaluator = Intermediary.Evaluator;
+			if (Painter && Evaluator)
+			{
+				Normal = glm::vec4(Evaluator->Gradient(Painter->Positions[Index].xyz()), 1.0);
+			}
 		};
 
-		TaskT::DoneThunkT DoneThunk = [](DrawableShared& Painter, SDFOctreeShared& Evaluator)
+		TaskT::DoneThunkT DoneThunk = [](MeshingScratch& Intermediary)
 		{
 		};
 
-		PopulateNormalsTask = new TaskT("Populate Normals", Painter, Evaluator, Painter->Normals, LoopThunk, DoneThunk);
+		TaskT::AccessorT Accessor = [](MeshingScratch& Intermediary)
+		{
+			return &Intermediary.Painter->Normals;
+		};
+
+		PopulateNormalsTask = new TaskT("Populate Normals", Accessor, LoopThunk, DoneThunk);
 		PopulateLatticeTask->NextTask = PopulateNormalsTask;
 	}
 
-	ParallelTaskChain* MaterialAssignmentTask;
+	ParallelTaskChain<MeshingScratch>* MaterialAssignmentTask;
 	{
-		using TaskT = ParallelLambdaDomainTaskChain<std::vector<glm::vec4>>;
-		TaskT::LoopThunkT LoopThunk = [](DrawableShared& Painter, SDFOctreeShared& Evaluator, const glm::vec4& Position, const int Index)
+		using TaskT = ParallelLambdaDomainTaskChain<MeshingScratch, std::vector<glm::vec4>>;
+		TaskT::LoopThunkT LoopThunk = [](MeshingScratch& Intermediary, const glm::vec4& Position, const int Index)
 		{
-			glm::vec3 Sample = glm::vec3(0.0);
-			MaterialShared Material = Painter->EvaluatorOctree->GetMaterial(Position.xyz());
-			if (Material)
+			DrawableShared& Painter = Intermediary.Painter;
+			SDFOctreeShared& Evaluator = Intermediary.Evaluator;
+			if (Painter && Evaluator)
 			{
-				auto FoundSlot = Painter->SlotLookup.find(Material);
-				if (FoundSlot != Painter->SlotLookup.end())
+				glm::vec3 Sample = glm::vec3(0.0);
+				MaterialShared Material = Painter->EvaluatorOctree->GetMaterial(Position.xyz());
+				if (Material)
 				{
-					size_t SlotIndex = FoundSlot->second;
-					MaterialVertexGroup& Slot = Painter->MaterialSlots[SlotIndex];
+					auto FoundSlot = Painter->SlotLookup.find(Material);
+					if (FoundSlot != Painter->SlotLookup.end())
+					{
+						size_t SlotIndex = FoundSlot->second;
+						MaterialVertexGroup& Slot = Painter->MaterialSlots[SlotIndex];
 
-					Painter->MaterialSlotsCS.lock();
-					Slot.Vertices.push_back(Index);
-					Painter->MaterialSlotsCS.unlock();
+						Painter->MaterialSlotsCS.lock();
+						Slot.Vertices.push_back(Index);
+						Painter->MaterialSlotsCS.unlock();
+					}
+
+					ChthonicMaterialInterface* ChthonicMaterial = dynamic_cast<ChthonicMaterialInterface*>(Material.get());
+					if (ChthonicMaterial != nullptr)
+					{
+						glm::vec3 Normal = Painter->Normals[Index].xyz();
+						Sample = ChthonicMaterial->Eval(Position.xyz(), Normal, Normal).xyz();
+					}
 				}
 
-				ChthonicMaterialInterface* ChthonicMaterial = dynamic_cast<ChthonicMaterialInterface*>(Material.get());
-				if (ChthonicMaterial != nullptr)
-				{
-					glm::vec3 Normal = Painter->Normals[Index].xyz();
-					Sample = ChthonicMaterial->Eval(Position.xyz(), Normal, Normal).xyz();
-				}
+				Painter->Colors[Index] = glm::vec4(Sample, 1.0);
 			}
-
-			Painter->Colors[Index] = glm::vec4(Sample, 1.0);
 		};
 
-		TaskT::DoneThunkT DoneThunk = [](DrawableShared& Painter, SDFOctreeShared& Evaluator)
+		TaskT::DoneThunkT DoneThunk = [](MeshingScratch& Intermediary)
 		{
-			Scheduler::EnqueueOutbox(new MeshingComplete(Painter));
-
-			BeginEvent("Delete Scratch Data");
-			delete Painter->Scratch;
-			EndEvent();
-
-			Painter->Scratch = nullptr;
+			DrawableShared& Painter = Intermediary.Painter;
+			if (Painter)
+			{
+				Scheduler::EnqueueOutbox(new MeshingComplete(Painter));
+			}
 		};
 
-		MaterialAssignmentTask = new TaskT("Material Assignment", Painter, Evaluator, Painter->Positions, LoopThunk, DoneThunk);
+		TaskT::AccessorT Accessor = [](MeshingScratch& Intermediary)
+		{
+			return &Intermediary.Painter->Positions;
+		};
+
+		MaterialAssignmentTask = new TaskT("Material Assignment", Accessor, LoopThunk, DoneThunk);
 		PopulateNormalsTask->NextTask = MaterialAssignmentTask;
 	}
 
