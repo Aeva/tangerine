@@ -98,23 +98,30 @@ struct MeshingScratch
 
 	static std::unique_ptr<MeshingScratch> Create(DrawableShared& Painter, SDFOctreeShared& Evaluator)
 	{
-		std::unique_ptr<MeshingScratch> Intermediary(new MeshingScratch());
-		Intermediary->Painter = Painter;
-		Intermediary->Evaluator = Evaluator;
+		std::unique_ptr<MeshingScratch> Intermediary(new MeshingScratch(Painter, Evaluator));
+		return Intermediary;
+	}
 
+	virtual ~MeshingScratch()
+	{
+	};
+
+protected:
+	MeshingScratch(DrawableShared& InPainter, SDFOctreeShared& InEvaluator)
+		: Painter(InPainter)
+		, Evaluator(InEvaluator)
+	{
 		SDFOctree::CallbackType IncompleteSearch = [&](SDFOctree& Leaf)
 		{
 			if (Leaf.Incomplete)
 			{
-				Intermediary->Incompletes.push_back(&Leaf);
+				Incompletes.push_back(&Leaf);
 			}
 		};
 
 		BeginEvent("Evaluator::Walk IncompleteSearch");
 		Evaluator->Walk(IncompleteSearch);
 		EndEvent();
-
-		return Intermediary;
 	}
 };
 
@@ -125,9 +132,6 @@ struct NaiveSurfaceNetsScratch : MeshingScratch
 
 	glm::vec3 JitterSpan;
 
-	// Intermediary domain for MeshingOctreeTask
-	std::vector<SDFOctree*> Incompletes;
-
 	// Intermediary domain for MeshingVertexLoopTask
 	size_t PointCacheBucketSize = 0;
 	std::vector<PointCacheBucket> PointCache;
@@ -137,23 +141,19 @@ struct NaiveSurfaceNetsScratch : MeshingScratch
 
 	static std::unique_ptr<NaiveSurfaceNetsScratch> Create(DrawableShared& Painter, SDFOctreeShared& Evaluator, float MeshingDensity)
 	{
-		std::unique_ptr<NaiveSurfaceNetsScratch> Intermediary(new NaiveSurfaceNetsScratch());
-		Intermediary->Painter = Painter;
-		Intermediary->Evaluator = Evaluator;
+		std::unique_ptr<NaiveSurfaceNetsScratch> Intermediary(new NaiveSurfaceNetsScratch(Painter, Evaluator, MeshingDensity));
+		return Intermediary;
+	}
 
-		SDFOctree::CallbackType IncompleteSearch = [&](SDFOctree& Leaf)
-		{
-			if (Leaf.Incomplete)
-			{
-				Intermediary->Incompletes.push_back(&Leaf);
-			}
-		};
+	virtual ~NaiveSurfaceNetsScratch()
+	{
+	};
 
-		BeginEvent("Evaluator::Walk IncompleteSearch");
-		Evaluator->Walk(IncompleteSearch);
-		EndEvent();
-
-		isosurface::regular_grid_t Grid;
+protected:
+	NaiveSurfaceNetsScratch(DrawableShared& InPainter, SDFOctreeShared& InEvaluator, float MeshingDensity)
+		: MeshingScratch(InPainter, InEvaluator)
+	{
+		isosurface::regular_grid_t& Grid = Ext.Grid;
 		{
 			const float Density = glm::floor(MeshingDensity);
 			const glm::vec3 SamplesPerUnit = glm::max(Evaluator->Bounds.Extent() * glm::vec3(Density), glm::vec3(8.0));
@@ -175,10 +175,7 @@ struct NaiveSurfaceNetsScratch : MeshingScratch
 			Grid.sy += 3;
 			Grid.sz += 3;
 		}
-		Intermediary->Ext.Grid = Grid;
-		Intermediary->JitterSpan = glm::vec3(Grid.dx, Grid.dy, Grid.dz) * glm::vec3(0.5);
-
-		return Intermediary;
+		JitterSpan = glm::vec3(Grid.dx, Grid.dy, Grid.dz) * glm::vec3(0.5);
 	}
 };
 
@@ -256,6 +253,7 @@ void MeshingJob::Run()
 		Assert(Evaluator->Bounds.Volume() > 0);
 		Painter->MeshingFrameStart = GetFrameNumber();
 
+#if 1
 		switch (Painter->MeshingAlgorithm)
 		{
 #if 1
@@ -267,6 +265,9 @@ void MeshingJob::Run()
 		default:
 			return DebugOctree(Painter, Evaluator);
 		}
+#else
+		return SphereLatticeSearch(Painter, Evaluator);
+#endif
 	}
 }
 
@@ -905,34 +906,360 @@ enum class LatticeSymbol
 };
 
 
-// The FCC lattice coordinate offset between layers when the diameter is 1.
+// This is used to translate lattice addresses into spatial coordinates.
 static const glm::vec3 UnitLatticeOffset(1.f, 1.f, glm::sqrt(2));
 
 
-// The relative offset between a FCC lattice sphere and it's neighbors when the diameter is 1.
-static const std::array<glm::vec3, 12> UnitLatticeNeighbors = \
+// Like %, but behaves as if the values are on a continuous positive number line.
+template<typename T>
+static T Sequence(T Number, int Period)
 {
-	// the layer below
-	UnitLatticeOffset * glm::vec3(-1.f, -1.f, -1.f),
-	UnitLatticeOffset * glm::vec3( 1.f, -1.f, -1.f),
-	UnitLatticeOffset * glm::vec3(-1.f,  1.f, -1.f),
-	UnitLatticeOffset * glm::vec3( 1.f,  1.f, -1.f),
+	return (Number % Period + Period) % Period;
+}
 
-	// same layer
-	glm::vec3( 0, -1, 0),
-	glm::vec3(-1,  0, 0),
-	glm::vec3( 1,  0, 0),
-	glm::vec3( 0,  1, 0),
 
-	// the layer above
-	UnitLatticeOffset * glm::vec3(-1.f, -1.f, 1.f),
-	UnitLatticeOffset * glm::vec3( 1.f, -1.f, 1.f),
-	UnitLatticeOffset * glm::vec3(-1.f,  1.f, 1.f),
-	UnitLatticeOffset * glm::vec3( 1.f,  1.f, 1.f)
+static glm::ivec3 Sequence(glm::ivec3 Number, int Period)
+{
+	return glm::ivec3(
+		Sequence(Number.x, Period),
+		Sequence(Number.y, Period),
+		Sequence(Number.z, Period));
+}
+
+
+enum class LatticeAddressType
+{
+	Invalid = 0,
+	Padding,
+	Cell,
+	Edge,
+	Vertex,
 };
 
 
-struct LatticeParameters
+struct LatticeGrid
+{
+	// For converting between lattice indices and coordinates.
+	glm::vec3 Translation;
+	glm::ivec3 Min;
+	glm::ivec3 Max;
+	glm::ivec3 Range;
+	size_t AddressRange;
+
+	// Returns true if the provided lattice address is in range.
+	bool IsValidAddress(size_t Address) const
+	{
+		return Address < AddressRange;
+	}
+
+	// Returns true if the provided lattice index tripple is in range.
+	bool IsValidIndex(glm::ivec3 Indices) const
+	{
+		return glm::all(glm::lessThanEqual(Min, Indices)) && glm::all(glm::lessThanEqual(Indices, Max));
+	}
+
+	// Convert a lattice index tripple to a coordinate.
+	glm::vec3 GetCoord(glm::ivec3 Indices) const
+	{
+		return glm::vec3(Indices) * Translation;
+	}
+
+	// Convert a flat index into a lattice index tripple.
+	glm::ivec3 UnpackAddress(size_t Address) const
+	{
+		const int SliceStride = Range.x * Range.y;
+		glm::ivec3 Indices = Min;
+		Indices.x += (Address % SliceStride) % Range.x;
+		Indices.y += (Address % SliceStride) / Range.x;
+		Indices.z += Address / SliceStride;
+		return Indices;
+	}
+
+	// Convert a lattice index tripple into a flat index.
+	size_t PackAddress(glm::ivec3 Indices) const
+	{
+		Indices = glm::clamp(Indices, Min, Max) - Min;
+		size_t Address = size_t(Indices.x);
+		Address += size_t(Indices.y) * size_t(Range.x);
+		Address += size_t(Indices.z) * size_t(Range.x) * size_t(Range.y);
+		return Address;
+	}
+
+	// Convert a flat index to a coordinate.
+	glm::vec3 GetCoord(size_t Address) const
+	{
+		return GetCoord(UnpackAddress(Address));
+	}
+
+	LatticeAddressType GetAddressType(glm::ivec3 Indices) const
+	{
+		const glm::ivec3 Mod2 = Sequence(Indices, 2);
+		const glm::ivec3 Mod4 = Sequence(Indices, 4);
+		const glm::ivec3 CellPhase(Mod4);
+		const glm::ivec3 EdgePhase(Mod4.xy, Mod2.z);
+		const glm::ivec3 VertPhase(Mod4);
+
+		const auto Match = [](const glm::ivec3& Phase, const glm::ivec3 Match) -> bool
+		{
+			return glm::all(glm::equal(Phase, Match));
+		};
+
+		const bool IsCell = \
+			Match(CellPhase, glm::ivec3(2, 2, 0)) ||
+			Match(CellPhase, glm::ivec3(0, 0, 2));
+
+		const bool IsEdge = \
+			Match(EdgePhase, glm::ivec3(2, 0, 0)) ||
+			Match(EdgePhase, glm::ivec3(0, 2, 0)) ||
+			Match(EdgePhase, glm::ivec3(1, 1, 1)) ||
+			Match(EdgePhase, glm::ivec3(3, 1, 1)) ||
+			Match(EdgePhase, glm::ivec3(1, 3, 1)) ||
+			Match(EdgePhase, glm::ivec3(3, 3, 1));
+
+		const bool IsVert = \
+			Match(VertPhase, glm::ivec3(0, 0, 0)) ||
+			Match(VertPhase, glm::ivec3(2, 0, 1)) ||
+			Match(VertPhase, glm::ivec3(0, 2, 1)) ||
+			Match(VertPhase, glm::ivec3(2, 2, 2)) ||
+			Match(VertPhase, glm::ivec3(2, 0, 3)) ||
+			Match(VertPhase, glm::ivec3(0, 2, 3));
+
+		if (IsCell)
+		{
+			Assert(!IsEdge);
+			Assert(!IsVert);
+			return LatticeAddressType::Cell;
+		}
+		else if (IsEdge)
+		{
+			Assert(!IsCell);
+			Assert(!IsVert);
+			return LatticeAddressType::Edge;
+		}
+		else if (IsVert)
+		{
+			Assert(!IsCell);
+			Assert(!IsEdge);
+			return LatticeAddressType::Vertex;
+		}
+		else
+		{
+			return LatticeAddressType::Padding;
+		}
+	}
+
+	LatticeAddressType GetAddressType(size_t Address) const
+	{
+		if (IsValidAddress(Address))
+		{
+			return GetAddressType(UnpackAddress(Address));
+		}
+		else
+		{
+			return LatticeAddressType::Invalid;
+		}
+	}
+
+	using WalkNeighborsThunkT = std::function<void(int Side, size_t EdgeAddress, size_t NeighborAddress)>;
+
+	void WalkNeighbors(glm::ivec3 CellIndex, WalkNeighborsThunkT& Thunk) const
+	{
+		Assert(GetAddressType(CellIndex) == LatticeAddressType::Cell);
+
+		const glm::ivec3 EdgeOffsets[12] =
+		{
+			{-1, -1, -1},
+			{ 1, -1, -1},
+			{-1,  1, -1},
+			{ 1,  1, -1},
+
+			{ 0, -2,  0},
+			{-2,  0,  0},
+			{ 2,  0,  0},
+			{ 0,  2,  0},
+
+			{-1, -1,  1},
+			{ 1, -1,  1},
+			{-1,  1,  1},
+			{ 1,  1,  1}
+		};
+
+		for (int Side = 0; Side < 12; ++Side)
+		{
+			glm::ivec3 Edge = EdgeOffsets[Side] + CellIndex;
+			glm::ivec3 Neighbor = EdgeOffsets[Side] * 2 + CellIndex;
+			if (IsValidIndex(Neighbor))
+			{
+				Assert(IsValidIndex(Edge));
+				Assert(GetAddressType(Edge) == LatticeAddressType::Edge);
+				Assert(GetAddressType(Neighbor) == LatticeAddressType::Cell);
+				Thunk(Side, PackAddress(Edge), PackAddress(Neighbor));
+			}
+		}
+	}
+
+	using FaceVerticesThunkT = std::function<void(size_t Cellddress, glm::ivec3 A, glm::ivec3 B, glm::ivec3 C, glm::ivec3 D)>;
+
+	void GetVerticesForEdge(glm::ivec3 CellIndex, int Face, FaceVerticesThunkT& Thunk) const
+	{
+		const int A = 2;
+		const int B = 1;
+		const int C = 2;
+		const int Z = 0;
+
+		size_t CellAddress = PackAddress(CellIndex);
+		Assert(GetAddressType(CellAddress) == LatticeAddressType::Cell);
+
+		switch(Face)
+		{
+		case 0:
+			// -X -Y -Z
+			Thunk(
+				CellAddress,
+				CellIndex + glm::ivec3( Z,  Z, -C),
+				CellIndex + glm::ivec3(-A, -A, -Z),
+				CellIndex + glm::ivec3( Z, -A, -B),
+				CellIndex + glm::ivec3(-A,  Z, -B));
+			break;
+
+		case 1:
+			// +X -Y -Z
+			Thunk(
+				CellAddress,
+				CellIndex + glm::ivec3( Z,  Z, -C),
+				CellIndex + glm::ivec3(+A, -A, -Z),
+				CellIndex + glm::ivec3(+A,  Z, -B),
+				CellIndex + glm::ivec3( Z, -A, -B));
+			break;
+
+		case 2:
+			// -X +Y -Z
+			Thunk(
+				CellAddress,
+				CellIndex + glm::ivec3( Z,  Z, -C),
+				CellIndex + glm::ivec3(-A, +A,  Z),
+				CellIndex + glm::ivec3(-A,  Z, -B),
+				CellIndex + glm::ivec3( Z, +A, -B));
+			break;
+
+		case 3:
+			// +X +Y -Z
+			Thunk(
+				CellAddress,
+				CellIndex + glm::ivec3( Z,  Z, -C),
+				CellIndex + glm::ivec3(+A, +A, -Z),
+				CellIndex + glm::ivec3( Z, +A, -B),
+				CellIndex + glm::ivec3(+A,  Z, -B));
+			break;
+
+		case 4:
+			// -Y
+			Thunk(
+				CellAddress,
+				CellIndex + glm::ivec3(-A, -A,  Z),
+				CellIndex + glm::ivec3(+A, -A,  Z),
+				CellIndex + glm::ivec3(+Z, -A, -B),
+				CellIndex + glm::ivec3(+Z, -A, +B));
+			break;
+
+		case 5:
+			// -X
+			Thunk(
+				CellAddress,
+				CellIndex + glm::ivec3(-A, +A,  Z),
+				CellIndex + glm::ivec3(-A, -A,  Z),
+				CellIndex + glm::ivec3(-A,  Z, -B),
+				CellIndex + glm::ivec3(-A,  Z, +B));
+			break;
+
+		case 6:
+			// +X
+			Thunk(
+				CellAddress,
+				CellIndex + glm::ivec3(+A, -A,  Z),
+				CellIndex + glm::ivec3(+A, +A,  Z),
+				CellIndex + glm::ivec3(+A, +Z, -B),
+				CellIndex + glm::ivec3(+A, +Z, +B));
+			break;
+
+		case 7:
+			// +Y
+			Thunk(
+				CellAddress,
+				CellIndex + glm::ivec3(+A, +A,  Z),
+				CellIndex + glm::ivec3(-A, +A,  Z),
+				CellIndex + glm::ivec3( Z, +A, -B),
+				CellIndex + glm::ivec3( Z, +A, +B));
+			break;
+
+		case 8:
+			// -X -Y +Z
+			Thunk(
+				CellAddress,
+				CellIndex + glm::ivec3( Z,  Z, +C),
+				CellIndex + glm::ivec3(-A, -A,  Z),
+				CellIndex + glm::ivec3(-A,  Z, +B),
+				CellIndex + glm::ivec3( Z, -A, +B));
+			break;
+
+		case 9:
+			// +X -Y +Z
+			Thunk(
+				CellAddress,
+				CellIndex + glm::ivec3( Z,  Z, +C),
+				CellIndex + glm::ivec3(+A, -A,  Z),
+				CellIndex + glm::ivec3( Z, -A, +B),
+				CellIndex + glm::ivec3(+A,  Z, +B));
+			break;
+
+		case 10:
+			// -X +Y +Z
+			Thunk(
+				CellAddress,
+				CellIndex + glm::ivec3( Z,  Z, +C),
+				CellIndex + glm::ivec3(-A, +A,  Z),
+				CellIndex + glm::ivec3( Z, +A, +B),
+				CellIndex + glm::ivec3(-A,  Z, +B));
+			break;
+
+		case 11:
+			// +X +Y +Z
+			Thunk(
+				CellAddress,
+				CellIndex + glm::ivec3( Z,  Z, +C),
+				CellIndex + glm::ivec3(+A, +A,  Z),
+				CellIndex + glm::ivec3(+A,  Z, +B),
+				CellIndex + glm::ivec3( Z, +A, +B));
+			break;
+
+		default:
+			Assert(Face > 0 && Face < 12);
+			break;
+		}
+	}
+
+	LatticeGrid(float Radius, AABB EvalBounds)
+	{
+		Translation = UnitLatticeOffset * (Radius * .5f);
+		AABB MeshingBounds = EvalBounds + Translation * 3.f;
+		Min = glm::ivec3(glm::ceil(glm::abs(MeshingBounds.Min) / Translation) * glm::sign(MeshingBounds.Min));
+		Max = glm::ivec3(glm::ceil(glm::abs(MeshingBounds.Max) / Translation) * glm::sign(MeshingBounds.Max));
+		Range = Max - Min + 1;
+		AddressRange = size_t(Range.x) * size_t(Range.y) * size_t(Range.z);
+
+		// These assertions confirm how the cells are aligned within the grid.
+		// Cell centers only occur on even numbered layers, and the XY indices of each cell are 4 apart.
+		Assert(GetAddressType(glm::ivec3(2, 2, 0)) == LatticeAddressType::Cell);
+		Assert(GetAddressType(glm::ivec3(4, 2, 0)) == LatticeAddressType::Edge);
+		Assert(GetAddressType(glm::ivec3(6, 2, 0)) == LatticeAddressType::Cell);
+		Assert(GetAddressType(glm::ivec3(0, 0, 2)) == LatticeAddressType::Cell);
+		Assert(GetAddressType(glm::ivec3(2, 0, 2)) == LatticeAddressType::Edge);
+		Assert(GetAddressType(glm::ivec3(4, 0, 2)) == LatticeAddressType::Cell);
+	}
+};
+
+
+struct LatticeScratch : MeshingScratch
 {
 	// The XY grid size for a lattice defined as a tightly packed set of spheres.
 	const float Diameter;
@@ -942,328 +1269,71 @@ struct LatticeParameters
 	const float ExtendedDiameter;
 	const float ExtendedRadius;
 
-	// The coordinate offset between layers.
-	const glm::vec3 LayerOffset;
+	const LatticeGrid Grid;
 
-	// The relative offset between a sphere and it's connected neighbors.
-	const std::array<glm::vec3, 12> Neighbors;
-
-	static std::array<glm::vec3, 12> PopulateNeighbors(const float Diameter)
+	struct alignas(std::hardware_destructive_interference_size) CellInfo
 	{
-		std::array<glm::vec3, 12> ScaledLatticeNeighbors;
-		for (size_t Index = 0; Index < 12; ++Index)
-		{
-			ScaledLatticeNeighbors[Index] = UnitLatticeNeighbors[Index] * Diameter;
-		}
-		return ScaledLatticeNeighbors;
+		LatticeSymbol Symbol = LatticeSymbol::I;
+		float EvalDist = 0.f;
+	};
+
+	std::vector<CellInfo> GridCells;
+	std::vector<size_t> ActiveCells;
+
+	ParallelAccumulator<size_t> AddressAccumulator;
+
+	struct Rhombus
+	{
+		size_t EdgeAddress;
+		glm::vec3 A;
+		glm::vec3 B;
+		glm::vec3 C;
+		glm::vec3 D;
+	};
+	std::vector<Rhombus> ActiveFaces;
+	ParallelAccumulator<Rhombus> FaceAccumulator;
+
+	MeshGenerator MeshInProgress;
+
+	static std::unique_ptr<LatticeScratch> Create(DrawableShared& Painter, SDFOctreeShared& Evaluator, float Density = 8.0f)
+	{
+		std::unique_ptr<LatticeScratch> Intermediary(new LatticeScratch(Painter, Evaluator, Density));
+		return Intermediary;
 	}
 
-	LatticeParameters(const float Density)
-		: Diameter(1.f / Density)
+	virtual ~LatticeScratch()
+	{
+	}
+
+protected:
+	LatticeScratch(DrawableShared& InPainter, SDFOctreeShared& InEvaluator, float Density)
+		: MeshingScratch(InPainter, InEvaluator)
+		, Diameter(1.f / Density)
 		, Radius(Diameter * .5f)
 		, ExtendedDiameter(Diameter * glm::sqrt(2.f))
 		, ExtendedRadius(Radius * glm::sqrt(2.f))
-		, LayerOffset(UnitLatticeOffset * Radius)
-		, Neighbors(PopulateNeighbors(Diameter))
+		, Grid(Radius, Evaluator->Bounds)
 	{
+		// TODO: `GridCells` can be greatly compressed, as most of the address range does not correspond to cell origins.
+		GridCells.resize(Grid.AddressRange);
+		AddressAccumulator.Reset();
+		FaceAccumulator.Reset();
 	}
-};
-
-
-struct LatticeSample
-{
-	const glm::vec3 Center;
-	float Dist;
-	LatticeSymbol Symbol;
-
-	LatticeSample()
-		: Center(0.f)
-		, Dist(0.f)
-		, Symbol(LatticeSymbol::I)
-	{
-	}
-
-	LatticeSample(glm::vec3 InCenter, float InDist, LatticeSymbol InSymbol)
-		: Center(InCenter)
-		, Dist(InDist)
-		, Symbol(InSymbol)
-	{
-	}
-
-	LatticeSample(const glm::vec3 Point, const LatticeParameters& Lattice, SDFOctreeShared& Evaluator)
-		: Center(Point)
-	{
-		const float Epsilon = 0.001f;
-
-		Dist = Evaluator->Eval(Point, false);
-		if (glm::isinf(Dist) || glm::isnan(Dist))
-		{
-			Symbol = LatticeSymbol::I;
-		}
-		else if (Dist <= Epsilon)
-		{
-			Symbol = LatticeSymbol::X;
-		}
-		else if (Dist > Lattice.ExtendedRadius)
-		{
-			Symbol = LatticeSymbol::B;
-		}
-		else
-		{
-			Symbol = LatticeSymbol::A;
-		}
-	}
-};
-
-
-struct Plane
-{
-	glm::vec3 Pivot;
-	glm::vec3 Normal;
-};
-
-
-struct LatticeCell : public LatticeSample
-{
-	const LatticeParameters Lattice;
-	std::vector<MeshGenerator> Patches;
-
-	LatticeCell(const LatticeCell& Other)
-		: LatticeSample(Other.Center, Other.Dist, Other.Symbol)
-		, Lattice(Other.Lattice)
-		, Patches(Other.Patches)
-
-	{
-	}
-
-	LatticeCell(const glm::vec3 Point, const LatticeParameters InLattice, SDFOctreeShared& Evaluator)
-		: LatticeSample(Point, InLattice, Evaluator)
-		, Lattice(InLattice)
-	{
-		if (IsAmbiguous())
-		{
-			std::vector<LatticeSample> Neighbors;
-			std::vector<Plane> Surfaces;
-
-			const size_t NeighborCount = Lattice.Neighbors.size();
-			Neighbors.reserve(NeighborCount);
-			Surfaces.reserve(NeighborCount);
-
-			for (const glm::vec3 Offset : Lattice.Neighbors)
-			{
-				glm::vec3 Other = Point + Offset;
-				Neighbors.emplace_back(Other, Lattice, Evaluator);
-			}
-
-			const float InvRadius = 1.f / Lattice.Radius;
-			auto RecordSurface = [&](glm::vec3 Pivot, glm::vec3 Normal)
-			{
-				// Clipping is done in the cell hull-local space.
-				Pivot = (Pivot - Center) * InvRadius;
-				Surfaces.emplace_back(Pivot, Normal);
-			};
-
-			for (size_t NeighborIndex = 0; NeighborIndex < Neighbors.size(); ++NeighborIndex)
-			{
-				const LatticeSample& Other = Neighbors[NeighborIndex];
-
-				if (Symbol == LatticeSymbol::X)
-				{
-					if (Other.Symbol == LatticeSymbol::A || Other.Symbol == LatticeSymbol::B)
-					{
-						const glm::vec3 RayStart = Other.Center;
-						const glm::vec3 RayDir = glm::normalize(Center - Other.Center);
-
-						const float MaxTravel = glm::distance(Center, Other.Center);
-						const float MinTravel = MaxTravel - Lattice.ExtendedRadius;
-
-						RayHit Hit = Evaluator->Evaluator->RayMarch(RayStart, RayDir);
-						if (Hit.Hit && Hit.Travel >= MinTravel && Hit.Travel <= MaxTravel)
-						{
-							RecordSurface(Hit.Position, Evaluator->Gradient(Hit.Position));
-						}
-					}
-				}
-				else if (Symbol == LatticeSymbol::A)
-				{
-					if (Other.Symbol == LatticeSymbol::X || Other.Symbol == LatticeSymbol::A)
-					{
-						const glm::vec3 RayStart = Center;
-						const glm::vec3 RayDir = glm::normalize(Other.Center - Center);
-
-						const float MaxTravel = Lattice.ExtendedRadius;
-						const float MinTravel = Dist;
-
-						RayHit Hit = Evaluator->Evaluator->RayMarch(RayStart, RayDir);
-						if (Hit.Hit && Hit.Travel >= MinTravel && Hit.Travel <= MaxTravel)
-						{
-							RecordSurface(Hit.Position, Evaluator->Gradient(Hit.Position));
-						}
-					}
-				}
-			}
-
-			const RhombicDodecahedronGenerator& UnitHull = RhombicDodecahedronGenerator::GetUnitHull();
-
-			for (const Plane& Surfel : Surfaces)
-			{
-#if 1
-				MeshGenerator Patch = UnitHull.ConvexBisect(Surfel.Pivot, Surfel.Normal);
-#else
-				MeshGenerator Patch = UnitHull;
-#endif
-				if (Patch.Indices.size() > 0)
-				{
-					for (glm::vec4& Vertex : Patch.Vertices)
-					{
-						Vertex = glm::vec4((Vertex.xyz() * Lattice.Radius + Center), 1.0f);
-					}
-					Patches.emplace_back(std::move(Patch));
-				}
-			}
-		}
-	}
-
-	bool IsValid() const
-	{
-		return Symbol != LatticeSymbol::I && Patches.size() > 0;
-	}
-
-	bool IsAmbiguous() const
-	{
-		return Symbol == LatticeSymbol::A || Symbol == LatticeSymbol::X;
-	}
-};
-
-
-struct LatticeMeshingTask : ParallelDomainTaskChain<MeshingScratch, std::vector<LatticeCell>>
-{
-	using IntermediaryT = MeshingScratch;
-	using ContainerT = std::vector<LatticeCell>;
-	using ElementT = typename ContainerT::value_type;
-	using IteratorT = typename ContainerT::iterator;
-	using AccessorT = std::function<ContainerT* (IntermediaryT&)>;
-
-	const float Density;
-	const LatticeParameters Lattice;
-	const AABB Bounds;
-	const glm::ivec3 CellCount;
-	const glm::ivec2 CellStride;
-	const int LinearCellCount;
-
-	std::atomic_int IterationCounter;
-	std::vector<ContainerT> CollectedCellsOfInterest;
-
-	static ContainerT* NullAccessor(IntermediaryT& Intermediary)
-	{
-		return nullptr;
-	}
-
-	LatticeMeshingTask(const char* TaskName, AABB EvaluatorBounds, float InDensity = 8.f)
-		: ParallelDomainTaskChain<IntermediaryT, ContainerT>(TaskName, NullAccessor)
-		, Density(InDensity)
-		, Lattice(Density)
-		, Bounds(EvaluatorBounds + Lattice.ExtendedRadius)
-		, CellCount(glm::ceil(Bounds.Extent() / glm::vec3(Lattice.Diameter, Lattice.Diameter, Lattice.LayerOffset.z)))
-		, CellStride(CellCount.x, CellCount.x * CellCount.y)
-		, LinearCellCount(CellCount.x * CellCount.y * CellCount.z)
-	{
-		CollectedCellsOfInterest.reserve(Scheduler::GetThreadPoolSize());
-		IterationCounter.store(0);
-	}
-
-	virtual void Run()
-	{
-		ProfileScope Fnord(fmt::format("{} (Run)", TaskName));
-		SDFOctreeShared& Evaluator = ParallelTaskChain<IntermediaryT>::IntermediaryData->Evaluator;
-		if (Evaluator)
-		{
-			ContainerT CellsOfInterest;
-			CellsOfInterest.reserve(LinearCellCount);
-
-			while (true)
-			{
-				int SearchIndex = IterationCounter.fetch_add(1);
-				if (SearchIndex < LinearCellCount)
-				{
-					const glm::ivec3 CellIndex(
-						int(SearchIndex % size_t(CellCount.x)),
-						int((SearchIndex / size_t(CellStride.x)) % size_t(CellCount.y)),
-						int((SearchIndex / size_t(CellStride.y)) % size_t(CellCount.z)));
-
-					const bool Even = (CellIndex.z % 2 == 0);
-					const glm::vec3 LayerJitter = Even ? glm::vec3(0.f) : glm::vec3(Lattice.LayerOffset.xy(), 0.0f);
-					const glm::vec3 LayerOrigin = Bounds.Min + LayerJitter;
-					const glm::vec3 Cursor = glm::vec3(Lattice.Diameter, Lattice.Diameter, Lattice.LayerOffset.z) * glm::vec3(CellIndex) + LayerOrigin;
-
-					LatticeCell Cell(Cursor, Lattice, Evaluator);
-					if (Cell.IsValid() && Cell.IsAmbiguous())
-					{
-						CellsOfInterest.push_back(Cell);
-					}
-				}
-				else
-				{
-					break;
-				}
-			}
-
-			if (CellsOfInterest.size() > 0)
-			{
-				std::scoped_lock AppendResults(IterationCS);
-				CollectedCellsOfInterest.emplace_back(std::move(CellsOfInterest));
-			}
-		}
-	}
-
-	virtual void Done(IntermediaryT& Intermediary)
-	{
-		DrawableShared Painter = ParallelTaskChain<IntermediaryT>::IntermediaryData->Painter;
-		if (Painter)
-		{
-			MeshGenerator Model;
-#if 1
-			for (const ContainerT& CellsOfInterest : CollectedCellsOfInterest)
-			{
-				for (const LatticeCell& Cell : CellsOfInterest)
-				{
-					for (const MeshGenerator& Patch : Cell.Patches)
-					{
-						Model.Accumulate(Patch);
-					}
-				}
-			}
-#else
-			const RhombicDodecahedronGenerator& UnitHull = RhombicDodecahedronGenerator::GetUnitHull();
-			Model = UnitHull.ConvexBisect(glm::vec3(0.f, -1.f, 0.f), glm::normalize(glm::vec3(0.f, -1.f, 0.f)));
-#endif
-
-			if (Model.Indices.size() > 0)
-			{
-				Painter->Positions = std::move(Model.Vertices);
-				Painter->Indices = std::move(Model.Indices);
-			}
-
-			Painter->Normals.resize(Painter->Positions.size());
-			Painter->Colors.resize(Painter->Positions.size(), glm::vec4(0.0, 0.0, 0.0, 1.0));
-		}
-	}
-
-	virtual ~LatticeMeshingTask() = default;
 };
 
 
 void MeshingJob::SphereLatticeSearch(DrawableShared& Painter, SDFOctreeShared& Evaluator)
 {
-	ParallelTaskChain<MeshingScratch>* PopulateOctreeTask;
+	ParallelTaskBuilder<LatticeScratch> Chain;
+
 	{
-		using TaskT = ParallelLambdaDomainTaskChain<MeshingScratch, std::vector<SDFOctree*>>;
-		TaskT::LoopThunkT LoopThunk = [](MeshingScratch& Intermediary, SDFOctree* Incomplete, const int Index)
+		using TaskT = ParallelLambdaDomainTaskChain<LatticeScratch, std::vector<SDFOctree*>>;
+		TaskT::LoopThunkT LoopThunk = [](LatticeScratch& Intermediary, SDFOctree* Incomplete, const int Index)
 		{
 			Incomplete->Populate(false, 3, -1);
 		};
 
-		TaskT::DoneThunkT DoneThunk = [](MeshingScratch& Intermediary)
+		TaskT::DoneThunkT DoneThunk = [](LatticeScratch& Intermediary)
 		{
 			SDFOctreeShared& Evaluator = Intermediary.Evaluator;
 			if (Evaluator)
@@ -1274,27 +1344,144 @@ void MeshingJob::SphereLatticeSearch(DrawableShared& Painter, SDFOctreeShared& E
 			}
 		};
 
-		TaskT::AccessorT Accessor = [](MeshingScratch& Intermediary)
+		TaskT::AccessorT Accessor = [](LatticeScratch& Intermediary)
 		{
 			return &Intermediary.Incompletes;
 		};
 
 		{
-			std::unique_ptr<MeshingScratch> InitialIntermediary = MeshingScratch::Create(Painter, Evaluator);
-			PopulateOctreeTask = new TaskT("Populate Octree", InitialIntermediary, Accessor, LoopThunk, DoneThunk);
+			std::unique_ptr<LatticeScratch> InitialIntermediary = LatticeScratch::Create(Painter, Evaluator);
+			Chain.Link(new TaskT("Populate Octree", InitialIntermediary, Accessor, LoopThunk, DoneThunk));
 		}
 	}
 
-	ParallelTaskChain<MeshingScratch>* PopulateLatticeTask;
 	{
-		PopulateLatticeTask = new LatticeMeshingTask("Lattice Search", Evaluator->Bounds);
-		PopulateOctreeTask->NextTask = PopulateLatticeTask;
+		using TaskT = ParallelLambdaDomainTaskChain<LatticeScratch, std::vector<LatticeScratch::CellInfo>>;
+		TaskT::LoopThunkT LoopThunk = [](LatticeScratch& Intermediary, LatticeScratch::CellInfo& Cell, const int Address)
+		{
+			SDFOctreeShared& Evaluator = Intermediary.Evaluator;
+			const LatticeGrid& Grid = Intermediary.Grid;
+			if (Evaluator && Grid.GetAddressType(Address) == LatticeAddressType::Cell)
+			{
+				glm::vec3 Point = Grid.GetCoord(Address);
+				SDFInterpreterShared Interpreter = Evaluator->SelectInterpreter(Point);
+				Assert(Interpreter != nullptr);
+				{
+					Cell.EvalDist = Interpreter->Eval(Point);
+
+					if (Cell.EvalDist < 0.0f)
+					{
+						Cell.Symbol = LatticeSymbol::X;
+						Intermediary.AddressAccumulator.Push(Address);
+					}
+					else if (Cell.EvalDist > Intermediary.ExtendedDiameter)
+					{
+						Cell.Symbol = LatticeSymbol::B;
+					}
+					else
+					{
+						Cell.Symbol = LatticeSymbol::A;
+					}
+				}
+			}
+		};
+
+		TaskT::DoneThunkT DoneThunk = [](LatticeScratch& Intermediary)
+		{
+			Intermediary.AddressAccumulator.Join(Intermediary.ActiveCells);
+			Intermediary.AddressAccumulator.Reset();
+		};
+
+		TaskT::AccessorT Accessor = [](LatticeScratch& Intermediary)
+		{
+			return &Intermediary.GridCells;
+		};
+
+		Chain.Link(new TaskT("Label Lattice Cells", Accessor, LoopThunk, DoneThunk));
 	}
 
-	ParallelTaskChain<MeshingScratch>* PopulateNormalsTask;
 	{
-		using TaskT = ParallelLambdaDomainTaskChain<MeshingScratch, std::vector<glm::vec4>>;
-		TaskT::LoopThunkT LoopThunk = [](MeshingScratch& Intermediary, glm::vec4& Normal, const int Index)
+		using TaskT = ParallelLambdaDomainTaskChain<LatticeScratch, std::vector<size_t>>;
+		TaskT::LoopThunkT LoopThunk = [](LatticeScratch& Intermediary, const size_t& Address, const int Index)
+		{
+			DrawableShared& Painter = Intermediary.Painter;
+			SDFOctreeShared& Evaluator = Intermediary.Evaluator;
+			const LatticeGrid& Grid = Intermediary.Grid;
+			if (Painter && Evaluator)
+			{
+				Assert(Grid.IsValidAddress(Address));
+
+				LatticeScratch::CellInfo& Cell = Intermediary.GridCells[Address];
+				const glm::ivec3 CellIndex = Grid.UnpackAddress(Address);
+
+				LatticeGrid::FaceVerticesThunkT VertexThunk = [&](size_t EdgeAddress, glm::ivec3 A, glm::ivec3 B, glm::ivec3 C, glm::ivec3 D) -> void
+				{
+					LatticeAddressType FoundA = Grid.GetAddressType(A);
+					LatticeAddressType FoundB = Grid.GetAddressType(B);
+					LatticeAddressType FoundC = Grid.GetAddressType(C);
+					LatticeAddressType FoundD = Grid.GetAddressType(D);
+					Assert(FoundA == LatticeAddressType::Vertex);
+					Assert(FoundB == LatticeAddressType::Vertex);
+					Assert(FoundC == LatticeAddressType::Vertex);
+					Assert(FoundD == LatticeAddressType::Vertex);
+
+					LatticeScratch::Rhombus Face = { EdgeAddress, Grid.GetCoord(A), Grid.GetCoord(B), Grid.GetCoord(C), Grid.GetCoord(D) };
+					Intermediary.FaceAccumulator.Push(Face);
+				};
+
+				LatticeGrid::WalkNeighborsThunkT WalkThunk = [&](int Face, size_t EdgeAddress, size_t NeighborAddress) -> void
+				{
+					const LatticeScratch::CellInfo& Neighbor = Intermediary.GridCells[NeighborAddress];
+
+					if (Cell.Symbol == LatticeSymbol::X && (Neighbor.Symbol == LatticeSymbol::A || Neighbor.Symbol == LatticeSymbol::B))
+					{
+						Grid.GetVerticesForEdge(Grid.UnpackAddress(Address), Face, VertexThunk);
+					}
+				};
+				Grid.WalkNeighbors(CellIndex, WalkThunk);
+			}
+		};
+
+		TaskT::DoneThunkT DoneThunk = [](LatticeScratch& Intermediary)
+		{
+			Intermediary.FaceAccumulator.Join(Intermediary.ActiveFaces);
+			Intermediary.FaceAccumulator.Reset();
+
+			// Should the active cells need to be known after this point, consider adding a second address accumulator so this can be further reduced.
+			Intermediary.ActiveCells.clear();
+
+			for (const LatticeScratch::Rhombus& Rhombus : Intermediary.ActiveFaces)
+			{
+				const glm::vec3& AcuteLeft = Rhombus.A;
+				const glm::vec3& AcuteRight = Rhombus.B;
+				const glm::vec3& ObtuseBottom = Rhombus.C;
+				const glm::vec3& ObtuseTop = Rhombus.D;
+				Intermediary.MeshInProgress.Accumulate(AcuteLeft);
+				Intermediary.MeshInProgress.Accumulate(ObtuseBottom);
+				Intermediary.MeshInProgress.Accumulate(ObtuseTop);
+				Intermediary.MeshInProgress.Accumulate(ObtuseTop);
+				Intermediary.MeshInProgress.Accumulate(ObtuseBottom);
+				Intermediary.MeshInProgress.Accumulate(AcuteRight);
+			}
+
+			Assert(Intermediary.Painter != nullptr);
+			std::swap(Intermediary.Painter->Positions, Intermediary.MeshInProgress.Vertices);
+			std::swap(Intermediary.Painter->Indices, Intermediary.MeshInProgress.Indices);
+			Intermediary.Painter->Normals.resize(Intermediary.Painter->Positions.size());
+			Intermediary.Painter->Colors.resize(Intermediary.Painter->Positions.size());
+		};
+
+		TaskT::AccessorT Accessor = [](LatticeScratch& Intermediary)
+		{
+			return &Intermediary.ActiveCells;
+		};
+
+		Chain.Link(new TaskT("Find Active Lattice Edges", Accessor, LoopThunk, DoneThunk));
+	}
+
+	{
+		using TaskT = ParallelLambdaDomainTaskChain<LatticeScratch, std::vector<glm::vec4>>;
+		TaskT::LoopThunkT LoopThunk = [](LatticeScratch& Intermediary, glm::vec4& Normal, const int Index)
 		{
 			DrawableShared& Painter = Intermediary.Painter;
 			SDFOctreeShared& Evaluator = Intermediary.Evaluator;
@@ -1304,23 +1491,56 @@ void MeshingJob::SphereLatticeSearch(DrawableShared& Painter, SDFOctreeShared& E
 			}
 		};
 
-		TaskT::DoneThunkT DoneThunk = [](MeshingScratch& Intermediary)
+		TaskT::DoneThunkT DoneThunk = [](LatticeScratch& Intermediary)
 		{
 		};
 
-		TaskT::AccessorT Accessor = [](MeshingScratch& Intermediary)
+		TaskT::AccessorT Accessor = [](LatticeScratch& Intermediary)
 		{
 			return &Intermediary.Painter->Normals;
 		};
 
-		PopulateNormalsTask = new TaskT("Populate Normals", Accessor, LoopThunk, DoneThunk);
-		PopulateLatticeTask->NextTask = PopulateNormalsTask;
+		Chain.Link(new TaskT("Populate Normals", Accessor, LoopThunk, DoneThunk));
 	}
 
-	ParallelTaskChain<MeshingScratch>* MaterialAssignmentTask;
+#if 0
+	// This produces nicer contours, but a worse vertex distribution.
 	{
-		using TaskT = ParallelLambdaDomainTaskChain<MeshingScratch, std::vector<glm::vec4>>;
-		TaskT::LoopThunkT LoopThunk = [](MeshingScratch& Intermediary, const glm::vec4& Position, const int Index)
+		using TaskT = ParallelLambdaDomainTaskChain<LatticeScratch, std::vector<glm::vec4>>;
+		TaskT::LoopThunkT LoopThunk = [](LatticeScratch& Intermediary, glm::vec4& Position, const int Index)
+		{
+			DrawableShared& Painter = Intermediary.Painter;
+			SDFOctreeShared& Evaluator = Intermediary.Evaluator;
+			if (Painter && Evaluator)
+			{
+				if (Evaluator->Eval(Position.xyz()) >= 0.f)
+				{
+					glm::vec3 Normal = Intermediary.Painter->Normals[Index].xyz();
+					RayHit Hit = Evaluator->Evaluator->RayMarch(Position.xyz(), -Normal);
+					if (Hit.Hit && Hit.Travel < Intermediary.ExtendedRadius)
+					{
+						Position = glm::vec4(Hit.Position, 1.f);
+					}
+				}
+			}
+		};
+
+		TaskT::DoneThunkT DoneThunk = [](LatticeScratch& Intermediary)
+		{
+		};
+
+		TaskT::AccessorT Accessor = [](LatticeScratch& Intermediary)
+		{
+			return &Intermediary.Painter->Positions;
+		};
+
+		Chain.Link(new TaskT("Shrink Wrap Mesh", Accessor, LoopThunk, DoneThunk));
+	}
+#endif
+
+	{
+		using TaskT = ParallelLambdaDomainTaskChain<LatticeScratch, std::vector<glm::vec4>>;
+		TaskT::LoopThunkT LoopThunk = [](LatticeScratch& Intermediary, const glm::vec4& Position, const int Index)
 		{
 			DrawableShared& Painter = Intermediary.Painter;
 			SDFOctreeShared& Evaluator = Intermediary.Evaluator;
@@ -1367,11 +1587,10 @@ void MeshingJob::SphereLatticeSearch(DrawableShared& Painter, SDFOctreeShared& E
 			return &Intermediary.Painter->Positions;
 		};
 
-		MaterialAssignmentTask = new TaskT("Material Assignment", Accessor, LoopThunk, DoneThunk);
-		PopulateNormalsTask->NextTask = MaterialAssignmentTask;
+		Chain.Link(new TaskT("Material Assignment", Accessor, LoopThunk, DoneThunk));
 	}
 
-	Scheduler::EnqueueParallel(PopulateOctreeTask);
+	Chain.Run();
 }
 
 

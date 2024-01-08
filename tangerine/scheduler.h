@@ -81,6 +81,7 @@ namespace Scheduler
 {
 	int GetThreadIndex();
 	int GetThreadPoolSize();
+	int EstimateConcurrency();
 
 	void Setup(const bool ForceSingleThread);
 	void Teardown();

@@ -34,4 +34,6 @@ struct AABB
 	AABB BoundingCube() const;
 
 	AABB operator+(float Margin) const;
+
+	AABB operator+(glm::vec3 Margin) const;
 };

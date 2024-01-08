@@ -134,6 +134,12 @@ int Scheduler::GetThreadIndex()
 
 int Scheduler::GetThreadPoolSize()
 {
+	return Pool.size();
+}
+
+
+int Scheduler::EstimateConcurrency()
+{
 	// This is meant to be one thread per reported thread of execution, assuming a dual
 	// core processor or better.  The main thread is assumed to be always active, so
 	// the thread pool should only occupy the remaining threads.
@@ -366,7 +372,7 @@ void Scheduler::Setup(const bool ForceSingleThread)
 
 	if (!ForceSingleThread)
 	{
-		for (int ThreadIndex = 0; ThreadIndex < GetThreadPoolSize(); ++ThreadIndex)
+		for (int ThreadIndex = 0; ThreadIndex < EstimateConcurrency(); ++ThreadIndex)
 		{
 			Pool.emplace_back(WorkerThread<true>, ThreadIndex + 1);
 		}

@@ -19,6 +19,48 @@
 #include "sdf_model.h"
 #include "profiling.h"
 #include <fmt/format.h>
+#include <vector>
+
+
+template<typename ValueT>
+class ParallelAccumulator
+{
+	using ContainerT = std::vector<ValueT>;
+	std::vector<ContainerT> Lanes;
+
+public:
+	ParallelAccumulator()
+	{
+		Reset();
+	}
+	void Reset()
+	{
+		Lanes.clear();
+		Lanes.resize(Scheduler::GetThreadPoolSize() + 1); // Main thread is 0
+	}
+	void Push(ValueT Value)
+	{
+		const size_t ThreadIndex = Scheduler::GetThreadIndex();
+		Assert(ThreadIndex < Lanes.size());
+		Lanes[ThreadIndex].push_back(Value);
+	}
+	void Join(ContainerT& Merged)
+	{
+		size_t TotalSize = 0;
+		for (const ContainerT& Lane : Lanes)
+		{
+			TotalSize += Lane.size();
+		}
+		Merged.reserve(TotalSize);
+		for (const ContainerT& Lane : Lanes)
+		{
+			for (const ValueT& Value : Lane)
+			{
+				Merged.emplace_back(Value);
+			}
+		}
+	}
+};
 
 
 template<typename IntermediaryT>
@@ -43,6 +85,35 @@ struct ParallelTaskChain : ParallelTask
 		{
 			delete NextTask;
 		}
+	}
+};
+
+
+template<typename IntermediaryT>
+struct ParallelTaskBuilder
+{
+	ParallelTaskChain<IntermediaryT>* Head = nullptr;
+	ParallelTaskChain<IntermediaryT>* Tail = nullptr;
+
+	void Link(ParallelTaskChain<IntermediaryT>* Next)
+	{
+		if (!Head)
+		{
+			Head = Next;
+			Tail = Next;
+		}
+		else
+		{
+			Tail->NextTask = Next;
+			Tail = Next;
+		}
+	}
+
+	void Run()
+	{
+		Scheduler::EnqueueParallel(Head);
+		Head = nullptr;
+		Tail = nullptr;
 	}
 };
 

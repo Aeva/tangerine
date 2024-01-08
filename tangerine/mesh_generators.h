@@ -43,20 +43,4 @@ struct MeshGenerator
 	void Accumulate(const MeshGenerator& Generator);
 
 	void WalkTriangles(TriangleThunk Thunk) const;
-
-	MeshGenerator ConvexBisect(glm::vec3 Pivot, glm::vec3 Normal) const;
-};
-
-
-struct RhombicDodecahedronGenerator : public MeshGenerator
-{
-	RhombicDodecahedronGenerator(const float Radius = 1.f);
-
-	void Rhombus(glm::vec3 AcuteLeft, glm::vec3 AcuteRight, glm::vec3 ObtuseBottom, glm::vec3 ObtuseTop);
-
-	static const RhombicDodecahedronGenerator& GetUnitHull()
-	{
-		static RhombicDodecahedronGenerator UnitHull;
-		return UnitHull;
-	}
 };

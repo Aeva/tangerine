@@ -100,3 +100,20 @@ AABB AABB::operator+(float Margin) const
 		};
 	}
 }
+
+
+AABB AABB::operator+(glm::vec3 Margin) const
+{
+	if (Degenerate())
+	{
+		glm::vec3 Zeros = glm::vec3(0.0);
+		return { Zeros, Zeros };
+	}
+	else
+	{
+		return {
+			Min - Margin,
+			Max + Margin
+		};
+	}
+}
