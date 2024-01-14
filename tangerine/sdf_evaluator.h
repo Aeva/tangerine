@@ -309,8 +309,11 @@ struct SDFOctree
 	void Populate(bool Coalesce, int Depth, int MaxDepth = -1);
 	~SDFOctree();
 	SDFOctree* Descend(const glm::vec3 Point, const bool Exact = true);
+	SDFOctree* Descend(const glm::vec3 Point, const float WithinRadius);
+
 	SDFNodeShared SelectEvaluator(const glm::vec3 Point, const bool Exact = true);
 	SDFInterpreterShared SelectInterpreter(const glm::vec3 Point, const bool Exact = true);
+	SDFInterpreter* SelectInterpreter(const glm::vec3 Point, const float WithinRadius, const bool DefaultToRoot = false);
 
 	SDFOctree* LinkLeavesInner(SDFOctree* Previous, int& LeafCounter);
 	void LinkLeaves();
@@ -319,11 +322,14 @@ struct SDFOctree
 	void Walk(CallbackType& Callback);
 
 	float Eval(glm::vec3 Point, const bool Exact = true);
+	float Eval(glm::vec3 Point, const float WithinRadius, const bool Exact = true);
+
 	glm::vec3 Gradient(glm::vec3 Point)
 	{
 		SDFNodeShared Node = SelectEvaluator(Point);
 		return Node->Gradient(Point);
 	}
+
 	MaterialShared GetMaterial(glm::vec3 Point)
 	{
 		SDFNodeShared Node = SelectEvaluator(Point);

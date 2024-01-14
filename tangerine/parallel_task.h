@@ -63,6 +63,39 @@ public:
 };
 
 
+class SequenceGenerator
+{
+	size_t Count;
+	std::atomic_size_t Progress;
+
+public:
+	using value_type = size_t;
+	using iterator = void*;
+
+	SequenceGenerator()
+	{
+		Reset(0);
+	}
+
+	SequenceGenerator(size_t InCount)
+	{
+		Reset(InCount);
+	}
+
+	void Reset(size_t NewCount)
+	{
+		Count = NewCount;
+		Progress = 0;
+	}
+	
+	bool Advance(size_t& OutNext)
+	{
+		OutNext = Progress.fetch_add(1);
+		return OutNext < Count;
+	}
+};
+
+
 template<typename IntermediaryT>
 struct ParallelTaskChain : ParallelTask
 {
@@ -232,6 +265,28 @@ struct ParallelDomainTaskChain : ParallelTaskChain<IntermediaryT>
 			{
 				break;
 			}
+		}
+	}
+
+	template<typename ForContainerT>
+		requires std::same_as<SequenceGenerator, ForContainerT>
+	void RunInner()
+	{
+		ContainerT* Domain = DomainAccessor(*ParallelTaskChain<IntermediaryT>::IntermediaryData);
+		{
+			IterationCS.lock();
+			if (SetupPending)
+			{
+				SetupPending = false;
+				Setup(*ParallelTaskChain<IntermediaryT>::IntermediaryData);
+			}
+			IterationCS.unlock();
+		}
+		size_t Cursor;
+		while (Domain->Advance(Cursor))
+		{
+			ElementT Element = ElementT(Cursor);
+			Loop(*ParallelTaskChain<IntermediaryT>::IntermediaryData, Element, Cursor);
 		}
 	}
 

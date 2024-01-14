@@ -25,6 +25,60 @@ bool AABB::Degenerate() const
 }
 
 
+bool AABB::Overlaps(AABB& Other) const
+{
+	return \
+		glm::all(glm::lessThanEqual(Min, Other.Max)) &&
+		glm::all(glm::lessThanEqual(Other.Min, Max));
+}
+
+
+bool AABB::Overlaps(glm::vec3 SphereCenter, float SphereRadius) const
+{
+	if (Degenerate())
+	{
+		return false;
+	}
+	else
+	{
+		glm::vec3 BoxExtent = Max - Min;
+		glm::vec3 BoxCenter = BoxExtent * .5f + Min;
+		glm::vec3 Pivot = SphereCenter - BoxCenter;
+
+		glm::vec3 A = abs(Pivot) - BoxExtent;
+		float BoxDistance = length(max(A, 0.0)) + min(max(max(A.x, A.y), A.z), 0.0);
+		return (BoxDistance - SphereRadius) >= 0.f;
+	}
+}
+
+
+bool AABB::Contains(glm::vec3 Point) const
+{
+	return \
+		glm::all(glm::lessThanEqual(Min, Point)) &&
+		glm::all(glm::lessThanEqual(Point, Max));
+}
+
+
+bool AABB::Contains(glm::vec3 SphereCenter, float SphereRadius) const
+{
+	if (Degenerate() || !Contains(SphereCenter))
+	{
+		return false;
+	}
+	else
+	{
+		glm::vec3 BoxExtent = Max - Min;
+		glm::vec3 BoxCenter = BoxExtent * .5f + Min;
+		glm::vec3 Pivot = SphereCenter - BoxCenter;
+
+		glm::vec3 A = abs(Pivot) - BoxExtent;
+		float BoxDistance = length(max(A, 0.0)) + min(max(max(A.x, A.y), A.z), 0.0);
+		return BoxDistance + SphereRadius <= 0.f;
+	}
+}
+
+
 glm::vec3 AABB::Extent() const
 {
 	if (Degenerate())

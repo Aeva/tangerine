@@ -1835,6 +1835,28 @@ SDFOctree* SDFOctree::Descend(const vec3 Point, const bool Exact)
 };
 
 
+SDFOctree* SDFOctree::Descend(const vec3 Point, const float WithinRadius)
+{
+	if (!Terminus)
+	{
+		for (int i = 0; i < 8; ++i)
+		{
+			SDFOctree* Child = Children[i];
+			if (Child && Child->Evaluator && Child->Bounds.Contains(Point, WithinRadius))
+			{
+				SDFOctree* Found = Child->Descend(Point, WithinRadius);
+				if (Found)
+				{
+					return Found;
+				}
+			}
+		}
+	}
+	
+	return (Evaluator != nullptr) ? this : nullptr;
+}
+
+
 SDFNodeShared SDFOctree::SelectEvaluator(const glm::vec3 Point, const bool Exact)
 {
 	SDFOctree* Match = Descend(Point, Exact);
@@ -1860,6 +1882,30 @@ SDFInterpreterShared SDFOctree::SelectInterpreter(const glm::vec3 Point, const b
 	{
 		return nullptr;
 	}
+}
+
+
+SDFInterpreter* SDFOctree::SelectInterpreter(const glm::vec3 Point, const float WithinRadius, const bool DefaultToRoot)
+{
+	SDFInterpreter* Found = nullptr;
+
+	if (DefaultToRoot || Bounds.Contains(Point, WithinRadius))
+	{
+		SDFOctree* Match = Descend(Point, WithinRadius);
+		if (Match)
+		{
+			Found = Match->Interpreter.get();
+			Assert(Found != nullptr);
+		}
+	}
+	
+	if (!Found && DefaultToRoot)
+	{
+		Found = Interpreter.get();
+		Assert(Found != nullptr);
+	}
+
+	return Found;
 }
 
 
@@ -1931,7 +1977,7 @@ float SDFOctree::Eval(glm::vec3 Point, const bool Exact)
 #endif
 		if (!Exact && !Node)
 		{
-			Distance = INFINITY;
+			Distance = std::numeric_limits<float>::infinity();
 		}
 		else
 		{
@@ -1939,5 +1985,21 @@ float SDFOctree::Eval(glm::vec3 Point, const bool Exact)
 		}
 	}
 
+	return Distance;
+}
+
+
+float SDFOctree::Eval(glm::vec3 Point, const float WithinRadius, const bool Exact)
+{
+	float Distance;
+	SDFInterpreter* Found = SelectInterpreter(Point, WithinRadius, Exact);
+	if (Found)
+	{
+		Distance = Found->Eval(Point);
+	}
+	else
+	{
+		Distance = std::numeric_limits<float>::infinity();
+	}
 	return Distance;
 }

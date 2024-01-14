@@ -25,6 +25,18 @@ struct AABB
 
 	bool Degenerate() const;
 
+	// Returns true if the other AABB touches this one at all.
+	bool Overlaps(AABB& Other) const;
+
+	// Returns true if the sphere touches the AABB at all.
+	bool Overlaps(glm::vec3 SphereCenter, float SphereRadius) const;
+
+	// Returns true if the point is fully within the AABB.
+	bool Contains(glm::vec3 Point) const;
+
+	// Returns true if the sphere is fully within the AABB.
+	bool Contains(glm::vec3 SphereCenter, float SphereRadius) const;
+
 	glm::vec3 Extent() const;
 
 	glm::vec3 Center() const;

@@ -897,15 +897,6 @@ void MeshingJob::NaiveSurfaceNets(DrawableShared& Painter, SDFOctreeShared& Eval
 }
 
 
-enum class LatticeSymbol
-{
-	B, // Unambigously empty space
-	A, // Ambigously empty space
-	X, // Interior
-	I, // Invalid
-};
-
-
 // This is used to translate lattice addresses into spatial coordinates.
 static const glm::vec3 UnitLatticeOffset(1.f, 1.f, glm::sqrt(2));
 
@@ -1271,16 +1262,16 @@ struct LatticeScratch : MeshingScratch
 
 	const LatticeGrid Grid;
 
-	struct alignas(std::hardware_destructive_interference_size) CellInfo
+	SequenceGenerator Sequence;
+
+	struct CellInfo
 	{
-		LatticeSymbol Symbol = LatticeSymbol::I;
-		float EvalDist = 0.f;
+		size_t Address;
+		uint32_t ActiveFaces;
 	};
 
-	std::vector<CellInfo> GridCells;
-	std::vector<size_t> ActiveCells;
-
-	ParallelAccumulator<size_t> AddressAccumulator;
+	ParallelAccumulator<CellInfo> CellAccumulator;
+	std::vector<CellInfo> ActiveCells;
 
 	struct Rhombus
 	{
@@ -1314,9 +1305,8 @@ protected:
 		, ExtendedRadius(Radius * glm::sqrt(2.f))
 		, Grid(Radius, Evaluator->Bounds)
 	{
-		// TODO: `GridCells` can be greatly compressed, as most of the address range does not correspond to cell origins.
-		GridCells.resize(Grid.AddressRange);
-		AddressAccumulator.Reset();
+		Sequence.Reset(Grid.AddressRange);
+		CellAccumulator.Reset();
 		FaceAccumulator.Reset();
 	}
 };
@@ -1356,31 +1346,48 @@ void MeshingJob::SphereLatticeSearch(DrawableShared& Painter, SDFOctreeShared& E
 	}
 
 	{
-		using TaskT = ParallelLambdaDomainTaskChain<LatticeScratch, std::vector<LatticeScratch::CellInfo>>;
-		TaskT::LoopThunkT LoopThunk = [](LatticeScratch& Intermediary, LatticeScratch::CellInfo& Cell, const int Address)
+		using TaskT = ParallelLambdaDomainTaskChain<LatticeScratch, SequenceGenerator>;
+		TaskT::LoopThunkT LoopThunk = [](LatticeScratch& Intermediary, const size_t Address, const int Ignore)
 		{
 			SDFOctreeShared& Evaluator = Intermediary.Evaluator;
 			const LatticeGrid& Grid = Intermediary.Grid;
+
+			// TODO: the vast majority of `Address` values here do not correspond to cells.
 			if (Evaluator && Grid.GetAddressType(Address) == LatticeAddressType::Cell)
 			{
 				glm::vec3 Point = Grid.GetCoord(Address);
-				SDFInterpreterShared Interpreter = Evaluator->SelectInterpreter(Point);
-				Assert(Interpreter != nullptr);
+				SDFInterpreter* CellInterpreter = Evaluator->SelectInterpreter(Point, Intermediary.ExtendedRadius, false);
+				if (CellInterpreter)
 				{
-					Cell.EvalDist = Interpreter->Eval(Point);
+					const float CellDist = CellInterpreter->Eval(Point);
+					bool MatchedRequiredNeighbor = false;
+					uint32_t ActiveFaces = 0;
 
-					if (Cell.EvalDist < 0.0f)
+					const float SplitDist = 0.001f;
+
+					if (CellDist < SplitDist)
 					{
-						Cell.Symbol = LatticeSymbol::X;
-						Intermediary.AddressAccumulator.Push(Address);
+						LatticeGrid::WalkNeighborsThunkT WalkThunk = [&](int Face, size_t EdgeAddress, size_t NeighborAddress) -> void
+						{
+							float AdjacentDist = std::numeric_limits<float>::infinity();
+							glm::vec3 AdjacentPoint = Grid.GetCoord(Address);
+							SDFInterpreter* AdjacentInterpreter = Evaluator->SelectInterpreter(AdjacentPoint, Intermediary.ExtendedRadius, false);
+							if (AdjacentInterpreter)
+							{
+								AdjacentDist = Evaluator->Eval(Grid.UnpackAddress(NeighborAddress), Intermediary.ExtendedRadius);
+							}
+							if (AdjacentDist >= SplitDist)
+							{
+								MatchedRequiredNeighbor = true;
+								ActiveFaces |= (1 << Face);
+							}
+						};
+						Grid.WalkNeighbors(Grid.UnpackAddress(Address), WalkThunk);
 					}
-					else if (Cell.EvalDist > Intermediary.ExtendedDiameter)
+
+					if (MatchedRequiredNeighbor && ActiveFaces != 0)
 					{
-						Cell.Symbol = LatticeSymbol::B;
-					}
-					else
-					{
-						Cell.Symbol = LatticeSymbol::A;
+						Intermediary.CellAccumulator.Push({ Address, ActiveFaces });
 					}
 				}
 			}
@@ -1388,31 +1395,28 @@ void MeshingJob::SphereLatticeSearch(DrawableShared& Painter, SDFOctreeShared& E
 
 		TaskT::DoneThunkT DoneThunk = [](LatticeScratch& Intermediary)
 		{
-			Intermediary.AddressAccumulator.Join(Intermediary.ActiveCells);
-			Intermediary.AddressAccumulator.Reset();
+			Intermediary.CellAccumulator.Join(Intermediary.ActiveCells);
+			Intermediary.CellAccumulator.Reset();
 		};
 
 		TaskT::AccessorT Accessor = [](LatticeScratch& Intermediary)
 		{
-			return &Intermediary.GridCells;
+			return &Intermediary.Sequence;
 		};
 
-		Chain.Link(new TaskT("Label Lattice Cells", Accessor, LoopThunk, DoneThunk));
+		Chain.Link(new TaskT("Find Active Cells", Accessor, LoopThunk, DoneThunk));
 	}
 
 	{
-		using TaskT = ParallelLambdaDomainTaskChain<LatticeScratch, std::vector<size_t>>;
-		TaskT::LoopThunkT LoopThunk = [](LatticeScratch& Intermediary, const size_t& Address, const int Index)
+		using TaskT = ParallelLambdaDomainTaskChain<LatticeScratch, std::vector<LatticeScratch::CellInfo>>;
+		TaskT::LoopThunkT LoopThunk = [](LatticeScratch& Intermediary, const LatticeScratch::CellInfo& Cell, const int Index)
 		{
 			DrawableShared& Painter = Intermediary.Painter;
 			SDFOctreeShared& Evaluator = Intermediary.Evaluator;
 			const LatticeGrid& Grid = Intermediary.Grid;
 			if (Painter && Evaluator)
 			{
-				Assert(Grid.IsValidAddress(Address));
-
-				LatticeScratch::CellInfo& Cell = Intermediary.GridCells[Address];
-				const glm::ivec3 CellIndex = Grid.UnpackAddress(Address);
+				const glm::ivec3 CellIndex = Grid.UnpackAddress(Cell.Address);
 
 				LatticeGrid::FaceVerticesThunkT VertexThunk = [&](size_t EdgeAddress, glm::ivec3 A, glm::ivec3 B, glm::ivec3 C, glm::ivec3 D) -> void
 				{
@@ -1431,11 +1435,10 @@ void MeshingJob::SphereLatticeSearch(DrawableShared& Painter, SDFOctreeShared& E
 
 				LatticeGrid::WalkNeighborsThunkT WalkThunk = [&](int Face, size_t EdgeAddress, size_t NeighborAddress) -> void
 				{
-					const LatticeScratch::CellInfo& Neighbor = Intermediary.GridCells[NeighborAddress];
-
-					if (Cell.Symbol == LatticeSymbol::X && (Neighbor.Symbol == LatticeSymbol::A || Neighbor.Symbol == LatticeSymbol::B))
+					int32_t Mask = 1 << Face;
+					if (Mask & Cell.ActiveFaces)
 					{
-						Grid.GetVerticesForEdge(Grid.UnpackAddress(Address), Face, VertexThunk);
+						Grid.GetVerticesForEdge(Grid.UnpackAddress(Cell.Address), Face, VertexThunk);
 					}
 				};
 				Grid.WalkNeighbors(CellIndex, WalkThunk);
