@@ -1271,7 +1271,6 @@ struct LatticeScratch : MeshingScratch
 	};
 
 	ParallelAccumulator<CellInfo> CellAccumulator;
-	std::vector<CellInfo> ActiveCells;
 
 	struct Rhombus
 	{
@@ -1286,7 +1285,7 @@ struct LatticeScratch : MeshingScratch
 
 	MeshGenerator MeshInProgress;
 
-	static std::unique_ptr<LatticeScratch> Create(DrawableShared& Painter, SDFOctreeShared& Evaluator, float Density = 8.0f)
+	static std::unique_ptr<LatticeScratch> Create(DrawableShared& Painter, SDFOctreeShared& Evaluator, float Density = 16.0f)
 	{
 		std::unique_ptr<LatticeScratch> Intermediary(new LatticeScratch(Painter, Evaluator, Density));
 		return Intermediary;
@@ -1395,8 +1394,6 @@ void MeshingJob::SphereLatticeSearch(DrawableShared& Painter, SDFOctreeShared& E
 
 		TaskT::DoneThunkT DoneThunk = [](LatticeScratch& Intermediary)
 		{
-			Intermediary.CellAccumulator.Join(Intermediary.ActiveCells);
-			Intermediary.CellAccumulator.Reset();
 		};
 
 		TaskT::AccessorT Accessor = [](LatticeScratch& Intermediary)
@@ -1408,7 +1405,7 @@ void MeshingJob::SphereLatticeSearch(DrawableShared& Painter, SDFOctreeShared& E
 	}
 
 	{
-		using TaskT = ParallelLambdaDomainTaskChain<LatticeScratch, std::vector<LatticeScratch::CellInfo>>;
+		using TaskT = ParallelLambdaDomainTaskChain<LatticeScratch, ParallelAccumulator<LatticeScratch::CellInfo>>;
 		TaskT::LoopThunkT LoopThunk = [](LatticeScratch& Intermediary, const LatticeScratch::CellInfo& Cell, const int Index)
 		{
 			DrawableShared& Painter = Intermediary.Painter;
@@ -1450,9 +1447,6 @@ void MeshingJob::SphereLatticeSearch(DrawableShared& Painter, SDFOctreeShared& E
 			Intermediary.FaceAccumulator.Join(Intermediary.ActiveFaces);
 			Intermediary.FaceAccumulator.Reset();
 
-			// Should the active cells need to be known after this point, consider adding a second address accumulator so this can be further reduced.
-			Intermediary.ActiveCells.clear();
-
 			for (const LatticeScratch::Rhombus& Rhombus : Intermediary.ActiveFaces)
 			{
 				const glm::vec3& AcuteLeft = Rhombus.A;
@@ -1476,7 +1470,7 @@ void MeshingJob::SphereLatticeSearch(DrawableShared& Painter, SDFOctreeShared& E
 
 		TaskT::AccessorT Accessor = [](LatticeScratch& Intermediary)
 		{
-			return &Intermediary.ActiveCells;
+			return &Intermediary.CellAccumulator;
 		};
 
 		Chain.Link(new TaskT("Find Active Lattice Edges", Accessor, LoopThunk, DoneThunk));

@@ -22,28 +22,115 @@
 #include <vector>
 
 
+class SequenceGenerator
+{
+	struct Slice
+	{
+		size_t Start;
+		size_t StopBefore;
+	};
+
+	std::vector<Slice> Lanes;
+	std::atomic_size_t Progress;
+
+public:
+	using value_type = size_t;
+	using iterator = void*;
+
+	SequenceGenerator()
+	{
+		Reset(0);
+	}
+
+	SequenceGenerator(const size_t Count)
+	{
+		Reset(Count);
+	}
+
+	void Reset(const size_t Count, const size_t Partitions)
+	{
+		const size_t SliceCount = (Count + Partitions - 1) / Partitions;
+		Lanes.clear();
+		Lanes.reserve(Partitions);
+
+		size_t SliceStart = 0;
+		for (size_t LaneIndex = 0; LaneIndex < Partitions; ++LaneIndex)
+		{
+			size_t SliceStopBefore = glm::min(SliceStart + SliceCount, Count);
+			if (SliceStart < SliceStopBefore)
+			{
+				Lanes.emplace_back(SliceStart, SliceStopBefore);
+				SliceStart = SliceStopBefore;
+			}
+			else
+			{
+				break;
+			}
+		}
+		Progress = 0;
+	}
+
+	void Reset(const size_t Count)
+	{
+		Reset(Count, Scheduler::GetThreadPoolSize());
+	}
+
+	bool Advance(size_t& OutStart, size_t& OutStopBefore)
+	{
+		size_t LaneIndex = Progress.fetch_add(1);
+		if (LaneIndex < Lanes.size())
+		{
+			OutStart = Lanes[LaneIndex].Start;
+			OutStopBefore = Lanes[LaneIndex].StopBefore;
+			return true;
+		}
+		else
+		{
+			OutStart = 0;
+			OutStopBefore = 0;
+			return false;
+		}
+	}
+};
+
+
 template<typename ValueT>
 class ParallelAccumulator
 {
+public:
 	using ContainerT = std::vector<ValueT>;
+	using value_type = ValueT;
+	using iterator = void*;
+
+private:
 	std::vector<ContainerT> Lanes;
 
+	// Used for direct iteration without merging the results.
+	std::atomic_size_t Progress;
+
 public:
+	using value_type = ValueT;
+	using iterator = void*;
+
 	ParallelAccumulator()
 	{
 		Reset();
 	}
+
 	void Reset()
 	{
 		Lanes.clear();
 		Lanes.resize(Scheduler::GetThreadPoolSize() + 1); // Main thread is 0
+		Progress = 0;
 	}
+
 	void Push(ValueT Value)
 	{
 		const size_t ThreadIndex = Scheduler::GetThreadIndex();
 		Assert(ThreadIndex < Lanes.size());
 		Lanes[ThreadIndex].push_back(Value);
 	}
+
 	void Join(ContainerT& Merged)
 	{
 		size_t TotalSize = 0;
@@ -60,38 +147,24 @@ public:
 			}
 		}
 	}
-};
 
-
-class SequenceGenerator
-{
-	size_t Count;
-	std::atomic_size_t Progress;
-
-public:
-	using value_type = size_t;
-	using iterator = void*;
-
-	SequenceGenerator()
+	bool Advance(ContainerT& OutBatch, size_t OutBatchStart)
 	{
-		Reset(0);
-	}
-
-	SequenceGenerator(size_t InCount)
-	{
-		Reset(InCount);
-	}
-
-	void Reset(size_t NewCount)
-	{
-		Count = NewCount;
-		Progress = 0;
-	}
-	
-	bool Advance(size_t& OutNext)
-	{
-		OutNext = Progress.fetch_add(1);
-		return OutNext < Count;
+		size_t LaneIndex = Progress.fetch_add(1);
+		if (LaneIndex < Lanes.size())
+		{
+			OutBatch = std::move(Lanes[LaneIndex]);
+			OutBatchStart = 0;
+			for (size_t PriorIndex = 0; PriorIndex < LaneIndex; ++PriorIndex)
+			{
+				OutBatchStart += Lanes[PriorIndex].size();
+			}
+			return true;
+		}
+		else
+		{
+			return false;
+		}
 	}
 };
 
@@ -282,11 +355,44 @@ struct ParallelDomainTaskChain : ParallelTaskChain<IntermediaryT>
 			}
 			IterationCS.unlock();
 		}
-		size_t Cursor;
-		while (Domain->Advance(Cursor))
+		size_t SliceStart;
+		size_t SliceStopBefore;
+		while (Domain->Advance(SliceStart, SliceStopBefore))
 		{
-			ElementT Element = ElementT(Cursor);
-			Loop(*ParallelTaskChain<IntermediaryT>::IntermediaryData, Element, Cursor);
+			for (size_t Index = SliceStart; Index < SliceStopBefore; ++Index)
+			{
+				ElementT Element = ElementT(Index);
+				Loop(*ParallelTaskChain<IntermediaryT>::IntermediaryData, Element, Index);
+			}
+		}
+	}
+
+	template<typename ForContainerT>
+		requires std::same_as<ParallelAccumulator<ElementT>, ForContainerT>
+	void RunInner()
+	{
+		ContainerT* Domain = DomainAccessor(*ParallelTaskChain<IntermediaryT>::IntermediaryData);
+		{
+			IterationCS.lock();
+			if (SetupPending)
+			{
+				SetupPending = false;
+				Setup(*ParallelTaskChain<IntermediaryT>::IntermediaryData);
+			}
+			IterationCS.unlock();
+		}
+
+		std::vector<ElementT> Batch;
+		size_t BatchStart = 0;
+
+		while (Domain->Advance(Batch, BatchStart))
+		{
+			size_t Index = BatchStart;
+			for (ElementT& Element : Batch)
+			{
+				Loop(*ParallelTaskChain<IntermediaryT>::IntermediaryData, Element, Index);
+				++Index;
+			}
 		}
 	}
 
