@@ -1283,7 +1283,7 @@ struct LatticeScratch : MeshingScratch
 	std::vector<Rhombus> ActiveFaces;
 	ParallelAccumulator<Rhombus> FaceAccumulator;
 
-	MeshGenerator MeshInProgress;
+	std::vector<MeshGenerator> MeshInProgress;
 
 	static std::unique_ptr<LatticeScratch> Create(DrawableShared& Painter, SDFOctreeShared& Evaluator, float Density = 16.0f)
 	{
@@ -1307,6 +1307,7 @@ protected:
 		Sequence.Reset(Grid.AddressRange);
 		CellAccumulator.Reset();
 		FaceAccumulator.Reset();
+		MeshInProgress.resize(Scheduler::GetThreadPoolSize() + 1); // Main thread is 0
 	}
 };
 
@@ -1444,6 +1445,7 @@ void MeshingJob::SphereLatticeSearch(DrawableShared& Painter, SDFOctreeShared& E
 
 		TaskT::DoneThunkT DoneThunk = [](LatticeScratch& Intermediary)
 		{
+#if 0
 			Intermediary.FaceAccumulator.Join(Intermediary.ActiveFaces);
 			Intermediary.FaceAccumulator.Reset();
 
@@ -1466,6 +1468,7 @@ void MeshingJob::SphereLatticeSearch(DrawableShared& Painter, SDFOctreeShared& E
 			std::swap(Intermediary.Painter->Indices, Intermediary.MeshInProgress.Indices);
 			Intermediary.Painter->Normals.resize(Intermediary.Painter->Positions.size());
 			Intermediary.Painter->Colors.resize(Intermediary.Painter->Positions.size());
+#endif
 		};
 
 		TaskT::AccessorT Accessor = [](LatticeScratch& Intermediary)
@@ -1474,6 +1477,59 @@ void MeshingJob::SphereLatticeSearch(DrawableShared& Painter, SDFOctreeShared& E
 		};
 
 		Chain.Link(new TaskT("Find Active Lattice Edges", Accessor, LoopThunk, DoneThunk));
+	}
+
+	{
+		using TaskT = ParallelLambdaDomainTaskChain<LatticeScratch, ParallelAccumulator<LatticeScratch::Rhombus>>;
+		TaskT::LoopThunkT LoopThunk = [](LatticeScratch& Intermediary, const LatticeScratch::Rhombus& Rhombus, const int Index)
+		{
+			const size_t ThreadIndex = Scheduler::GetThreadIndex();
+			Assert(ThreadIndex < Intermediary.MeshInProgress.size());
+
+			MeshGenerator& Lane = Intermediary.MeshInProgress[ThreadIndex];
+			{
+				const glm::vec3& AcuteLeft = Rhombus.A;
+				const glm::vec3& AcuteRight = Rhombus.B;
+				const glm::vec3& ObtuseBottom = Rhombus.C;
+				const glm::vec3& ObtuseTop = Rhombus.D;
+				Lane.Accumulate(AcuteLeft);
+				Lane.Accumulate(ObtuseBottom);
+				Lane.Accumulate(ObtuseTop);
+				Lane.Accumulate(ObtuseTop);
+				Lane.Accumulate(ObtuseBottom);
+				Lane.Accumulate(AcuteRight);
+			}
+		};
+
+		TaskT::DoneThunkT DoneThunk = [](LatticeScratch& Intermediary)
+		{
+			BeginEvent("Merge Meshes");
+			size_t Swizzle = 0;
+			while (Intermediary.MeshInProgress.size() > 1)
+			{
+				// This is an attempt to merge in pairs.
+				Swizzle = Swizzle % (Intermediary.MeshInProgress.size() - 1);
+				Intermediary.MeshInProgress[Swizzle].Accumulate(Intermediary.MeshInProgress.back());
+				Intermediary.MeshInProgress.pop_back();
+				++Swizzle;
+			}
+			EndEvent();
+
+			BeginEvent("Prep Arrays");
+			Assert(Intermediary.Painter != nullptr);
+			std::swap(Intermediary.Painter->Positions, Intermediary.MeshInProgress[0].Vertices);
+			std::swap(Intermediary.Painter->Indices, Intermediary.MeshInProgress[0].Indices);
+			Intermediary.Painter->Normals.resize(Intermediary.Painter->Positions.size());
+			Intermediary.Painter->Colors.resize(Intermediary.Painter->Positions.size());
+			EndEvent();
+		};
+
+		TaskT::AccessorT Accessor = [](LatticeScratch& Intermediary)
+		{
+			return &Intermediary.FaceAccumulator;
+		};
+
+		Chain.Link(new TaskT("Generate Triangles", Accessor, LoopThunk, DoneThunk));
 	}
 
 	{
