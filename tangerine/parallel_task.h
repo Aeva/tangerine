@@ -109,9 +109,6 @@ private:
 	std::atomic_size_t Progress;
 
 public:
-	using value_type = ValueT;
-	using iterator = void*;
-
 	ParallelAccumulator()
 	{
 		Reset();
@@ -131,19 +128,36 @@ public:
 		Lanes[ThreadIndex].push_back(Value);
 	}
 
-	void Join(ContainerT& Merged)
+	size_t Size()
 	{
 		size_t TotalSize = 0;
 		for (const ContainerT& Lane : Lanes)
 		{
 			TotalSize += Lane.size();
 		}
-		Merged.reserve(TotalSize);
+		return TotalSize;
+	}
+
+	void Join(ContainerT& Merged)
+	{
+		Merged.reserve(Size());
 		for (const ContainerT& Lane : Lanes)
 		{
 			for (const ValueT& Value : Lane)
 			{
 				Merged.emplace_back(Value);
+			}
+		}
+	}
+
+	template<typename ReadThunkT>
+	void Read(ReadThunkT ReadThunk)
+	{
+		for (const ContainerT& Lane : Lanes)
+		{
+			for (const ValueT& Value : Lane)
+			{
+				ReadThunk(Value);
 			}
 		}
 	}

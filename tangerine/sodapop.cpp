@@ -1283,9 +1283,19 @@ struct LatticeScratch : MeshingScratch
 	std::vector<Rhombus> ActiveFaces;
 	ParallelAccumulator<Rhombus> FaceAccumulator;
 
+	// Only used with combined vertices.
 	std::vector<MeshGenerator> MeshInProgress;
 
-	static std::unique_ptr<LatticeScratch> Create(DrawableShared& Painter, SDFOctreeShared& Evaluator, float Density = 16.0f)
+	// Only used with redundant vertices.
+	ParallelAccumulator<std::pair<glm::vec4, glm::vec4>> MeshAccumulator;
+	struct
+	{
+		std::vector<glm::vec4> Positions;
+		std::vector<glm::vec4> Normals;
+		std::vector<uint32_t> Indices;
+	} GeneratedMesh;
+
+	static std::unique_ptr<LatticeScratch> Create(DrawableShared& Painter, SDFOctreeShared& Evaluator, float Density = 32.0f)
 	{
 		std::unique_ptr<LatticeScratch> Intermediary(new LatticeScratch(Painter, Evaluator, Density));
 		return Intermediary;
@@ -1315,6 +1325,13 @@ protected:
 void MeshingJob::SphereLatticeSearch(DrawableShared& Painter, SDFOctreeShared& Evaluator)
 {
 	ParallelTaskBuilder<LatticeScratch> Chain;
+
+	const bool RequestCombinedVertices = false;
+	const float RequestSmoothingFactor = 1.f;
+
+	const bool CombineVertices = RequestCombinedVertices;
+	const float SmoothNormalsFactor = CombineVertices ? 1.f : glm::clamp(RequestSmoothingFactor, 0.f, 1.f);
+	const bool GenerateSmoothNormals = SmoothNormalsFactor > 0.f;
 
 	{
 		using TaskT = ParallelLambdaDomainTaskChain<LatticeScratch, std::vector<SDFOctree*>>;
@@ -1363,7 +1380,7 @@ void MeshingJob::SphereLatticeSearch(DrawableShared& Painter, SDFOctreeShared& E
 					bool MatchedRequiredNeighbor = false;
 					uint32_t ActiveFaces = 0;
 
-					const float SplitDist = 0.001f;
+					const float SplitDist = 0.f;
 
 					if (CellDist < SplitDist)
 					{
@@ -1479,85 +1496,180 @@ void MeshingJob::SphereLatticeSearch(DrawableShared& Painter, SDFOctreeShared& E
 		Chain.Link(new TaskT("Find Active Lattice Edges", Accessor, LoopThunk, DoneThunk));
 	}
 
+	if (CombineVertices)
 	{
-		using TaskT = ParallelLambdaDomainTaskChain<LatticeScratch, ParallelAccumulator<LatticeScratch::Rhombus>>;
-		TaskT::LoopThunkT LoopThunk = [](LatticeScratch& Intermediary, const LatticeScratch::Rhombus& Rhombus, const int Index)
 		{
-			const size_t ThreadIndex = Scheduler::GetThreadIndex();
-			Assert(ThreadIndex < Intermediary.MeshInProgress.size());
+			using TaskT = ParallelLambdaDomainTaskChain<LatticeScratch, ParallelAccumulator<LatticeScratch::Rhombus>>;
+			TaskT::LoopThunkT LoopThunk = [](LatticeScratch& Intermediary, const LatticeScratch::Rhombus& Rhombus, const int Index)
+			{
+				const size_t ThreadIndex = Scheduler::GetThreadIndex();
+				Assert(ThreadIndex < Intermediary.MeshInProgress.size());
 
-			MeshGenerator& Lane = Intermediary.MeshInProgress[ThreadIndex];
+				MeshGenerator& Lane = Intermediary.MeshInProgress[ThreadIndex];
+				{
+					const glm::vec3& AcuteLeft = Rhombus.A;
+					const glm::vec3& AcuteRight = Rhombus.B;
+					const glm::vec3& ObtuseBottom = Rhombus.C;
+					const glm::vec3& ObtuseTop = Rhombus.D;
+					Lane.Accumulate(AcuteLeft);
+					Lane.Accumulate(ObtuseBottom);
+					Lane.Accumulate(ObtuseTop);
+					Lane.Accumulate(ObtuseTop);
+					Lane.Accumulate(ObtuseBottom);
+					Lane.Accumulate(AcuteRight);
+				}
+			};
+
+			TaskT::DoneThunkT DoneThunk = [](LatticeScratch& Intermediary)
+			{
+				BeginEvent("Merge Meshes");
+				size_t Swizzle = 0;
+				while (Intermediary.MeshInProgress.size() > 1)
+				{
+					// This is an attempt to merge in pairs.
+					Swizzle = Swizzle % (Intermediary.MeshInProgress.size() - 1);
+					Intermediary.MeshInProgress[Swizzle].Accumulate(Intermediary.MeshInProgress.back());
+					Intermediary.MeshInProgress.pop_back();
+					++Swizzle;
+				}
+				EndEvent();
+
+				BeginEvent("Prep Arrays");
+				Assert(Intermediary.Painter != nullptr);
+				std::swap(Intermediary.Painter->Positions, Intermediary.MeshInProgress[0].Vertices);
+				std::swap(Intermediary.Painter->Indices, Intermediary.MeshInProgress[0].Indices);
+				Intermediary.Painter->Normals.resize(Intermediary.Painter->Positions.size());
+				Intermediary.Painter->Colors.resize(Intermediary.Painter->Positions.size());
+				EndEvent();
+			};
+
+			TaskT::AccessorT Accessor = [](LatticeScratch& Intermediary)
+			{
+				return &Intermediary.FaceAccumulator;
+			};
+
+			Chain.Link(new TaskT("Generate Triangles", Accessor, LoopThunk, DoneThunk));
+		}
+	}
+	else
+	{
+		{
+			using TaskT = ParallelLambdaDomainTaskChain<LatticeScratch, ParallelAccumulator<LatticeScratch::Rhombus>>;
+
+			TaskT::LoopThunkT LoopThunk = [](LatticeScratch& Intermediary, const LatticeScratch::Rhombus& Rhombus, const int Index)
 			{
 				const glm::vec3& AcuteLeft = Rhombus.A;
 				const glm::vec3& AcuteRight = Rhombus.B;
 				const glm::vec3& ObtuseBottom = Rhombus.C;
 				const glm::vec3& ObtuseTop = Rhombus.D;
-				Lane.Accumulate(AcuteLeft);
-				Lane.Accumulate(ObtuseBottom);
-				Lane.Accumulate(ObtuseTop);
-				Lane.Accumulate(ObtuseTop);
-				Lane.Accumulate(ObtuseBottom);
-				Lane.Accumulate(AcuteRight);
-			}
-		};
 
-		TaskT::DoneThunkT DoneThunk = [](LatticeScratch& Intermediary)
-		{
-			BeginEvent("Merge Meshes");
-			size_t Swizzle = 0;
-			while (Intermediary.MeshInProgress.size() > 1)
+				const glm::vec4 Normal = glm::vec4(glm::cross(
+					glm::normalize(ObtuseBottom - AcuteLeft),
+					glm::normalize(ObtuseTop - AcuteLeft)), 1.f);
+
+				auto Accumulate = [&](glm::vec3 Vertex) -> void
+				{
+					Intermediary.MeshAccumulator.Push({ glm::vec4(Vertex, 1.f), Normal });
+				};
+
+				Accumulate(AcuteLeft);
+				Accumulate(ObtuseBottom);
+				Accumulate(ObtuseTop);
+				Accumulate(ObtuseTop);
+				Accumulate(ObtuseBottom);
+				Accumulate(AcuteRight);
+			};
+
+			TaskT::DoneThunkT DoneThunk = [](LatticeScratch& Intermediary)
 			{
-				// This is an attempt to merge in pairs.
-				Swizzle = Swizzle % (Intermediary.MeshInProgress.size() - 1);
-				Intermediary.MeshInProgress[Swizzle].Accumulate(Intermediary.MeshInProgress.back());
-				Intermediary.MeshInProgress.pop_back();
-				++Swizzle;
-			}
-			EndEvent();
+				BeginEvent("Merge Meshes");
+				{
+					const size_t TotalVertices = Intermediary.MeshAccumulator.Size();
+					Intermediary.GeneratedMesh.Positions.reserve(TotalVertices);
+					Intermediary.GeneratedMesh.Normals.reserve(TotalVertices);
+					Intermediary.GeneratedMesh.Indices.reserve(TotalVertices);
 
-			BeginEvent("Prep Arrays");
-			Assert(Intermediary.Painter != nullptr);
-			std::swap(Intermediary.Painter->Positions, Intermediary.MeshInProgress[0].Vertices);
-			std::swap(Intermediary.Painter->Indices, Intermediary.MeshInProgress[0].Indices);
-			Intermediary.Painter->Normals.resize(Intermediary.Painter->Positions.size());
-			Intermediary.Painter->Colors.resize(Intermediary.Painter->Positions.size());
-			EndEvent();
-		};
+					size_t Index = 0;
+					Intermediary.MeshAccumulator.Read([&](const std::pair<glm::vec4, glm::vec4>& Vertex)
+					{
+						Intermediary.GeneratedMesh.Positions.push_back(Vertex.first);
+						Intermediary.GeneratedMesh.Normals.push_back(Vertex.second);
+						Intermediary.GeneratedMesh.Indices.push_back(Index);
+						++Index;
+					});
+				}
+				EndEvent();
 
-		TaskT::AccessorT Accessor = [](LatticeScratch& Intermediary)
-		{
-			return &Intermediary.FaceAccumulator;
-		};
+				BeginEvent("Prep Arrays");
+				{
+					Assert(Intermediary.Painter != nullptr);
+					std::swap(Intermediary.Painter->Positions, Intermediary.GeneratedMesh.Positions);
+					std::swap(Intermediary.Painter->Normals, Intermediary.GeneratedMesh.Normals);
+					std::swap(Intermediary.Painter->Indices, Intermediary.GeneratedMesh.Indices);
+					Intermediary.Painter->Colors.resize(Intermediary.Painter->Positions.size());
+				}
+				EndEvent();
+			};
 
-		Chain.Link(new TaskT("Generate Triangles", Accessor, LoopThunk, DoneThunk));
+			TaskT::AccessorT Accessor = [](LatticeScratch& Intermediary)
+			{
+				return &Intermediary.FaceAccumulator;
+			};
+
+			Chain.Link(new TaskT("Generate Triangles", Accessor, LoopThunk, DoneThunk));
+		}
 	}
 
+	if (GenerateSmoothNormals)
 	{
-		using TaskT = ParallelLambdaDomainTaskChain<LatticeScratch, std::vector<glm::vec4>>;
-		TaskT::LoopThunkT LoopThunk = [](LatticeScratch& Intermediary, glm::vec4& Normal, const int Index)
 		{
-			DrawableShared& Painter = Intermediary.Painter;
-			SDFOctreeShared& Evaluator = Intermediary.Evaluator;
-			if (Painter && Evaluator)
+			using TaskT = ParallelLambdaDomainTaskChain<LatticeScratch, std::vector<glm::vec4>>;
+			TaskT::LoopThunkT LoopThunk;
+
+			if (SmoothNormalsFactor == 1.f)
 			{
-				Normal = glm::vec4(Evaluator->Gradient(Painter->Positions[Index].xyz()), 1.0);
+				LoopThunk = [](LatticeScratch& Intermediary, glm::vec4& Normal, const int Index)
+				{
+					DrawableShared& Painter = Intermediary.Painter;
+					SDFOctreeShared& Evaluator = Intermediary.Evaluator;
+					if (Painter && Evaluator)
+					{
+						Normal = glm::vec4(Evaluator->Gradient(Painter->Positions[Index].xyz()), 1.0);
+					}
+				};
 			}
-		};
+			else
+			{
+				const float Alpha = SmoothNormalsFactor;
+				LoopThunk = [Alpha](LatticeScratch& Intermediary, glm::vec4& Normal, const int Index)
+				{
+					DrawableShared& Painter = Intermediary.Painter;
+					SDFOctreeShared& Evaluator = Intermediary.Evaluator;
+					if (Painter && Evaluator)
+					{
+						const glm::vec3 GradientNormal = Evaluator->Gradient(Painter->Positions[Index].xyz());
+						const glm::vec3 BentNormal = glm::normalize(glm::mix(Normal.xyz(), GradientNormal, glm::vec3(Alpha)));
+						Normal = glm::vec4(BentNormal, 1.0);
+					}
+				};
+			}
 
-		TaskT::DoneThunkT DoneThunk = [](LatticeScratch& Intermediary)
-		{
-		};
+			TaskT::DoneThunkT DoneThunk = [](LatticeScratch& Intermediary)
+			{
+			};
 
-		TaskT::AccessorT Accessor = [](LatticeScratch& Intermediary)
-		{
-			return &Intermediary.Painter->Normals;
-		};
+			TaskT::AccessorT Accessor = [](LatticeScratch& Intermediary)
+			{
+				return &Intermediary.Painter->Normals;
+			};
 
-		Chain.Link(new TaskT("Populate Normals", Accessor, LoopThunk, DoneThunk));
+			Chain.Link(new TaskT("Populate Normals", Accessor, LoopThunk, DoneThunk));
+		}
 	}
 
 #if 0
 	// This produces nicer contours, but a worse vertex distribution.
+	if (CombineVertices)
 	{
 		using TaskT = ParallelLambdaDomainTaskChain<LatticeScratch, std::vector<glm::vec4>>;
 		TaskT::LoopThunkT LoopThunk = [](LatticeScratch& Intermediary, glm::vec4& Position, const int Index)
