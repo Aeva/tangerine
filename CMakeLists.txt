@@ -173,6 +173,7 @@ set_target_properties(tangerine
 target_compile_definitions(tangerine PRIVATE
 	"TANGERINE_PKGDATADIR_FROM_BINDIR=${PKGDATADIR_FROM_BINDIR}")
 target_link_libraries(tangerine PRIVATE
+	atomic
 	fmt
 	glad
 	glm
