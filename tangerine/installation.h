@@ -15,17 +15,21 @@
 
 #pragma once
 #include <filesystem>
+#include <optional>
 #include "embedding.h"
 #include "errors.h"
 
+#ifndef TANGERINE_SELF_CONTAINED
+# ifdef _WIN64
+#  define TANGERINE_SELF_CONTAINED
+# endif
+#endif
 
 struct TangerinePaths
 {
 	StatusCode PopulateInstallationPaths();
 
-	std::filesystem::path ExecutablePath;
-	std::filesystem::path ExecutableDir;
-	std::filesystem::path PkgDataDir;
 	std::filesystem::path ShadersDir;
 	std::filesystem::path ModelsDir;
+	std::optional<std::filesystem::path> BookmarksPath;
 };

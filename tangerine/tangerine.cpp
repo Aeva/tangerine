@@ -1549,11 +1549,10 @@ void RenderUI(SDL_Window* Window, bool& Live)
 
 void LoadBookmarks()
 {
-	std::filesystem::path BookmarksPath =
-                // FIXME might be read-only
-                Installed.ExecutableDir / "bookmarks.txt";
-	if (std::filesystem::is_regular_file(BookmarksPath))
+	std::optional<std::filesystem::path> MaybeBookmarksPath = Installed.BookmarksPath;
+	if (MaybeBookmarksPath && std::filesystem::is_regular_file(MaybeBookmarksPath.value()))
 	{
+		std::filesystem::path BookmarksPath = MaybeBookmarksPath.value();
 		std::ifstream BookmarksFile;
 		BookmarksFile.open(BookmarksPath);
 		std::string Bookmark;
@@ -1574,12 +1573,16 @@ void LoadBookmarks()
 
 void SaveBookmarks()
 {
-	std::filesystem::path BookmarksPath =
-		// FIXME might be read-only
-		Installed.ExecutableDir / "bookmarks.txt";
+	std::optional<std::filesystem::path> MaybeBookmarksPath = Installed.BookmarksPath;
+	if (!MaybeBookmarksPath)
+	{
+		return;
+	}
+	std::filesystem::path BookmarksPath = MaybeBookmarksPath.value();
 	const std::vector<std::string>& Bookmarks = ifd::FileDialog::Instance().GetFavorites();
 	if (Bookmarks.size() > 0)
 	{
+		std::filesystem::create_directories(BookmarksPath.parent_path());
 		std::ofstream BookmarksFile;
 		BookmarksFile.open(BookmarksPath);
 		for (const std::string& Bookmark : Bookmarks)
@@ -1587,6 +1590,10 @@ void SaveBookmarks()
 			BookmarksFile << Bookmark << std::endl;
 		}
 		BookmarksFile.close();
+	}
+	else if (std::filesystem::exists(BookmarksPath))
+	{
+		std::filesystem::remove(BookmarksPath);
 	}
 }
 
