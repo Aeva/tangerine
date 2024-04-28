@@ -1,5 +1,5 @@
 
-// Copyright 2023 Aeva Palecek
+// Copyright 2024 Aeva Palecek
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -1995,6 +1995,14 @@ StatusCode Boot(int argc, char* argv[])
 			Config.MergeMode = true;
 			Config.FontBuilderFlags = 0;
 			io.Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\seguisym.ttf", 16.0, &Config, Ranges);
+		}
+#else
+		{
+			std::string FontPath;
+			if (Linux::MatchFont({ "monospace:style=regular" }, FontPath) == StatusCode::PASS)
+			{
+				io.Fonts->AddFontFromFileTTF(FontPath.c_str(), 16.0);
+			}
 		}
 #endif
 		std::cout << "Done!\n";
