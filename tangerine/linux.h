@@ -23,5 +23,5 @@ static_assert(false, "Header \"linux.h\" should not be included in Windows build
 
 namespace Linux
 {
-	void DriverCheck(bool RequestSoftwareDriver);
+	void SetEnvironmentVariable(const char* Name, const char* Value, bool Overwrite = true);
 }

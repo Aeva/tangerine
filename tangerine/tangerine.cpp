@@ -1668,7 +1668,9 @@ StatusCode Boot(int argc, char* argv[])
 	}
 
 #if !_WIN64
-	bool RequestSoftwareDriver = false;
+	bool RequestSoftwareRendering = false;
+	bool RequestWaylandDriver = false;
+	bool RequestX11Driver = false;
 #endif
 	bool ForceES2 = false;
 	bool CreateDebugContext = false;
@@ -1738,7 +1740,27 @@ StatusCode Boot(int argc, char* argv[])
 #if _WIN64
 				std::cout << "The \"--llvmpipe\" option is only available on Linux.\n";
 #else
-				RequestSoftwareDriver = true;
+				RequestSoftwareRendering = true;
+#endif
+				Cursor += 1;
+				continue;
+			}
+			else if (Args[Cursor] == "--wayland")
+			{
+#if _WIN64
+				std::cout << "The \"--wayland\" option is only available on Linux.\n";
+#else
+				RequestWaylandDriver = true;
+#endif
+				Cursor += 1;
+				continue;
+			}
+			else if (Args[Cursor] == "--x11")
+			{
+#if _WIN64
+				std::cout << "The \"--x11\" option is only available on Linux.\n";
+#else
+				RequestX11Driver = true;
 #endif
 				Cursor += 1;
 				continue;
@@ -1810,7 +1832,28 @@ StatusCode Boot(int argc, char* argv[])
 	Scheduler::Setup(ForceSingleThread);
 
 #if !_WIN64
-	Linux::DriverCheck(RequestSoftwareDriver);
+	if (RequestWaylandDriver && RequestX11Driver)
+	{
+		std::cout << "Error: --wayland and --x11 are mutually exclusive options.\n";
+		return StatusCode::FAIL;
+	}
+	else if (RequestWaylandDriver)
+	{
+		Linux::SetEnvironmentVariable("SDL_VIDEODRIVER", "wayland,x11");
+	}
+	else if (RequestX11Driver)
+	{
+		Linux::SetEnvironmentVariable("SDL_VIDEODRIVER", "x11,wayland");
+	}
+	else
+	{
+		Linux::SetEnvironmentVariable("SDL_VIDEODRIVER", "wayland,x11", false);
+	}
+
+	if (RequestSoftwareRendering)
+	{
+		Linux::SetEnvironmentVariable("LIBGL_ALWAYS_SOFTWARE", "1");
+	}
 #endif
 	{
 		std::cout << "Setting up SDL2... ";
@@ -1827,7 +1870,34 @@ StatusCode Boot(int argc, char* argv[])
 			return StatusCode::FAIL;
 		}
 
+		// On high DPI screens, the virtual sizes are the scaled size of the window.
+		int VirtualWidth;
+		int VirtualHeight;
+		SDL_GetWindowSize(Window, &VirtualWidth, &VirtualHeight);
+
+		// On high DPI screens, the pixel sizes represent the real size of the window.
+		int PixelWidth;
+		int PixelHeight;
 		SDL_GetWindowSizeInPixels(Window, &PixelWidth, &PixelHeight);
+
+		if (VirtualWidth == PixelWidth && VirtualHeight == PixelHeight)
+		{
+			std::cout << "High DPI rendering is not available.\n";
+		}
+		else
+		{
+			int PercentX = int(1.0 / (double(VirtualWidth) / double(PixelWidth)) * 100.0);
+			int PercentY = int(1.0 / (double(VirtualHeight) / double(PixelHeight)) * 100.0);
+
+			if (PercentX == PercentY)
+			{
+				std::cout << "High DPI is enabled with a scale of " << PercentX << "%.\n";
+			}
+			else
+			{
+				std::cout << "High DPI is enabled with width scaled " << PercentX << "% and height scaled " << PercentY << "%.\n";
+			}
+		}
 	}
 	{
 		MainEnvironment = new NullEnvironment();

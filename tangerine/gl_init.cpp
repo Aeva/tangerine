@@ -74,7 +74,7 @@ StatusCode CreateWindowGL(int& WindowWidth, int& WindowHeight, GLsizei MultiSamp
 	{
 		SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_DEBUG_FLAG);
 	}
-	Uint32 WindowFlags = SDL_WINDOW_OPENGL;
+	Uint32 WindowFlags = SDL_WINDOW_OPENGL | SDL_WINDOW_ALLOW_HIGHDPI;
 	if (HeadlessMode)
 	{
 		WindowFlags |= SDL_WINDOW_HIDDEN;
@@ -186,6 +186,13 @@ void SetSwapInterval(VSyncMode RequestedVSyncMode)
 }
 
 
+void PrintVideoDriver()
+{
+	const char* VideoDriverName = SDL_GetCurrentVideoDriver();
+	std::cout << "Using SDL2 video driver: " << VideoDriverName << "\n";
+}
+
+
 StatusCode BootGL(int& WindowWidth, int& WindowHeight, bool HeadlessMode, bool ForceES2, bool CreateDebugContext, VSyncMode RequestedVSyncMode)
 {
 	const bool MultiSamplingWasRequested = MultiSampleCount > 1;
@@ -203,6 +210,7 @@ StatusCode BootGL(int& WindowWidth, int& WindowHeight, bool HeadlessMode, bool F
 		{
 			SDL_GL_MakeCurrent(Window, Context);
 			std::cout << "Done!\n";
+			PrintVideoDriver();
 
 			SetSwapInterval(RequestedVSyncMode);
 
@@ -245,6 +253,7 @@ StatusCode BootGL(int& WindowWidth, int& WindowHeight, bool HeadlessMode, bool F
 		{
 			SDL_GL_MakeCurrent(Window, Context);
 			std::cout << "Done!\n";
+			PrintVideoDriver();
 
 			SetSwapInterval(RequestedVSyncMode);
 
