@@ -1652,6 +1652,10 @@ StatusCode LoadDefaultModel(DefaultModelLoadingMethod Method, Language Runtime, 
 			return StatusCode::FAIL;
 		}
 	}
+
+	// Expected to be unreachable.
+	fmt::print("Unknown failure.\n");
+	return StatusCode::FAIL;
 }
 
 
