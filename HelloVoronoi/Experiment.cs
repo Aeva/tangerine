@@ -83,7 +83,14 @@ public class Experiment : Game
             }
         }
 
-        const int DiscCount = 1000;
+#if true
+        const int DiscCount = 500;
+#else
+        // stress test
+        int DiscCount =
+            (GraphicsAdapter.DefaultAdapter.CurrentDisplayMode.Width *
+            GraphicsAdapter.DefaultAdapter.CurrentDisplayMode.Height) / 32;
+#endif
         VertexCount = DiscCount * DiscVertexCount;
 
         var VertexData = new VertexPositionColor[VertexCount];
