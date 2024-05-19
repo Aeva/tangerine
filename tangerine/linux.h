@@ -1,5 +1,5 @@
 
-// Copyright 2023 Aeva Palecek
+// Copyright 2024 Aeva Palecek
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,6 +16,8 @@
 #pragma once
 
 #include "errors.h"
+#include <string>
+#include <vector>
 
 #if _WIN64
 static_assert(false, "Header \"linux.h\" should not be included in Windows builds!");
@@ -23,5 +25,7 @@ static_assert(false, "Header \"linux.h\" should not be included in Windows build
 
 namespace Linux
 {
+	StatusCode MatchFont(std::vector<std::string> Patterns, std::string& OutFontPath);
+
 	void SetEnvironmentVariable(const char* Name, const char* Value, bool Overwrite = true);
 }

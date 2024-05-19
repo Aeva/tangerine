@@ -8,7 +8,7 @@
 	if (ImGui::BeginTabItem("Tangerine"))
 	{
 		const char* LicenseText = \
-		"Copyright © 2021-2022 Aeva Palecek\n"
+		"Copyright © 2021-2024 Aeva Palecek\n"
 		"\n"
 		"                                 Apache License\n"
 		"                           Version 2.0, January 2004\n"
@@ -721,51 +721,6 @@
 }
 #endif
 
-#if ENABLE_PSMOVE_BINDINGS
-if (PSMoveAvailable())
-{
-	if (ImGui::BeginTabItem("psmove"))
-	{
-		const char* LicenseText = \
-		"\n"
-		"The PS Move API library is licensed under the terms of the license below.\n"
-		"However, some optional third party libraries might have a different license.\n"
-		"Be sure to read the README file for details on third party licenses.\n"
-		"\n"
-		"====\n"
-		"\n"
-		"Copyright (c) 2011, 2012 Thomas Perl <m@thp.io>\n"
-		"All rights reserved.\n"
-		"\n"
-		"Redistribution and use in source and binary forms, with or without\n"
-		"modification, are permitted provided that the following conditions are met:\n"
-		"\n"
-		"   1. Redistributions of source code must retain the above copyright\n"
-		"      notice, this list of conditions and the following disclaimer.\n"
-		"\n"
-		"   2. Redistributions in binary form must reproduce the above copyright\n"
-		"      notice, this list of conditions and the following disclaimer in the\n"
-		"      documentation and/or other materials provided with the distribution.\n"
-		"\n"
-		"THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS \"AS IS\"\n"
-		"AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE\n"
-		"IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE\n"
-		"ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE\n"
-		"LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR\n"
-		"CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF\n"
-		"SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS\n"
-		"INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN\n"
-		"CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)\n"
-		"ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE\n"
-		"POSSIBILITY OF SUCH DAMAGE.\n"
-		"\n"
-		"\n";
-		ImGui::TextUnformatted(LicenseText, nullptr);
-		ImGui::EndTabItem();
-	}
-}
-#endif
-
 #if EMBED_RACKET
 {
 	if (ImGui::BeginTabItem("racket"))
@@ -805,38 +760,6 @@ if (PSMoveAvailable())
 		"LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\n"
 		"OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE\n"
 		"SOFTWARE.\n"
-		"\n";
-		ImGui::TextUnformatted(LicenseText, nullptr);
-		ImGui::EndTabItem();
-	}
-}
-#endif
-
-#if 1
-{
-	if (ImGui::BeginTabItem("sdl2"))
-	{
-		const char* LicenseText = \
-		"\n"
-		"Simple DirectMedia Layer\n"
-		"Copyright (C) 1997-2020 Sam Lantinga <slouken@libsdl.org>\n"
-		"  \n"
-		"This software is provided 'as-is', without any express or implied\n"
-		"warranty.  In no event will the authors be held liable for any damages\n"
-		"arising from the use of this software.\n"
-		"\n"
-		"Permission is granted to anyone to use this software for any purpose,\n"
-		"including commercial applications, and to alter it and redistribute it\n"
-		"freely, subject to the following restrictions:\n"
-		"  \n"
-		"1. The origin of this software must not be misrepresented; you must not\n"
-		"   claim that you wrote the original software. If you use this software\n"
-		"   in a product, an acknowledgment in the product documentation would be\n"
-		"   appreciated but is not required. \n"
-		"2. Altered source versions must be plainly marked as such, and must not be\n"
-		"   misrepresented as being the original software.\n"
-		"3. This notice may not be removed or altered from any source distribution.\n"
-		"\n"
 		"\n";
 		ImGui::TextUnformatted(LicenseText, nullptr);
 		ImGui::EndTabItem();
