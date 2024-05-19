@@ -11,7 +11,6 @@ using Vector3 = Microsoft.Xna.Framework.Vector3;
 
 using static Microsoft.Xna.Framework.MathHelper;
 using System.IO;
-using static System.Formats.Asn1.AsnWriter;
 
 namespace HelloVoronoi;
 
@@ -26,7 +25,7 @@ public class Experiment : Game
     private int ParaboloidResolution = 1;
 
     // Number of voronoi seeds.
-    private int Cells = 1_000_000;
+    private int SplatCount = 1_000_000;
 
     // Target splat size in pixels;
     private int SplatSize = 32;
@@ -45,7 +44,6 @@ public class Experiment : Game
     private int VoronoiIndexCount = 0;
 
     private VertexBuffer SplatBuffer;
-    private int SplatCount = 0;
 
     private Matrix WorldToView;
     private Matrix ViewToClip;
@@ -186,10 +184,10 @@ public class Experiment : Game
         {
             var RNG = new Random(1234);
 
-            var Offsets = new Vector4[Cells];
-            var Colors = new Color[Cells];
+            var Offsets = new Vector4[SplatCount];
+            var Colors = new Color[SplatCount];
 
-            for (int CellIndex = 0; CellIndex < Cells; ++CellIndex)
+            for (int CellIndex = 0; CellIndex < SplatCount; ++CellIndex)
             {
                 var Offset = new Vector3(
                     ((float)RNG.Next(-1000, 1000)) / 900.0f,
@@ -218,9 +216,9 @@ public class Experiment : Game
                 new VertexElement(0, VertexElementFormat.Vector4, VertexElementUsage.TextureCoordinate, 0),
                 new VertexElement(16, VertexElementFormat.Color, VertexElementUsage.Color, 0));
 
-            SplatBuffer = new VertexBuffer(GraphicsDevice, VertexOffsetColor, Cells, BufferUsage.WriteOnly);
-            SplatBuffer.SetData(0, Offsets, 0, Cells, VertexOffsetColor.VertexStride);
-            SplatBuffer.SetData(16, Colors, 0, Cells, VertexOffsetColor.VertexStride);
+            SplatBuffer = new VertexBuffer(GraphicsDevice, VertexOffsetColor, SplatCount, BufferUsage.WriteOnly);
+            SplatBuffer.SetData(0, Offsets, 0, SplatCount, VertexOffsetColor.VertexStride);
+            SplatBuffer.SetData(16, Colors, 0, SplatCount, VertexOffsetColor.VertexStride);
         }
 
         {
@@ -267,7 +265,7 @@ public class Experiment : Game
         foreach (EffectPass Pass in InstancedBasicEffect.CurrentTechnique.Passes)
         {
             Pass.Apply();
-            GraphicsDevice.DrawInstancedPrimitives(PrimitiveType.TriangleList, 0, 0, VoronoiIndexCount, Cells);
+            GraphicsDevice.DrawInstancedPrimitives(PrimitiveType.TriangleList, 0, 0, VoronoiIndexCount, SplatCount);
         }
 
         base.Draw(gameTime);
