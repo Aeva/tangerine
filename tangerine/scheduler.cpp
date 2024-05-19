@@ -29,7 +29,7 @@
 
 
 #ifndef SCHEDULER_QUEUE_SIZE
-// The standard queue size is 2*20 entries, or about 4 MB per empty queue.
+// The standard queue size is 2**20 entries, or about 4 MB per empty queue.
 // This number is set arbitrarily high, as it determines the effective number
 // of models that can be operated on by the thread pool at once, and therefore
 // determines the maximum number of model instances that can have recurring
