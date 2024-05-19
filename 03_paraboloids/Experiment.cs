@@ -11,6 +11,7 @@ using Vector3 = Microsoft.Xna.Framework.Vector3;
 
 using static Microsoft.Xna.Framework.MathHelper;
 using System.IO;
+using static System.Formats.Asn1.AsnWriter;
 
 namespace HelloVoronoi;
 
@@ -25,15 +26,23 @@ public class Experiment : Game
     private int ParaboloidResolution = 1;
 
     // Number of voronoi seeds.
-    private int Cells = 100_000;
+    private int Cells = 1_000_000;
+
+    // Target splat size in pixels;
+    private int SplatSize = 32;
+
+    private bool FullScreen = false;
 
     private GraphicsDeviceManager _graphics;
+    private RasterizerState Rasterizer;
     private Effect InstancedBasicEffect;
+    private VertexBufferBinding[] SplatBindings;
 
     private VertexBuffer VoronoiVertexBuffer;
     private IndexBuffer VoronoiIndexBuffer;
     private int VoronoiTriangleCount = 0;
     private int VoronoiVertexCount = 0;
+    private int VoronoiIndexCount = 0;
 
     private VertexBuffer SplatBuffer;
     private int SplatCount = 0;
@@ -42,6 +51,7 @@ public class Experiment : Game
     private Matrix ViewToClip;
 
     private float AspectRatio;
+    private float SplatScale;
 
     private double[] FrameHistory = new double[20];
     private int FrameNumber = 0;
@@ -56,19 +66,28 @@ public class Experiment : Game
 
         _graphics.HardwareModeSwitch = false;
         _graphics.GraphicsProfile = GraphicsProfile.HiDef;
-        //_graphics.SynchronizeWithVerticalRetrace = false;
-#if true
-        _graphics.PreferredBackBufferWidth = GraphicsAdapter.DefaultAdapter.CurrentDisplayMode.Width;
-        _graphics.PreferredBackBufferHeight = GraphicsAdapter.DefaultAdapter.CurrentDisplayMode.Height;
-        _graphics.IsFullScreen = true;
-        IsMouseVisible = false;
-#else
-        _graphics.PreferredBackBufferWidth = 600;
-        _graphics.PreferredBackBufferHeight = 600;
-        _graphics.IsFullScreen = false;
-        IsMouseVisible = true;
-#endif
+        _graphics.SynchronizeWithVerticalRetrace = false;
+
+        SplatBindings = new VertexBufferBinding[2];
+
+        if (FullScreen)
+        {
+            _graphics.PreferredBackBufferWidth = GraphicsAdapter.DefaultAdapter.CurrentDisplayMode.Width;
+            _graphics.PreferredBackBufferHeight = GraphicsAdapter.DefaultAdapter.CurrentDisplayMode.Height;
+            _graphics.IsFullScreen = true;
+            IsMouseVisible = false;
+        }
+        else
+        {
+            _graphics.PreferredBackBufferWidth = 600;
+            _graphics.PreferredBackBufferHeight = 600;
+            _graphics.IsFullScreen = false;
+            IsMouseVisible = true;
+        }
+
         AspectRatio = (float)_graphics.PreferredBackBufferHeight / (float)_graphics.PreferredBackBufferWidth;
+        float LargestDimension = Math.Max((float)_graphics.PreferredBackBufferHeight, (float)_graphics.PreferredBackBufferWidth);
+        SplatScale = ((float)SplatSize / LargestDimension);
 
         _graphics.ApplyChanges();
     }
@@ -93,59 +112,65 @@ public class Experiment : Game
         }
 
         {
-            int Edges = 1 << ParaboloidResolution;
-            VoronoiTriangleCount = Edges * Edges * 2;
-            VoronoiVertexCount = VoronoiTriangleCount * 3;
+            Rasterizer = new RasterizerState();
+            Rasterizer.CullMode = CullMode.CullCounterClockwiseFace;
+        }
 
+        {
+            int EdgesPerAxis = 1 << ParaboloidResolution;
+            int VerticesPerAxis = EdgesPerAxis + 1;
+            VoronoiVertexCount = VerticesPerAxis * VerticesPerAxis;
+            VoronoiTriangleCount = EdgesPerAxis * EdgesPerAxis * 2;
+            VoronoiIndexCount = VoronoiTriangleCount * 3;
             {
-                var ParaboloidIndices = new short[VoronoiVertexCount];
-                for (short Index = 0; Index < VoronoiVertexCount; Index++)
+                var ParaboloidIndices = new short[VoronoiIndexCount];
+                int Cursor = 0;
+                for (int QuadY = 0; QuadY < EdgesPerAxis; ++QuadY)
                 {
-                    ParaboloidIndices[Index] = Index;
+                    for (int QuadX = 0; QuadX < EdgesPerAxis; ++QuadX)
+                    {
+                        short Vert00 = (short)((QuadY + 0) * VerticesPerAxis + (QuadX + 0));
+                        short Vert01 = (short)((QuadY + 0) * VerticesPerAxis + (QuadX + 1));
+                        short Vert10 = (short)((QuadY + 1) * VerticesPerAxis + (QuadX + 0));
+                        short Vert11 = (short)((QuadY + 1) * VerticesPerAxis + (QuadX + 1));
+
+                        ParaboloidIndices[Cursor++] = Vert00;
+                        ParaboloidIndices[Cursor++] = Vert10;
+                        ParaboloidIndices[Cursor++] = Vert01;
+
+                        ParaboloidIndices[Cursor++] = Vert11;
+                        ParaboloidIndices[Cursor++] = Vert01;
+                        ParaboloidIndices[Cursor++] = Vert10;
+                    }
                 }
+
                 VoronoiIndexBuffer = new IndexBuffer(
                     GraphicsDevice,
                     IndexElementSize.SixteenBits,
-                    sizeof(short) * ParaboloidIndices.Length,
+                    sizeof(short) * VoronoiIndexCount,
                     BufferUsage.WriteOnly);
                 VoronoiIndexBuffer.SetData<short>(ParaboloidIndices);
             }
             {
                 var ParaboloidVertices = new VertexPosition[VoronoiVertexCount];
+                float UnitScale = 1.0f / (float)(EdgesPerAxis);
+                var PositionScale = new Vector3(SplatScale, SplatScale, 1.0f);
+                var Center = new Vector2(0.5f, 0.5f);
+                int Index = 0;
+
+                for (int Y = 0; Y < VerticesPerAxis; ++Y)
                 {
-                    Vector2[] QuadVerts =
+                    for (int X = 0; X < VerticesPerAxis; ++X)
                     {
-                        new Vector2(0.0f, 0.0f),
-                        new Vector2(0.0f, 1.0f),
-                        new Vector2(1.0f, 0.0f),
-
-                        new Vector2(1.0f, 0.0f),
-                        new Vector2(0.0f, 1.0f),
-                        new Vector2(1.0f, 1.0f)
-                    };
-
-                    float Scale = 1.0f / (float)(Edges);
-                    var Center = new Vector2(0.5f, 0.5f);
-                    int Index = 0;
-
-                    for (int Y = 0; Y < Edges; ++Y)
-                    {
-                        for (int X = 0; X < Edges; ++X)
-                        {
-                            var Offset = new Vector2((float)X * Scale, (float)Y * Scale);
-                            foreach (var Corner in QuadVerts)
-                            {
-                                var Position = new Vector3();
-                                float U = QuadVerts[Index % 6].X * Scale + Offset.X;
-                                float V = QuadVerts[Index % 6].Y * Scale + Offset.Y;
-                                Position.X = U - Center.X;
-                                Position.Y = V - Center.Y;
-                                U = (U * 2.0f - 1.0f);
-                                V = (V * 2.0f - 1.0f);
-                                Position.Z = 1 - (U * U + V * V);
-                                ParaboloidVertices[Index++].Position = Position;
-                            }
-                        }
+                        var Position = new Vector3();
+                        float U = (float)X * UnitScale;
+                        float V = (float)Y * UnitScale;
+                        Position.X = U - Center.X;
+                        Position.Y = V - Center.Y;
+                        U = (U * 2.0f - 1.0f);
+                        V = (V * 2.0f - 1.0f);
+                        Position.Z = 1 - (U * U + V * V);
+                        ParaboloidVertices[Index++].Position = Position * PositionScale;
                     }
                 }
 
@@ -182,10 +207,7 @@ public class Experiment : Game
                 var Specular = Vector3.Dot(new Vector3(0.5f, 0.0f, 10.0f), Norm);
 
                 var BG = Color.Lerp(Color.Green, Color.Blue, Offset.Y * 0.5f + 0.4f);
-                //var FG = new Color(Specular, Specular, Specular);
-                //var FG = new Color(Norm.X, Norm.Y, Norm.Z);
                 var FG = new Color(Fnord, Fnord, Fnord) * 1.5f;
-
                 var Fill = Color.Lerp(FG, BG, Alpha);
 
                 Offsets[CellIndex] = new Vector4(Offset, 1.0f);
@@ -199,6 +221,11 @@ public class Experiment : Game
             SplatBuffer = new VertexBuffer(GraphicsDevice, VertexOffsetColor, Cells, BufferUsage.WriteOnly);
             SplatBuffer.SetData(0, Offsets, 0, Cells, VertexOffsetColor.VertexStride);
             SplatBuffer.SetData(16, Colors, 0, Cells, VertexOffsetColor.VertexStride);
+        }
+
+        {
+            SplatBindings[0] = new VertexBufferBinding(VoronoiVertexBuffer, 0, 0);
+            SplatBindings[1] = new VertexBufferBinding(SplatBuffer, 0, 1);
         }
     }
 
@@ -229,24 +256,18 @@ public class Experiment : Game
     protected override void Draw(GameTime gameTime)
     {
         GraphicsDevice.Clear(new Color(0.0f, 0.0f, 0.0f));
-        
+
         InstancedBasicEffect.Parameters["WorldToView"].SetValue(WorldToView);
         InstancedBasicEffect.Parameters["ViewToClip"].SetValue(ViewToClip);
 
-        RasterizerState rasterizerState = new RasterizerState();
-        rasterizerState.CullMode = CullMode.CullCounterClockwiseFace;
-        GraphicsDevice.RasterizerState = rasterizerState;
+        GraphicsDevice.RasterizerState = Rasterizer;
         GraphicsDevice.Indices = VoronoiIndexBuffer;
-
-        GraphicsDevice.SetVertexBuffers(
-            new VertexBufferBinding(VoronoiVertexBuffer, 0, 0),
-            new VertexBufferBinding(SplatBuffer, 0, 1));
+        GraphicsDevice.SetVertexBuffers(SplatBindings[0], SplatBindings[1]);
 
         foreach (EffectPass Pass in InstancedBasicEffect.CurrentTechnique.Passes)
         {
             Pass.Apply();
-            //GraphicsDevice.DrawPrimitives(PrimitiveType.TriangleList, 0, VertexCount);
-            GraphicsDevice.DrawInstancedPrimitives(PrimitiveType.TriangleList, 0, 0, VoronoiVertexCount / 3, Cells);
+            GraphicsDevice.DrawInstancedPrimitives(PrimitiveType.TriangleList, 0, 0, VoronoiIndexCount, Cells);
         }
 
         base.Draw(gameTime);
