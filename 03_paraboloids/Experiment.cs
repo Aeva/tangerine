@@ -30,7 +30,7 @@ public class Experiment : Game
     // Target splat size in pixels;
     private int SplatSize = 32;
 
-    private bool FullScreen = false;
+    private bool FullScreen = true;
 
     private GraphicsDeviceManager _graphics;
     private RasterizerState Rasterizer;
@@ -92,7 +92,7 @@ public class Experiment : Game
 
     protected override void Initialize()
     {
-        Window.Title = "Voronoi Diagram Rendering";
+        Window.Title = "Star Machine";
         base.Initialize();
     }
 
@@ -182,31 +182,187 @@ public class Experiment : Game
         }
 
         {
-            var RNG = new Random(1234);
+            var SplatRNG = new Random(1234);
+            var StarRNG = new Random(75828421);
+            var ColorRNG = new Random(0);
 
             var Offsets = new Vector4[SplatCount];
             var Colors = new Color[SplatCount];
 
+            var StarMachine = (Vector2 Point, float r, float rf) =>
+            {
+                var k1 = new Vector2(0.809016994375f, -0.587785252292f);
+                var k2 = new Vector2(-k1.X,k1.Y);
+                Point.X = Math.Abs(Point.X);
+                Point -= k1 * 2.0f * Max(Vector2.Dot(k1, Point), 0.0f);
+                Point -= k2 * 2.0f * Max(Vector2.Dot(k2, Point), 0.0f);
+                Point.X = Math.Abs(Point.X);
+                Point.Y -= r;
+                var ba = new Vector2(rf * -k1.Y, rf * k1.X - 1.0f);
+                float h = Clamp(Vector2.Dot(Point, ba) / Vector2.Dot(ba,ba), 0.0f, r );
+                float sign = Point.Y * ba.X - Point.X * ba.Y >= 0.0f ? 1.0f : -1.0f;
+                return (Point - ba * h).Length() * sign;
+            };
+
+            int FieldW = 7;
+            int FieldH = (int)((float)FieldW * AspectRatio);
+            float FieldSlice = 2.0f / (float)FieldW;
+            float HalfSlice = FieldSlice * 0.5f;
+            Vector2 FieldOrigin = new Vector2(-1.0f, -AspectRatio + HalfSlice);
+
+            var StarPoints = new Vector2[175];
+            var StarColors = new Color[StarPoints.Length];
+            for (int StarIndex = 0; StarIndex < StarPoints.Length; ++StarIndex)
+            {
+                while (true)
+                {
+                    float Alpha = StarRNG.NextSingle();
+                    Alpha = Lerp((float)Math.Sqrt(Alpha), Alpha, 0.3f);
+                    StarPoints[StarIndex].X = ((float)StarRNG.Next(-1000, 1000)) / 900.0f;
+                    StarPoints[StarIndex].Y = Lerp(-AspectRatio, AspectRatio, Alpha);
+
+                    var Point = StarPoints[StarIndex];
+                    {
+                        float Angle = ToRadians(10.0f);
+                        float C = (float)Math.Cos(Angle);
+                        float S = (float)Math.Sin(Angle);
+                        Point = new Vector2(Point.X * C - Point.Y * S, Point.X * S + Point.Y * C);
+                    }
+
+                    float Dist = StarMachine(Point, 0.6f, 0.45f);
+
+                    if (Dist >= 0.025f)
+                    {
+                        if (ColorRNG.Next(100) <= 30)
+                        {
+                            StarColors[StarIndex] = Color.White;
+                        }
+                        else
+                        {
+                            float R = ColorRNG.NextSingle() * 0.7f + 0.3f;
+                            float G = ColorRNG.NextSingle() * 0.7f + 0.3f;
+                            float B = ColorRNG.NextSingle() * 0.7f + 0.3f;
+                            float A = Max(Max(R, G), B);
+
+                            StarColors[StarIndex] = new Color(R / A, B / A, G / A);
+                        }
+                        break;
+                    }
+                }
+            }
+
+            var StarSpray = (Vector2 Splat) =>
+            {
+                float Dist = 1000000.0f;
+                Color StarColor = Color.White;
+                for (int StarIndex = 0; StarIndex < StarPoints.Length; ++StarIndex)
+                {
+                    var Star = StarPoints[StarIndex];
+                    float NewDist = Vector2.Distance(Splat, Star);
+                    if (NewDist < Dist)
+                    {
+                        Dist = NewDist;
+                        StarColor = StarColors[StarIndex];
+                    }
+                }
+                return (Dist, StarColor);
+            };
+
             for (int CellIndex = 0; CellIndex < SplatCount; ++CellIndex)
             {
                 var Offset = new Vector3(
-                    ((float)RNG.Next(-1000, 1000)) / 900.0f,
-                    ((float)RNG.Next(-1000, 1000)) / 900.0f * AspectRatio,
+                    ((float)SplatRNG.Next(-1000, 1000)) / 900.0f,
+                    ((float)SplatRNG.Next(-1000, 1000)) / 900.0f * AspectRatio,
                     0.0f);
 
-                float Radius = 0.5f;
-                float Fnord = Math.Abs(Offset.Length() - Radius);
-                float Alpha = Clamp((Offset.Length() - Radius) * 50.0f, 0.0f, 1.0f);
-                float Relief = (float)Math.Sqrt(
-                    1.0f - ((Offset.X * 2.0f) * (Offset.X * 2.0f) + (Offset.Y * 2.0f) * (Offset.Y * 2.0f)));
+                var Point = new Vector2(Offset.X, Offset.Y);
+                {
+                    float Angle = ToRadians(10.0f);
+                    float C = (float)Math.Cos(Angle);
+                    float S = (float)Math.Sin(Angle);
+                    Point = new Vector2(Point.X * C - Point.Y * S, Point.X * S + Point.Y * C);
+                }
 
-                Offset.Z = Max(Fnord * Fnord, 0.0f);
-                var Norm = Vector3.Normalize(Offset);
-                var Specular = Vector3.Dot(new Vector3(0.5f, 0.0f, 10.0f), Norm);
+                float Dist = StarMachine(Point, 0.6f, 0.45f);
+                Color Fill;
+                if (Dist <= 0.0f)
+                {
+                    // Draw the star cutout
+                    float Angle = ToRadians(13.0f);
+                    float C = (float)Math.Cos(Angle);
+                    float S = (float)Math.Sin(Angle);
 
-                var BG = Color.Lerp(Color.Green, Color.Blue, Offset.Y * 0.5f + 0.4f);
-                var FG = new Color(Fnord, Fnord, Fnord) * 1.5f;
-                var Fill = Color.Lerp(FG, BG, Alpha);
+                    Point = new Vector2(Offset.X - 0.03f, Offset.Y + 0.275f);
+                    Point = new Vector2(Point.X * C - Point.Y * S, Point.X * S + Point.Y * C);
+
+                    Dist = StarMachine(Point, 0.6f, 0.45f);
+
+                    if (Dist <= 0.0f)
+                    {
+                        // Falling cutaway
+                        Dist = Vector3.Distance(Offset, new Vector3(-0.00f, -0.01f, 0.0f)) * 1.75f;
+                        float Alpha = Clamp(Dist, 0.0f, 1.0f);
+                        for (int Repeat = 0; Repeat < 2; ++Repeat)
+                        {
+                            Alpha = Alpha * Alpha;
+                        }
+
+                        var FG = Color.White;
+                        var BG = Color.CornflowerBlue;
+                        Fill = Color.Lerp(FG, BG, Alpha);
+                    }
+                    else
+                    {
+                        // Daytime atmosphere
+                        Dist = Vector3.Distance(Offset, new Vector3(0.0f, -3.8f, 0.0f)) * 0.25f;
+                        float Alpha = Clamp(Dist, 0.0f, 1.0f);
+                        for (int Repeat = 0; Repeat < 3; ++Repeat)
+                        {
+                            Alpha = Alpha * Alpha;
+                        }
+
+                        var FG = Color.White;
+                        var BG = Color.CornflowerBlue;
+                        Fill = Color.Lerp(FG, BG, Alpha);
+                    }
+                }
+                else
+                {
+                    // Atmosphere gradient
+                    Dist = Vector3.Distance(Offset, new Vector3(0.0f, -10.0f, 0.0f)) * 0.1f;
+                    float Alpha = Clamp(Dist, 0.0f, 1.0f);
+                    for (int Repeat = 0; Repeat < 2; ++Repeat)
+                    {
+                        Alpha = Alpha * Alpha;
+                    }
+
+                    Color Atmosphere;
+                    {
+                        var FG = new Color(0.5f, 0.7f, 1.0f);
+                        var BG = new Color(0.0f, 0.05f, 0.1f);
+                        Atmosphere = Color.Lerp(FG, BG, Alpha);
+                    }
+
+                    // Sky and small stars
+                    (Dist, Color StarColor) = StarSpray(new Vector2(Offset.X, Offset.Y));
+                    float OutterSize = Lerp(0.0f, 0.004f, Alpha * Alpha);
+                    Dist -= OutterSize;
+
+                    float Threshold = Lerp(0.1f, 0.0f, Alpha * Alpha);
+                    if (Dist > Threshold)
+                    {
+                        Fill = Atmosphere;
+                    }
+                    else if (Threshold > 0.0f)
+                    {
+                        var Blur = 1.0f - Clamp(Dist, 0.0f, Threshold) / Threshold;
+                        Fill = Color.Lerp(Atmosphere, StarColor, Blur * Blur * Blur * Blur * Alpha);
+                    }
+                    else
+                    {
+                        Fill = StarColor;
+                    }
+                }
 
                 Offsets[CellIndex] = new Vector4(Offset, 1.0f);
                 Colors[CellIndex] = Fill;
@@ -246,7 +402,7 @@ public class Experiment : Game
         Cadence /= (double)HistorySize;
         double Hz = 1.0 / Cadence * 1000.0;
 
-        Window.Title = $"Voronoi Diagram Rendering {Math.Round(Hz, 1)} fps";
+        Window.Title = $"Star Machine {Math.Round(Hz, 1)} fps";
 
         base.Update(gameTime);
     }
