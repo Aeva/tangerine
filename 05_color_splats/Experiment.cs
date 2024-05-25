@@ -30,7 +30,7 @@ public class Experiment : Game
     // Target splat size in world space;
     private float SplatSize = 1.0f / 4.0f;
 
-    private bool FullScreen = false;
+    private bool FullScreen = true;
 
     private GraphicsDeviceManager _graphics;
     private RasterizerState Rasterizer;
@@ -253,14 +253,20 @@ public class Experiment : Game
 
     private void ColorizeSplats(TimeSpan TotalGameTime, Vector3 EyePoint)
     {
-        float T = (float)TotalGameTime.TotalMilliseconds / 5000.0f * (float)Math.PI;
-        float S = (float)Math.Sin(T);
-        float C = (float)Math.Cos(T);
+        double T = TotalGameTime.TotalMilliseconds / 5000.0;
 
+        var FindLightPosition = (double Speed, double Phase) =>
+        {
+            double P = 2.0 * Math.PI * Phase;
+            float S = (float)Math.Sin(T * Speed + P);
+            float C = (float)Math.Cos(T * Speed + P);
+            return new Vector3(S * 15.0f, C * 15.0f, 10.0f);
+        };
 
-        var Lights = new (Vector3, Vector3)[2];
-        Lights[0] = (new Vector3(S * 15.0f, C * 15.0f, 10.0f), new Vector3(1.0f, 0.4f, 0.0f));
-        Lights[1] = (new Vector3(-S * 15.0f, -C * 15.0f, 10.0f), new Vector3(0.0f, 0.6f, 1.0f));
+        var Lights = new (Vector3, Vector3)[3];
+        Lights[0] = (FindLightPosition(1.0, 0.0 / 3.0), new Vector3(1.0f, 0.0f, 0.0f));
+        Lights[1] = (FindLightPosition(2.0, 1.0 / 3.0), new Vector3(0.0f, 1.0f, 0.0f));
+        Lights[2] = (FindLightPosition(-4.0, 2.0 / 3.0), new Vector3(0.0f, 0.0f, 1.0f));
 
         var StartTime = DateTime.Now.Ticks;
         int Processed = 0;
