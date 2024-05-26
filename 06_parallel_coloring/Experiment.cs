@@ -439,9 +439,7 @@ public class Experiment : Game
                         {
                             ColorizeSplat(SplatIndex);
                         }
-                        Thread.Sleep(10);
                     });
-                    Thread.Sleep(1);
                 }
             }, CancelSource.Token);
         }
