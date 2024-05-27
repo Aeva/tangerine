@@ -1,7 +1,9 @@
 ﻿using System;
+using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Collections.Generic;
+using System.Collections.Concurrent;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
@@ -27,12 +29,13 @@ public class Experiment : Game
     private int ParaboloidResolution = 1;
 
     // Number of voronoi seeds.
-    private int SplatCount = 50_000;
+    private int SplatCount = 100_000;
 
     // Target splat size in world space;
-    private float SplatSize = 1.0f / 10.0f;
+    private float SplatSize = 1.0f / 9.0f;
 
     private bool FullScreen = true;
+    private bool VSync = true;
 
     private GraphicsDeviceManager _graphics;
     private RasterizerState Rasterizer;
@@ -57,8 +60,6 @@ public class Experiment : Game
     private double[] FrameHistory = new double[20];
     private int FrameNumber = 0;
     private double Cadence;
-    private int UpdateCursor = 0;
-    private long UpdateTimeSlice;
 
     private CancellationTokenSource CancelSource = new CancellationTokenSource();
 
@@ -66,6 +67,8 @@ public class Experiment : Game
     private Vector3[] Positions;
     private Vector3[] Normals;
     private Color[] Colors;
+
+    private ConcurrentQueue<(int, Color[])> ColorUpdates;
 
     private Vector3[] LightPoints = new Vector3[3];
     private Vector3[] LightColors = new Vector3[3];
@@ -80,7 +83,7 @@ public class Experiment : Game
 
         _graphics.HardwareModeSwitch = false;
         _graphics.GraphicsProfile = GraphicsProfile.HiDef;
-        _graphics.SynchronizeWithVerticalRetrace = true;
+        _graphics.SynchronizeWithVerticalRetrace = VSync;
 
         SplatBindings = new VertexBufferBinding[3];
 
@@ -109,11 +112,11 @@ public class Experiment : Game
         Normals = new Vector3[SplatCount];
         Colors = new Color[SplatCount];
 
-        UpdateTimeSlice = (long)((double)TimeSpan.TicksPerMillisecond * 16);
-
         LightColors[0] = new Vector3(1.0f, 0.0f, 0.0f);
         LightColors[1] = new Vector3(0.0f, 1.0f, 0.0f);
         LightColors[2] = new Vector3(0.0f, 0.0f, 1.0f);
+
+        ColorUpdates = new ConcurrentQueue<(int, Color[])>();
     }
 
     protected override void Initialize()
@@ -263,7 +266,7 @@ public class Experiment : Game
         }
     }
 
-    private void ColorizeSplat(int SplatIndex)
+    private void ColorizeSplat(int SplatIndex, int OutputIndex, Color[] NewColors)
     {
         var SplatColor = new Vector3(0.0f, 0.0f, 0.0f);
         for (int LightIndex = 0; LightIndex < LightPoints.Length; ++LightIndex)
@@ -277,7 +280,7 @@ public class Experiment : Game
             (bool Hit, Vector3 OcclusionPoint) = Trace(Offset, LightPoint);
             if (Hit)
             {
-                Colors[SplatIndex] = Color.Black;
+                NewColors[OutputIndex] = Color.Black;
             }
             else
             {
@@ -288,20 +291,7 @@ public class Experiment : Game
                 SplatColor += LightColor * Luminence;
             }
         }
-        Colors[SplatIndex] = new Color(SplatColor);
-    }
-
-    private void ColorizeSplats()
-    {
-        var StartTime = DateTime.Now.Ticks;
-        int Processed = 0;
-
-        while (Processed < SplatCount && DateTime.Now.Ticks - StartTime < UpdateTimeSlice)
-        {
-            ColorizeSplat(UpdateCursor);
-            UpdateCursor = (UpdateCursor + 1) % SplatCount;
-            ++Processed;
-        }
+        NewColors[OutputIndex] = new Color(SplatColor);
     }
 
     protected override void LoadContent()
@@ -425,21 +415,47 @@ public class Experiment : Game
             parallelOptions.CancellationToken = CancelSource.Token;
             parallelOptions.MaxDegreeOfParallelism = Math.Max(Environment.ProcessorCount - 2, 1);
 
-            int SliceCount = parallelOptions.MaxDegreeOfParallelism;
-            int SliceSize = (int)Math.Ceiling((float)SplatCount / (float)SliceCount);
+            var CeilDivide = (int Numerator, int Denominator) =>
+            {
+                return (Numerator + Denominator - 1) / Denominator;
+            };
+
+            int SliceSize = SplatCount;
+            int SliceCount = 1;
+
+            if (SplatCount > parallelOptions.MaxDegreeOfParallelism)
+            {
+                int MaximumBatchSize = 50;
+                SliceSize = Math.Min(CeilDivide(SplatCount, parallelOptions.MaxDegreeOfParallelism), MaximumBatchSize);
+                SliceCount = CeilDivide(SplatCount, SliceSize);
+                SliceSize = CeilDivide(SplatCount, SliceCount);
+            }
+
+            Debug.Assert(SplatCount <= SliceCount * SliceSize);
 
             Task.Run(() => {
                 while(!parallelOptions.CancellationToken.IsCancellationRequested)
                 {
-                    Parallel.For(0, SliceCount, parallelOptions, (SliceIndex) =>
+                    if (ColorUpdates.Count == 0)
                     {
-                        int Start = SliceIndex * SliceSize;
-                        int Stop = Math.Min(SplatCount, Start + SliceSize);
-                        for (int SplatIndex = Start; SplatIndex < Stop; ++SplatIndex)
+                        Parallel.For(0, SliceCount, parallelOptions, (SliceIndex) =>
                         {
-                            ColorizeSplat(SplatIndex);
-                        }
-                    });
+                            int Start = SliceIndex * SliceSize;
+                            int Stop = Math.Min(SplatCount, Start + SliceSize);
+                            int Range = Stop - Start;
+                            var NewColors = new Color[Range];
+                            for (int BatchIndex = 0; BatchIndex < Range; ++BatchIndex)
+                            {
+                                int SplatIndex = Start + BatchIndex;
+                                ColorizeSplat(SplatIndex, BatchIndex, NewColors);
+                            }
+                            ColorUpdates.Enqueue((Start, NewColors));
+                        });
+                    }
+                    else
+                    {
+                        Thread.Sleep(1);
+                    }
                 }
             }, CancelSource.Token);
         }
@@ -480,7 +496,20 @@ public class Experiment : Game
         LightPoints[1] = FindLightPosition(2.0, 1.0 / 3.0);
         LightPoints[2] = FindLightPosition(-4.0, 2.0 / 3.0);
 
+        {
+            var StartTime = DateTime.Now.Ticks;
+            long UpdateTimeSlice = TimeSpan.TicksPerMillisecond * 4; // TODO time slice should probably be half the frame interval?
 
+            (int, Color[]) ColorUpdate;
+            while (DateTime.Now.Ticks - StartTime < UpdateTimeSlice && ColorUpdates.TryDequeue(out ColorUpdate))
+            {
+                (int StartOffset, Color[] Updates) = ColorUpdate;
+                for (int UpdateIndex = 0; UpdateIndex < Updates.Length; ++UpdateIndex)
+                {
+                    Colors[StartOffset + UpdateIndex] = Updates[UpdateIndex];
+                }
+            }
+        }
 
         base.Update(gameTime);
     }
