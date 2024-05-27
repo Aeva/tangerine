@@ -2,6 +2,7 @@
 
 float4x4 WorldToView;
 float4x4 ViewToClip;
+float3 EyePosition;
 
 
 struct VertexOutput
@@ -14,12 +15,23 @@ struct VertexOutput
 VertexOutput VertexMain(
     float4 SplatPosition : SV_Position,
     float4 WorldOffset : TEXCOORD0,
+    float4 WorldNormal : NORMAL0,
     float4 Color : COLOR0)
 {
     VertexOutput Out;
+
+    float3 EyeRay = normalize(EyePosition - WorldOffset.xyz);
+
+    float Scale = sqrt(max(dot(EyeRay, WorldNormal.xyz), 0.0f));
+
+    float3 SplatScale;
+    SplatScale.x = Scale;
+    SplatScale.y = Scale;
+    SplatScale.z = 1.0f;
+
     float4 ViewPosition = mul(WorldOffset, WorldToView);
     ViewPosition /= ViewPosition.w;
-    ViewPosition.xyz += SplatPosition.xyz;
+    ViewPosition.xyz += SplatPosition.xyz * SplatScale;
     Out.Position = mul(ViewPosition, ViewToClip);
     Out.Color = Color;
     return Out;

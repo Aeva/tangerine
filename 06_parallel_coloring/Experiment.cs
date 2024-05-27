@@ -80,10 +80,10 @@ public class Experiment : Game
     private int ParaboloidResolution = 1;
 
     // Number of voronoi seeds.
-    private int SplatCount = 100_000;
+    private int SplatCount = 750_000;
 
     // Target splat size in world space;
-    private float SplatSize = 1.0f / 11.0f;
+    private float SplatSize = 1.0f / 17.0f;
 
     private bool FullScreen = true;
     private bool VSync = true;
@@ -99,7 +99,8 @@ public class Experiment : Game
     private int VoronoiVertexCount = 0;
     private int VoronoiIndexCount = 0;
 
-    private VertexBuffer PointBuffer;
+    private VertexBuffer PositionBuffer;
+    private VertexBuffer NormalBuffer;
     private VertexBuffer ColorBuffer;
 
     private Matrix WorldToView;
@@ -115,7 +116,8 @@ public class Experiment : Game
 
     private CancellationTokenSource CancelSource = new CancellationTokenSource();
 
-    private Vector4[] Offsets;
+    private Vector4[] UploadPositions;
+    private Vector4[] UploadNormals;
     private Vector3[] Positions;
     private Vector3[] Normals;
     private Color[] Colors;
@@ -137,7 +139,7 @@ public class Experiment : Game
         _graphics.GraphicsProfile = GraphicsProfile.HiDef;
         _graphics.SynchronizeWithVerticalRetrace = VSync;
 
-        SplatBindings = new VertexBufferBinding[3];
+        SplatBindings = new VertexBufferBinding[4];
 
         if (FullScreen)
         {
@@ -159,7 +161,8 @@ public class Experiment : Game
 
         _graphics.ApplyChanges();
 
-        Offsets = new Vector4[SplatCount];
+        UploadPositions = new Vector4[SplatCount];
+        UploadNormals = new Vector4[SplatCount];
         Positions = new Vector3[SplatCount];
         Normals = new Vector3[SplatCount];
         Colors = new Color[SplatCount];
@@ -281,7 +284,7 @@ public class Experiment : Game
     {
         var SplatRNG = new Random();
         int Accepted = 0;
-        while (Accepted < Offsets.Length)
+        while (Accepted < UploadPositions.Length)
         {
 #if false
             var Start = Vector3.Normalize(new Vector3(
@@ -308,7 +311,8 @@ public class Experiment : Game
                 if (Hit)
                 {
                     var Normal = Gradient(Position);
-                    Offsets[Accepted] = new Vector4(Position, 1.0f);
+                    UploadPositions[Accepted] = new Vector4(Position, 1.0f);
+                    UploadNormals[Accepted] = new Vector4(Normal, 1.0f);
                     Positions[Accepted] = Position;
                     Normals[Accepted] = Normal;
                     Colors[Accepted] = new Color(Normal.X * 0.5f + 0.5f, Normal.Y * 0.5f + 0.5f, Normal.Z * 0.5f + 0.5f);
@@ -320,30 +324,44 @@ public class Experiment : Game
 
     private void ColorizeSplat(int SplatIndex, int OutputIndex, Color[] NewColors)
     {
-        var SplatColor = new Vector3(0.0f, 0.0f, 0.0f);
-        for (int LightIndex = 0; LightIndex < LightPoints.Length; ++LightIndex)
+        var Position = Positions[SplatIndex];
+        var Normal = Normals[SplatIndex];
+
+        var EyeRay = Vector3.Normalize(Eye - Position);
+        var Pivot = Vector3.Dot(EyeRay, Normal);
+
+        if (Pivot >= -0.1f)
         {
-            var LightPoint = LightPoints[LightIndex];
-            var LightColor = LightColors[LightIndex];
-            var Position = Positions[SplatIndex];
-            var Normal = Normals[SplatIndex];
-
-            var Offset = Normal * 0.01f + Position;
-            (bool Hit, Vector3 OcclusionPoint) = Trace(Offset, LightPoint);
-            if (Hit)
+            var SplatColor = new Vector3(0.0f, 0.0f, 0.0f);
+            for (int LightIndex = 0; LightIndex < LightPoints.Length; ++LightIndex)
             {
-                NewColors[OutputIndex] = Color.Black;
-            }
-            else
-            {
-                var LightRay = Vector3.Normalize(LightPoint - Position);
+                var LightPoint = LightPoints[LightIndex];
+                var LightColor = LightColors[LightIndex];
 
-                float Luminence = Math.Max(Vector3.Dot(LightRay, Normal), 0.0f);
 
-                SplatColor += LightColor * Luminence;
+                var Offset = Normal * 0.01f + Position;
+                (bool Hit, Vector3 OcclusionPoint) = Trace(Offset, LightPoint);
+                if (Hit)
+                {
+                    NewColors[OutputIndex] = Color.Black;
+                }
+                else
+                {
+                    var LightRay = Vector3.Normalize(LightPoint - Position);
+
+                    float Luminence = Math.Max(Vector3.Dot(LightRay, Normal), 0.0f);
+
+                    SplatColor += LightColor * Luminence;
+                }
             }
+            NewColors[OutputIndex] = new Color(SplatColor);
         }
-        NewColors[OutputIndex] = new Color(SplatColor);
+#if false
+        else
+        {
+            NewColors[OutputIndex] = Color.Magenta;
+        }
+#endif
     }
 
     protected override void LoadContent()
@@ -441,25 +459,31 @@ public class Experiment : Game
         }
 
         {
-            var VertexOffset = new VertexDeclaration(
+            var VertexPosition = new VertexDeclaration(
                 new VertexElement(0, VertexElementFormat.Vector4, VertexElementUsage.TextureCoordinate, 0));
+
+            var VertexNormal = new VertexDeclaration(
+                new VertexElement(0, VertexElementFormat.Vector4, VertexElementUsage.Normal, 0));
 
             var VertexColor = new VertexDeclaration(
                 new VertexElement(0, VertexElementFormat.Color, VertexElementUsage.Color, 0));
 
-            PointBuffer = new VertexBuffer(GraphicsDevice, VertexOffset, SplatCount, BufferUsage.WriteOnly);
+            PositionBuffer = new VertexBuffer(GraphicsDevice, VertexPosition, SplatCount, BufferUsage.WriteOnly);
+            NormalBuffer = new VertexBuffer(GraphicsDevice, VertexNormal, SplatCount, BufferUsage.WriteOnly);
             ColorBuffer = new VertexBuffer(GraphicsDevice, VertexColor, SplatCount, BufferUsage.WriteOnly);
 
             PopulateSplats();
 
-            PointBuffer.SetData(0, Offsets, 0, SplatCount, VertexOffset.VertexStride);
+            PositionBuffer.SetData(0, UploadPositions, 0, SplatCount, VertexPosition.VertexStride);
+            NormalBuffer.SetData(0, UploadNormals, 0, SplatCount, VertexPosition.VertexStride);
             ColorBuffer.SetData(0, Colors, 0, SplatCount, VertexColor.VertexStride);
         }
 
         {
             SplatBindings[0] = new VertexBufferBinding(VoronoiVertexBuffer, 0, 0);
-            SplatBindings[1] = new VertexBufferBinding(PointBuffer, 0, 1);
-            SplatBindings[2] = new VertexBufferBinding(ColorBuffer, 0, 1);
+            SplatBindings[1] = new VertexBufferBinding(PositionBuffer, 0, 1);
+            SplatBindings[2] = new VertexBufferBinding(NormalBuffer, 0, 1);
+            SplatBindings[3] = new VertexBufferBinding(ColorBuffer, 0, 1);
         }
 
         {
@@ -527,9 +551,9 @@ public class Experiment : Game
 
         FrameRate.LogFrame();
 
-        double T = gameTime.TotalGameTime.TotalMilliseconds / 5000.0;
         var FindLightPosition = (double Speed, double Phase) =>
         {
+            double T = gameTime.TotalGameTime.TotalMilliseconds / 5000.0;
             double P = 2.0 * Math.PI * Phase;
             float S = (float)Math.Sin(T * Speed + P);
             float C = (float)Math.Cos(T * Speed + P);
@@ -539,6 +563,13 @@ public class Experiment : Game
         LightPoints[0] = FindLightPosition(1.0, 0.0 / 3.0);
         LightPoints[1] = FindLightPosition(2.0, 1.0 / 3.0);
         LightPoints[2] = FindLightPosition(-4.0, 2.0 / 3.0);
+
+        {
+            float T = (float)gameTime.TotalGameTime.TotalMilliseconds / -10000.0f * (float)Math.PI;
+            float S = (float)Math.Sin(T);
+            float C = (float)Math.Cos(T);
+            Eye = new Vector3(S * 8.0f, C * 8.0f, 1.0f);
+        }
 
         {
             const long UpdateTimeSlice = TimeSpan.TicksPerMillisecond * 4;
@@ -568,7 +599,7 @@ public class Experiment : Game
         double CadenceMs = FrameRate.Average();
 
         double Hz = 1.0 / CadenceMs * 1000.0;
-        Window.Title = $"Star Machine {Math.Round(Hz, 0)} fps";
+        //Window.Title = $"Star Machine {Math.Round(Hz, 0)} fps";
 
         const long PerfLogFrequency = TimeSpan.TicksPerSecond * 5;
         if (DateTime.UtcNow.Ticks - LastPerfLog >= PerfLogFrequency)
@@ -622,12 +653,6 @@ public class Experiment : Game
     {
         GraphicsDevice.Clear(new Color(0.0f, 0.0f, 0.0f));
 
-        float T = (float)gameTime.TotalGameTime.TotalMilliseconds / -10000.0f * (float)Math.PI;
-        float S = (float)Math.Sin(T);
-        float C = (float)Math.Cos(T);
-
-        var Eye = new Vector3(S * 8.0f, C * 8.0f, 1.0f);
-
         WorldToView = Matrix.CreateLookAt(
             Eye,
             new Vector3(0, 0, 0),
@@ -635,11 +660,13 @@ public class Experiment : Game
 
         InstancedBasicEffect.Parameters["WorldToView"].SetValue(WorldToView);
         InstancedBasicEffect.Parameters["ViewToClip"].SetValue(ViewToClip);
+        InstancedBasicEffect.Parameters["EyePosition"].SetValue(Eye);
+
         ColorBuffer.SetData(0, Colors, 0, SplatCount, 4 /*VertexColor.VertexStride*/);
 
         GraphicsDevice.RasterizerState = Rasterizer;
         GraphicsDevice.Indices = VoronoiIndexBuffer;
-        GraphicsDevice.SetVertexBuffers(SplatBindings[0], SplatBindings[1], SplatBindings[2]);
+        GraphicsDevice.SetVertexBuffers(SplatBindings[0], SplatBindings[1], SplatBindings[2], SplatBindings[3]);
 
         foreach (EffectPass Pass in InstancedBasicEffect.CurrentTechnique.Passes)
         {
