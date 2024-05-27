@@ -19,6 +19,57 @@ using System.IO;
 namespace ParallelColoring;
 
 
+public class PerfCounter
+{
+    private double[] History;
+    private int NextSample = 0;
+    private int Saturation = 0;
+    private long LastUpdate = 0;
+    public double Cadence = 0.0;
+
+    public PerfCounter(int HistorySize = 20)
+    {
+        History = new double[HistorySize];
+    }
+
+    public void Reset()
+    {
+        Saturation = 0;
+        NextSample = 0;
+        LastUpdate = DateTime.UtcNow.Ticks;
+    }
+
+    public void LogFrame()
+    {
+        long ElapsedTicks = DateTime.UtcNow.Ticks - LastUpdate;
+        double ElapsedMs = (double)(ElapsedTicks) / (double)TimeSpan.TicksPerMillisecond;
+        LogQuantity(ElapsedMs);
+        LastUpdate += ElapsedTicks;
+    }
+
+    public void LogQuantity(double Quantity)
+    {
+        History[NextSample] = Quantity;
+        NextSample = (NextSample + 1) % History.Length;
+        Saturation = Math.Min(Saturation + 1, History.Length);
+    }
+
+    public double Average()
+    {
+        double Average = 0.0;
+        if (Saturation > 0)
+        {
+            for (int HistoryIndex = 0; HistoryIndex < Saturation; ++HistoryIndex)
+            {
+                Average += History[HistoryIndex];
+            }
+            Average /= (double)Saturation;
+        }
+        return Average;
+    }
+}
+
+
 public class Experiment : Game
 {
     // The number of subdivisions for the parabola quad like so:
@@ -32,7 +83,7 @@ public class Experiment : Game
     private int SplatCount = 100_000;
 
     // Target splat size in world space;
-    private float SplatSize = 1.0f / 9.0f;
+    private float SplatSize = 1.0f / 11.0f;
 
     private bool FullScreen = true;
     private bool VSync = true;
@@ -57,9 +108,10 @@ public class Experiment : Game
     private float AspectRatio;
     private float SplatScale;
 
-    private double[] FrameHistory = new double[20];
-    private int FrameNumber = 0;
-    private double Cadence;
+    private PerfCounter FrameRate = new PerfCounter();
+    private PerfCounter SplatCopyCount = new PerfCounter();
+    private PerfCounter SplatCopyTime = new PerfCounter();
+    private long LastPerfLog = 0;
 
     private CancellationTokenSource CancelSource = new CancellationTokenSource();
 
@@ -459,6 +511,10 @@ public class Experiment : Game
                 }
             }, CancelSource.Token);
         }
+
+        FrameRate.Reset();
+        SplatCopyCount.Reset();
+        SplatCopyTime.Reset();
     }
 
     protected override void Update(GameTime gameTime)
@@ -469,19 +525,7 @@ public class Experiment : Game
             Exit();
         }
 
-        int Cursor = (FrameNumber++) % FrameHistory.Length;
-        int HistorySize = Min(FrameNumber, FrameHistory.Length);
-        FrameHistory[Cursor] = gameTime.ElapsedGameTime.TotalMilliseconds;
-
-        Cadence = 0.0;
-        for (int Frame = 0; Frame < HistorySize; ++Frame)
-        {
-            Cadence += FrameHistory[Frame];
-        }
-        Cadence /= (double)HistorySize;
-        double Hz = 1.0 / Cadence * 1000.0;
-
-        Window.Title = $"Star Machine {Math.Round(Hz, 1)} fps";
+        FrameRate.LogFrame();
 
         double T = gameTime.TotalGameTime.TotalMilliseconds / 5000.0;
         var FindLightPosition = (double Speed, double Phase) =>
@@ -497,18 +541,78 @@ public class Experiment : Game
         LightPoints[2] = FindLightPosition(-4.0, 2.0 / 3.0);
 
         {
-            var StartTime = DateTime.Now.Ticks;
-            long UpdateTimeSlice = TimeSpan.TicksPerMillisecond * 4; // TODO time slice should probably be half the frame interval?
+            const long UpdateTimeSlice = TimeSpan.TicksPerMillisecond * 4;
+
+            long StartTime = DateTime.UtcNow.Ticks;
+            long ElapsedTicks = 0;
+            int Processed = 0;
 
             (int, Color[]) ColorUpdate;
-            while (DateTime.Now.Ticks - StartTime < UpdateTimeSlice && ColorUpdates.TryDequeue(out ColorUpdate))
+            while (ElapsedTicks < UpdateTimeSlice && ColorUpdates.TryDequeue(out ColorUpdate))
             {
                 (int StartOffset, Color[] Updates) = ColorUpdate;
                 for (int UpdateIndex = 0; UpdateIndex < Updates.Length; ++UpdateIndex)
                 {
                     Colors[StartOffset + UpdateIndex] = Updates[UpdateIndex];
                 }
+                Processed += Updates.Length;
+                ElapsedTicks = DateTime.UtcNow.Ticks - StartTime;
             }
+
+            double ElapsedTimeMs = (double)ElapsedTicks / (double)TimeSpan.TicksPerMillisecond;
+
+            SplatCopyCount.LogQuantity(Processed);
+            SplatCopyTime.LogQuantity(ElapsedTimeMs);
+        }
+
+        double CadenceMs = FrameRate.Average();
+
+        double Hz = 1.0 / CadenceMs * 1000.0;
+        Window.Title = $"Star Machine {Math.Round(Hz, 0)} fps";
+
+        const long PerfLogFrequency = TimeSpan.TicksPerSecond * 5;
+        if (DateTime.UtcNow.Ticks - LastPerfLog >= PerfLogFrequency)
+        {
+            if (LastPerfLog > 0)
+            {
+                double UpdatesPerFrame = SplatCopyCount.Average();
+                double UpdateProcessingMs = SplatCopyTime.Average();
+                double Efficiency = (UpdatesPerFrame / SplatCount) * 100.0;
+
+                double ConvergenceTimeMs = ((SplatCount / UpdatesPerFrame) - 1) * CadenceMs;
+
+                Console.Write(
+                     "\n\n" +
+                     " +- Cadence ------------------------------------------------------------------+\n" +
+                     " |\n" +
+                    $" |           Frequency : {Math.Round(Hz, 1)} hz\n" +
+                    $" |            Interval : {Math.Round(CadenceMs, 1)} ms\n" +
+                     " |\n" +
+                     " +- Shading ------------------------------------------------------------------+\n" +
+                     " |\n" +
+                    $" |          Throughput : {Math.Round(UpdatesPerFrame, 0)} ({Math.Round(Efficiency, 2)}%)\n" +
+                    $" |           Sync Time : {Math.Round(UpdateProcessingMs, 2)} ms\n" +
+                    $" |    Convergence Time : {Math.Round(ConvergenceTimeMs, 2)} ms\n" +
+                     " |\n" +
+                     " +- Analysis -----------------------------------------------------------------+\n" +
+                     " |\n"
+                );
+
+                if (Efficiency == 100.0)
+                {
+                    Console.WriteLine(" |    Convergence time is perfect.");
+                }
+                else if (UpdateProcessingMs < 4.0)
+                {
+                    Console.WriteLine(" |    Convergence time is bottlenecked on shading throughput.");
+                }
+                else if (UpdateProcessingMs >= 4.0)
+                {
+                    Console.WriteLine(" |    Convergence time is bottlenecked on Synchronization.");
+                }
+                Console.WriteLine(" |\n +\n");
+            }
+            LastPerfLog = DateTime.UtcNow.Ticks;
         }
 
         base.Update(gameTime);
