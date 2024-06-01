@@ -80,10 +80,10 @@ public class Experiment : Game
     private int ParaboloidResolution = 1;
 
     // Number of voronoi seeds.
-    private int SplatCount = 750_000;
+    private int SplatCount = 500_000;
 
     // Target splat size in world space;
-    private float SplatSize = 1.0f / 17.0f;
+    private float SplatSize = 1.0f / 11.0f;
 
     private bool FullScreen = true;
     private bool VSync = true;
@@ -283,43 +283,51 @@ public class Experiment : Game
     private void PopulateSplats()
     {
         var SplatRNG = new Random();
-        int Accepted = 0;
-        while (Accepted < UploadPositions.Length)
+
+        var parallelOptions = new ParallelOptions();
+        parallelOptions.CancellationToken = CancelSource.Token;
+        parallelOptions.MaxDegreeOfParallelism = Math.Max(Environment.ProcessorCount - 1, 1);
+
+        Parallel.For(0, UploadPositions.Length, parallelOptions, (Cursor) =>
         {
+            while (true)
+            {
 #if false
-            var Start = Vector3.Normalize(new Vector3(
-                ((float)SplatRNG.Next(-1000, 1000)) / 1000.0f,
-                ((float)SplatRNG.Next(-1000, 1000)) / 1000.0f,
-                ((float)SplatRNG.Next(-1000, 1000)) / 1000.0f)) * 3.0f;
-            if (ModelEval(Start) < 0.0f)
-            {
-                continue;
-            }
-#else
-            var Start = new Vector3(
-                ((float)SplatRNG.Next(-1000, 1000)) / 1000.0f,
-                ((float)SplatRNG.Next(-1000, 1000)) / 1000.0f,
-                ((float)SplatRNG.Next(-1000, 1000)) / 1000.0f) * 10.0f;
-#endif
-            var Stop = Vector3.Normalize(new Vector3(
-                ((float)SplatRNG.Next(-1000, 1000)) / 1000.0f,
-                ((float)SplatRNG.Next(-1000, 1000)) / 1000.0f,
-                ((float)SplatRNG.Next(-1000, 1000)) / 1000.0f)) * 4.0f;
-            if (Start != Stop)
-            {
-                (bool Hit, Vector3 Position) = Trace(Start, Stop);
-                if (Hit)
+                var Start = Vector3.Normalize(new Vector3(
+                    ((float)SplatRNG.Next(-1000, 1000)) / 1000.0f,
+                    ((float)SplatRNG.Next(-1000, 1000)) / 1000.0f,
+                    ((float)SplatRNG.Next(-1000, 1000)) / 1000.0f)) * 3.0f;
+                if (ModelEval(Start) < 0.0f)
                 {
-                    var Normal = Gradient(Position);
-                    UploadPositions[Accepted] = new Vector4(Position, 1.0f);
-                    UploadNormals[Accepted] = new Vector4(Normal, 1.0f);
-                    Positions[Accepted] = Position;
-                    Normals[Accepted] = Normal;
-                    Colors[Accepted] = new Color(Normal.X * 0.5f + 0.5f, Normal.Y * 0.5f + 0.5f, Normal.Z * 0.5f + 0.5f);
-                    ++Accepted;
+                    continue;
+                }
+#else
+                var Start = new Vector3(
+                    ((float)SplatRNG.Next(-1000, 1000)) / 1000.0f,
+                    ((float)SplatRNG.Next(-1000, 1000)) / 1000.0f,
+                    ((float)SplatRNG.Next(-1000, 1000)) / 1000.0f) * 10.0f;
+#endif
+                var Stop = Vector3.Normalize(new Vector3(
+                    ((float)SplatRNG.Next(-1000, 1000)) / 1000.0f,
+                    ((float)SplatRNG.Next(-1000, 1000)) / 1000.0f,
+                    ((float)SplatRNG.Next(-1000, 1000)) / 1000.0f)) * 4.0f;
+
+                if (Start != Stop)
+                {
+                    (bool Hit, Vector3 Position) = Trace(Start, Stop);
+                    if (Hit)
+                    {
+                        var Normal = Gradient(Position);
+                        UploadPositions[Cursor] = new Vector4(Position, 1.0f);
+                        UploadNormals[Cursor] = new Vector4(Normal, 1.0f);
+                        Positions[Cursor] = Position;
+                        Normals[Cursor] = Normal;
+                        Colors[Cursor] = new Color(Normal.X * 0.5f + 0.5f, Normal.Y * 0.5f + 0.5f, Normal.Z * 0.5f + 0.5f);
+                        break;
+                    }
                 }
             }
-        }
+        });
     }
 
     private void ColorizeSplat(int SplatIndex, int OutputIndex, Color[] NewColors)
