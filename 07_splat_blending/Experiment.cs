@@ -80,16 +80,18 @@ public class Experiment : Game
     private int ParaboloidResolution = 3;
 
     // Number of voronoi seeds.
-    private int SplatCount = 30_000;
+    private int SplatCount = 100_000;
 
     // Target splat size in world space;
-    private float SplatSize = 1.0f / 4.0f;
+    private float SplatScale = 1.0f / 5.0f;
 
-    private bool FullScreen = true;
+    private bool FullScreen = false;
     private bool VSync = true;
 
+    private float NearPlane = 0.01f;
+    private float FarPlane = 1000.0f;
+
     private GraphicsDeviceManager _graphics;
-    private RasterizerState Rasterizer;
     private Effect InstancedBasicEffect;
     private Effect AlphaDivideEffect;
     private VertexBufferBinding[] SplatBindings;
@@ -113,7 +115,6 @@ public class Experiment : Game
     private Matrix ViewToClip;
 
     private float AspectRatio;
-    private float SplatScale;
 
     private PerfCounter FrameRate = new PerfCounter();
     private PerfCounter SplatCopyCount = new PerfCounter();
@@ -156,14 +157,13 @@ public class Experiment : Game
         }
         else
         {
-            _graphics.PreferredBackBufferWidth = 600;
-            _graphics.PreferredBackBufferHeight = 600;
+            _graphics.PreferredBackBufferWidth = 1024;
+            _graphics.PreferredBackBufferHeight = 1024;
             _graphics.IsFullScreen = false;
             IsMouseVisible = true;
         }
 
         AspectRatio = (float)_graphics.PreferredBackBufferWidth / (float)_graphics.PreferredBackBufferHeight;
-        SplatScale = (float)SplatSize;
         ScreenWidth = _graphics.PreferredBackBufferWidth;
         ScreenHeight = _graphics.PreferredBackBufferHeight;
 
@@ -296,46 +296,52 @@ public class Experiment : Game
         parallelOptions.CancellationToken = CancelSource.Token;
         parallelOptions.MaxDegreeOfParallelism = Math.Max(Environment.ProcessorCount - 1, 1);
 
-        Parallel.For(0, UploadPositions.Length, parallelOptions, (Cursor) =>
+        try
         {
-            while (true)
+            Parallel.For(0, UploadPositions.Length, parallelOptions, (Cursor) =>
             {
+                while (true)
+                {
 #if false
-                var Start = Vector3.Normalize(new Vector3(
-                    ((float)SplatRNG.Next(-1000, 1000)) / 1000.0f,
-                    ((float)SplatRNG.Next(-1000, 1000)) / 1000.0f,
-                    ((float)SplatRNG.Next(-1000, 1000)) / 1000.0f)) * 3.0f;
-                if (ModelEval(Start) < 0.0f)
-                {
-                    continue;
-                }
-#else
-                var Start = new Vector3(
-                    ((float)SplatRNG.Next(-1000, 1000)) / 1000.0f,
-                    ((float)SplatRNG.Next(-1000, 1000)) / 1000.0f,
-                    ((float)SplatRNG.Next(-1000, 1000)) / 1000.0f) * 10.0f;
-#endif
-                var Stop = Vector3.Normalize(new Vector3(
-                    ((float)SplatRNG.Next(-1000, 1000)) / 1000.0f,
-                    ((float)SplatRNG.Next(-1000, 1000)) / 1000.0f,
-                    ((float)SplatRNG.Next(-1000, 1000)) / 1000.0f)) * 4.0f;
-
-                if (Start != Stop)
-                {
-                    (bool Hit, Vector3 Position) = Trace(Start, Stop);
-                    if (Hit)
+                    var Start = Vector3.Normalize(new Vector3(
+                        ((float)SplatRNG.Next(-1000, 1000)) / 1000.0f,
+                        ((float)SplatRNG.Next(-1000, 1000)) / 1000.0f,
+                        ((float)SplatRNG.Next(-1000, 1000)) / 1000.0f)) * 3.0f;
+                    if (ModelEval(Start) < 0.0f)
                     {
-                        var Normal = Gradient(Position);
-                        UploadPositions[Cursor] = new Vector4(Position, 1.0f);
-                        UploadNormals[Cursor] = new Vector4(Normal, 1.0f);
-                        Positions[Cursor] = Position;
-                        Normals[Cursor] = Normal;
-                        Colors[Cursor] = new Color(Normal.X * 0.5f + 0.5f, Normal.Y * 0.5f + 0.5f, Normal.Z * 0.5f + 0.5f);
-                        break;
+                        continue;
+                    }
+#else
+                    var Start = new Vector3(
+                        ((float)SplatRNG.Next(-1000, 1000)) / 1000.0f,
+                        ((float)SplatRNG.Next(-1000, 1000)) / 1000.0f,
+                        ((float)SplatRNG.Next(-1000, 1000)) / 1000.0f) * 10.0f;
+#endif
+                    var Stop = Vector3.Normalize(new Vector3(
+                        ((float)SplatRNG.Next(-1000, 1000)) / 1000.0f,
+                        ((float)SplatRNG.Next(-1000, 1000)) / 1000.0f,
+                        ((float)SplatRNG.Next(-1000, 1000)) / 1000.0f)) * 4.0f;
+
+                    if (Start != Stop)
+                    {
+                        (bool Hit, Vector3 Position) = Trace(Start, Stop);
+                        if (Hit)
+                        {
+                            var Normal = Gradient(Position);
+                            UploadPositions[Cursor] = new Vector4(Position, 1.0f);
+                            UploadNormals[Cursor] = new Vector4(Normal, 1.0f);
+                            Positions[Cursor] = Position;
+                            Normals[Cursor] = Normal;
+                            Colors[Cursor] = new Color(Normal.X * 0.5f + 0.5f, Normal.Y * 0.5f + 0.5f, Normal.Z * 0.5f + 0.5f);
+                            break;
+                        }
                     }
                 }
-            }
-        });
+            });
+        }
+        catch (OperationCanceledException e)
+        {
+        }
     }
 
     private void ColorizeSplat(int SplatIndex, int OutputIndex, Color[] NewColors)
@@ -396,12 +402,7 @@ public class Experiment : Game
 
         {
             WorldToView = Matrix.CreateLookAt(new Vector3(0, 0, 10), new Vector3(0, 0, 0), new Vector3(0, 1, 0));
-            ViewToClip = Matrix.CreatePerspectiveFieldOfView(MathHelper.ToRadians(45), AspectRatio, 0.01f, 1000.0f);
-        }
-
-        {
-            Rasterizer = new RasterizerState();
-            Rasterizer.CullMode = CullMode.CullCounterClockwiseFace;
+            ViewToClip = Matrix.CreatePerspectiveFieldOfView(MathHelper.ToRadians(45), AspectRatio, NearPlane, FarPlane);
         }
 
         {
@@ -442,8 +443,6 @@ public class Experiment : Game
             {
                 var ParaboloidVertices = new VertexPosition[VoronoiVertexCount];
                 float UnitScale = 1.0f / (float)(EdgesPerAxis);
-                var PositionScale = new Vector3(SplatScale, SplatScale, 0.1f);
-                var Center = new Vector2(0.5f, 0.5f);
                 int Index = 0;
 
                 for (int Y = 0; Y < VerticesPerAxis; ++Y)
@@ -464,10 +463,10 @@ public class Experiment : Game
                             V /= Len;
                         }
 
-                        Position.X = Center.X * U;
-                        Position.Y = Center.Y * V;
-                        Position.Z = 1 - (U * U + V * V);
-                        ParaboloidVertices[Index++].Position = Position * PositionScale;
+                        Position.X = U;
+                        Position.Y = V;
+                        Position.Z = 0.0f;//1 - (U * U + V * V);
+                        ParaboloidVertices[Index++].Position = Position;
                     }
                 }
 
@@ -501,11 +500,10 @@ public class Experiment : Game
             ScreenBuffer.SetData(0, ScreenVertices, 0, ScreenVertices.Length, ScreenPosition.VertexStride);
 
             AccRenderTarget = new RenderTarget2D(
-                GraphicsDevice,ScreenWidth, ScreenHeight, false,
+                GraphicsDevice, ScreenWidth, ScreenHeight, false,
                 SurfaceFormat.Vector4, // float4
-                //DepthFormat.Depth24, // monogame doesn't expose floating point depth buffers D:
-                DepthFormat.None, // however, we're doing oit, so we don't really care here.
-                4, // msaa
+                DepthFormat.None,
+                0, // msaa
                 RenderTargetUsage.DiscardContents);
         }
 
@@ -565,19 +563,26 @@ public class Experiment : Game
                 {
                     if (ColorUpdates.Count == 0)
                     {
-                        Parallel.For(0, SliceCount, parallelOptions, (SliceIndex) =>
+                        try
                         {
-                            int Start = SliceIndex * SliceSize;
-                            int Stop = Math.Min(SplatCount, Start + SliceSize);
-                            int Range = Stop - Start;
-                            var NewColors = new Color[Range];
-                            for (int BatchIndex = 0; BatchIndex < Range; ++BatchIndex)
+                            Parallel.For(0, SliceCount, parallelOptions, (SliceIndex) =>
                             {
-                                int SplatIndex = Start + BatchIndex;
-                                ColorizeSplat(SplatIndex, BatchIndex, NewColors);
-                            }
-                            ColorUpdates.Enqueue((Start, NewColors));
-                        });
+                                int Start = SliceIndex * SliceSize;
+                                int Stop = Math.Min(SplatCount, Start + SliceSize);
+                                int Range = Stop - Start;
+                                var NewColors = new Color[Range];
+                                for (int BatchIndex = 0; BatchIndex < Range; ++BatchIndex)
+                                {
+                                    int SplatIndex = Start + BatchIndex;
+                                    ColorizeSplat(SplatIndex, BatchIndex, NewColors);
+                                }
+                                ColorUpdates.Enqueue((Start, NewColors));
+                            });
+                        }
+                        catch (OperationCanceledException e)
+                        {
+                            return;
+                        }
                     }
                     else
                     {
@@ -704,10 +709,10 @@ public class Experiment : Game
     {
         {
             GraphicsDevice.SetRenderTarget(AccRenderTarget);
-            GraphicsDevice.Clear(new Color(0.0f, 0.0f, 0.0f));
+            GraphicsDevice.Clear(new Color(0.0f, 0.0f, 0.0f, 0.0f));
             GraphicsDevice.BlendState = BlendState.Additive;
             GraphicsDevice.DepthStencilState = DepthStencilState.None;
-            GraphicsDevice.RasterizerState = Rasterizer;
+            GraphicsDevice.RasterizerState = RasterizerState.CullCounterClockwise;
 
             WorldToView = Matrix.CreateLookAt(
                 Eye,
@@ -717,6 +722,9 @@ public class Experiment : Game
             InstancedBasicEffect.Parameters["WorldToView"].SetValue(WorldToView);
             InstancedBasicEffect.Parameters["ViewToClip"].SetValue(ViewToClip);
             InstancedBasicEffect.Parameters["EyePosition"].SetValue(Eye);
+            InstancedBasicEffect.Parameters["SplatScale"].SetValue(SplatScale);
+            InstancedBasicEffect.Parameters["NearPlane"].SetValue(NearPlane);
+            InstancedBasicEffect.Parameters["FarPlane"].SetValue(FarPlane);
 
             ColorBuffer.SetData(0, Colors, 0, SplatCount, 4 /*VertexColor.VertexStride*/);
 
@@ -737,6 +745,8 @@ public class Experiment : Game
             GraphicsDevice.RasterizerState = RasterizerState.CullNone;
 
             GraphicsDevice.SetVertexBuffer(ScreenBuffer);
+
+            AlphaDivideEffect.Parameters["AccumulatorSampler"].SetValue(AccRenderTarget);
 
             foreach (EffectPass Pass in AlphaDivideEffect.CurrentTechnique.Passes)
             {

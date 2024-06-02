@@ -22,9 +22,9 @@ VertexOutput VertexMain(
 
 float4 PixelMain(VertexOutput In) : SV_Target0
 {
-    float4 Acc = tex2D(AccumulatorSampler, In.UV.xy * float2(0.5f, -0.5f) + 0.5f);
+    float2 UV = In.UV.xy * float2(0.5f, -0.5f) + 0.5f;
+    float4 Acc = tex2D(AccumulatorSampler, UV);
     return float4(Acc.rgb / Acc.a, 1.0f);
-    //return float4(, 1.0f, 1.0f);
 }
 
 
