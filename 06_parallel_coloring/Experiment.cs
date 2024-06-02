@@ -72,24 +72,20 @@ public class PerfCounter
 
 public class Experiment : Game
 {
-    // The number of subdivisions for the parabola quad like so:
-    // 0 -> 0               1
-    // 1 -> 0       1       2
-    // 2 -> 0   1   2   3   4
-    // 3 -> 0 1 2 3 4 5 6 7 8
-    private int ParaboloidResolution = 1;
+    // The number of vertices on either side of the origin.
+    private int ParaboloidResolution = 4;
 
     // Number of voronoi seeds.
     private int SplatCount = 500_000;
 
     // Target splat size in world space;
-    private float SplatSize = 1.0f / 11.0f;
+    private float SplatDiameter = 1.0f / 11.0f;
 
-    private bool FullScreen = true;
+    private int WindowSize = 600;
+    private bool FullScreen = false;
     private bool VSync = true;
 
     private GraphicsDeviceManager _graphics;
-    private RasterizerState Rasterizer;
     private Effect InstancedBasicEffect;
     private VertexBufferBinding[] SplatBindings;
 
@@ -107,7 +103,6 @@ public class Experiment : Game
     private Matrix ViewToClip;
 
     private float AspectRatio;
-    private float SplatScale;
 
     private PerfCounter FrameRate = new PerfCounter();
     private PerfCounter SplatCopyCount = new PerfCounter();
@@ -150,14 +145,13 @@ public class Experiment : Game
         }
         else
         {
-            _graphics.PreferredBackBufferWidth = 600;
-            _graphics.PreferredBackBufferHeight = 600;
+            _graphics.PreferredBackBufferWidth = WindowSize;
+            _graphics.PreferredBackBufferHeight = WindowSize;
             _graphics.IsFullScreen = false;
             IsMouseVisible = true;
         }
 
         AspectRatio = (float)_graphics.PreferredBackBufferWidth / (float)_graphics.PreferredBackBufferHeight;
-        SplatScale = (float)SplatSize;
 
         _graphics.ApplyChanges();
 
@@ -280,6 +274,31 @@ public class Experiment : Game
         return (false, Point);
     }
 
+    private float LightTrace(Vector3 Start, Vector3 Stop, float LightSize)
+    {
+        Vector3 Dir = Stop - Start;
+        float Travel = 0.0f;
+        float MaxTravel = Dir.Length();
+        Dir /= MaxTravel;
+
+        float Res = 1.0f;
+
+        for (int Iteration = 0; Iteration < 100; ++Iteration)
+        {
+            float Dist = EvalModel(Dir * Travel + Start);
+            Res = Math.Min(Res, Dist / (LightSize * Travel));
+            Travel += Math.Max(Dist, 0.005f);
+
+            if (Res < -1.0 || Travel >= MaxTravel)
+            {
+                break;
+            }
+        }
+
+        Res = Math.Max(Res, -1.0f);
+        return 0.25f * (1.0f + Res) * (1.0f + Res) * (2.0f - Res);
+    }
+
     private void PopulateSplats()
     {
         var SplatRNG = new Random();
@@ -288,46 +307,52 @@ public class Experiment : Game
         parallelOptions.CancellationToken = CancelSource.Token;
         parallelOptions.MaxDegreeOfParallelism = Math.Max(Environment.ProcessorCount - 1, 1);
 
-        Parallel.For(0, UploadPositions.Length, parallelOptions, (Cursor) =>
+        try
         {
-            while (true)
+            Parallel.For(0, UploadPositions.Length, parallelOptions, (Cursor) =>
             {
+                while (true)
+                {
 #if false
-                var Start = Vector3.Normalize(new Vector3(
-                    ((float)SplatRNG.Next(-1000, 1000)) / 1000.0f,
-                    ((float)SplatRNG.Next(-1000, 1000)) / 1000.0f,
-                    ((float)SplatRNG.Next(-1000, 1000)) / 1000.0f)) * 3.0f;
-                if (ModelEval(Start) < 0.0f)
-                {
-                    continue;
-                }
-#else
-                var Start = new Vector3(
-                    ((float)SplatRNG.Next(-1000, 1000)) / 1000.0f,
-                    ((float)SplatRNG.Next(-1000, 1000)) / 1000.0f,
-                    ((float)SplatRNG.Next(-1000, 1000)) / 1000.0f) * 10.0f;
-#endif
-                var Stop = Vector3.Normalize(new Vector3(
-                    ((float)SplatRNG.Next(-1000, 1000)) / 1000.0f,
-                    ((float)SplatRNG.Next(-1000, 1000)) / 1000.0f,
-                    ((float)SplatRNG.Next(-1000, 1000)) / 1000.0f)) * 4.0f;
-
-                if (Start != Stop)
-                {
-                    (bool Hit, Vector3 Position) = Trace(Start, Stop);
-                    if (Hit)
+                    var Start = Vector3.Normalize(new Vector3(
+                        ((float)SplatRNG.Next(-1000, 1000)) / 1000.0f,
+                        ((float)SplatRNG.Next(-1000, 1000)) / 1000.0f,
+                        ((float)SplatRNG.Next(-1000, 1000)) / 1000.0f)) * 3.0f;
+                    if (ModelEval(Start) < 0.0f)
                     {
-                        var Normal = Gradient(Position);
-                        UploadPositions[Cursor] = new Vector4(Position, 1.0f);
-                        UploadNormals[Cursor] = new Vector4(Normal, 1.0f);
-                        Positions[Cursor] = Position;
-                        Normals[Cursor] = Normal;
-                        Colors[Cursor] = new Color(Normal.X * 0.5f + 0.5f, Normal.Y * 0.5f + 0.5f, Normal.Z * 0.5f + 0.5f);
-                        break;
+                        continue;
+                    }
+#else
+                    var Start = new Vector3(
+                        ((float)SplatRNG.Next(-1000, 1000)) / 1000.0f,
+                        ((float)SplatRNG.Next(-1000, 1000)) / 1000.0f,
+                        ((float)SplatRNG.Next(-1000, 1000)) / 1000.0f) * 10.0f;
+#endif
+                    var Stop = Vector3.Normalize(new Vector3(
+                        ((float)SplatRNG.Next(-1000, 1000)) / 1000.0f,
+                        ((float)SplatRNG.Next(-1000, 1000)) / 1000.0f,
+                        ((float)SplatRNG.Next(-1000, 1000)) / 1000.0f)) * 4.0f;
+
+                    if (Start != Stop)
+                    {
+                        (bool Hit, Vector3 Position) = Trace(Start, Stop);
+                        if (Hit)
+                        {
+                            var Normal = Gradient(Position);
+                            UploadPositions[Cursor] = new Vector4(Position, 1.0f);
+                            UploadNormals[Cursor] = new Vector4(Normal, 1.0f);
+                            Positions[Cursor] = Position;
+                            Normals[Cursor] = Normal;
+                            Colors[Cursor] = new Color(Normal.X * 0.5f + 0.5f, Normal.Y * 0.5f + 0.5f, Normal.Z * 0.5f + 0.5f);
+                            break;
+                        }
                     }
                 }
-            }
-        });
+            });
+        }
+        catch (OperationCanceledException)
+        {
+        }
     }
 
     private void ColorizeSplat(int SplatIndex, int OutputIndex, Color[] NewColors)
@@ -346,18 +371,14 @@ public class Experiment : Game
                 var LightPoint = LightPoints[LightIndex];
                 var LightColor = LightColors[LightIndex];
 
-
                 var Offset = Normal * 0.01f + Position;
-                (bool Hit, Vector3 OcclusionPoint) = Trace(Offset, LightPoint);
-                if (Hit)
-                {
-                    NewColors[OutputIndex] = Color.Black;
-                }
-                else
+                float Visibility = LightTrace(Position, LightPoint, 0.1f);
+
+                if (Visibility > 0.0f)
                 {
                     var LightRay = Vector3.Normalize(LightPoint - Position);
 
-                    float Luminence = Math.Max(Vector3.Dot(LightRay, Normal), 0.0f);
+                    float Luminence = Math.Max(Vector3.Dot(LightRay, Normal), 0.0f) * Visibility;
 
                     SplatColor += LightColor * Luminence;
                 }
@@ -386,13 +407,8 @@ public class Experiment : Game
         }
 
         {
-            Rasterizer = new RasterizerState();
-            Rasterizer.CullMode = CullMode.CullCounterClockwiseFace;
-        }
-
-        {
-            int EdgesPerAxis = 1 << ParaboloidResolution;
-            int VerticesPerAxis = EdgesPerAxis + 1;
+            int VerticesPerAxis = (Math.Max(ParaboloidResolution, 1) + 1) * 2 - 1;
+            int EdgesPerAxis = VerticesPerAxis - 1;
             VoronoiVertexCount = VerticesPerAxis * VerticesPerAxis;
             VoronoiTriangleCount = EdgesPerAxis * EdgesPerAxis * 2;
             VoronoiIndexCount = VoronoiTriangleCount * 3;
@@ -428,8 +444,6 @@ public class Experiment : Game
             {
                 var ParaboloidVertices = new VertexPosition[VoronoiVertexCount];
                 float UnitScale = 1.0f / (float)(EdgesPerAxis);
-                var PositionScale = new Vector3(SplatScale, SplatScale, 0.1f);
-                var Center = new Vector2(0.5f, 0.5f);
                 int Index = 0;
 
                 for (int Y = 0; Y < VerticesPerAxis; ++Y)
@@ -442,7 +456,7 @@ public class Experiment : Game
                         U = (U * 2.0f - 1.0f);
                         V = (V * 2.0f - 1.0f);
 
-                        // TODO generate the paraboloids as discs not grids
+                        // TODO generate the paraboloids as discs not grids?
                         float Len = (float)Math.Sqrt(U * U + V * V);
                         if (Len > 1.0f)
                         {
@@ -450,10 +464,10 @@ public class Experiment : Game
                             V /= Len;
                         }
 
-                        Position.X = Center.X * U;
-                        Position.Y = Center.Y * V;
-                        Position.Z = 1 - (U * U + V * V);
-                        ParaboloidVertices[Index++].Position = Position * PositionScale;
+                        Position.X = U;
+                        Position.Y = V;
+                        Position.Z = -(U * U + V * V);
+                        ParaboloidVertices[Index++].Position = Position;
                     }
                 }
 
@@ -522,19 +536,27 @@ public class Experiment : Game
                 {
                     if (ColorUpdates.Count == 0)
                     {
-                        Parallel.For(0, SliceCount, parallelOptions, (SliceIndex) =>
+                        try
                         {
-                            int Start = SliceIndex * SliceSize;
-                            int Stop = Math.Min(SplatCount, Start + SliceSize);
-                            int Range = Stop - Start;
-                            var NewColors = new Color[Range];
-                            for (int BatchIndex = 0; BatchIndex < Range; ++BatchIndex)
+                            Parallel.For(0, SliceCount, parallelOptions, (SliceIndex) =>
                             {
-                                int SplatIndex = Start + BatchIndex;
+                                var LaneRNG = new Random();
+                                int Start = SliceIndex * SliceSize;
+                                int Stop = Math.Min(SplatCount, Start + SliceSize);
+                                int Range = Stop - Start;
+                                var NewColors = new Color[Range];
+                                for (int BatchIndex = 0; BatchIndex < Range; ++BatchIndex)
+                                {
+                                    int SplatIndex = Start + BatchIndex;
                                 ColorizeSplat(SplatIndex, BatchIndex, NewColors);
-                            }
-                            ColorUpdates.Enqueue((Start, NewColors));
-                        });
+                                }
+                                ColorUpdates.Enqueue((Start, NewColors));
+                            });
+                        }
+                        catch (OperationCanceledException)
+                        {
+                            return;
+                        }
                     }
                     else
                     {
@@ -669,10 +691,11 @@ public class Experiment : Game
         InstancedBasicEffect.Parameters["WorldToView"].SetValue(WorldToView);
         InstancedBasicEffect.Parameters["ViewToClip"].SetValue(ViewToClip);
         InstancedBasicEffect.Parameters["EyePosition"].SetValue(Eye);
+        InstancedBasicEffect.Parameters["SplatRadius"].SetValue(SplatDiameter * 0.5f);
 
         ColorBuffer.SetData(0, Colors, 0, SplatCount, 4 /*VertexColor.VertexStride*/);
 
-        GraphicsDevice.RasterizerState = Rasterizer;
+        GraphicsDevice.RasterizerState = RasterizerState.CullCounterClockwise;
         GraphicsDevice.Indices = VoronoiIndexBuffer;
         GraphicsDevice.SetVertexBuffers(SplatBindings[0], SplatBindings[1], SplatBindings[2], SplatBindings[3]);
 
