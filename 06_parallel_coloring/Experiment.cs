@@ -4,6 +4,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Collections.Generic;
 using System.Collections.Concurrent;
+using System.Linq;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
@@ -72,17 +73,19 @@ public class PerfCounter
 
 public class Experiment : Game
 {
-    // The number of vertices on either side of the origin.
-    private int ParaboloidResolution = 4;
-
     // Number of voronoi seeds.
-    private int SplatCount = 500_000;
+    private int SplatCount = 300_000;
 
-    // Target splat size in world space;
-    private float SplatDiameter = 1.0f / 11.0f;
+    // Target splat size in world space.
+    private float SplatDiameter = 1.0f / 12.0f;
+
+    // Vertex counts per loop.
+    //private int[] SplatRings = {1, 5}; // useful for very high splat counts
+    private int[] SplatRings = {1, 5, 7};
+    //private int[] SplatRings = {1, 6, 12, 24, 48, 96};
 
     private int WindowSize = 600;
-    private bool FullScreen = false;
+    private bool FullScreen = true;
     private bool VSync = true;
 
     private GraphicsDeviceManager _graphics;
@@ -363,7 +366,7 @@ public class Experiment : Game
         var EyeRay = Vector3.Normalize(Eye - Position);
         var Pivot = Vector3.Dot(EyeRay, Normal);
 
-        if (Pivot >= -0.1f)
+        if (Pivot >= 0.0f)
         {
             var SplatColor = new Vector3(0.0f, 0.0f, 0.0f);
             for (int LightIndex = 0; LightIndex < LightPoints.Length; ++LightIndex)
@@ -372,7 +375,7 @@ public class Experiment : Game
                 var LightColor = LightColors[LightIndex];
 
                 var Offset = Normal * 0.01f + Position;
-                float Visibility = LightTrace(Position, LightPoint, 0.1f);
+                float Visibility = LightTrace(Normal * 0.01f + Position, LightPoint, 0.1f);
 
                 if (Visibility > 0.0f)
                 {
@@ -407,30 +410,149 @@ public class Experiment : Game
         }
 
         {
-            int VerticesPerAxis = (Math.Max(ParaboloidResolution, 1) + 1) * 2 - 1;
-            int EdgesPerAxis = VerticesPerAxis - 1;
-            VoronoiVertexCount = VerticesPerAxis * VerticesPerAxis;
-            VoronoiTriangleCount = EdgesPerAxis * EdgesPerAxis * 2;
-            VoronoiIndexCount = VoronoiTriangleCount * 3;
+            var Offsets = new int[SplatRings.Length];
+            VoronoiVertexCount = SplatRings.Sum();
+
+            var DiscPoint = (float Radius, float Degrees) =>
             {
-                var ParaboloidIndices = new short[VoronoiIndexCount];
-                int Cursor = 0;
-                for (int QuadY = 0; QuadY < EdgesPerAxis; ++QuadY)
+                float Angle = ToRadians(Degrees);
+                var Vertex = new Vector3(
+                    (float)System.Math.Sin(Angle) * Radius,
+                    (float)System.Math.Cos(Angle) * Radius,
+                    0.0f);
+                Vertex.Z = -Vector3.Dot(Vertex, Vertex);
+                return Vertex;
+            };
+
+            {
+                var ParaboloidVertices = new VertexPosition[VoronoiVertexCount];
+                int Offset = 0;
+                int Ring = 0;
+
+                foreach (int VertexCount in SplatRings)
                 {
-                    for (int QuadX = 0; QuadX < EdgesPerAxis; ++QuadX)
+                    if (VertexCount == 1)
                     {
-                        short Vert00 = (short)((QuadY + 0) * VerticesPerAxis + (QuadX + 0));
-                        short Vert01 = (short)((QuadY + 0) * VerticesPerAxis + (QuadX + 1));
-                        short Vert10 = (short)((QuadY + 1) * VerticesPerAxis + (QuadX + 0));
-                        short Vert11 = (short)((QuadY + 1) * VerticesPerAxis + (QuadX + 1));
+                        ParaboloidVertices[Offset].Position = new Vector3(0.0f, 0.0f, 0.0f);
+                    }
+                    else
+                    {
+                        Debug.Assert(VertexCount >= 3);
+                        int RingNudge = SplatRings[0] == 1 ? 0 : 1;
+                        float Radius = (float)(Ring + RingNudge) / (float)(SplatRings.Length - 1  + RingNudge);
+                        for (int Index = 0; Index < VertexCount; ++Index)
+                        {
+                            float Angle = (float)(Index) / (float)(VertexCount) * 360.0f;
+                            ParaboloidVertices[Offset + Index].Position = DiscPoint(Radius, Angle);
+                        }
+                    }
+                    Offsets[Ring] = Offset;
+                    ++Ring;
+                    Offset += VertexCount;
+                }
 
-                        ParaboloidIndices[Cursor++] = Vert00;
-                        ParaboloidIndices[Cursor++] = Vert10;
-                        ParaboloidIndices[Cursor++] = Vert01;
+                VoronoiVertexBuffer = new VertexBuffer(
+                    GraphicsDevice,
+                    typeof(VertexPosition),
+                    VoronoiVertexCount,
+                    BufferUsage.WriteOnly);
+                VoronoiVertexBuffer.SetData<VertexPosition>(ParaboloidVertices);
+            }
 
-                        ParaboloidIndices[Cursor++] = Vert11;
-                        ParaboloidIndices[Cursor++] = Vert01;
-                        ParaboloidIndices[Cursor++] = Vert10;
+            VoronoiIndexCount = 0;
+            {
+                var DecodeRingIndex = (int Index, int Ring) =>
+                {
+                    int Offset = Offsets[Ring];
+                    int Range = SplatRings[Ring];
+                    return (((Index - Offset) % Range) + Offset);
+                };
+
+                var Loops = new List<List<short>>();
+                int RingA;
+                for (RingA = 0; RingA < SplatRings.Length - 1; ++RingA)
+                {
+                    var Strip = new List<short>();
+                    int RingB = RingA + 1;
+                    int Dialation = SplatRings[RingA] * SplatRings[RingB];
+                    int StrideA = Dialation / SplatRings[RingA];
+                    int StrideB = Dialation / SplatRings[RingB];
+                    int OffsetA = Offsets[RingA];
+                    int OffsetB = Offsets[RingB];
+                    (int A, int B) Last = (OffsetA, OffsetB);
+
+                    var RecordTriangle = ((int A, int B) LHS, (int A, int B) RHS) =>
+                    {
+                        int Wrote = 2;
+                        Strip.Add((short)LHS.B);
+                        if (LHS.B != RHS.B)
+                        {
+                            ++Wrote;
+                            Strip.Add((short)RHS.B);
+                        }
+
+                        Strip.Add((short)RHS.A);
+                        if (LHS.A != RHS.A)
+                        {
+                            ++Wrote;
+                            Strip.Add((short)LHS.A);
+                        }
+                        Debug.Assert(Wrote == 3);
+                    };
+
+                    var RecordLine = ((int A, int B) Next) =>
+                    {
+                        int A1 = DecodeRingIndex(Last.A, RingA);
+                        int A2 = DecodeRingIndex(Next.A, RingA);
+                        int B1 = DecodeRingIndex(Last.B, RingB);
+                        int B2 = DecodeRingIndex(Next.B, RingB);
+
+                        bool MatchA = (A1 == A2);
+                        bool MatchB = (B1 == B2);
+                        if (MatchA && MatchB)
+                        {
+                            // Matched a repeat.
+                            return;
+                        }
+                        else if (MatchA == MatchB)
+                        {
+                            // Matched a quad.
+                            RecordTriangle((A1, B1), (A2, B1));
+                            RecordTriangle((A2, B1), (A2, B2));
+                            Last = Next;
+                        }
+                        else
+                        {
+                            // Matched a triangle.
+                            RecordTriangle((A1, B1), (A2, B2));
+                            Last = Next;
+                        }
+                    };
+
+                    for (int Cursor = 1; Cursor < Dialation; ++Cursor)
+                    {
+                        (int A, int B) Next = (Cursor / StrideA + OffsetA, Cursor / StrideB + OffsetB);
+                        RecordLine(Next);
+                    }
+                    {
+                        (int A, int B) Next = (OffsetA + SplatRings[RingA], OffsetB + SplatRings[RingB]);
+                        RecordLine(Next);
+                    }
+
+                    VoronoiIndexCount += Strip.Count;
+                    Loops.Add(Strip);
+                }
+
+                VoronoiTriangleCount = VoronoiIndexCount / 3;
+                var ParaboloidIndices = new short[VoronoiIndexCount];
+                {
+                    int Cursor = 0;
+                    foreach (var Strip in Loops)
+                    {
+                        foreach (short Index in Strip)
+                        {
+                            ParaboloidIndices[Cursor++] = Index;
+                        }
                     }
                 }
 
@@ -440,43 +562,6 @@ public class Experiment : Game
                     sizeof(short) * VoronoiIndexCount,
                     BufferUsage.WriteOnly);
                 VoronoiIndexBuffer.SetData<short>(ParaboloidIndices);
-            }
-            {
-                var ParaboloidVertices = new VertexPosition[VoronoiVertexCount];
-                float UnitScale = 1.0f / (float)(EdgesPerAxis);
-                int Index = 0;
-
-                for (int Y = 0; Y < VerticesPerAxis; ++Y)
-                {
-                    for (int X = 0; X < VerticesPerAxis; ++X)
-                    {
-                        var Position = new Vector3();
-                        float U = (float)X * UnitScale;
-                        float V = (float)Y * UnitScale;
-                        U = (U * 2.0f - 1.0f);
-                        V = (V * 2.0f - 1.0f);
-
-                        // TODO generate the paraboloids as discs not grids?
-                        float Len = (float)Math.Sqrt(U * U + V * V);
-                        if (Len > 1.0f)
-                        {
-                            U /= Len;
-                            V /= Len;
-                        }
-
-                        Position.X = U;
-                        Position.Y = V;
-                        Position.Z = -(U * U + V * V);
-                        ParaboloidVertices[Index++].Position = Position;
-                    }
-                }
-
-                VoronoiVertexBuffer = new VertexBuffer(
-                    GraphicsDevice,
-                    typeof(VertexPosition),
-                    VoronoiVertexCount,
-                    BufferUsage.WriteOnly);
-                VoronoiVertexBuffer.SetData<VertexPosition>(ParaboloidVertices);
             }
         }
 
@@ -540,7 +625,6 @@ public class Experiment : Game
                         {
                             Parallel.For(0, SliceCount, parallelOptions, (SliceIndex) =>
                             {
-                                var LaneRNG = new Random();
                                 int Start = SliceIndex * SliceSize;
                                 int Stop = Math.Min(SplatCount, Start + SliceSize);
                                 int Range = Stop - Start;

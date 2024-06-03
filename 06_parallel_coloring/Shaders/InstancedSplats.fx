@@ -33,7 +33,8 @@ VertexOutput VertexMain(
 #if 1
     Out.Color = Color;
 #else
-    Out.Color = Color * float4(1.0f + SplatPosition.zzz, 1.0f);
+    float Alpha = 1.0f + SplatPosition.z;
+    Out.Color = lerp(float4(1.0f, 1.0f, 1.0f, 1.0f), Color, Alpha);
 #endif
     return Out;
 }
