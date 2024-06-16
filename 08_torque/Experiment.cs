@@ -73,33 +73,24 @@ public class PerfCounter
 
 public class Experiment : Game
 {
-#if false
     // Number of voronoi seeds.
-    private int SplatCount = 300_000;
+    private int MaxSplatCount = 300_000;
+    private int MinSplatCount =   4_000;
 
     // Target splat size in world space.
-    private float SplatDiameter = 1.0f / 12.0f;
+    private float MaxSplatDiameter = 1.0f / 12.0f;
+    private float MinSplatDiameter = 1.0f / 3.0f;
 
     // Vertex counts per loop.
-    //private int[] SplatRings = {1, 5}; // useful for very high splat counts
-    private int[] SplatRings = {1, 5, 7};
-    //private int[] SplatRings = {1, 6, 12, 24, 48, 96};
-#else
-    // Number of voronoi seeds.
-    private int SplatCount = 1_000;
-
-    // Target splat size in world space.
-    private float SplatDiameter = 1.0f / 2.0f;
-
-    // Vertex counts per loop.
-    //private int[] SplatRings = {1, 5}; // useful for very high splat counts
-    private int[] SplatRings = { 1, 5, 20 };
-    //private int[] SplatRings = {1, 6, 12, 24, 48, 96};
-#endif
+    private int[] SplatRings = {1, 5, 20};
 
     private int WindowSize = 600;
     private bool FullScreen = true;
     private bool VSync = true;
+
+    // Active portion to be rendered and updated.
+    private int SplatCount;
+    private float SplatDiameter;
 
     private GraphicsDeviceManager _graphics;
     private Effect InstancedBasicEffect;
@@ -121,6 +112,7 @@ public class Experiment : Game
     private Matrix ViewToClip;
     private float SpinAngle = 0.0f;
     private float SpinVelocity = 0.0f;
+    private float MaxSpinVelocity = 0.2f;
     private float SpinAcceleration = 0.01f;
 
     private float AspectRatio;
@@ -176,17 +168,20 @@ public class Experiment : Game
 
         _graphics.ApplyChanges();
 
-        UploadPositions = new Vector4[SplatCount];
-        UploadNormals = new Vector4[SplatCount];
-        Positions = new Vector3[SplatCount];
-        Normals = new Vector3[SplatCount];
-        Colors = new Color[SplatCount];
+        UploadPositions = new Vector4[MaxSplatCount];
+        UploadNormals = new Vector4[MaxSplatCount];
+        Positions = new Vector3[MaxSplatCount];
+        Normals = new Vector3[MaxSplatCount];
+        Colors = new Color[MaxSplatCount];
 
         LightColors[0] = new Vector3(1.0f, 0.0f, 0.0f);
         LightColors[1] = new Vector3(0.0f, 1.0f, 0.0f);
         LightColors[2] = new Vector3(0.0f, 0.0f, 1.0f);
 
         ColorUpdates = new ConcurrentQueue<(int, Color[])>();
+
+        SplatCount = MaxSplatCount;
+        SplatDiameter = MaxSplatDiameter;
     }
 
     protected override void Initialize()
@@ -595,15 +590,15 @@ public class Experiment : Game
             var VertexColor = new VertexDeclaration(
                 new VertexElement(0, VertexElementFormat.Color, VertexElementUsage.Color, 0));
 
-            PositionBuffer = new VertexBuffer(GraphicsDevice, VertexPosition, SplatCount, BufferUsage.WriteOnly);
-            NormalBuffer = new VertexBuffer(GraphicsDevice, VertexNormal, SplatCount, BufferUsage.WriteOnly);
-            ColorBuffer = new VertexBuffer(GraphicsDevice, VertexColor, SplatCount, BufferUsage.WriteOnly);
+            PositionBuffer = new VertexBuffer(GraphicsDevice, VertexPosition, MaxSplatCount, BufferUsage.WriteOnly);
+            NormalBuffer = new VertexBuffer(GraphicsDevice, VertexNormal, MaxSplatCount, BufferUsage.WriteOnly);
+            ColorBuffer = new VertexBuffer(GraphicsDevice, VertexColor, MaxSplatCount, BufferUsage.WriteOnly);
 
             PopulateSplats();
 
-            PositionBuffer.SetData(0, UploadPositions, 0, SplatCount, VertexPosition.VertexStride);
-            NormalBuffer.SetData(0, UploadNormals, 0, SplatCount, VertexPosition.VertexStride);
-            ColorBuffer.SetData(0, Colors, 0, SplatCount, VertexColor.VertexStride);
+            PositionBuffer.SetData(0, UploadPositions, 0, MaxSplatCount, VertexPosition.VertexStride);
+            NormalBuffer.SetData(0, UploadNormals, 0, MaxSplatCount, VertexPosition.VertexStride);
+            ColorBuffer.SetData(0, Colors, 0, MaxSplatCount, VertexColor.VertexStride);
         }
 
         {
@@ -623,19 +618,6 @@ public class Experiment : Game
                 return (Numerator + Denominator - 1) / Denominator;
             };
 
-            int SliceSize = SplatCount;
-            int SliceCount = 1;
-
-            if (SplatCount > parallelOptions.MaxDegreeOfParallelism)
-            {
-                int MaximumBatchSize = 50;
-                SliceSize = Math.Min(CeilDivide(SplatCount, parallelOptions.MaxDegreeOfParallelism), MaximumBatchSize);
-                SliceCount = CeilDivide(SplatCount, SliceSize);
-                SliceSize = CeilDivide(SplatCount, SliceCount);
-            }
-
-            Debug.Assert(SplatCount <= SliceCount * SliceSize);
-
             Task.Run(() => {
                 while(!parallelOptions.CancellationToken.IsCancellationRequested)
                 {
@@ -643,19 +625,43 @@ public class Experiment : Game
                     {
                         try
                         {
+                            float ActiveSplatsFraction = 1.0f - (Math.Min(Math.Abs(SpinVelocity), MaxSpinVelocity) / MaxSpinVelocity);
+                            ActiveSplatsFraction *= ActiveSplatsFraction;
+                            ActiveSplatsFraction *= ActiveSplatsFraction;
+                            ActiveSplatsFraction *= ActiveSplatsFraction;
+                            int NewSplatCount = (int)Lerp(MinSplatCount, MaxSplatCount, ActiveSplatsFraction);
+                            float NewSplatDiameter = Lerp(MinSplatDiameter, MaxSplatDiameter, ActiveSplatsFraction);
+
+                            int SliceSize = NewSplatCount;
+                            int SliceCount = 1;
+
+                            if (NewSplatCount > parallelOptions.MaxDegreeOfParallelism)
+                            {
+                                int MaximumBatchSize = 50;
+                                SliceSize = Math.Min(CeilDivide(NewSplatCount, parallelOptions.MaxDegreeOfParallelism), MaximumBatchSize);
+                                SliceCount = CeilDivide(NewSplatCount, SliceSize);
+                                SliceSize = CeilDivide(NewSplatCount, SliceCount);
+                            }
+
+                            Debug.Assert(NewSplatCount <= SliceCount * SliceSize);
+
+
                             Parallel.For(0, SliceCount, parallelOptions, (SliceIndex) =>
                             {
                                 int Start = SliceIndex * SliceSize;
-                                int Stop = Math.Min(SplatCount, Start + SliceSize);
+                                int Stop = Math.Min(NewSplatCount, Start + SliceSize);
                                 int Range = Stop - Start;
                                 var NewColors = new Color[Range];
                                 for (int BatchIndex = 0; BatchIndex < Range; ++BatchIndex)
                                 {
                                     int SplatIndex = Start + BatchIndex;
-                                    ColorizeSplat(/*LocalEye, LocalLights, */SplatIndex, BatchIndex, NewColors);
+                                    ColorizeSplat(SplatIndex, BatchIndex, NewColors);
                                 }
                                 ColorUpdates.Enqueue((Start, NewColors));
                             });
+
+                            SplatCount = NewSplatCount;
+                            SplatDiameter = NewSplatDiameter;
                         }
                         catch (OperationCanceledException)
                         {
@@ -707,13 +713,13 @@ public class Experiment : Game
 
         {
             SpinVelocity += (float)gameTime.ElapsedGameTime.TotalMilliseconds / 1000.0f * SpinAcceleration;
-            if (Math.Abs(SpinVelocity) > 0.2f)
+            if (Math.Abs(SpinVelocity) >= MaxSpinVelocity)
             {
                 SpinAcceleration *= -1.0f;
             }
+
             float Phase = (float)Math.PI * 2.0f;
             SpinAngle = (SpinAngle + SpinVelocity) % Phase;
-
 
             LocalToWorld = Matrix.CreateRotationY(SpinAngle);
             WorldToLocal = Matrix.Invert(LocalToWorld);
@@ -813,7 +819,7 @@ public class Experiment : Game
         InstancedBasicEffect.Parameters["EyePosition"].SetValue(Eye);
         InstancedBasicEffect.Parameters["SplatRadius"].SetValue(SplatDiameter * 0.5f);
 
-        ColorBuffer.SetData(0, Colors, 0, SplatCount, 4 /*VertexColor.VertexStride*/);
+        ColorBuffer.SetData(0, Colors, 0, MaxSplatCount, 4 /*VertexColor.VertexStride*/);
 
         GraphicsDevice.RasterizerState = RasterizerState.CullCounterClockwise;
         GraphicsDevice.Indices = VoronoiIndexBuffer;
