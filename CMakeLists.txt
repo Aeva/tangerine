@@ -166,10 +166,6 @@ target_include_directories(whereami PUBLIC "third_party/whereami/src/")
 
 file(GLOB_RECURSE TANGERINE_FILES CONFIGURE_DEPENDS "tangerine/*.cpp")
 add_executable(tangerine ${TANGERINE_FILES})
-set_target_properties(tangerine
-	PROPERTIES
-	RUNTIME_OUTPUT_DIRECTORY
-	$<PATH:APPEND,${CMAKE_BINARY_DIR},${CMAKE_INSTALL_BINDIR}>)
 target_compile_definitions(tangerine PRIVATE
 	"TANGERINE_PKGDATADIR_FROM_BINDIR=${PKGDATADIR_FROM_BINDIR}")
 target_link_libraries(tangerine PRIVATE
