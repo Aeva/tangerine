@@ -153,7 +153,7 @@ public class Experiment : Game
                     Move(Sphere(4), -1.0f, 0.0f, 0.0f),
                     Move(Sphere(4), 1.0f, 0.0f, 0.0f),
                 0.25f);
-#elif True
+#elif False
             Model =
                 Diff(
                     Inter(
@@ -165,10 +165,21 @@ public class Experiment : Game
                             RotateX(Cylinder(3.0f, 5.0f), 90.0f),
                             RotateY(Cylinder(3.0f, 5.0f), 90.0f))));
 #else
+            // Same as before, but with a bunch of transforms that superficially appear to cancel out.
             Model =
-                Inter(
-                    Cube(4.0f),
-                    Sphere(5.5f));
+                MoveZ(
+                RotateX(
+                MoveY(
+                    Diff(
+                        Inter(
+                            Cube(4.0f),
+                            Sphere(5.5f)),
+                        Union(
+                            Cylinder(3.0f, 5.0f),
+                            Union(
+                                RotateX(Cylinder(3.0f, 5.0f), 90.0f),
+                                RotateY(Cylinder(3.0f, 5.0f), 90.0f)))),
+                    2.0f), 90.0f), -2.0f);
 #endif
         }
     }
@@ -344,7 +355,7 @@ public class Experiment : Game
         {
             LocalToWorld = Matrix.Identity;
             WorldToLocal = Matrix.Identity;
-            WorldToView = Matrix.CreateLookAt(new Vector3(0, 0, 10), new Vector3(0, 0, 0), new Vector3(0, 1, 0));
+            WorldToView = Matrix.Identity;
             ViewToClip = Matrix.CreatePerspectiveFieldOfView(MathHelper.ToRadians(45), AspectRatio, 0.01f, 1000.0f);
         }
 

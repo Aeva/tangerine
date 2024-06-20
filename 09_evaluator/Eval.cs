@@ -285,6 +285,21 @@ public class ProgramBuffer
         return Move(Field, new Vector3(X, Y, Z));
     }
 
+    public static ProgramBuffer MoveX(ProgramBuffer Field, float X)
+    {
+        return Move(Field, new Vector3(X, 0.0f, 0.0f));
+    }
+
+    public static ProgramBuffer MoveY(ProgramBuffer Field, float Y)
+    {
+        return Move(Field, new Vector3(0.0f, Y, 0.0f));
+    }
+
+    public static ProgramBuffer MoveZ(ProgramBuffer Field, float Z)
+    {
+        return Move(Field, new Vector3(0.0f, 0.0f, Z));
+    }
+
     public static ProgramBuffer Rotate(ProgramBuffer Field, Quaternion Rotation)
     {
         var Kernel = new ProgramBuffer(Field);
