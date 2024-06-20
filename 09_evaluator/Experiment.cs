@@ -26,12 +26,12 @@ namespace Experiment;
 public class Experiment : Game
 {
     // Number of voronoi seeds.
-    private int MaxSplatCount = 200_000;
-    private int MinSplatCount =   4_000;
+    private int MaxSplatCount = 300_000;
+    private int MinSplatCount =   1_000;
 
     // Target splat size in world space.
-    private float MaxSplatDiameter = 1.0f / 12.0f;
-    private float MinSplatDiameter = 1.0f / 3.0f;
+    private float MaxSplatDiameter = 1.0f / 20.0f;
+    private float MinSplatDiameter = 1.0f / 1.0f;
 
     // Vertex counts per loop.
     private int[] SplatRings = {1, 5, 20};
@@ -43,6 +43,13 @@ public class Experiment : Game
     // Active portion to be rendered and updated.
     private int SplatCount;
     private float SplatDiameter;
+
+    private int Paused = 0;
+    private long LastFrameTicks = 0;
+    private double RunTimeMs = 0.0;
+
+    private float SplatCountAlpha = 0.0f;
+    private float SplatSizeAlpha = 0.8f;
 
     private readonly Evaluator.ProgramBuffer Model;
 
@@ -64,10 +71,6 @@ public class Experiment : Game
     private Matrix WorldToLocal;
     private Matrix WorldToView;
     private Matrix ViewToClip;
-    private float SpinAngle = 0.0f;
-    private float SpinVelocity = 0.0f;
-    private float MaxSpinVelocity = 0.2f;
-    private float SpinAcceleration = 0.01f;
 
     private float AspectRatio;
 
@@ -203,6 +206,7 @@ public class Experiment : Game
     {
         Window.Title = "Star Machine";
         base.Initialize();
+        LastFrameTicks = DateTime.UtcNow.Ticks;
     }
 
     private float EvalModel(Vector3 Point)
@@ -575,12 +579,8 @@ public class Experiment : Game
                     {
                         try
                         {
-                            float ActiveSplatsFraction = 1.0f - (Math.Min(Math.Abs(SpinVelocity), MaxSpinVelocity) / MaxSpinVelocity);
-                            ActiveSplatsFraction *= ActiveSplatsFraction;
-                            ActiveSplatsFraction *= ActiveSplatsFraction;
-                            ActiveSplatsFraction *= ActiveSplatsFraction;
-                            int NewSplatCount = (int)Lerp(MinSplatCount, MaxSplatCount, ActiveSplatsFraction);
-                            float NewSplatDiameter = Lerp(MinSplatDiameter, MaxSplatDiameter, ActiveSplatsFraction);
+                            int NewSplatCount = (int)Lerp(MinSplatCount, MaxSplatCount, SplatCountAlpha);
+                            float NewSplatDiameter = Lerp(MinSplatDiameter, MaxSplatDiameter, SplatSizeAlpha);
 
                             int SliceSize = NewSplatCount;
                             int SliceCount = 1;
@@ -633,49 +633,75 @@ public class Experiment : Game
 
     protected override void Update(GameTime gameTime)
     {
+        long CurrentFrameTicks = DateTime.UtcNow.Ticks;
+        {
+            long ElapsedTicks = CurrentFrameTicks - LastFrameTicks;
+            LastFrameTicks = CurrentFrameTicks;
+
+            if (Paused == 0)
+            {
+                double ElapsedTimeMs = (double)ElapsedTicks / (double)TimeSpan.TicksPerMillisecond;
+                RunTimeMs += ElapsedTimeMs;
+            }
+        }
+
         if (GamePad.GetState(PlayerIndex.One).Buttons.Back == ButtonState.Pressed || Keyboard.GetState().IsKeyDown(Keys.Escape))
         {
             CancelSource.Cancel();
             Exit();
         }
 
+        if ((Paused % 2) == 0 && Keyboard.GetState().IsKeyDown(Keys.P))
+        {
+            Paused = (Paused + 1) % 4;
+        }
+        else if ((Paused % 2) == 1 && Keyboard.GetState().IsKeyUp(Keys.P))
+        {
+            Paused = (Paused + 1) % 4;
+        }
+
+        if (Keyboard.GetState().IsKeyDown(Keys.Up))
+        {
+            SplatCountAlpha = Math.Min(1.0f, SplatCountAlpha + 0.001f);
+        }
+        if (Keyboard.GetState().IsKeyDown(Keys.Down))
+        {
+            SplatCountAlpha = Math.Max(0.0f, SplatCountAlpha - 0.001f);
+        }
+
+        if (Keyboard.GetState().IsKeyDown(Keys.Left))
+        {
+            SplatSizeAlpha = Math.Min(1.0f, SplatSizeAlpha + 0.001f);
+        }
+        if (Keyboard.GetState().IsKeyDown(Keys.Right))
+        {
+            SplatSizeAlpha = Math.Max(0.0f, SplatSizeAlpha - 0.001f);
+        }
+
         FrameRate.LogFrame();
 
-        var FindLightPosition = (double Speed, double Phase) =>
+        if (Paused == 0)
         {
-            double T = gameTime.TotalGameTime.TotalMilliseconds / 5000.0;
-            double P = 2.0 * Math.PI * Phase;
-            float S = (float)Math.Sin(T * Speed + P);
-            float C = (float)Math.Cos(T * Speed + P);
-            return new Vector3(S * 15.0f, C * 15.0f, 10.0f);
-        };
-
-        LightPoints[0] = FindLightPosition(1.0, 0.0 / 3.0);
-        LightPoints[1] = FindLightPosition(2.0, 1.0 / 3.0);
-        LightPoints[2] = FindLightPosition(-4.0, 2.0 / 3.0);
-
-        {
-            float T = (float)gameTime.TotalGameTime.TotalMilliseconds / -10000.0f * (float)Math.PI;
-            float S = (float)Math.Sin(T);
-            float C = (float)Math.Cos(T);
-            Eye = new Vector3(S * 8.0f, C * 8.0f, 1.0f);
-        }
-
-#if False
-        {
-            SpinVelocity += (float)gameTime.ElapsedGameTime.TotalMilliseconds / 1000.0f * SpinAcceleration;
-            if (Math.Abs(SpinVelocity) >= MaxSpinVelocity)
+            var FindLightPosition = (double Speed, double Phase) =>
             {
-                SpinAcceleration *= -1.0f;
+                double T = RunTimeMs / 5000.0;
+                double P = 2.0 * Math.PI * Phase;
+                float S = (float)Math.Sin(T * Speed + P);
+                float C = (float)Math.Cos(T * Speed + P);
+                return new Vector3(S * 15.0f, C * 15.0f, 10.0f);
+            };
+
+            LightPoints[0] = FindLightPosition(1.0, 0.0 / 3.0);
+            LightPoints[1] = FindLightPosition(2.0, 1.0 / 3.0);
+            LightPoints[2] = FindLightPosition(-4.0, 2.0 / 3.0);
+
+            {
+                float T = (float)(RunTimeMs / -10000.0 * Math.PI);
+                float S = (float)Math.Sin(T);
+                float C = (float)Math.Cos(T);
+                Eye = new Vector3(S * 8.0f, C * 8.0f, 1.0f);
             }
-
-            float Phase = (float)Math.PI * 2.0f;
-            SpinAngle = (SpinAngle + SpinVelocity) % Phase;
-
-            LocalToWorld = Matrix.CreateRotationY(SpinAngle);
-            WorldToLocal = Matrix.Invert(LocalToWorld);
         }
-#endif
 
         {
             const long UpdateTimeSlice = TimeSpan.TicksPerMillisecond * 4;
