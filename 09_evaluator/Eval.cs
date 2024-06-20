@@ -5,6 +5,8 @@ using System.Runtime.InteropServices;
 using Microsoft.Xna.Framework;
 using Vector2 = System.Numerics.Vector2;
 using Vector3 = System.Numerics.Vector3;
+using Matrix4x4 = System.Numerics.Matrix4x4;
+using Quaternion = System.Numerics.Quaternion;
 
 
 namespace Evaluator;
@@ -12,8 +14,6 @@ namespace Evaluator;
 
 public enum Opcode : uint
 {
-    Stop = 0,
-
     Sphere,
     Ellipsoid,
     Box,
@@ -30,12 +30,6 @@ public enum Opcode : uint
     BlendInter,
     BlendDiff,
     Flate,
-
-    Move,
-    RotateX,
-    RotateY,
-    RotateZ,
-    ScaleField,
 }
 
 
@@ -47,6 +41,64 @@ public struct ProgramWord
 
     [System.Runtime.InteropServices.FieldOffset(0)]
     public float Value;
+}
+
+
+public struct Transform
+{
+    private Quaternion Rotation;
+    private Vector3 Translation;
+    private float Scalation;
+
+    public Transform()
+    {
+        Rotation = Quaternion.Identity;
+        Translation = Vector3.Zero;
+        Scalation = 1.0f;
+    }
+
+    public void Reset()
+    {
+        Rotation = Quaternion.Identity;
+        Translation = Vector3.Zero;
+        Scalation = 1.0f;
+    }
+
+    public void Move(Vector3 OffsetBy)
+    {
+        Translation += OffsetBy;
+    }
+
+    public void Rotate(Quaternion RotateBy)
+    {
+        Translation = Vector3.Transform(Translation, RotateBy);
+        Rotation = RotateBy * Rotation;
+    }
+
+    public void Scale(float ScaleBy)
+    {
+        Translation *= ScaleBy;
+        Scalation *= ScaleBy;
+    }
+
+    public Matrix4x4 ToMatrix()
+    {
+        Matrix4x4 RotationMatrix = Matrix4x4.CreateFromQuaternion(Rotation);
+        Matrix4x4 TranslationMatrix = Matrix4x4.CreateTranslation(Translation);
+        Matrix4x4 ScalationMatrix = Matrix4x4.CreateScale(Scalation);
+        // TODO : double check for correct ordering:
+        return ScalationMatrix * TranslationMatrix * RotationMatrix;
+    }
+
+    public Vector3 Apply(Vector3 Point)
+    {
+        return Vector3.Transform(Point * Scalation, Rotation) + Translation;
+    }
+
+    public Vector3 ApplyInv(Vector3 Point)
+    {
+        return Vector3.Transform(Point - Translation, Quaternion.Inverse(Rotation)) / Scalation;
+    }
 }
 
 
@@ -63,10 +115,24 @@ public class ProgramBuffer
     private long _StackSize;
     public long StackSize => _StackSize;
 
+    private Transform[] BrushTransforms;
+    public long BrushCount => BrushTransforms.Length;
+
     private ProgramBuffer(long WordCount)
     {
         Words = new ProgramWord[WordCount];
         _StackSize = 1;
+        BrushTransforms = new Transform[1];
+        BrushTransforms[0].Reset();
+    }
+
+    private ProgramBuffer(ProgramBuffer CopyTarget)
+    {
+        Words = new ProgramWord[CopyTarget.WordCount];
+        Array.Copy(CopyTarget.Words, 0, Words, 0, CopyTarget.WordCount);
+        _StackSize = CopyTarget.StackSize;
+        BrushTransforms = new Transform[CopyTarget.BrushCount];
+        Array.Copy(CopyTarget.BrushTransforms, 0, BrushTransforms, 0, CopyTarget.BrushCount);
     }
 
     private ProgramBuffer(ProgramBuffer CopyTarget, long PrependCount, long AppendCount, out long AppendCursor)
@@ -75,6 +141,8 @@ public class ProgramBuffer
         Words = new ProgramWord[AppendCursor + AppendCount];
         Array.Copy(CopyTarget.Words, 0, Words, PrependCount, CopyTarget.WordCount);
         _StackSize = CopyTarget.StackSize;
+        BrushTransforms = new Transform[CopyTarget.BrushCount];
+        Array.Copy(CopyTarget.BrushTransforms, 0, BrushTransforms, 0, CopyTarget.BrushCount);
     }
 
     private ProgramBuffer(ProgramBuffer CopyLHS, ProgramBuffer CopyRHS, long AppendCount, out long AppendCursor)
@@ -84,6 +152,10 @@ public class ProgramBuffer
         Array.Copy(CopyLHS.Words, 0, Words, 0, CopyLHS.WordCount);
         Array.Copy(CopyRHS.Words, 0, Words, CopyLHS.WordCount, CopyRHS.WordCount);
         _StackSize = Math.Max(CopyLHS.StackSize, CopyRHS.StackSize + 1);
+
+        BrushTransforms = new Transform[CopyLHS.BrushCount + CopyRHS.BrushCount];
+        Array.Copy(CopyLHS.BrushTransforms, 0, BrushTransforms, 0, CopyLHS.BrushCount);
+        Array.Copy(CopyRHS.BrushTransforms, 0, BrushTransforms, CopyLHS.BrushCount, CopyRHS.BrushCount);
     }
 
     public static ProgramBuffer Sphere(float Diameter)
@@ -198,75 +270,67 @@ public class ProgramBuffer
         return Kernel;
     }
 
+    public static ProgramBuffer Move(ProgramBuffer Field, Vector3 Offset)
+    {
+        var Kernel = new ProgramBuffer(Field);
+        for (long Brush = 0; Brush < Kernel.BrushCount; ++Brush)
+        {
+            Kernel.BrushTransforms[Brush].Move(Offset);
+        }
+        return Kernel;
+    }
+
     public static ProgramBuffer Move(ProgramBuffer Field, float X, float Y, float Z)
     {
-        long Cursor;
-        var Kernel = new ProgramBuffer(Field, 4, 0, out Cursor);
-        Kernel.Words[0].Symbol = Opcode.Move;
-        Kernel.Words[1].Value = X;
-        Kernel.Words[2].Value = Y;
-        Kernel.Words[3].Value = Z;
+        return Move(Field, new Vector3(X, Y, Z));
+    }
+
+    public static ProgramBuffer Rotate(ProgramBuffer Field, Quaternion Rotation)
+    {
+        var Kernel = new ProgramBuffer(Field);
+        for (long Brush = 0; Brush < Kernel.BrushCount; ++Brush)
+        {
+            Kernel.BrushTransforms[Brush].Rotate(Rotation);
+        }
         return Kernel;
     }
 
     public static ProgramBuffer RotateX(ProgramBuffer Field, float Degrees)
     {
-        long Cursor;
-        var Kernel = new ProgramBuffer(Field, 3, 0, out Cursor);
-        Kernel.Words[0].Symbol = Opcode.RotateX;
         float Radians = (float)((double)Degrees * Math.PI / 180.0);
-        Kernel.Words[1].Value = (float)Math.Sin(Radians);
-        Kernel.Words[2].Value = (float)Math.Cos(Radians);
-        return Kernel;
+        Quaternion Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitX, Radians);
+        return Rotate(Field, Rotation);
     }
 
     public static ProgramBuffer RotateY(ProgramBuffer Field, float Degrees)
     {
-        long Cursor;
-        var Kernel = new ProgramBuffer(Field, 3, 0, out Cursor);
-        Kernel.Words[0].Symbol = Opcode.RotateY;
         float Radians = (float)((double)Degrees * Math.PI / 180.0);
-        Kernel.Words[1].Value = (float)Math.Sin(Radians);
-        Kernel.Words[2].Value = (float)Math.Cos(Radians);
-        return Kernel;
+        Quaternion Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitY, Radians);
+        return Rotate(Field, Rotation);
     }
 
     public static ProgramBuffer RotateZ(ProgramBuffer Field, float Degrees)
     {
-        long Cursor;
-        var Kernel = new ProgramBuffer(Field, 3, 0, out Cursor);
-        Kernel.Words[0].Symbol = Opcode.RotateZ;
         float Radians = (float)((double)Degrees * Math.PI / 180.0);
-        Kernel.Words[1].Value = (float)Math.Sin(Radians);
-        Kernel.Words[2].Value = (float)Math.Cos(Radians);
-        return Kernel;
-    }
-}
-
-
-public class Interpreter
-{
-    private readonly ProgramBuffer Program;
-
-    public Interpreter(ProgramBuffer InProgram)
-    {
-        Program = InProgram;
+        Quaternion Rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitZ, Radians);
+        return Rotate(Field, Rotation);
     }
 
     public float Eval(Vector3 EvalPoint)
     {
-        var Stack = new float[Program.StackSize];
+        var Stack = new float[StackSize];
         long ProgramCounter = 0;
         long StackPointer = 0;
+        long Brush = 0;
 
         var ReadSymbol = () =>
         {
-            return Program[ProgramCounter++].Symbol;
+            return Words[ProgramCounter++].Symbol;
         };
 
         var ReadValue = () =>
         {
-            return Program[ProgramCounter++].Value;
+            return Words[ProgramCounter++].Value;
         };
 
         var ReadVec3 = () =>
@@ -288,14 +352,13 @@ public class Interpreter
             return Stack[--StackPointer];
         };
 
-        Vector3 Point = EvalPoint;
-
-        while (ProgramCounter < Program.WordCount)
+        while (ProgramCounter < WordCount)
         {
             switch (ReadSymbol())
             {
                 case Opcode.Sphere:
                 {
+                    Vector3 Point = BrushTransforms[Brush++].ApplyInv(EvalPoint);
                     float Radius = ReadValue();
                     float Dist = Point.Length() - Radius;
                     StackPush(Dist);
@@ -305,6 +368,7 @@ public class Interpreter
 
                 case Opcode.Box:
                 {
+                    Vector3 Point = BrushTransforms[Brush++].ApplyInv(EvalPoint);
                     Vector3 Extent = ReadVec3();
                     Vector3 A = Vector3.Abs(Point) - Extent;
                     Vector3 Zero;
@@ -319,6 +383,7 @@ public class Interpreter
 
                 case Opcode.Cylinder:
                 {
+                    Vector3 Point = BrushTransforms[Brush++].ApplyInv(EvalPoint);
                     float Radius = ReadValue();
                     float Extent = ReadValue();
 
@@ -342,6 +407,7 @@ public class Interpreter
 
                 case Opcode.Plane:
                 {
+                    Vector3 Point = BrushTransforms[Brush++].ApplyInv(EvalPoint);
                     Vector3 Normal = ReadVec3();
                     float Dist = Vector3.Dot(Point, Normal);
                     StackPush(Dist);
@@ -406,47 +472,6 @@ public class Interpreter
                     float H = Math.Max(Threshold - Math.Abs(LHS + RHS), 0.0f);
                     float Dist = Math.Max(LHS, -RHS) + H * H * 0.25f / Threshold;
                     StackPush(Dist);
-                    break;
-                }
-
-                case Opcode.Move:
-                {
-                    Point += ReadVec3();
-                    break;
-                }
-
-                case Opcode.RotateX:
-                {
-                    float S = ReadValue();
-                    float C = ReadValue();
-                    // TODO double check if this is correct
-                    float Y = Point.Y * C - Point.Z * S;
-                    float Z = Point.Y * S + Point.Z * C;
-                    Point.Y = Y;
-                    Point.Z = Z;
-                    break;
-                }
-
-                case Opcode.RotateY:
-                {
-                    float S = ReadValue();
-                    float C = ReadValue();
-                    // TODO double check if this is correct
-                    float X = Point.X * C - Point.Z * S;
-                    float Z = Point.X * S + Point.Z * C;
-                    Point.X = X;
-                    Point.Z = Z;
-                    break;
-                }
-
-                case Opcode.RotateZ:
-                {
-                    float S = ReadValue();
-                    float C = ReadValue();
-                    float X = Point.X * C - Point.Y * S;
-                    float Y = Point.X * S + Point.Y * C;
-                    Point.X = X;
-                    Point.Y = Y;
                     break;
                 }
 

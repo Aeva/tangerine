@@ -19,7 +19,6 @@ using System.IO;
 using PerfCounter = Perf.PerfCounter;
 
 using static Evaluator.ProgramBuffer;
-using Interpreter = Evaluator.Interpreter;
 
 namespace Experiment;
 
@@ -45,7 +44,7 @@ public class Experiment : Game
     private int SplatCount;
     private float SplatDiameter;
 
-    private Interpreter Model;
+    private readonly Evaluator.ProgramBuffer Model;
 
     private GraphicsDeviceManager _graphics;
     private Effect InstancedBasicEffect;
@@ -140,7 +139,7 @@ public class Experiment : Game
 
         {
 #if False
-            var Fnord =
+            Model =
                 Union(
                     Diff(
                         Sphere(4.0f),
@@ -149,13 +148,13 @@ public class Experiment : Game
                             Move(Sphere(4.0f), 0.0f, -1.0f, 0.0f))),
                     Sphere(2.0f));
 #elif False
-            var Fnord =
+            Model =
                 Inter(
                     Move(Sphere(4), -1.0f, 0.0f, 0.0f),
                     Move(Sphere(4), 1.0f, 0.0f, 0.0f),
                 0.25f);
-#else
-            var Fnord =
+#elif True
+            Model =
                 Diff(
                     Inter(
                         Cube(4.0f),
@@ -165,9 +164,12 @@ public class Experiment : Game
                         Union(
                             RotateX(Cylinder(3.0f, 5.0f), 90.0f),
                             RotateY(Cylinder(3.0f, 5.0f), 90.0f))));
+#else
+            Model =
+                Inter(
+                    Cube(4.0f),
+                    Sphere(5.5f));
 #endif
-
-            Model = new Interpreter(Fnord);
         }
     }
 
@@ -184,33 +186,7 @@ public class Experiment : Game
 
     private Vector3 Gradient(Vector3 Point)
     {
-        float AlmostZero = 0.0001f;
-        var OffsetPNN = new Vector3(AlmostZero, -AlmostZero, -AlmostZero);
-        var OffsetNPN = new Vector3(-AlmostZero, AlmostZero, -AlmostZero);
-        var OffsetNNP = new Vector3(-AlmostZero, -AlmostZero, AlmostZero);
-        var OffsetPPP = new Vector3(AlmostZero, AlmostZero, AlmostZero);
-
-        // Tetrahedral method
-        Vector3 Normal =
-            OffsetPNN * EvalModel(Point + OffsetPNN) +
-            OffsetNPN * EvalModel(Point + OffsetNPN) +
-            OffsetNNP * EvalModel(Point + OffsetNNP) +
-            OffsetPPP * EvalModel(Point + OffsetPPP);
-
-        float LengthSquared = Vector3.Dot(Normal, Normal);
-        if (LengthSquared == 0.0)
-        {
-            // Gradient is zero.  Let's try again with a worse method.
-            float Dist = EvalModel(Point);
-            return Vector3.Normalize(new Vector3(
-                EvalModel(Point + OffsetPNN) - Dist,
-                EvalModel(Point + OffsetNPN) - Dist,
-                EvalModel(Point + OffsetNNP) - Dist));
-        }
-        else
-        {
-            return Normal / (float)Math.Sqrt(LengthSquared);
-        }
+        return Model.Gradient(Point);
     }
 
     private (bool, Vector3) Trace (Vector3 Start, Vector3 Stop)
