@@ -26,7 +26,7 @@ namespace Experiment;
 public class Experiment : Game
 {
     // Number of voronoi seeds.
-    private int MaxSplatCount = 500_000;
+    private int MaxSplatCount = 200_000;
     private int MinSplatCount =   4_000;
 
     // Target splat size in world space.
@@ -164,7 +164,7 @@ public class Experiment : Game
                         Union(
                             RotateX(Cylinder(3.0f, 5.0f), 90.0f),
                             RotateY(Cylinder(3.0f, 5.0f), 90.0f))));
-#else
+#elif False
             // Same as before, but with a bunch of transforms that superficially appear to cancel out.
             Model =
                 MoveZ(
@@ -180,6 +180,21 @@ public class Experiment : Game
                                 RotateX(Cylinder(3.0f, 5.0f), 90.0f),
                                 RotateY(Cylinder(3.0f, 5.0f), 90.0f)))),
                     2.0f), 90.0f), -2.0f);
+#else
+            var BasicThing =
+                Diff(
+                    Inter(
+                        Cube(4.0f),
+                        Sphere(5.5f)),
+                    Union(
+                        Cylinder(3.0f, 5.0f),
+                        Union(
+                            RotateX(Cylinder(3.0f, 5.0f), 90.0f),
+                            RotateY(Cylinder(3.0f, 5.0f), 90.0f))));
+            var Plate =
+                Cylinder(8.0f, 0.125f);
+
+            Model = Union(MoveZ(Plate, -2.0f + 0.125f), MoveZ(BasicThing, 0.125f));
 #endif
         }
     }

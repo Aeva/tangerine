@@ -386,11 +386,7 @@ public class ProgramBuffer
                     Vector3 Point = BrushTransforms[Brush++].ApplyInv(EvalPoint);
                     Vector3 Extent = ReadVec3();
                     Vector3 A = Vector3.Abs(Point) - Extent;
-                    Vector3 Zero;
-                    Zero.X = 0.0f;
-                    Zero.Y = 0.0f;
-                    Zero.Z = 0.0f;
-                    float Dist = Vector3.Max(A, Zero).Length() + Math.Min(Math.Max(Math.Max(A.X, A.Y), A.Z), 0.0f);
+                    float Dist = Vector3.Max(A, Vector3.Zero).Length() + Math.Min(Math.Max(Math.Max(A.X, A.Y), A.Z), 0.0f);
                     StackPush(Dist);
                     Point = EvalPoint;
                     break;
@@ -409,12 +405,9 @@ public class ProgramBuffer
                     D.Y = Math.Abs(Point.Z) - Extent;
                     //vec2 D = abs(vec2(length(vec2(Point.xy())), Point.z)) - vec2(Radius, Extent);
 
-                    Vector2 Zero;
-                    Zero.X = 0.0f;
-                    Zero.Y = 0.0f;
+                    float Dist = Math.Min(Math.Max(D.X, D.Y), 0.0f) + Vector2.Max(D, Vector2.Zero).Length();
                     // return min(max(D.x, D.y), 0.0) + Vector2.Max(D, Zero).Length();
 
-                    float Dist = Math.Min(Math.Max(D.X, D.Y), 0.0f) + Vector2.Max(D, Zero).Length();
                     StackPush(Dist);
                     Point = EvalPoint;
                     break;
