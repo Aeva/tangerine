@@ -1,7 +1,9 @@
 using System;
 using System.Numerics;
 using System.Diagnostics;
+using System.Collections.Generic;
 using System.Runtime.InteropServices;
+using System.Runtime.CompilerServices;
 using Microsoft.Xna.Framework;
 using Vector2 = System.Numerics.Vector2;
 using Vector3 = System.Numerics.Vector3;
@@ -34,13 +36,28 @@ public enum Opcode : uint
 
 
 [System.Runtime.InteropServices.StructLayout(LayoutKind.Explicit)]
-public struct ProgramWord
+public readonly struct ProgramWord
 {
     [System.Runtime.InteropServices.FieldOffset(0)]
-    public Opcode Symbol;
+    public readonly Opcode Symbol;
 
     [System.Runtime.InteropServices.FieldOffset(0)]
-    public float Value;
+    public readonly float Value;
+
+    public ProgramWord(Opcode InSymbol)
+    {
+        Unsafe.SkipInit(out Value);
+        Symbol = InSymbol;
+    }
+
+    public ProgramWord(float InValue)
+    {
+        Unsafe.SkipInit(out Symbol);
+        Value = InValue;
+    }
+
+    public static implicit operator ProgramWord(Opcode InSymbol) => new ProgramWord(InSymbol);
+    public static implicit operator ProgramWord(float InValue) => new ProgramWord(InValue);
 }
 
 
@@ -104,10 +121,10 @@ public struct Transform
 
 public class ProgramBuffer
 {
-    private ProgramWord[] Words;
-    public long WordCount => Words.Length;
+    private List<ProgramWord> Words;
+    public int WordCount => Words.Count;
 
-    public ProgramWord this[long Index]
+    public ProgramWord this[int Index]
     {
         get => Words[Index];
     }
@@ -118,9 +135,9 @@ public class ProgramBuffer
     private Transform[] BrushTransforms;
     public long BrushCount => BrushTransforms.Length;
 
-    private ProgramBuffer(long WordCount)
+    private ProgramBuffer(params ProgramWord[] InitialWords)
     {
-        Words = new ProgramWord[WordCount];
+        Words = new List<ProgramWord>(InitialWords);
         _StackSize = 1;
         BrushTransforms = new Transform[1];
         BrushTransforms[0].Reset();
@@ -128,29 +145,19 @@ public class ProgramBuffer
 
     private ProgramBuffer(ProgramBuffer CopyTarget)
     {
-        Words = new ProgramWord[CopyTarget.WordCount];
-        Array.Copy(CopyTarget.Words, 0, Words, 0, CopyTarget.WordCount);
+        Words = new List<ProgramWord>(CopyTarget.WordCount);
+        Words.AddRange(CopyTarget.Words);
         _StackSize = CopyTarget.StackSize;
         BrushTransforms = new Transform[CopyTarget.BrushCount];
         Array.Copy(CopyTarget.BrushTransforms, 0, BrushTransforms, 0, CopyTarget.BrushCount);
     }
 
-    private ProgramBuffer(ProgramBuffer CopyTarget, long PrependCount, long AppendCount, out long AppendCursor)
+    private ProgramBuffer(ProgramBuffer CopyLHS, ProgramBuffer CopyRHS, params ProgramWord[] Append)
     {
-        AppendCursor = PrependCount + CopyTarget.WordCount;
-        Words = new ProgramWord[AppendCursor + AppendCount];
-        Array.Copy(CopyTarget.Words, 0, Words, PrependCount, CopyTarget.WordCount);
-        _StackSize = CopyTarget.StackSize;
-        BrushTransforms = new Transform[CopyTarget.BrushCount];
-        Array.Copy(CopyTarget.BrushTransforms, 0, BrushTransforms, 0, CopyTarget.BrushCount);
-    }
-
-    private ProgramBuffer(ProgramBuffer CopyLHS, ProgramBuffer CopyRHS, long AppendCount, out long AppendCursor)
-    {
-        AppendCursor = CopyLHS.WordCount + CopyRHS.WordCount;
-        Words = new ProgramWord[AppendCursor + AppendCount];
-        Array.Copy(CopyLHS.Words, 0, Words, 0, CopyLHS.WordCount);
-        Array.Copy(CopyRHS.Words, 0, Words, CopyLHS.WordCount, CopyRHS.WordCount);
+        Words = new List<ProgramWord>(CopyLHS.WordCount + CopyLHS.WordCount + Append.Length);
+        Words.AddRange(CopyLHS.Words);
+        Words.AddRange(CopyRHS.Words);
+        Words.AddRange(Append);
         _StackSize = Math.Max(CopyLHS.StackSize, CopyRHS.StackSize + 1);
 
         BrushTransforms = new Transform[CopyLHS.BrushCount + CopyRHS.BrushCount];
@@ -160,30 +167,17 @@ public class ProgramBuffer
 
     public static ProgramBuffer Sphere(float Diameter)
     {
-        var Kernel = new ProgramBuffer(2);
-        Kernel.Words[0].Symbol = Opcode.Sphere;
-        Kernel.Words[1].Value = Diameter * 0.5f;
-        return Kernel;
+        return new ProgramBuffer(Opcode.Sphere, Diameter * 0.5f);
     }
 
     public static ProgramBuffer Ellipsoid(float DiameterX, float DiameterY, float DiameterZ)
     {
-        var Kernel = new ProgramBuffer(4);
-        Kernel.Words[0].Symbol = Opcode.Ellipsoid;
-        Kernel.Words[1].Value = DiameterX * 0.5f;
-        Kernel.Words[2].Value = DiameterY * 0.5f;
-        Kernel.Words[3].Value = DiameterZ * 0.5f;
-        return Kernel;
+        return new ProgramBuffer(Opcode.Ellipsoid, DiameterX * 0.5f, DiameterY * 0.5f, DiameterZ * 0.5f);
     }
 
     public static ProgramBuffer Box(float SpanX, float SpanY, float SpanZ)
     {
-        var Kernel = new ProgramBuffer(4);
-        Kernel.Words[0].Symbol = Opcode.Box;
-        Kernel.Words[1].Value = SpanX * 0.5f;
-        Kernel.Words[2].Value = SpanY * 0.5f;
-        Kernel.Words[3].Value = SpanZ * 0.5f;
-        return Kernel;
+        return new ProgramBuffer(Opcode.Box, SpanX * 0.5f, SpanY * 0.5f, SpanZ * 0.5f);
     }
 
     public static ProgramBuffer Cube(float Span)
@@ -193,81 +187,47 @@ public class ProgramBuffer
 
     public static ProgramBuffer Torus(float MajorDiameter, float MinorDiameter)
     {
-        var Kernel = new ProgramBuffer(3);
-        Kernel.Words[0].Symbol = Opcode.Torus;
-        Kernel.Words[1].Value = MajorDiameter * 0.5f;
-        Kernel.Words[2].Value = MinorDiameter * 0.5f;
-        return Kernel;
+        return new ProgramBuffer(Opcode.Torus, MajorDiameter * 0.5f, MinorDiameter * 0.5f);
     }
 
     public static ProgramBuffer Cylinder(float Diameter, float Height)
     {
-        var Kernel = new ProgramBuffer(3);
-        Kernel.Words[0].Symbol = Opcode.Cylinder;
-        Kernel.Words[1].Value = Diameter * 0.5f;
-        Kernel.Words[2].Value = Height * 0.5f;
-        return Kernel;
+        return new ProgramBuffer(Opcode.Cylinder, Diameter * 0.5f, Height * 0.5f);
     }
 
     public static ProgramBuffer Plane(float NormalX, float NormalY, float NormalZ)
     {
-        var Kernel = new ProgramBuffer(4);
-        Kernel.Words[0].Symbol = Opcode.Plane;
-        Kernel.Words[1].Value = NormalX;
-        Kernel.Words[2].Value = NormalY;
-        Kernel.Words[3].Value = NormalZ;
-        return Kernel;
+        return new ProgramBuffer(Opcode.Plane, NormalX, NormalY, NormalZ);
     }
 
     public static ProgramBuffer Union(ProgramBuffer LHS, ProgramBuffer RHS)
     {
-        long Cursor;
-        var Kernel = new ProgramBuffer(LHS, RHS, 1, out Cursor);
-        Kernel.Words[Cursor].Symbol = Opcode.Union;
-        return Kernel;
+        return new ProgramBuffer(LHS, RHS, Opcode.Union);
     }
 
     public static ProgramBuffer Inter(ProgramBuffer LHS, ProgramBuffer RHS)
     {
-        long Cursor;
-        var Kernel = new ProgramBuffer(LHS, RHS, 1, out Cursor);
-        Kernel.Words[Cursor].Symbol = Opcode.Inter;
-        return Kernel;
+        return new ProgramBuffer(LHS, RHS, Opcode.Inter);
     }
 
     public static ProgramBuffer Diff(ProgramBuffer LHS, ProgramBuffer RHS)
     {
-        long Cursor;
-        var Kernel = new ProgramBuffer(LHS, RHS, 1, out Cursor);
-        Kernel.Words[Cursor].Symbol = Opcode.Diff;
-        return Kernel;
+        return new ProgramBuffer(LHS, RHS, Opcode.Diff);
     }
 
     public static ProgramBuffer Union(ProgramBuffer LHS, ProgramBuffer RHS, float Threshold)
     {
-        long Cursor;
-        var Kernel = new ProgramBuffer(LHS, RHS, 2, out Cursor);
-        Kernel.Words[Cursor].Symbol = Opcode.BlendUnion;
-        Kernel.Words[Cursor + 1].Value = Threshold;
-        return Kernel;
+        return new ProgramBuffer(LHS, RHS, Opcode.BlendUnion, Threshold);
     }
 
     public static ProgramBuffer Inter(ProgramBuffer LHS, ProgramBuffer RHS, float Threshold)
     {
-        long Cursor;
-        var Kernel = new ProgramBuffer(LHS, RHS, 2, out Cursor);
-        Kernel.Words[Cursor].Symbol = Opcode.BlendInter;
-        Kernel.Words[Cursor + 1].Value = Threshold;
-        return Kernel;
+        return new ProgramBuffer(LHS, RHS, Opcode.BlendInter, Threshold);
     }
 
     public static ProgramBuffer Diff(ProgramBuffer LHS, ProgramBuffer RHS, float Threshold)
     {
-        long Cursor;
-        var Kernel = new ProgramBuffer(LHS, RHS, 2, out Cursor);
-        Kernel.Words[Cursor].Symbol = Opcode.BlendDiff;
-        Kernel.Words[Cursor + 1].Value = Threshold;
-        return Kernel;
+        return new ProgramBuffer(LHS, RHS, Opcode.BlendDiff, Threshold);
     }
 
     public static ProgramBuffer Move(ProgramBuffer Field, Vector3 Offset)
@@ -334,9 +294,9 @@ public class ProgramBuffer
     public float Eval(Vector3 EvalPoint)
     {
         var Stack = new float[StackSize];
-        long ProgramCounter = 0;
-        long StackPointer = 0;
-        long Brush = 0;
+        int ProgramCounter = 0;
+        int StackPointer = 0;
+        int Brush = 0;
 
         var ReadSymbol = () =>
         {
