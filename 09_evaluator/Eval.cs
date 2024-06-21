@@ -61,11 +61,11 @@ public readonly struct ProgramWord
 }
 
 
-public struct Transform
+public readonly struct Transform
 {
-    private Quaternion Rotation;
-    private Vector3 Translation;
-    private float Scalation;
+    private readonly Quaternion Rotation;
+    private readonly Vector3 Translation;
+    private readonly float Scalation;
 
     public Transform()
     {
@@ -74,28 +74,29 @@ public struct Transform
         Scalation = 1.0f;
     }
 
-    public void Reset()
+    public Transform(
+        Quaternion InRotation,
+        Vector3 InTranslation,
+        float InScalation)
     {
-        Rotation = Quaternion.Identity;
-        Translation = Vector3.Zero;
-        Scalation = 1.0f;
+        Rotation = InRotation;
+        Translation = InTranslation;
+        Scalation = InScalation;
     }
 
-    public void Move(Vector3 OffsetBy)
+    public Transform Move(Vector3 OffsetBy)
     {
-        Translation += OffsetBy;
+        return new Transform(Rotation, Translation + OffsetBy, Scalation);
     }
 
-    public void Rotate(Quaternion RotateBy)
+    public Transform Rotate(Quaternion RotateBy)
     {
-        Translation = Vector3.Transform(Translation, RotateBy);
-        Rotation = RotateBy * Rotation;
+        return new Transform(RotateBy * Rotation, Vector3.Transform(Translation, RotateBy), Scalation);
     }
 
-    public void Scale(float ScaleBy)
+    public Transform Scale(float ScaleBy)
     {
-        Translation *= ScaleBy;
-        Scalation *= ScaleBy;
+        return new Transform(Rotation, Translation * ScaleBy, Scalation * ScaleBy);
     }
 
     public Matrix4x4 ToMatrix()
@@ -119,9 +120,9 @@ public struct Transform
 }
 
 
-public class ProgramBuffer
+public readonly struct ProgramBuffer
 {
-    private List<ProgramWord> Words;
+    private readonly List<ProgramWord> Words;
     public int WordCount => Words.Count;
 
     public ProgramWord this[int Index]
@@ -129,27 +130,30 @@ public class ProgramBuffer
         get => Words[Index];
     }
 
-    private long _StackSize;
-    public long StackSize => _StackSize;
+    private readonly int _StackSize;
+    public int StackSize => _StackSize;
 
-    private Transform[] BrushTransforms;
-    public long BrushCount => BrushTransforms.Length;
+    private readonly List<Transform> BrushTransforms;
+    public int BrushCount => BrushTransforms.Count;
 
     private ProgramBuffer(params ProgramWord[] InitialWords)
     {
         Words = new List<ProgramWord>(InitialWords);
         _StackSize = 1;
-        BrushTransforms = new Transform[1];
-        BrushTransforms[0].Reset();
+        BrushTransforms = new List<Transform>(1);
+        BrushTransforms.Add(new Transform());
     }
 
-    private ProgramBuffer(ProgramBuffer CopyTarget)
+    private ProgramBuffer(ProgramBuffer CopyTarget, Func<Transform, Transform> TransformFn)
     {
         Words = new List<ProgramWord>(CopyTarget.WordCount);
         Words.AddRange(CopyTarget.Words);
         _StackSize = CopyTarget.StackSize;
-        BrushTransforms = new Transform[CopyTarget.BrushCount];
-        Array.Copy(CopyTarget.BrushTransforms, 0, BrushTransforms, 0, CopyTarget.BrushCount);
+        BrushTransforms = new List<Transform>(CopyTarget.BrushCount);
+        foreach (Transform BrushTransform in CopyTarget.BrushTransforms)
+        {
+            BrushTransforms.Add(TransformFn(BrushTransform));
+        }
     }
 
     private ProgramBuffer(ProgramBuffer CopyLHS, ProgramBuffer CopyRHS, params ProgramWord[] Append)
@@ -159,10 +163,9 @@ public class ProgramBuffer
         Words.AddRange(CopyRHS.Words);
         Words.AddRange(Append);
         _StackSize = Math.Max(CopyLHS.StackSize, CopyRHS.StackSize + 1);
-
-        BrushTransforms = new Transform[CopyLHS.BrushCount + CopyRHS.BrushCount];
-        Array.Copy(CopyLHS.BrushTransforms, 0, BrushTransforms, 0, CopyLHS.BrushCount);
-        Array.Copy(CopyRHS.BrushTransforms, 0, BrushTransforms, CopyLHS.BrushCount, CopyRHS.BrushCount);
+        BrushTransforms = new List<Transform>(CopyLHS.BrushCount + CopyRHS.BrushCount);
+        BrushTransforms.AddRange(CopyLHS.BrushTransforms);
+        BrushTransforms.AddRange(CopyRHS.BrushTransforms);
     }
 
     public static ProgramBuffer Sphere(float Diameter)
@@ -232,12 +235,10 @@ public class ProgramBuffer
 
     public static ProgramBuffer Move(ProgramBuffer Field, Vector3 Offset)
     {
-        var Kernel = new ProgramBuffer(Field);
-        for (long Brush = 0; Brush < Kernel.BrushCount; ++Brush)
+        return new ProgramBuffer(Field, (Transform BrushTransform) =>
         {
-            Kernel.BrushTransforms[Brush].Move(Offset);
-        }
-        return Kernel;
+            return BrushTransform.Move(Offset);
+        });
     }
 
     public static ProgramBuffer Move(ProgramBuffer Field, float X, float Y, float Z)
@@ -262,12 +263,10 @@ public class ProgramBuffer
 
     public static ProgramBuffer Rotate(ProgramBuffer Field, Quaternion Rotation)
     {
-        var Kernel = new ProgramBuffer(Field);
-        for (long Brush = 0; Brush < Kernel.BrushCount; ++Brush)
+        return new ProgramBuffer(Field, (Transform BrushTransform) =>
         {
-            Kernel.BrushTransforms[Brush].Rotate(Rotation);
-        }
-        return Kernel;
+            return BrushTransform.Rotate(Rotation);
+        });
     }
 
     public static ProgramBuffer RotateX(ProgramBuffer Field, float Degrees)
@@ -291,52 +290,38 @@ public class ProgramBuffer
         return Rotate(Field, Rotation);
     }
 
+    public float ReadValue(ref int ProgramCounter)
+    {
+        return Words[ProgramCounter++].Value;
+    }
+
+    public Vector3 ReadVec3(ref int ProgramCounter)
+    {
+        Vector3 Vec;
+        Vec.X = Words[ProgramCounter++].Value;
+        Vec.Y = Words[ProgramCounter++].Value;
+        Vec.Z = Words[ProgramCounter++].Value;
+        return Vec;
+    }
+
     public float Eval(Vector3 EvalPoint)
     {
-        var Stack = new float[StackSize];
+        Span<float> Stack = stackalloc float[StackSize];
+
         int ProgramCounter = 0;
         int StackPointer = 0;
         int Brush = 0;
 
-        var ReadSymbol = () =>
-        {
-            return Words[ProgramCounter++].Symbol;
-        };
-
-        var ReadValue = () =>
-        {
-            return Words[ProgramCounter++].Value;
-        };
-
-        var ReadVec3 = () =>
-        {
-            Vector3 Vec;
-            Vec.X = ReadValue();
-            Vec.Y = ReadValue();
-            Vec.Z = ReadValue();
-            return Vec;
-        };
-
-        var StackPush = (float Dist) =>
-        {
-            Stack[StackPointer++] = Dist;
-        };
-
-        var StackPop = () =>
-        {
-            return Stack[--StackPointer];
-        };
-
         while (ProgramCounter < WordCount)
         {
-            switch (ReadSymbol())
+            switch (Words[ProgramCounter++].Symbol)
             {
                 case Opcode.Sphere:
                 {
                     Vector3 Point = BrushTransforms[Brush++].ApplyInv(EvalPoint);
-                    float Radius = ReadValue();
+                    float Radius = ReadValue(ref ProgramCounter);
                     float Dist = Point.Length() - Radius;
-                    StackPush(Dist);
+                    Stack[StackPointer++] = Dist;
                     Point = EvalPoint;
                     break;
                 }
@@ -344,10 +329,10 @@ public class ProgramBuffer
                 case Opcode.Box:
                 {
                     Vector3 Point = BrushTransforms[Brush++].ApplyInv(EvalPoint);
-                    Vector3 Extent = ReadVec3();
+                    Vector3 Extent = ReadVec3(ref ProgramCounter);
                     Vector3 A = Vector3.Abs(Point) - Extent;
                     float Dist = Vector3.Max(A, Vector3.Zero).Length() + Math.Min(Math.Max(Math.Max(A.X, A.Y), A.Z), 0.0f);
-                    StackPush(Dist);
+                    Stack[StackPointer++] = Dist;
                     Point = EvalPoint;
                     break;
                 }
@@ -355,8 +340,8 @@ public class ProgramBuffer
                 case Opcode.Cylinder:
                 {
                     Vector3 Point = BrushTransforms[Brush++].ApplyInv(EvalPoint);
-                    float Radius = ReadValue();
-                    float Extent = ReadValue();
+                    float Radius = ReadValue(ref ProgramCounter);
+                    float Extent = ReadValue(ref ProgramCounter);
 
                     Vector2 D;
                     D.X = Point.X;
@@ -368,7 +353,7 @@ public class ProgramBuffer
                     float Dist = Math.Min(Math.Max(D.X, D.Y), 0.0f) + Vector2.Max(D, Vector2.Zero).Length();
                     // return min(max(D.x, D.y), 0.0) + Vector2.Max(D, Zero).Length();
 
-                    StackPush(Dist);
+                    Stack[StackPointer++] = Dist;
                     Point = EvalPoint;
                     break;
                 }
@@ -376,70 +361,70 @@ public class ProgramBuffer
                 case Opcode.Plane:
                 {
                     Vector3 Point = BrushTransforms[Brush++].ApplyInv(EvalPoint);
-                    Vector3 Normal = ReadVec3();
+                    Vector3 Normal = ReadVec3(ref ProgramCounter);
                     float Dist = Vector3.Dot(Point, Normal);
-                    StackPush(Dist);
+                    Stack[StackPointer++] = Dist;
                     Point = EvalPoint;
                     break;
                 }
 
                 case Opcode.Union:
                 {
-                    float RHS = StackPop();
-                    float LHS = StackPop();
+                    float RHS = Stack[--StackPointer];
+                    float LHS = Stack[--StackPointer];
                     float Dist = Math.Min(LHS, RHS);
-                    StackPush(Dist);
+                    Stack[StackPointer++] = Dist;
                     break;
                 }
 
                 case Opcode.Inter:
                 {
-                    float RHS = StackPop();
-                    float LHS = StackPop();
+                    float RHS = Stack[--StackPointer];
+                    float LHS = Stack[--StackPointer];
                     float Dist = Math.Max(LHS, RHS);
-                    StackPush(Dist);
+                    Stack[StackPointer++] = Dist;
                     break;
                 }
 
                 case Opcode.Diff:
                 {
-                    float RHS = StackPop();
-                    float LHS = StackPop();
+                    float RHS = Stack[--StackPointer];
+                    float LHS = Stack[--StackPointer];
                     float Dist = Math.Max(LHS, -RHS);
-                    StackPush(Dist);
+                    Stack[StackPointer++] = Dist;
                     break;
                 }
 
                 case Opcode.BlendUnion:
                 {
-                    float RHS = StackPop();
-                    float LHS = StackPop();
-                    float Threshold = ReadValue();
+                    float RHS = Stack[--StackPointer];
+                    float LHS = Stack[--StackPointer];
+                    float Threshold = ReadValue(ref ProgramCounter);
                     float H = Math.Max(Threshold - Math.Abs(LHS - RHS), 0.0f);
                     float Dist = Math.Min(LHS, RHS) - H * H * 0.25f / Threshold;
-                    StackPush(Dist);
+                    Stack[StackPointer++] = Dist;
                     break;
                 }
 
                 case Opcode.BlendInter:
                 {
-                    float RHS = StackPop();
-                    float LHS = StackPop();
-                    float Threshold = ReadValue();
+                    float RHS = Stack[--StackPointer];
+                    float LHS = Stack[--StackPointer];
+                    float Threshold = ReadValue(ref ProgramCounter);
                     float H = Math.Max(Threshold - Math.Abs(LHS - RHS), 0.0f);
                     float Dist = Math.Max(LHS, RHS) + H * H * 0.25f / Threshold;
-                    StackPush(Dist);
+                    Stack[StackPointer++] = Dist;
                     break;
                 }
 
                 case Opcode.BlendDiff:
                 {
-                    float RHS = StackPop();
-                    float LHS = StackPop();
-                    float Threshold = ReadValue();
+                    float RHS = Stack[--StackPointer];
+                    float LHS = Stack[--StackPointer];
+                    float Threshold = ReadValue(ref ProgramCounter);
                     float H = Math.Max(Threshold - Math.Abs(LHS + RHS), 0.0f);
                     float Dist = Math.Max(LHS, -RHS) + H * H * 0.25f / Threshold;
-                    StackPush(Dist);
+                    Stack[StackPointer++] = Dist;
                     break;
                 }
 
@@ -451,7 +436,7 @@ public class ProgramBuffer
                 }
             };
         }
-        float Result = StackPop();
+        float Result = Stack[--StackPointer];
         Debug.Assert(StackPointer == 0);
         return Result;
     }
