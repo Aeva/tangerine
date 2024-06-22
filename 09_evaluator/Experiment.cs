@@ -26,12 +26,12 @@ namespace Experiment;
 public class Experiment : Game
 {
     // Number of voronoi seeds.
-    private int MaxSplatCount = 300_000;
-    private int MinSplatCount =   1_000;
+    private int MaxSplatCount = 500_000;
+    private int MinSplatCount =   9_000;
 
     // Target splat size in world space.
-    private float MaxSplatDiameter = 1.0f / 20.0f;
-    private float MinSplatDiameter = 1.0f / 1.0f;
+    private float MaxSplatDiameter = 1.0f / 15.0f;
+    private float MinSplatDiameter = 1.0f / 9.0f;
 
     // Vertex counts per loop.
     private int[] SplatRings = {1, 5, 20};
@@ -48,8 +48,8 @@ public class Experiment : Game
     private long LastFrameTicks = 0;
     private double RunTimeMs = 0.0;
 
-    private float SplatCountAlpha = 0.0f;
-    private float SplatSizeAlpha = 0.8f;
+    private float SplatCountAlpha = 0.25f;
+    private float SplatSizeAlpha = 0.25f;
 
     private readonly Evaluator.ProgramBuffer Model;
 

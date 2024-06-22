@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net6.0</TargetFramework>
+    <TargetFramework>net8.0</TargetFramework>
     <RollForward>Major</RollForward>
     <PublishReadyToRun>false</PublishReadyToRun>
     <TieredCompilation>false</TieredCompilation>
@@ -10,6 +10,14 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Icon.ico</ApplicationIcon>
   </PropertyGroup>
+  <PropertyGroup>
+      <PublishAot>true</PublishAot>
+  </PropertyGroup>
+<!--
+  <PropertyGroup>
+      <StripSymbols>false</StripSymbols>
+  </PropertyGroup>
+-->
   <ItemGroup>
     <None Remove="Icon.ico" />
     <None Remove="Icon.bmp" />

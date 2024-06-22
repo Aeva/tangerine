@@ -122,50 +122,40 @@ public readonly struct Transform
 
 public readonly struct ProgramBuffer
 {
-    private readonly List<ProgramWord> Words;
-    public int WordCount => Words.Count;
-
-    public ProgramWord this[int Index]
-    {
-        get => Words[Index];
-    }
-
-    private readonly int _StackSize;
-    public int StackSize => _StackSize;
-
-    private readonly List<Transform> BrushTransforms;
-    public int BrushCount => BrushTransforms.Count;
+    public readonly List<ProgramWord> Words;
+    public readonly List<Transform> BrushTransforms;
+    public readonly int StackSize;
 
     private ProgramBuffer(params ProgramWord[] InitialWords)
     {
         Words = new List<ProgramWord>(InitialWords);
-        _StackSize = 1;
         BrushTransforms = new List<Transform>(1);
         BrushTransforms.Add(new Transform());
+        StackSize = 1;
     }
 
     private ProgramBuffer(ProgramBuffer CopyTarget, Func<Transform, Transform> TransformFn)
     {
-        Words = new List<ProgramWord>(CopyTarget.WordCount);
+        Words = new List<ProgramWord>(CopyTarget.Words.Count);
         Words.AddRange(CopyTarget.Words);
-        _StackSize = CopyTarget.StackSize;
-        BrushTransforms = new List<Transform>(CopyTarget.BrushCount);
+        BrushTransforms = new List<Transform>(CopyTarget.BrushTransforms.Count);
         foreach (Transform BrushTransform in CopyTarget.BrushTransforms)
         {
             BrushTransforms.Add(TransformFn(BrushTransform));
         }
+        StackSize = CopyTarget.StackSize;
     }
 
     private ProgramBuffer(ProgramBuffer CopyLHS, ProgramBuffer CopyRHS, params ProgramWord[] Append)
     {
-        Words = new List<ProgramWord>(CopyLHS.WordCount + CopyLHS.WordCount + Append.Length);
+        Words = new List<ProgramWord>(CopyLHS.Words.Count + CopyLHS.Words.Count + Append.Length);
         Words.AddRange(CopyLHS.Words);
         Words.AddRange(CopyRHS.Words);
         Words.AddRange(Append);
-        _StackSize = Math.Max(CopyLHS.StackSize, CopyRHS.StackSize + 1);
-        BrushTransforms = new List<Transform>(CopyLHS.BrushCount + CopyRHS.BrushCount);
+        BrushTransforms = new List<Transform>(CopyLHS.BrushTransforms.Count + CopyRHS.BrushTransforms.Count);
         BrushTransforms.AddRange(CopyLHS.BrushTransforms);
         BrushTransforms.AddRange(CopyRHS.BrushTransforms);
+        StackSize = Math.Max(CopyLHS.StackSize, CopyRHS.StackSize + 1);
     }
 
     public static ProgramBuffer Sphere(float Diameter)
@@ -290,11 +280,13 @@ public readonly struct ProgramBuffer
         return Rotate(Field, Rotation);
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public float ReadValue(ref int ProgramCounter)
     {
         return Words[ProgramCounter++].Value;
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public Vector3 ReadVec3(ref int ProgramCounter)
     {
         Vector3 Vec;
@@ -304,6 +296,7 @@ public readonly struct ProgramBuffer
         return Vec;
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public float Eval(Vector3 EvalPoint)
     {
         Span<float> Stack = stackalloc float[StackSize];
@@ -312,7 +305,7 @@ public readonly struct ProgramBuffer
         int StackPointer = 0;
         int Brush = 0;
 
-        while (ProgramCounter < WordCount)
+        while (ProgramCounter < Words.Count)
         {
             switch (Words[ProgramCounter++].Symbol)
             {
@@ -342,17 +335,12 @@ public readonly struct ProgramBuffer
                     Vector3 Point = BrushTransforms[Brush++].ApplyInv(EvalPoint);
                     float Radius = ReadValue(ref ProgramCounter);
                     float Extent = ReadValue(ref ProgramCounter);
-
                     Vector2 D;
                     D.X = Point.X;
                     D.Y = Point.Y;
                     D.X = D.Length() - Radius;
                     D.Y = Math.Abs(Point.Z) - Extent;
-                    //vec2 D = abs(vec2(length(vec2(Point.xy())), Point.z)) - vec2(Radius, Extent);
-
                     float Dist = Math.Min(Math.Max(D.X, D.Y), 0.0f) + Vector2.Max(D, Vector2.Zero).Length();
-                    // return min(max(D.x, D.y), 0.0) + Vector2.Max(D, Zero).Length();
-
                     Stack[StackPointer++] = Dist;
                     Point = EvalPoint;
                     break;
@@ -441,6 +429,7 @@ public readonly struct ProgramBuffer
         return Result;
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public Vector3 Gradient(Vector3 Point)
     {
         float AlmostZero = 0.0001f;
