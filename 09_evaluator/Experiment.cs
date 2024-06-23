@@ -10,9 +10,8 @@ using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
 
 using Color = Microsoft.Xna.Framework.Color;
-using Rectangle = Microsoft.Xna.Framework.Rectangle;
-using Vector2 = Microsoft.Xna.Framework.Vector2;
-using Vector3 = Microsoft.Xna.Framework.Vector3;
+using Vector3 = System.Numerics.Vector3;
+using Matrix4x4 = System.Numerics.Matrix4x4;
 
 using static Microsoft.Xna.Framework.MathHelper;
 using System.IO;
@@ -30,7 +29,7 @@ public class Experiment : Game
     private int MinSplatCount =   9_000;
 
     // Target splat size in world space.
-    private float MaxSplatDiameter = 1.0f / 15.0f;
+    private float MaxSplatDiameter = 1.0f / 20.0f;
     private float MinSplatDiameter = 1.0f / 9.0f;
 
     // Vertex counts per loop.
@@ -49,7 +48,7 @@ public class Experiment : Game
     private double RunTimeMs = 0.0;
 
     private float SplatCountAlpha = 0.25f;
-    private float SplatSizeAlpha = 0.25f;
+    private float SplatSizeAlpha = 1.0f;
 
     private readonly Evaluator.ProgramBuffer Model;
 
@@ -67,10 +66,10 @@ public class Experiment : Game
     private VertexBuffer NormalBuffer;
     private VertexBuffer ColorBuffer;
 
-    private Matrix LocalToWorld;
-    private Matrix WorldToLocal;
-    private Matrix WorldToView;
-    private Matrix ViewToClip;
+    private Matrix4x4 LocalToWorld;
+    private Matrix4x4 WorldToLocal;
+    private Matrix4x4 WorldToView;
+    private Matrix4x4 ViewToClip;
 
     private float AspectRatio;
 
@@ -372,10 +371,10 @@ public class Experiment : Game
         }
 
         {
-            LocalToWorld = Matrix.Identity;
-            WorldToLocal = Matrix.Identity;
-            WorldToView = Matrix.Identity;
-            ViewToClip = Matrix.CreatePerspectiveFieldOfView(MathHelper.ToRadians(45), AspectRatio, 0.01f, 1000.0f);
+            LocalToWorld = Matrix4x4.Identity;
+            WorldToLocal = Matrix4x4.Identity;
+            WorldToView = Matrix4x4.Identity;
+            ViewToClip = Matrix4x4.CreatePerspectiveFieldOfView(MathHelper.ToRadians(45), AspectRatio, 0.01f, 1000.0f);
         }
 
         {
@@ -785,7 +784,7 @@ public class Experiment : Game
     {
         GraphicsDevice.Clear(new Color(0.0f, 0.0f, 0.0f));
 
-        WorldToView = Matrix.CreateLookAt(
+        WorldToView = Matrix4x4.CreateLookAt(
             Eye,
             new Vector3(0, 0, 0),
             new Vector3(0, 0, 1));
