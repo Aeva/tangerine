@@ -25,15 +25,23 @@ namespace Experiment;
 
 public class Experiment : Game
 {
+#if true
     private int MaxSurfels  =  100_000;
     private int TracingRate =   10_000;
     private int MinTracingRate = 1_000;
-
-    // Target splat size in world space.
-    private float SplatDiameter = 1.0f / 20.0f;
+    private float SplatDiameter = 1.0f / 50.0f;
 
     // Vertex counts per loop.
     private int[] SplatRings = {1, 5}; //, 20};
+#else
+    private int MaxSurfels  =   10_000;
+    private int TracingRate =   10_000;
+    private int MinTracingRate = 1_000;
+    private float SplatDiameter = 1.0f / 50.0f;
+
+    // Vertex counts per loop.
+    private int[] SplatRings = {1, 5, 20};
+#endif
 
     private int WindowSize = 600;
     private bool FullScreen = true;
@@ -170,6 +178,16 @@ public class Experiment : Game
                 FocalPoint,
                 new Vector3(0, 0, 1));
             ViewToClip = Matrix4x4.CreatePerspectiveFieldOfView(MathHelper.ToRadians(45), AspectRatio, 0.01f, 1000.0f);
+
+            for (int Y = 0; Y<4; ++Y)
+            {
+                Console.Write($"| {ViewToClip[0, Y]}");
+                for (int X = 1; X<4; ++X)
+                {
+                    Console.Write($", {ViewToClip[X, Y]}");
+                }
+                Console.Write(" |\n");
+            }
         }
 
         PositionDesc = new VertexDeclaration(
@@ -621,6 +639,7 @@ public class Experiment : Game
             {
                 //float T = (float)(RunTimeMs / -500.0 * Math.PI);
                 float T = (float)(RunTimeMs / -10000.0 * Math.PI);
+                //float T = (float)(RunTimeMs / -1000000.0 * Math.PI);
                 float S = (float)Math.Sin(T);
                 float C = (float)Math.Cos(T);
                 Eye = new Vector3(S * 8.0f, C * 8.0f, 1.0f);
@@ -727,16 +746,17 @@ public class Experiment : Game
         //     new Vector3(0, 0, 1));
 
         InstancedBasicEffect.Parameters["LocalToWorld"].SetValue(LocalToWorld);
-        InstancedBasicEffect.Parameters["LocalToWorldRotateOnly"].SetValue(LocalToWorld);
+        //InstancedBasicEffect.Parameters["LocalToWorldRotateOnly"].SetValue(LocalToWorld);
         InstancedBasicEffect.Parameters["WorldToView"].SetValue(WorldToView);
         InstancedBasicEffect.Parameters["ViewToClip"].SetValue(ViewToClip);
-        InstancedBasicEffect.Parameters["EyePosition"].SetValue(Eye);
+        //InstancedBasicEffect.Parameters["EyePosition"].SetValue(Eye);
         InstancedBasicEffect.Parameters["SplatRadius"].SetValue(SplatDiameter * 0.5f);
+        InstancedBasicEffect.Parameters["AspectRatio"].SetValue(AspectRatio);
 
         if (LiveSurfels > 0)
         {
             PositionBuffer.SetData(0, Positions, 0, LiveSurfels, PositionDesc.VertexStride);
-            NormalBuffer.SetData(0, Normals, 0, LiveSurfels, NormalDesc.VertexStride);
+            //NormalBuffer.SetData(0, Normals, 0, LiveSurfels, NormalDesc.VertexStride);
             ColorBuffer.SetData(0, Colors, 0, LiveSurfels, ColorDesc.VertexStride);
 
             GraphicsDevice.RasterizerState = RasterizerState.CullCounterClockwise;

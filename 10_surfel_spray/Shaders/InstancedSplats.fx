@@ -1,10 +1,11 @@
 
 float4x4 LocalToWorld;
-float3x3 LocalToWorldRotateOnly;
+//float3x3 LocalToWorldRotateOnly;
 float4x4 WorldToView;
 float4x4 ViewToClip;
-float3 EyePosition;
+//float3 EyePosition;
 float SplatRadius;
+float AspectRatio;
 
 
 struct VertexOutput
@@ -17,29 +18,28 @@ struct VertexOutput
 VertexOutput VertexMain(
     float4 SplatVertex : SV_Position,
     float4 LocalOffset : TEXCOORD0,
-    float4 LocalNormal : NORMAL0,
+    //float4 LocalNormal : NORMAL0,
     float4 Color : COLOR0)
 {
     VertexOutput Out;
 
     float4 WorldOffset = mul(float4(LocalOffset.xyz, 1.0f), LocalToWorld);
-    float3 WorldNormal = mul(LocalNormal.xyz, LocalToWorldRotateOnly);
+    //float3 WorldNormal = mul(LocalNormal.xyz, LocalToWorldRotateOnly);
 
-    float3 EyeRay = normalize(EyePosition - WorldOffset.xyz);
-    float TangentScale = sqrt(max(dot(EyeRay, WorldNormal.xyz), 0.0f));
+    //float3 EyeRay = normalize(EyePosition - WorldOffset.xyz);
+    //float TangentScale = max(sqrt(max(dot(EyeRay, WorldNormal.xyz), 0.0f)), 0.99);
 
     float4 ViewPosition = mul(WorldOffset, WorldToView);
     ViewPosition /= ViewPosition.w;
 
-    ViewPosition.xyz += SplatVertex.xyz * TangentScale * SplatRadius;
-    Out.Position = mul(ViewPosition, ViewToClip);
+    //ViewPosition.xyz += SplatVertex.xyz * SplatRadius;
+    float4 ClipPosition = mul(ViewPosition, ViewToClip);
+    ClipPosition /= ClipPosition.w;
+    ClipPosition.xy += SplatVertex.xy * float2(SplatRadius / AspectRatio, SplatRadius);
+    ClipPosition.z -= SplatVertex.z * 0.00001;
+    Out.Position = ClipPosition;
 
-#if 1
     Out.Color = Color;
-#else
-    float Alpha = 1.0f + SplatVertex.z;
-    Out.Color = lerp(float4(1.0f, 1.0f, 1.0f, 1.0f), Color, Alpha);
-#endif
     return Out;
 }
 
