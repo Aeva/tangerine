@@ -52,6 +52,19 @@ public class Experiment : Game
     private bool FullScreen = true;
     private bool VSync = true;
 
+    // Units per second
+    private float Acceleration = 15.0f;
+    private float TopSpeed = 60.0f;
+
+    // Degrees per second
+    private float TurnSpeed = 90.0f;
+
+    // Degrees
+    private float CurrentHeading = 0.0f;
+
+    // Units per second
+    private float LinearVelocity = 0.0f;
+
     private double FieldOfView = 60;
     private double NearPlane = 0.001;
 
@@ -107,8 +120,8 @@ public class Experiment : Game
 
     private Vector3[] LightPoints = new Vector3[3];
     private Vector3[] LightColors = new Vector3[3];
-    private Vector3 Eye = new Vector3(0.0f, -16.0f, 8.0f);
-    private Vector3 FocalPoint = new Vector3(0.0f, 0.0f, 0.0f);
+    private Vector3 Eye = new Vector3(0.0f, -8.0f, 2.0f);
+    private Vector3 EyeDir = new Vector3(0.0f, 1.0f, 0.0f);
 
     public Experiment()
     {
@@ -172,10 +185,10 @@ public class Experiment : Game
                         Union(
                             RotateX(Cylinder(3.0f, 5.0f), 90.0f),
                             RotateY(Cylinder(3.0f, 5.0f), 90.0f))));
-            var Plate =
+            var Ground =
                 Plane(0.0f, 0.0f, 1.0f);
 
-            Model = Union(MoveZ(Plate, -2.0f), BasicThing);
+            Model = Union(Ground, MoveZ(BasicThing, 2.0f));
         }
 
         {
@@ -183,7 +196,7 @@ public class Experiment : Game
             WorldToLocal = Matrix4x4.Identity;
             WorldToView = Matrix4x4.CreateLookAt(
                 Eye,
-                FocalPoint,
+                Vector3.Zero,
                 new Vector3(0, 0, 1));
             InfinitePerspective(out ViewToClip);
         }
@@ -600,6 +613,7 @@ public class Experiment : Game
 
     protected override void Update(GameTime gameTime)
     {
+        double ElapsedTimeMs = 0.0f;
         long CurrentFrameTicks = DateTime.UtcNow.Ticks;
         {
             long ElapsedTicks = CurrentFrameTicks - LastFrameTicks;
@@ -607,7 +621,7 @@ public class Experiment : Game
 
             if (Paused == 0)
             {
-                double ElapsedTimeMs = (double)ElapsedTicks / (double)TimeSpan.TicksPerMillisecond;
+                ElapsedTimeMs = (double)ElapsedTicks / (double)TimeSpan.TicksPerMillisecond;
                 RunTimeMs += ElapsedTimeMs;
             }
         }
@@ -637,13 +651,13 @@ public class Experiment : Game
                 double P = 2.0 * Math.PI * Phase;
                 float S = (float)Math.Sin(T * Speed + P);
                 float C = (float)Math.Cos(T * Speed + P);
-                return new Vector3(S * 15.0f, C * 15.0f, 10.0f);
+                return Eye + new Vector3(S * 30.0f, C * 30.0f, 12.0f);
             };
 
             LightPoints[0] = FindLightPosition(1.0, 0.0 / 3.0);
             LightPoints[1] = FindLightPosition(2.0, 1.0 / 3.0);
             LightPoints[2] = FindLightPosition(-4.0, 2.0 / 3.0);
-#if true
+#if false
             {
                 //float T = (float)(RunTimeMs / -500.0 * Math.PI);
                 float T = (float)(RunTimeMs / -10000.0 * Math.PI);
@@ -651,14 +665,52 @@ public class Experiment : Game
                 float S = (float)Math.Sin(T);
                 float C = (float)Math.Cos(T);
                 Eye = new Vector3(S * 8.0f, C * 8.0f, 2.0f);
-
-                WorldToView = Matrix4x4.CreateLookAt(
-                    Eye,
-                    FocalPoint,
-                    new Vector3(0, 0, 1));
             }
 #endif
         }
+
+        {
+            float Seconds = (float)(ElapsedTimeMs / 1000.0);
+
+            float Turn = 0.0f;
+            if (Keyboard.GetState().IsKeyDown(Keys.Left))
+            {
+                Turn -= TurnSpeed * Seconds;
+            }
+            if (Keyboard.GetState().IsKeyDown(Keys.Right))
+            {
+                Turn += TurnSpeed * Seconds;
+            }
+            if (Math.Abs(Turn) > 0.001)
+            {
+                CurrentHeading = (CurrentHeading + Turn) % 360.0f;
+                float Radians = (float)(Math.PI / 180.0) * CurrentHeading;
+                EyeDir.X = (float)Math.Sin(Radians);
+                EyeDir.Y = (float)Math.Cos(Radians);
+            }
+
+            if (Keyboard.GetState().IsKeyDown(Keys.Up))
+            {
+                LinearVelocity = Math.Min(LinearVelocity + Acceleration * Seconds, TopSpeed);
+            }
+            else
+            {
+                LinearVelocity *= 0.99f;
+            }
+            if (Keyboard.GetState().IsKeyDown(Keys.Down))
+            {
+                LinearVelocity = Math.Max(LinearVelocity - Acceleration * Seconds, 0.0f);
+            }
+            if (LinearVelocity > 0.01)
+            {
+                Eye += EyeDir * LinearVelocity * Seconds;
+            }
+        }
+
+        WorldToView = Matrix4x4.CreateLookTo(
+            Eye,
+            EyeDir,
+            new Vector3(0, 0, 1));
 
         {
             const long UpdateTimeSlice = TimeSpan.TicksPerMillisecond * 4;
@@ -684,10 +736,10 @@ public class Experiment : Game
                 ElapsedTicks = DateTime.UtcNow.Ticks - StartTime;
             }
 
-            double ElapsedTimeMs = (double)ElapsedTicks / (double)TimeSpan.TicksPerMillisecond;
+            double ElapsedCopyTimeMs = (double)ElapsedTicks / (double)TimeSpan.TicksPerMillisecond;
 
             SplatCopyCount.LogQuantity(Processed);
-            SplatCopyTime.LogQuantity(ElapsedTimeMs);
+            SplatCopyTime.LogQuantity(ElapsedCopyTimeMs);
         }
 
         double CadenceMs = FrameRate.Average();
