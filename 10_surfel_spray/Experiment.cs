@@ -40,15 +40,18 @@ public class Experiment : Game
     private int TracingRate = 1_800;
 
     // Fudge factor.
-    private double SplatSizeMultiplier = 2.0;
+    private float SplatMultiplierMin = 1.5f;
+    private float SplatMultiplierMax = 3.0f;
+    private float SplatMultiplier = 2.0f;
 
     // View space distance.
-    private float SplatDepth = 0.01f;
+    private float SplatDepth = 0.05f;
 
     // Vertex counts per loop.
     private int[] SplatRings = {1, 5};
 
-    private int WindowSize = 600;
+    private int WindowWidth = 900;
+    private int WindowHeight = 600;
     private bool FullScreen = true;
     private bool VSync = true;
 
@@ -57,7 +60,7 @@ public class Experiment : Game
     private float TopSpeed = 60.0f;
 
     // Degrees per second
-    private float TurnSpeed = 90.0f;
+    private float TurnSpeed = 30.0f;
 
     // Degrees
     private float CurrentHeading = 0.0f;
@@ -120,7 +123,7 @@ public class Experiment : Game
 
     private Vector3[] LightPoints = new Vector3[3];
     private Vector3[] LightColors = new Vector3[3];
-    private Vector3 Eye = new Vector3(0.0f, -8.0f, 2.0f);
+    private Vector3 Eye = new Vector3(5.0f, -8.0f, 2.0f);
     private Vector3 EyeDir = new Vector3(0.0f, 1.0f, 0.0f);
 
     public Experiment()
@@ -145,8 +148,8 @@ public class Experiment : Game
         }
         else
         {
-            _graphics.PreferredBackBufferWidth = WindowSize;
-            _graphics.PreferredBackBufferHeight = WindowSize;
+            _graphics.PreferredBackBufferWidth = WindowWidth;
+            _graphics.PreferredBackBufferHeight = WindowHeight;
             _graphics.IsFullScreen = false;
             IsMouseVisible = true;
         }
@@ -160,7 +163,7 @@ public class Experiment : Game
         FrustaCountY = (int)Math.Floor(ScreenH / BudgetScale);
         TracingRate = FrustaCountX * FrustaCountY;
 
-        SplatDiameter = (float)((double)ScreenW / (double)MaxSurfels / Math.Sqrt(2.0) * SplatSizeMultiplier);
+        SplatDiameter = (float)((double)ScreenW / (double)MaxSurfels / Math.Sqrt(2.0));
 
         _graphics.ApplyChanges();
 
@@ -175,6 +178,7 @@ public class Experiment : Game
         PendingSurfels = new ConcurrentQueue<List<(Vector4 Position, Vector4 Normal, Color Color)>>();
 
         {
+#if true
             var BasicThing =
                 Diff(
                     Inter(
@@ -185,10 +189,15 @@ public class Experiment : Game
                         Union(
                             RotateX(Cylinder(3.0f, 5.0f), 90.0f),
                             RotateY(Cylinder(3.0f, 5.0f), 90.0f))));
+            BasicThing = MoveZ(BasicThing, 2.0f);
+#else
+            var BasicThing =
+                MoveZ(Box(4.0f, 10.0f, 5.0f), 2.5f);
+#endif
             var Ground =
                 Plane(0.0f, 0.0f, 1.0f);
 
-            Model = Union(Ground, MoveZ(BasicThing, 2.0f));
+            Model = Union(Ground, BasicThing);
         }
 
         {
@@ -269,7 +278,7 @@ public class Experiment : Game
         float Travel = 0.0f;
         for (int Iteration = 0; Iteration < 1000 && Travel < MaxTravel; ++Iteration)
         {
-            float Dist = EvalModel(Point);
+            float Dist = EvalModel(Point) - Margin;
             if (Dist <= 0.001f)
             {
                 return (true, Math.Max(Travel - Margin, 0.0f));
@@ -340,6 +349,8 @@ public class Experiment : Game
             SliceSize = CeilDivide(CurrentTracingRate, SliceCount);
         }
 
+        Color MissColor = new Color(0.2f, 0.2f, 0.2f, 1.0f);
+
         Parallel.For(0, SliceCount, parallelOptions, (SliceIndex) =>
         {
             int SliceStart = SliceIndex * SliceSize;
@@ -406,7 +417,8 @@ public class Experiment : Game
                     }
                 }
                 {
-                    NewSurfels.Add((new Vector4(Stop, 1.0f), new Vector4(-RayDir, 1.0f), Color.CornflowerBlue));
+                    //NewSurfels.Add((new Vector4(Stop, 1.0f), new Vector4(-RayDir, 1.0f), Color.CornflowerBlue));
+                    NewSurfels.Add((new Vector4(Stop, 1.0f), new Vector4(-RayDir, 1.0f), MissColor));
                     continue;
                 }
             }
@@ -682,7 +694,7 @@ public class Experiment : Game
                 double P = 2.0 * Math.PI * Phase;
                 float S = (float)Math.Sin(T * Speed + P);
                 float C = (float)Math.Cos(T * Speed + P);
-                return Eye + new Vector3(S * 30.0f, C * 30.0f, 12.0f);
+                return Eye + new Vector3(S * 20.0f, C * 20.0f, 15.0f);
             };
 
             LightPoints[0] = FindLightPosition(1.0, 0.0 / 3.0);
@@ -753,7 +765,7 @@ public class Experiment : Game
 
                     for (int i = 0; i < 100 && Remainder > 0.01f; ++i)
                     {
-                        (bool Hit, float Travel) = TravelTrace(Eye, Dir, Remainder, 0.25f);
+                        (bool Hit, float Travel) = TravelTrace(Eye, Dir, Remainder, 0.125f);
                         Remainder = Math.Max(0.0f, Remainder - Travel);
                         Eye += Dir * Travel;
 
@@ -766,16 +778,29 @@ public class Experiment : Game
                             {
                                 Normal /= (float)Math.Sqrt(LenSquared);
                                 Dir = Vector3.Reflect(Dir, Normal);
+                                LinearVelocity *= 0.75f;
                             }
                             else
                             {
                                 Dir = -Dir;
+                                LinearVelocity *= 0.5f;
                             }
                         }
                     }
 
-                    LinearVelocity = Dir * LinearVelocity.Length();
+                    Magnitude = LinearVelocity.Length();
+                    LinearVelocity = Dir * Magnitude;
                 }
+
+                if (Magnitude > 0.0f)
+                {
+                    SplatMultiplier += 0.0125f;
+                }
+                else
+                {
+                    SplatMultiplier -= 0.0125f;
+                }
+                SplatMultiplier = Math.Clamp(SplatMultiplier, SplatMultiplierMin, SplatMultiplierMax);
             }
         }
 
@@ -883,7 +908,7 @@ public class Experiment : Game
         InstancedBasicEffect.Parameters["WorldToView"].SetValue(WorldToView);
         InstancedBasicEffect.Parameters["ViewToClip"].SetValue(ViewToClip);
         //InstancedBasicEffect.Parameters["EyePosition"].SetValue(Eye);
-        InstancedBasicEffect.Parameters["SplatRadius"].SetValue(SplatDiameter * 0.5f);
+        InstancedBasicEffect.Parameters["SplatRadius"].SetValue(SplatDiameter * 0.5f * SplatMultiplier);
         InstancedBasicEffect.Parameters["SplatDepth"].SetValue(SplatDepth);
         InstancedBasicEffect.Parameters["AspectRatio"].SetValue(AspectRatio);
 
