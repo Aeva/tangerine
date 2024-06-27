@@ -63,7 +63,7 @@ public class Experiment : Game
     private float CurrentHeading = 0.0f;
 
     // Units per second
-    private float LinearVelocity = 0.0f;
+    private Vector3 LinearVelocity = Vector3.Zero;
 
     private double FieldOfView = 60;
     private double NearPlane = 0.001;
@@ -236,7 +236,7 @@ public class Experiment : Game
         return Model.Gradient(Point);
     }
 
-    private (bool, Vector3) Trace (Vector3 Start, Vector3 Stop)
+    private (bool, Vector3) Trace(Vector3 Start, Vector3 Stop)
     {
         Vector3 Point = Start;
         Vector3 Dir = Vector3.Normalize(Stop - Start);
@@ -259,6 +259,37 @@ public class Experiment : Game
             }
         }
         return (false, Point);
+    }
+
+    private (bool, float) TravelTrace(Vector3 Start, Vector3 Dir, float MaxTravel, float Margin)
+    {
+        MaxTravel += Margin;
+        Vector3 Point = Start;
+        Dir = Vector3.Normalize(Dir);
+        float Travel = 0.0f;
+        for (int Iteration = 0; Iteration < 1000 && Travel < MaxTravel; ++Iteration)
+        {
+            float Dist = EvalModel(Point);
+            if (Dist <= 0.001f)
+            {
+                return (true, Math.Max(Travel - Margin, 0.0f));
+            }
+            else
+            {
+                Travel += Dist;
+                Point = Dir * Travel + Start;
+            }
+        }
+        return (false, Math.Max(MaxTravel - Margin, 0.0f));
+    }
+
+    private (bool, float) TravelTrace(Vector3 Start, Vector2 FlatDir, float MaxTravel, float Margin)
+    {
+        Vector3 Dir;
+        Dir.X = FlatDir.X;
+        Dir.Y = FlatDir.Y;
+        Dir.Z = 0.0f;
+        return TravelTrace(Start, Dir, MaxTravel, Margin);
     }
 
     private float LightTrace(Vector3 Start, Vector3 Stop, float LightSize)
@@ -691,7 +722,7 @@ public class Experiment : Game
 
             if (Keyboard.GetState().IsKeyDown(Keys.Up))
             {
-                LinearVelocity = Math.Min(LinearVelocity + Acceleration * Seconds, TopSpeed);
+                LinearVelocity += EyeDir * Acceleration * Seconds;
             }
             else
             {
@@ -699,11 +730,52 @@ public class Experiment : Game
             }
             if (Keyboard.GetState().IsKeyDown(Keys.Down))
             {
-                LinearVelocity = Math.Max(LinearVelocity - Acceleration * Seconds, 0.0f);
+                float Magnitude = LinearVelocity.Length();
+                if (Magnitude > 0.0f)
+                {
+                    LinearVelocity = (LinearVelocity / Magnitude) * Math.Max(Magnitude - (Acceleration * 0.5f * Seconds), 0.0f);
+                }
             }
-            if (LinearVelocity > 0.01)
+
             {
-                Eye += EyeDir * LinearVelocity * Seconds;
+                float Magnitude = LinearVelocity.Length();
+                if (Magnitude > TopSpeed)
+                {
+                    LinearVelocity /= Magnitude;
+                    LinearVelocity *= TopSpeed;
+                    Magnitude = TopSpeed;
+                }
+
+                if (Magnitude > 0.01)
+                {
+                    float Remainder = Magnitude * Seconds + 0.1f;
+                    Vector3 Dir = Vector3.Normalize(LinearVelocity);
+
+                    for (int i = 0; i < 100 && Remainder > 0.01f; ++i)
+                    {
+                        (bool Hit, float Travel) = TravelTrace(Eye, Dir, Remainder, 0.25f);
+                        Remainder = Math.Max(0.0f, Remainder - Travel);
+                        Eye += Dir * Travel;
+
+                        if (Hit)
+                        {
+                            Vector3 Normal = Gradient(Eye);
+                            Normal.Z = 0.0f;
+                            float LenSquared = Vector3.Dot(Normal, Normal);
+                            if (LenSquared > 0.0f)
+                            {
+                                Normal /= (float)Math.Sqrt(LenSquared);
+                                Dir = Vector3.Reflect(Dir, Normal);
+                            }
+                            else
+                            {
+                                Dir = -Dir;
+                            }
+                        }
+                    }
+
+                    LinearVelocity = Dir * LinearVelocity.Length();
+                }
             }
         }
 
