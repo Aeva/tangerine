@@ -25,34 +25,39 @@ namespace Experiment;
 
 public class Experiment : Game
 {
-#if true
-    private int MaxSurfels  =  100_000;
-    private int TracingRate =   10_000;
-    private int MinTracingRate = 1_000;
-    private float SplatDiameter = 1.0f / 50.0f;
+    // This determines the maximum number of surfels that will be rendered
+    // every frame, which effectively controls the point density as well as
+    // Convergence time.  If set too high, frame drops can occur.  If set
+    // too low, the image will look chunky.
+    private int MaxSurfels  = 100_000;
+
+    // This is the target number of new surfels to trace every generation.
+    // This tracing is performed asynchronously, but the tracing rate should
+    // roughly match the amount of surfels that can be traced in one vsync
+    // interval to ensure a good screen space distribution and fill rate.
+    // Setting this a bit higher than expected may sometimes produce better
+    // results, however.
+    private int TracingRate = 1_800;
+
+    // Fudge factor.
+    private double SplatSizeMultiplier = 2.0;
+
+    // View space distance.
+    private float SplatDepth = 0.01f;
 
     // Vertex counts per loop.
-    private int[] SplatRings = {1, 5}; //, 20};
-#else
-    private int MaxSurfels  =   10_000;
-    private int TracingRate =   10_000;
-    private int MinTracingRate = 1_000;
-    private float SplatDiameter = 1.0f / 50.0f;
-
-    // Vertex counts per loop.
-    private int[] SplatRings = {1, 5, 20};
-#endif
+    private int[] SplatRings = {1, 5};
 
     private int WindowSize = 600;
     private bool FullScreen = true;
     private bool VSync = true;
 
+    private double FieldOfView = 60;
+    private double NearPlane = 0.001;
+
     private int Paused = 0;
     private long LastFrameTicks = 0;
     private double RunTimeMs = 0.0;
-
-    private float SplatCountAlpha = 0.25f;
-    private float SplatSizeAlpha = 1.0f;
 
     private readonly Evaluator.ProgramBuffer Model;
 
@@ -89,6 +94,7 @@ public class Experiment : Game
     private float AspectRatio;
     private int FrustaCountX;
     private int FrustaCountY;
+    private float SplatDiameter;
 
     private PerfCounter FrameRate = new PerfCounter();
     private PerfCounter SplatCopyCount = new PerfCounter();
@@ -101,7 +107,7 @@ public class Experiment : Game
 
     private Vector3[] LightPoints = new Vector3[3];
     private Vector3[] LightColors = new Vector3[3];
-    private Vector3 Eye = new Vector3(0.0f, -8.0f, 4.0f);
+    private Vector3 Eye = new Vector3(0.0f, -16.0f, 8.0f);
     private Vector3 FocalPoint = new Vector3(0.0f, 0.0f, 0.0f);
 
     public Experiment()
@@ -141,6 +147,8 @@ public class Experiment : Game
         FrustaCountY = (int)Math.Floor(ScreenH / BudgetScale);
         TracingRate = FrustaCountX * FrustaCountY;
 
+        SplatDiameter = (float)((double)ScreenW / (double)MaxSurfels / Math.Sqrt(2.0) * SplatSizeMultiplier);
+
         _graphics.ApplyChanges();
 
         Positions = new Vector4[MaxSurfels];
@@ -177,17 +185,7 @@ public class Experiment : Game
                 Eye,
                 FocalPoint,
                 new Vector3(0, 0, 1));
-            ViewToClip = Matrix4x4.CreatePerspectiveFieldOfView(MathHelper.ToRadians(45), AspectRatio, 0.01f, 1000.0f);
-
-            for (int Y = 0; Y<4; ++Y)
-            {
-                Console.Write($"| {ViewToClip[0, Y]}");
-                for (int X = 1; X<4; ++X)
-                {
-                    Console.Write($", {ViewToClip[X, Y]}");
-                }
-                Console.Write(" |\n");
-            }
+            InfinitePerspective(out ViewToClip);
         }
 
         PositionDesc = new VertexDeclaration(
@@ -209,11 +207,19 @@ public class Experiment : Game
 
     private float EvalModel(Vector3 Point)
     {
+        float Span = 10.0f;
+        Point.X -= Span * (float)Math.Round(Point.X / Span);
+        Point.Y -= Span * (float)Math.Round(Point.Y / Span);
+
         return Model.Eval(Point);
     }
 
     private Vector3 Gradient(Vector3 Point)
     {
+        float Span = 10.0f;
+        Point.X -= Span * (float)Math.Round(Point.X / Span);
+        Point.Y -= Span * (float)Math.Round(Point.Y / Span);
+
         return Model.Gradient(Point);
     }
 
@@ -222,7 +228,7 @@ public class Experiment : Game
         Vector3 Point = Start;
         Vector3 Dir = Vector3.Normalize(Stop - Start);
         float Travel = 0.0f;
-        for (int Iteration = 0; Iteration < 100; ++Iteration)
+        for (int Iteration = 0; Iteration < 1000; ++Iteration)
         {
             float Dist = EvalModel(Point);
             if (Dist <= 0.001f)
@@ -284,7 +290,7 @@ public class Experiment : Game
 
         if (CurrentTracingRate > parallelOptions.MaxDegreeOfParallelism)
         {
-            int MaximumBatchSize = 50;
+            int MaximumBatchSize = 16;
             SliceSize = Math.Min(CeilDivide(CurrentTracingRate, parallelOptions.MaxDegreeOfParallelism), MaximumBatchSize);
             SliceCount = CeilDivide(CurrentTracingRate, SliceSize);
             SliceSize = CeilDivide(CurrentTracingRate, SliceCount);
@@ -311,8 +317,8 @@ public class Experiment : Game
                     float AlphaX = (float)(Cursor % FrustaCountX) / (float)(FrustaCountX - 1) + JitterX;
                     float AlphaY = (float)(Cursor / FrustaCountX) / (float)(FrustaCountY - 1) + JitterY;
 
-                    float Horizontal = 45.0f * 0.5f * AspectRatio;
-                    float Vertical = 45.0f * 0.5f;
+                    float Horizontal = (float)FieldOfView * 0.5f * AspectRatio;
+                    float Vertical = (float)FieldOfView * 0.5f;
                     Horizontal = Lerp(-Horizontal, Horizontal, AlphaX);
                     Vertical = Lerp(-Vertical, Vertical, AlphaY);
 
@@ -324,7 +330,7 @@ public class Experiment : Game
                 }
 
                 var Start = Eye;
-                var Stop = RayDir * 1000.0f + Eye;
+                var Stop = RayDir * 100_000.0f + Eye;
 
                 if (Start != Stop)
                 {
@@ -352,7 +358,12 @@ public class Experiment : Game
                             }
                         }
                         NewSurfels.Add((new Vector4(Position, 1.0f), new Vector4(Normal, 1.0f), new Color(SplatColor)));
+                        continue;
                     }
+                }
+                {
+                    NewSurfels.Add((new Vector4(Stop, 1.0f), new Vector4(-RayDir, 1.0f), Color.CornflowerBlue));
+                    continue;
                 }
             }
 
@@ -361,6 +372,19 @@ public class Experiment : Game
                 PendingSurfels.Enqueue(NewSurfels);
             }
         });
+    }
+
+    private void InfinitePerspective(out Matrix4x4 Result)
+    {
+        // equiv to Math.Tan(Math.PI / 180 * FieldOfView / 2) * NearPlane
+        double View = Math.Tan(Math.PI / 360 * FieldOfView) * NearPlane;
+        Result = Matrix4x4.Identity;
+        Result[0, 0] = (float)(NearPlane / View);
+        Result[1, 1] = (float)(NearPlane / View * (double)AspectRatio);
+        Result[2, 2] = -1.0f;
+        Result[3, 3] = 0.0f;
+        Result[2, 3] = -1.0f;
+        Result[3, 2] = (float)(-2.0f * NearPlane);
     }
 
     protected override void LoadContent()
@@ -412,6 +436,7 @@ public class Experiment : Game
                     ++Ring;
                     Offset += VertexCount;
                 }
+
 
                 VoronoiVertexBuffer = new VertexBuffer(
                     GraphicsDevice,
@@ -561,7 +586,8 @@ public class Experiment : Game
                     }
                     else
                     {
-                        Thread.Sleep(1);
+                        //Thread.Sleep(1);
+                        Thread.Yield();
                     }
                 }
             }, CancelSource.Token);
@@ -601,24 +627,6 @@ public class Experiment : Game
             Paused = (Paused + 1) % 4;
         }
 
-        if (Keyboard.GetState().IsKeyDown(Keys.Up))
-        {
-            SplatCountAlpha = Math.Min(1.0f, SplatCountAlpha + 0.001f);
-        }
-        if (Keyboard.GetState().IsKeyDown(Keys.Down))
-        {
-            SplatCountAlpha = Math.Max(0.0f, SplatCountAlpha - 0.001f);
-        }
-
-        if (Keyboard.GetState().IsKeyDown(Keys.Left))
-        {
-            SplatSizeAlpha = Math.Min(1.0f, SplatSizeAlpha + 0.001f);
-        }
-        if (Keyboard.GetState().IsKeyDown(Keys.Right))
-        {
-            SplatSizeAlpha = Math.Max(0.0f, SplatSizeAlpha - 0.001f);
-        }
-
         FrameRate.LogFrame();
 
         if (Paused == 0)
@@ -642,7 +650,7 @@ public class Experiment : Game
                 //float T = (float)(RunTimeMs / -1000000.0 * Math.PI);
                 float S = (float)Math.Sin(T);
                 float C = (float)Math.Cos(T);
-                Eye = new Vector3(S * 8.0f, C * 8.0f, 1.0f);
+                Eye = new Vector3(S * 8.0f, C * 8.0f, 2.0f);
 
                 WorldToView = Matrix4x4.CreateLookAt(
                     Eye,
@@ -738,12 +746,13 @@ public class Experiment : Game
 
     protected override void Draw(GameTime gameTime)
     {
-        GraphicsDevice.Clear(new Color(0.0f, 0.0f, 0.0f));
-
-        // WorldToView = Matrix4x4.CreateLookAt(
-        //     Eye,
-        //     FocalPoint,
-        //     new Vector3(0, 0, 1));
+#if false
+        // Clear depth and color.
+        GraphicsDevice.Clear(Color.Black);
+#else
+        // Clear depth only.
+        GraphicsDevice.Clear(ClearOptions.DepthBuffer, Color.Black, 1.0f, 0);
+#endif
 
         InstancedBasicEffect.Parameters["LocalToWorld"].SetValue(LocalToWorld);
         //InstancedBasicEffect.Parameters["LocalToWorldRotateOnly"].SetValue(LocalToWorld);
@@ -751,6 +760,7 @@ public class Experiment : Game
         InstancedBasicEffect.Parameters["ViewToClip"].SetValue(ViewToClip);
         //InstancedBasicEffect.Parameters["EyePosition"].SetValue(Eye);
         InstancedBasicEffect.Parameters["SplatRadius"].SetValue(SplatDiameter * 0.5f);
+        InstancedBasicEffect.Parameters["SplatDepth"].SetValue(SplatDepth);
         InstancedBasicEffect.Parameters["AspectRatio"].SetValue(AspectRatio);
 
         if (LiveSurfels > 0)
