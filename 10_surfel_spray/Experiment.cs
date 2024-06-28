@@ -40,8 +40,8 @@ public class Experiment : Game
     private int TracingRate = 1_800;
 
     // Fudge factor.
-    private float SplatMultiplierMin = 1.5f;
-    private float SplatMultiplierMax = 3.0f;
+    private float SplatMultiplierMin = 1.25f;
+    private float SplatMultiplierMax = 2.0f;
     private float SplatMultiplier = 2.0f;
 
     // View space distance.
@@ -50,8 +50,8 @@ public class Experiment : Game
     // Vertex counts per loop.
     private int[] SplatRings = {1, 5};
 
-    private int WindowWidth = 900;
-    private int WindowHeight = 600;
+    private int WindowWidth = 2256;
+    private int WindowHeight = 1504;
     private bool FullScreen = true;
     private bool VSync = true;
 
@@ -163,7 +163,7 @@ public class Experiment : Game
         FrustaCountY = (int)Math.Floor(ScreenH / BudgetScale);
         TracingRate = FrustaCountX * FrustaCountY;
 
-        SplatDiameter = (float)((double)ScreenW / (double)MaxSurfels / Math.Sqrt(2.0));
+        SplatDiameter = (float)((double)ScreenW / (double)MaxSurfels / Math.Sqrt(2.0) / 2.0);
 
         _graphics.ApplyChanges();
 
