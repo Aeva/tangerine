@@ -29,7 +29,7 @@ public class Experiment : Game
     // every frame, which effectively controls the point density as well as
     // Convergence time.  If set too high, frame drops can occur.  If set
     // too low, the image will look chunky.
-    private int MaxSurfels  = 100_000;
+    private int MaxSurfels  = 50_000;
 
     // This is the target number of new surfels to trace every generation.
     // This tracing is performed asynchronously, but the tracing rate should
@@ -38,11 +38,6 @@ public class Experiment : Game
     // Setting this a bit higher than expected may sometimes produce better
     // results, however.
     private int TracingRate = 1_800;
-
-    // Fudge factor.
-    private float SplatMultiplierMin = 1.25f;
-    private float SplatMultiplierMax = 2.0f;
-    private float SplatMultiplier = 2.0f;
 
     // View space distance.
     private float SplatDepth = 0.05f;
@@ -110,7 +105,9 @@ public class Experiment : Game
     private float AspectRatio;
     private int FrustaCountX;
     private int FrustaCountY;
-    private float SplatDiameter;
+    private float FineDiameter; // Fine grain diameter.
+    private float CoarseDiameter; // Coarse grain diameter.
+    private float GrainAlpha = 0.25f;
 
     private PerfCounter FrameRate = new PerfCounter();
     private PerfCounter SplatCopyCount = new PerfCounter();
@@ -123,7 +120,7 @@ public class Experiment : Game
 
     private Vector3[] LightPoints = new Vector3[3];
     private Vector3[] LightColors = new Vector3[3];
-    private Vector3 Eye = new Vector3(5.0f, -8.0f, 2.0f);
+    private Vector3 Eye = new Vector3(0.0f, -8.0f, 2.0f); //new Vector3(5.0f, -8.0f, 2.0f);
     private Vector3 EyeDir = new Vector3(0.0f, 1.0f, 0.0f);
 
     public Experiment()
@@ -158,12 +155,20 @@ public class Experiment : Game
         double ScreenH = _graphics.PreferredBackBufferHeight;
         AspectRatio = (float)(ScreenW / ScreenH);
 
-        double BudgetScale = Math.Sqrt((double)(ScreenW * ScreenH) / TracingRate);
-        FrustaCountX = (int)Math.Floor(ScreenW / BudgetScale);
-        FrustaCountY = (int)Math.Floor(ScreenH / BudgetScale);
-        TracingRate = FrustaCountX * FrustaCountY;
+        double ScreenArea = ScreenW * ScreenH;
 
-        SplatDiameter = (float)((double)ScreenW / (double)MaxSurfels / Math.Sqrt(2.0) / 2.0);
+        double MinSquareArea = ScreenArea / (double)MaxSurfels;
+        double MinSquareEdge = Math.Sqrt(MinSquareArea);
+        FineDiameter = (float)(MinSquareEdge / ScreenH * Math.Sqrt(2.0));
+
+        double MaxSquareArea = ScreenArea / (double)TracingRate;
+        double MaxSquareEdge = Math.Sqrt(MaxSquareArea);
+        double CoarseFudge = 0.5; // TODO maybe the shading rate should be derrived from the grain size instead of vice versa?
+        CoarseDiameter = (float)(MaxSquareEdge / ScreenH * Math.Sqrt(2.0) * CoarseFudge);
+
+        FrustaCountX = (int)Math.Floor((ScreenW / MaxSquareEdge));
+        FrustaCountY = (int)Math.Floor((ScreenH / MaxSquareEdge));
+        TracingRate = FrustaCountX * FrustaCountY;
 
         _graphics.ApplyChanges();
 
@@ -435,8 +440,8 @@ public class Experiment : Game
         // equiv to Math.Tan(Math.PI / 180 * FieldOfView / 2) * NearPlane
         double View = Math.Tan(Math.PI / 360 * FieldOfView) * NearPlane;
         Result = Matrix4x4.Identity;
-        Result[0, 0] = (float)(NearPlane / View);
-        Result[1, 1] = (float)(NearPlane / View * (double)AspectRatio);
+        Result[0, 0] = (float)(NearPlane / View / (double)AspectRatio);
+        Result[1, 1] = (float)(NearPlane / View);
         Result[2, 2] = -1.0f;
         Result[3, 3] = 0.0f;
         Result[2, 3] = -1.0f;
@@ -758,7 +763,7 @@ public class Experiment : Game
                     Magnitude = TopSpeed;
                 }
 
-                if (Magnitude > 0.01)
+                if (Magnitude > 0.01f)
                 {
                     float Remainder = Magnitude * Seconds + 0.1f;
                     Vector3 Dir = Vector3.Normalize(LinearVelocity);
@@ -792,15 +797,22 @@ public class Experiment : Game
                     LinearVelocity = Dir * Magnitude;
                 }
 
-                if (Magnitude > 0.0f)
+                if (Magnitude > 0.01f)
                 {
-                    SplatMultiplier += 0.0125f;
+                    GrainAlpha += 1.0f * Seconds;
                 }
                 else
                 {
-                    SplatMultiplier -= 0.0125f;
+                    if (GrainAlpha > 0.001f)
+                    {
+                        GrainAlpha -= 0.25f * Seconds;
+                    }
+                    else
+                    {
+                        GrainAlpha = 0.0f;
+                    }
                 }
-                SplatMultiplier = Math.Clamp(SplatMultiplier, SplatMultiplierMin, SplatMultiplierMax);
+                GrainAlpha = Math.Clamp(GrainAlpha, 0.0f, 1.0f);
             }
         }
 
@@ -908,9 +920,9 @@ public class Experiment : Game
         InstancedBasicEffect.Parameters["WorldToView"].SetValue(WorldToView);
         InstancedBasicEffect.Parameters["ViewToClip"].SetValue(ViewToClip);
         //InstancedBasicEffect.Parameters["EyePosition"].SetValue(Eye);
-        InstancedBasicEffect.Parameters["SplatRadius"].SetValue(SplatDiameter * 0.5f * SplatMultiplier);
+        InstancedBasicEffect.Parameters["SplatRadius"].SetValue(Lerp(FineDiameter, CoarseDiameter, GrainAlpha * GrainAlpha) * 0.5f);
         InstancedBasicEffect.Parameters["SplatDepth"].SetValue(SplatDepth);
-        InstancedBasicEffect.Parameters["AspectRatio"].SetValue(AspectRatio);
+        InstancedBasicEffect.Parameters["AspectRatio"].SetValue(1.0f / AspectRatio);
 
         if (LiveSurfels > 0)
         {

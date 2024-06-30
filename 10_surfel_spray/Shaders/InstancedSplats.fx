@@ -37,7 +37,7 @@ VertexOutput VertexMain(
     //ViewPosition.xyz += SplatVertex.xyz * SplatRadius;
     float4 ClipPosition = mul(ViewPosition, ViewToClip);
     ClipPosition.xyz /= ClipPosition.w;
-    ClipPosition.xy += SplatVertex.xy * float2(SplatRadius, SplatRadius * AspectRatio);
+    ClipPosition.xy += SplatVertex.xy * float2(SplatRadius * AspectRatio, SplatRadius) * 2.0f;
     ClipPosition.xyz *= ClipPosition.w;
     Out.Position = ClipPosition;
 
