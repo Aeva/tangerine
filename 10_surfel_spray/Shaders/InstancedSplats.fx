@@ -4,7 +4,7 @@ float4x4 LocalToWorld;
 float4x4 WorldToView;
 float4x4 ViewToClip;
 //float3 EyePosition;
-float SplatRadius;
+float SplatDiameter;
 float SplatDepth;
 float AspectRatio;
 
@@ -37,7 +37,8 @@ VertexOutput VertexMain(
     //ViewPosition.xyz += SplatVertex.xyz * SplatRadius;
     float4 ClipPosition = mul(ViewPosition, ViewToClip);
     ClipPosition.xyz /= ClipPosition.w;
-    ClipPosition.xy += SplatVertex.xy * float2(SplatRadius * AspectRatio, SplatRadius) * 2.0f;
+
+    ClipPosition.xy += SplatVertex.xy * float2(SplatDiameter * AspectRatio, SplatDiameter);
     ClipPosition.xyz *= ClipPosition.w;
     Out.Position = ClipPosition;
 

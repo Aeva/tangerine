@@ -40,10 +40,10 @@ public class Experiment : Game
     private int TracingRate = 1_800;
 
     // View space distance.
-    private float SplatDepth = 0.05f;
+    private float SplatDepth = 0.01f;
 
     // Vertex counts per loop.
-    private int[] SplatRings = {1, 5};
+    private int[] SplatRings = {1, 5, 20};
 
     private int WindowWidth = 2256;
     private int WindowHeight = 1504;
@@ -98,9 +98,10 @@ public class Experiment : Game
     private int WriteCursor = 0;
 
     private Matrix4x4 LocalToWorld;
-    private Matrix4x4 WorldToLocal;
     private Matrix4x4 WorldToView;
     private Matrix4x4 ViewToClip;
+
+    private Matrix4x4 ClipToView;
 
     private float AspectRatio;
     private int FrustaCountX;
@@ -120,7 +121,7 @@ public class Experiment : Game
 
     private Vector3[] LightPoints = new Vector3[3];
     private Vector3[] LightColors = new Vector3[3];
-    private Vector3 Eye = new Vector3(0.0f, -8.0f, 2.0f); //new Vector3(5.0f, -8.0f, 2.0f);
+    private Vector3 Eye = new Vector3(5.0f, -8.0f, 2.0f);
     private Vector3 EyeDir = new Vector3(0.0f, 1.0f, 0.0f);
 
     public Experiment()
@@ -207,12 +208,40 @@ public class Experiment : Game
 
         {
             LocalToWorld = Matrix4x4.Identity;
-            WorldToLocal = Matrix4x4.Identity;
-            WorldToView = Matrix4x4.CreateLookAt(
+            WorldToView = Matrix4x4.CreateLookTo(
                 Eye,
-                Vector3.Zero,
+                EyeDir,
                 new Vector3(0, 0, 1));
             InfinitePerspective(out ViewToClip);
+
+            ClipToView = Matrix4x4.Identity;
+            Matrix4x4.Invert(ViewToClip, out ClipToView);
+
+#if false
+            // UV.x 0 to 1 maps to worldspace -X to +X
+            // UV.y 0 to 1 maps to worldspace -Z to +Z
+            Vector2 UV = new Vector2(0.0f, 0.0f);
+            //Vector4 Fnord = new Vector4(0, 0, (float)NearPlane, 1);
+            //Vector4 Meep = Vector4.Transform(Fnord, ViewToClip);
+            Vector4 ClipTarget = new Vector4(UV.X * 2.0f - 1.0f, UV.Y * 2.0f - 1.0f, -1, 1);
+            Console.WriteLine($"ClipTarget: {ClipTarget}");
+
+            Vector4 ViewTarget = Vector4.Transform(ClipTarget, ClipToView);
+            ViewTarget /= ViewTarget.W;
+            Console.WriteLine($"ViewTarget: {ViewTarget}");
+
+            Vector4 WorldTarget = Vector4.Transform(ViewTarget, ViewToWorld);
+            WorldTarget /= WorldTarget.W;
+            Console.WriteLine($"WorldTarget: {WorldTarget}");
+
+            Vector3 ViewRayDir = new Vector3(ViewTarget.X, ViewTarget.Y, ViewTarget.Z);
+            ViewRayDir = Vector3.Normalize(ViewRayDir);
+            Console.WriteLine($"ViewRayDir: {ViewRayDir}");
+
+            Vector3 WorldRayDir = new Vector3(WorldTarget.X, WorldTarget.Y, WorldTarget.Z);
+            WorldRayDir = Vector3.Normalize(WorldRayDir);
+            Console.WriteLine($"WorldRayDir: {WorldRayDir}");
+#endif
         }
 
         PositionDesc = new VertexDeclaration(
@@ -334,7 +363,10 @@ public class Experiment : Game
     private void PopulateSplats(ParallelOptions parallelOptions)
     {
         Matrix4x4 ViewToWorld = Matrix4x4.Identity;
+        Matrix4x4 WorldToLocal = Matrix4x4.Identity;
+
         Matrix4x4.Invert(WorldToView, out ViewToWorld);
+        Matrix4x4.Invert(LocalToWorld, out WorldToLocal);
 
         var CeilDivide = (int Numerator, int Denominator) =>
         {
@@ -364,29 +396,43 @@ public class Experiment : Game
 
             var NewSurfels = new List<(Vector4 Position, Vector4 Normal, Color Color)>(Range);
 
+            var SplatRNG = new Random();
+
             for (int BatchIndex = 0; BatchIndex < Range; ++BatchIndex)
             {
                 int Cursor = SliceStart + BatchIndex;
 
                 Vector3 RayDir;
                 {
-                    var SplatRNG = new Random();
-                    float JitterX = ((float)SplatRNG.Next(-1000, 1000)) / 1000.0f / (float)(FrustaCountX);
-                    float JitterY = ((float)SplatRNG.Next(-1000, 1000)) / 1000.0f / (float)(FrustaCountY);
+#if true
+                    float JitterX = (float)SplatRNG.Next(-1000, 1000) / 1000.0f * 0.5f;
+                    float JitterY = (float)SplatRNG.Next(-1000, 1000) / 1000.0f * 0.5f;
+#else
+                    float JitterX = 0.0f;
+                    float JitterY = 0.0f;
+#endif
 
-                    float AlphaX = (float)(Cursor % FrustaCountX) / (float)(FrustaCountX - 1) + JitterX;
-                    float AlphaY = (float)(Cursor / FrustaCountX) / (float)(FrustaCountY - 1) + JitterY;
+                    float FrustumX = (float)(Cursor % FrustaCountX) + 0.5f + JitterX;
+                    float FrustumY = (float)(Cursor / FrustaCountX) + 0.5f + JitterY;
 
-                    float Horizontal = (float)FieldOfView * 0.5f * AspectRatio;
-                    float Vertical = (float)FieldOfView * 0.5f;
-                    Horizontal = Lerp(-Horizontal, Horizontal, AlphaX);
-                    Vertical = Lerp(-Vertical, Vertical, AlphaY);
+                    float Overscan = Lerp(1.1f, 1.5f, GrainAlpha);
 
-                    var Transform = new Evaluator.Transform();
-                    Transform = Transform.RotateY(Horizontal);
-                    Transform = Transform.RotateX(Vertical);
-                    Vector3 Corner = Vector3.Transform(Transform.Apply(-Vector3.UnitZ), ViewToWorld) - Eye;
-                    RayDir = Vector3.Normalize(Corner);
+                    Vector4 ClipTarget;
+                    ClipTarget.X = (FrustumX / (float)FrustaCountX * 2.0f - 1.0f) * Overscan;
+                    ClipTarget.Y = (FrustumY / (float)FrustaCountY * 2.0f - 1.0f) * Overscan;
+                    ClipTarget.Z = -1;
+                    ClipTarget.W = 1;
+
+                    Vector4 ViewTarget = Vector4.Transform(ClipTarget, ClipToView);
+                    ViewTarget /= ViewTarget.W;
+
+                    Vector3 ViewRayDir;
+                    ViewRayDir.X = ViewTarget.X;
+                    ViewRayDir.Y = ViewTarget.Y;
+                    ViewRayDir.Z = ViewTarget.Z;
+                    ViewRayDir = Vector3.Normalize(ViewRayDir);
+
+                    RayDir = Vector3.TransformNormal(ViewRayDir, ViewToWorld);
                 }
 
                 var Start = Eye;
@@ -735,6 +781,8 @@ public class Experiment : Game
                 float Radians = (float)(Math.PI / 180.0) * CurrentHeading;
                 EyeDir.X = (float)Math.Sin(Radians);
                 EyeDir.Y = (float)Math.Cos(Radians);
+                EyeDir.Z = 0.0f;
+                EyeDir = Vector3.Normalize(EyeDir);
             }
 
             if (Keyboard.GetState().IsKeyDown(Keys.Up))
@@ -920,7 +968,8 @@ public class Experiment : Game
         InstancedBasicEffect.Parameters["WorldToView"].SetValue(WorldToView);
         InstancedBasicEffect.Parameters["ViewToClip"].SetValue(ViewToClip);
         //InstancedBasicEffect.Parameters["EyePosition"].SetValue(Eye);
-        InstancedBasicEffect.Parameters["SplatRadius"].SetValue(Lerp(FineDiameter, CoarseDiameter, GrainAlpha * GrainAlpha) * 0.5f);
+        InstancedBasicEffect.Parameters["SplatDiameter"].SetValue(
+            Lerp(FineDiameter, CoarseDiameter, GrainAlpha * GrainAlpha));
         InstancedBasicEffect.Parameters["SplatDepth"].SetValue(SplatDepth);
         InstancedBasicEffect.Parameters["AspectRatio"].SetValue(1.0f / AspectRatio);
 
