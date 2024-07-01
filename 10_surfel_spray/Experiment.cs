@@ -123,7 +123,7 @@ public class Experiment : Game
 
     private Vector3[] LightPoints = new Vector3[3];
     private Vector3[] LightColors = new Vector3[3];
-    private Vector3 Eye = new Vector3(5.0f, -8.0f, 2.0f);
+    private Vector3 Eye = new Vector3(0.0f, -8.0f, 2.0f); // May be offset by constructor.
     private Vector3 EyeDir = new Vector3(0.0f, 1.0f, 0.0f);
 
     public Experiment()
@@ -243,6 +243,14 @@ public class Experiment : Game
             WorldRayDir = Vector3.Normalize(WorldRayDir);
             Console.WriteLine($"WorldRayDir: {WorldRayDir}");
 #endif
+        }
+
+        {
+            var RNG = new Random();
+            if (RNG.Next(100) < 50)
+            {
+                Eye.X = 5.0f;
+            }
         }
 
         PositionDesc = new VertexDeclaration(
