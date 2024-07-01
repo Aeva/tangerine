@@ -43,7 +43,7 @@ public class Experiment : Game
     private float SplatDepth = 0.01f;
 
     // Vertex counts per loop.
-    private int[] SplatRings = {1, 5, 20};
+    private int[] SplatRings = {1, 5};
 
     private int WindowWidth = 2256;
     private int WindowHeight = 1504;
@@ -61,7 +61,7 @@ public class Experiment : Game
     private float CurrentHeading = 0.0f;
 
     // Units per second
-    private Vector3 LinearVelocity = Vector3.Zero;
+    private Vector3 LinearVelocity = new Vector3(0.0f, 60.0f, 0.0f);
 
     private double FieldOfView = 60;
     private double NearPlane = 0.001;
@@ -108,7 +108,9 @@ public class Experiment : Game
     private int FrustaCountY;
     private float FineDiameter; // Fine grain diameter.
     private float CoarseDiameter; // Coarse grain diameter.
-    private float GrainAlpha = 0.25f;
+    private float Turning = 0.0f;
+    private float Tunneling = 0.25f;
+    private float GrainAlpha = 1.0f;
 
     private PerfCounter FrameRate = new PerfCounter();
     private PerfCounter SplatCopyCount = new PerfCounter();
@@ -164,8 +166,7 @@ public class Experiment : Game
 
         double MaxSquareArea = ScreenArea / (double)TracingRate;
         double MaxSquareEdge = Math.Sqrt(MaxSquareArea);
-        double CoarseFudge = 0.5; // TODO maybe the shading rate should be derrived from the grain size instead of vice versa?
-        CoarseDiameter = (float)(MaxSquareEdge / ScreenH * Math.Sqrt(2.0) * CoarseFudge);
+        CoarseDiameter = (float)(MaxSquareEdge / ScreenH * Math.Sqrt(2.0));
 
         FrustaCountX = (int)Math.Floor((ScreenW / MaxSquareEdge));
         FrustaCountY = (int)Math.Floor((ScreenH / MaxSquareEdge));
@@ -415,13 +416,55 @@ public class Experiment : Game
                     float FrustumX = (float)(Cursor % FrustaCountX) + 0.5f + JitterX;
                     float FrustumY = (float)(Cursor / FrustaCountX) + 0.5f + JitterY;
 
-                    float Overscan = Lerp(1.1f, 1.5f, GrainAlpha);
-
                     Vector4 ClipTarget;
-                    ClipTarget.X = (FrustumX / (float)FrustaCountX * 2.0f - 1.0f) * Overscan;
-                    ClipTarget.Y = (FrustumY / (float)FrustaCountY * 2.0f - 1.0f) * Overscan;
+                    ClipTarget.X = (FrustumX / (float)FrustaCountX * 2.0f - 1.0f);
+                    ClipTarget.Y = (FrustumY / (float)FrustaCountY * 2.0f - 1.0f);
                     ClipTarget.Z = -1;
                     ClipTarget.W = 1;
+
+#if true
+                    if (Tunneling > 0.0f || Math.Abs(Turning) > 0.0f)
+                    {
+                        Vector2 Offset;
+                        Offset.X = 0.5f * Turning;
+                        Offset.Y = 0.0f;
+
+                        Vector2 Scale;
+                        Scale.X = Math.Abs((ClipTarget.X >= Offset.X ? 1.0f : -1.0f) - Offset.X);
+                        Scale.Y = 1.0f;
+
+                        Vector2 Point;
+                        Point.X = ClipTarget.X;
+                        Point.Y = ClipTarget.Y;
+
+                        Point = (Point - Offset) / Scale;
+                        float Mag = Point.Length();
+                        if (Mag > 0.0f)
+                        {
+                            Vector2 Norm = Point / Mag;
+                            Norm /= Math.Max(Math.Abs(Norm.X), Math.Abs(Norm.Y));
+                            float MagScale = Norm.Length();
+                            float NewMag = Mag / MagScale;
+                            NewMag = NewMag * NewMag * MagScale;
+                            float Distortion = NewMag / Mag;
+                            Point *= Distortion;
+                        }
+                        Point = Point * Scale + Offset;
+
+                        float Alpha = Math.Max(Tunneling * 0.75f, Math.Abs(Turning) * 0.5f);
+                        ClipTarget.X = Lerp(ClipTarget.X, Point.X, Alpha);
+                        ClipTarget.Y = Lerp(ClipTarget.Y, Point.Y, Alpha);
+                    }
+#endif
+
+#if false
+                    ClipTarget.X *= 0.5f;
+                    ClipTarget.Y *= 0.5f;
+#endif
+
+                    float Overscan = Lerp(1.1f, 1.5f, Tunneling);
+                    ClipTarget.X *= Overscan;
+                    ClipTarget.Y *= Overscan;
 
                     Vector4 ViewTarget = Vector4.Transform(ClipTarget, ClipToView);
                     ViewTarget /= ViewTarget.W;
@@ -751,16 +794,6 @@ public class Experiment : Game
             LightPoints[0] = FindLightPosition(1.0, 0.0 / 3.0);
             LightPoints[1] = FindLightPosition(2.0, 1.0 / 3.0);
             LightPoints[2] = FindLightPosition(-4.0, 2.0 / 3.0);
-#if false
-            {
-                //float T = (float)(RunTimeMs / -500.0 * Math.PI);
-                float T = (float)(RunTimeMs / -10000.0 * Math.PI);
-                //float T = (float)(RunTimeMs / -1000000.0 * Math.PI);
-                float S = (float)Math.Sin(T);
-                float C = (float)Math.Cos(T);
-                Eye = new Vector3(S * 8.0f, C * 8.0f, 2.0f);
-            }
-#endif
         }
 
         {
@@ -777,12 +810,17 @@ public class Experiment : Game
             }
             if (Math.Abs(Turn) > 0.001)
             {
+                Turning = Math.Clamp(Turning += Turn, -1.0f, 1.0f);
                 CurrentHeading = (CurrentHeading + Turn) % 360.0f;
                 float Radians = (float)(Math.PI / 180.0) * CurrentHeading;
                 EyeDir.X = (float)Math.Sin(Radians);
                 EyeDir.Y = (float)Math.Cos(Radians);
                 EyeDir.Z = 0.0f;
                 EyeDir = Vector3.Normalize(EyeDir);
+            }
+            else
+            {
+                Turning = 0.0f;
             }
 
             if (Keyboard.GetState().IsKeyDown(Keys.Up))
@@ -847,20 +885,22 @@ public class Experiment : Game
 
                 if (Magnitude > 0.01f)
                 {
-                    GrainAlpha += 1.0f * Seconds;
+                    Tunneling += 1.0f * Seconds;
                 }
                 else
                 {
-                    if (GrainAlpha > 0.001f)
+                    if (Tunneling > 0.001f)
                     {
-                        GrainAlpha -= 0.25f * Seconds;
+                        Tunneling -= 0.25f * Seconds;
                     }
                     else
                     {
-                        GrainAlpha = 0.0f;
+                        Tunneling = 0.0f;
                     }
                 }
-                GrainAlpha = Math.Clamp(GrainAlpha, 0.0f, 1.0f);
+                Tunneling = Math.Clamp(Tunneling, 0.0f, 1.0f);
+                GrainAlpha = Tunneling * 0.4f;
+                GrainAlpha *= GrainAlpha;
             }
         }
 
@@ -968,8 +1008,9 @@ public class Experiment : Game
         InstancedBasicEffect.Parameters["WorldToView"].SetValue(WorldToView);
         InstancedBasicEffect.Parameters["ViewToClip"].SetValue(ViewToClip);
         //InstancedBasicEffect.Parameters["EyePosition"].SetValue(Eye);
+
         InstancedBasicEffect.Parameters["SplatDiameter"].SetValue(
-            Lerp(FineDiameter, CoarseDiameter, GrainAlpha * GrainAlpha));
+            Lerp(FineDiameter, CoarseDiameter, GrainAlpha));
         InstancedBasicEffect.Parameters["SplatDepth"].SetValue(SplatDepth);
         InstancedBasicEffect.Parameters["AspectRatio"].SetValue(1.0f / AspectRatio);
 
